@@ -1,6 +1,5 @@
 """
 HRMS-1103 -- LinkedIn Sourcing Agent Loop (Phase 3 Workstream 1 /
-import logging
 Recruit), EPIC-11.
 
 Consumes OPEN sourcing_alerts (HRMS-1102's output), generates a Boolean
@@ -44,7 +43,6 @@ from app.models.sourcing import SourcingAlert, SourcingSearchRun, StagedCandidat
 from app.models.user import Users
 from app.services.candidate_service import create_candidate, find_duplicate_candidate
 from app.services.notification_service import send_notification
-from app.core.logging import logger
 
 CONSECUTIVE_SEARCH_FAILURES_BEFORE_ESCALATION = 2  # AC-6
 

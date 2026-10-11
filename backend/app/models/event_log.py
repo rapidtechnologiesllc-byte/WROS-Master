@@ -1,5 +1,4 @@
 """
-import logging
 S-078/HRMS-0478 -- Event Emission Layer for AI Actions.
 
 Real architecture adaptation (per Avinash's explicit direction,

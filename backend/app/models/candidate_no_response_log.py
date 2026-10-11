@@ -1,5 +1,4 @@
 """
-import logging
 S-042/HRMS-0442 -- No Response Detection.
 
 candidate_no_response_log: genuinely new table, real audit trail of

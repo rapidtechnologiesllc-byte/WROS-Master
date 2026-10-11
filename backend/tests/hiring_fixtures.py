@@ -31,3 +31,75 @@ def clear_hiring(db, candidate, offer=None, joining_date=None):
                                   offer_letter_id=offer.id, status="PASSED"))
     db.commit()
     return offer
+
+
+def finance_approver(db, tenant_id=1, level=11):
+    """A Finance Director (Senior Manager+ in Finance): the only kind of user who may approve invoices.
+    The role holds the invoices permission, as Finance roles do in production."""
+    import uuid
+
+    from app.models.role_template import Module, Resource, RoleTemplate, RoleTemplatePermission
+    from app.models.tenant import Tenant
+    from app.models.user import Users
+
+    if db.query(Tenant).filter_by(id=tenant_id).first() is None:
+        db.add(Tenant(id=tenant_id, name="test-tenant"))
+        db.flush()
+    suffix = uuid.uuid4().hex[:8]
+    role = RoleTemplate(tenant_id=tenant_id, name=f"finance-director-{suffix}", display_name="Finance Director",
+                        hierarchy_level=level, specialization="Finance", enabled=True)
+    db.add(role)
+    db.flush()
+    resource = db.query(Resource).filter_by(tenant_id=tenant_id, name="invoices").first()
+    if resource is None:
+        module = db.query(Module).filter_by(tenant_id=tenant_id, name="Finance").first() or \
+            Module(tenant_id=tenant_id, name="Finance", display_name="Finance")
+        db.add(module)
+        db.flush()
+        resource = Resource(tenant_id=tenant_id, module_id=module.id, name="invoices", display_name="Invoices")
+        db.add(resource)
+        db.flush()
+    db.add(RoleTemplatePermission(role_template_id=role.id, resource_id=resource.id, tenant_id=tenant_id,
+                                  can_view=True, can_create=True, can_edit=True))
+    db.flush()
+    user = Users(UserID=f"FIN-{suffix}", UserName="Fin Director", UserEmail=f"fin{suffix}@blitzenx.com",
+                 UserPassword="x", UserRole="finance", tenant_id=tenant_id, role_template_id=role.id,
+                 password_reset_required=False)
+    db.add(user)
+    db.flush()
+    return user
+
+
+def full_access_role(db, tenant_id=1):
+    """An administrator role as production seeds it: every resource, every action, granted
+    through the permission matrix (there is no super-user bypass -- CEO 2026-10-11)."""
+    import uuid
+
+    from app.contracts.api_contract import MODULES_AND_RESOURCES
+    from app.models.role_template import Module, Resource, RoleTemplate, RoleTemplatePermission
+    from app.models.tenant import Tenant
+
+    if db.query(Tenant).filter_by(id=tenant_id).first() is None:
+        db.add(Tenant(id=tenant_id, name="test-tenant"))
+        db.flush()
+    role = RoleTemplate(tenant_id=tenant_id, name=f"admin-{uuid.uuid4().hex[:8]}", display_name="Administrator",
+                        hierarchy_level=5, org_level_access=True, enabled=True, is_system=True)
+    db.add(role)
+    db.flush()
+    for module_name, resource_names in MODULES_AND_RESOURCES.items():
+        module = db.query(Module).filter_by(tenant_id=tenant_id, name=module_name).first()
+        if module is None:
+            module = Module(tenant_id=tenant_id, name=module_name, display_name=module_name)
+            db.add(module)
+            db.flush()
+        for resource_name in resource_names:
+            resource = db.query(Resource).filter_by(tenant_id=tenant_id, name=resource_name).first()
+            if resource is None:
+                resource = Resource(tenant_id=tenant_id, module_id=module.id, name=resource_name,
+                                    display_name=resource_name)
+                db.add(resource)
+                db.flush()
+            db.add(RoleTemplatePermission(role_template_id=role.id, resource_id=resource.id, tenant_id=tenant_id,
+                                          can_view=True, can_create=True, can_edit=True, can_delete=True))
+    db.flush()
+    return role

@@ -2,7 +2,6 @@
 S-434 -- Org-wide Task Dashboard.
 ==================================================================
 Prefix: /tasks
-import logging
 Tag:    tasks
 
 Internal-employees-only surface (any authenticated Users row, not

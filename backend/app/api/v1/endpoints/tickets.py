@@ -2,7 +2,6 @@
 Help Desk / IT-HR Ticketing.
 ==================================================================
 Prefix: /tickets
-import logging
 Tag:    tickets
 
 Internal-employees-only, same auth posture as /tasks -- any

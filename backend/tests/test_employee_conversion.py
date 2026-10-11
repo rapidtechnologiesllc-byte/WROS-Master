@@ -22,7 +22,7 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 from app.services import account_activation_service as accounts
 from app.services.message_handlers.send_account_email_handler import SendAccountEmailHandler
-from tests.hiring_fixtures import clear_hiring
+from tests.hiring_fixtures import clear_hiring, full_access_role
 
 
 def _uid():
@@ -78,8 +78,7 @@ def world(db):
     if db.query(Tenant).filter_by(id=1).first() is None:
         db.add(Tenant(id=1, name="BlitzenX"))
         db.flush()
-    role = db.query(RoleTemplate).filter_by(tenant_id=1, name="Super Admin").first() or \
-        RoleTemplate(tenant_id=1, name="Super Admin", display_name="Super Admin", enabled=True)
+    role = full_access_role(db)
     db.add(role)
     db.flush()
     # the resources the production Employee role is seeded with, then the role itself (same code as startup)
@@ -99,7 +98,7 @@ def world(db):
                   password_reset_required=False)
     unit = BusinessUnit(name=f"bu-{_uid()}", display_name="BU")
     candidate = Candidate(candidateID=f"CAN-{_uid()}", candidateEmail=f"jo{_uid()}@example.com",
-                          candidatePassword="x", candidateFirstName="Jo", candidateLastName="Park", tenant_id=1)
+                          candidatePassword="x", candidateFirstName="Jo", candidateLastName="Park", tenant_id=1, total_experience_months=72)
     db.add_all([admin, unit, candidate])
     db.commit()
     clear_hiring(db, candidate)  # interviews, offer, documents and BGV all passed
@@ -213,7 +212,7 @@ def test_resend_activation_for_an_employee(db, api, world):
 def test_conversion_is_refused_before_the_candidate_clears_hiring(db, api, world):
     client, _ = api
     fresh = Candidate(candidateID=f"CAN-{_uid()}", candidateEmail=f"f{_uid()}@example.com", candidatePassword="x",
-                      candidateFirstName="New", candidateLastName="Person", tenant_id=1)
+                      candidateFirstName="New", candidateLastName="Person", tenant_id=1, total_experience_months=72)
     db.add(fresh)
     db.commit()
     response = client.post("/api/v1/employees/convert-candidate", headers=_headers(world.admin), json={

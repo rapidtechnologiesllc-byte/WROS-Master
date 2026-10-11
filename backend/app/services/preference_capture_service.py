@@ -1,5 +1,4 @@
 """
-import logging
 S-073/HRMS-0473 -- Candidate Preference Capture Engine.
 
 Real architecture adaptations:

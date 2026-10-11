@@ -1,5 +1,4 @@
 """
-import logging
 Candidate Rejection Workflow Model
 
 Tracks candidate rejections with audit trail, reasons, and archival status.

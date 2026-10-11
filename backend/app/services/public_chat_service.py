@@ -9,7 +9,6 @@ creation entry point in this codebase uses (see
 app.api.v1.endpoints.create_job.apply_for_job for the other one). No
 shadow data model, no fabricated replies -- every message after the
 opening greeting goes through the real, context-aware
-import logging
 generate_thunder_reply_with_fallback().
 
 Session model: there's no login. The candidate_id returned by
@@ -26,11 +25,10 @@ from typing import Dict, List, Optional
 from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.consent import ConsentRecord
-from app.models.user import Jobs, Users
+from app.models.user import Jobs
 from app.services.ai_conversation_service import assign_ai_agent, resolve_default_tenant_id
 from app.services.candidate_service import find_duplicate_candidate
 from app.services.candidate_creation_sync_wait import queue_and_wait_for_candidate

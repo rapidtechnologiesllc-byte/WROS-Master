@@ -1,5 +1,4 @@
 """
-import logging
 Agent Pyramid Reporting System - 6-Level Hierarchical Accountability
 
 COMPLETE HIERARCHY (Deep to Shallow):
@@ -83,7 +82,6 @@ from app.models.opportunity import CLOSED_STAGES, Opportunity
 from app.models.project import Project
 from app.services.candidate_pipeline_stage import employee_active_allocation_ids
 from app.services.scope_helpers import opportunity_in_bu, project_in_bu
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
@@ -716,7 +714,7 @@ class PartnerWeeklyConsolidationAgent:
         elif revenue > 50000:
             return f"✅ STRONG WEEK: ${revenue:,.0f} revenue + {opps} new opportunities. Maintaining pace."
         else:
-            return f"✅ ON TRACK: All BUs performing within targets. Continue current execution."
+            return "✅ ON TRACK: All BUs performing within targets. Continue current execution."
 
     @staticmethod
     def _generate_action_items(bu_reports: List[Dict], escalations: List[str], pace_pct: float = 100) -> List[Dict]:
@@ -729,7 +727,7 @@ class PartnerWeeklyConsolidationAgent:
             actions.append({
                 "priority": "CRITICAL",
                 "item": f"Annual goal pace at {pace_pct:.0f}%",
-                "action": f"Increase revenue velocity. Current pace misses annual target. Review pipeline and deal stages.",
+                "action": "Increase revenue velocity. Current pace misses annual target. Review pipeline and deal stages.",
                 "owner": "Partner",
                 "due_date": "This week"
             })
@@ -774,10 +772,9 @@ class CEOExecutiveDashboardAgent:
         """
 
         # Get all Partners
-        partners = db.query(Users).filter(
-            Users.tenant_id == tenant_id,
-            Users.UserRole == "Partner"
-        ).all()
+        from app.services.finance_agent import partner_user_ids
+
+        partners = db.query(Users).filter(Users.UserID.in_(partner_user_ids(db, tenant_id))).all()
 
         # Generate partner reports
         partner_reports = []

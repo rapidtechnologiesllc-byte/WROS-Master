@@ -1,6 +1,5 @@
-from app.core.logging import logger
 """Pydantic schemas -- S-364 Buddy KPI Tracking + S-365 Graduation Gate."""
-from datetime import date, datetime
+from datetime import date
 import logging
 from typing import Dict, List, Optional
 

@@ -1,5 +1,4 @@
 """
-import logging
 Candidate Rejection Workflow Service
 
 Implements the complete rejection workflow:
@@ -21,24 +20,19 @@ import logging
 from typing import Optional, List, Tuple
 from datetime import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_
 
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.candidate_rejection import CandidateRejection, CandidateRejectionReason
-from app.models.user import Users
 from app.models.candidate_history import CandidateHistory
-from app.core.logging import logger
-from app.core.security import get_password_hash
 
 logger = logging.getLogger(__name__)
 
 class CandidateRejectionError(Exception):
     """Raised when rejection operation fails."""
-    pass
 
 class CandidateNotFoundError(Exception):
     """Raised when candidate doesn't exist."""
-    pass
 
 def reject_candidate(
     db: Session,
@@ -277,7 +271,7 @@ def archive_candidate(
         db.add(CandidateHistory(
             candidateID=candidate_id,
             event_type="Archive",
-            note=f"Candidate archived" + (f" ({archive_reason})" if archive_reason else ""),
+            note="Candidate archived" + (f" ({archive_reason})" if archive_reason else ""),
         ))
 
         db.commit()
@@ -303,7 +297,7 @@ def _send_rejection_email_internal(
 ) -> None:
     """
     Internal helper to send rejection email.
-    Uses sendThunderMessage() path if available, otherwise delivery_factory.
+    Sends via the tenant's delivery_factory email provider.
 
     Args:
         db: Database session
@@ -360,24 +354,9 @@ def _send_rejection_email_internal(
 
     body = "\n".join(body_parts)
 
-    # Try sendThunderMessage first (preferred)
-    try:
-        from app.services.conversation_service import send_thunder_message
-
-        send_thunder_message(
-            db,
-            candidate_id=rejection.candidate_id,
-            message_text=body,
-            channel="email",
-            subject=subject,
-        )
-        logger.info(f"Rejection email sent via Thunder for {rejection.candidate_id}")
-        return
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        logger.debug(f"Thunder message send failed, falling back to EmailService: {str(e)}")
-
-    # Fallback to delivery_factory (PHASE 3: Database-backed credentials)
+    # Candidate-facing email goes through the tenant's delivery provider.
+    # (thunder_service.send_thunder_message only supports whatsapp/web_chat
+    # on an existing conversation, so it is not an email path.)
     try:
         from app.services.delivery_factory import get_delivery_service
 

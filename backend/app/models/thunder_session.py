@@ -1,7 +1,6 @@
 """
 Thunder Session Model - Manages candidate chat sessions during pre-screening intake
 Tracks form state, question progression, resume data, and session persistence
-import logging
 """
 
 import logging

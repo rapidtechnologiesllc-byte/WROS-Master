@@ -1,5 +1,4 @@
 """
-import logging
 S-041/HRMS-0441 -- Follow-Up Scheduler.
 
 follow_up_schedule: genuinely new table -- a real, queryable, job-driven

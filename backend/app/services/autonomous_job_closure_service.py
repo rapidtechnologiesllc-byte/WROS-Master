@@ -1,7 +1,6 @@
 """
 Autonomous Job Closure Service
 ===============================
-import logging
 Automatically closes jobs when all positions are filled and notifies remaining candidates.
 
 Triggered by:

@@ -4,7 +4,6 @@ boundary as the existing employee self-service timesheet: whoever is
 logged in logs their OWN expense -- `logged_by_user_id` is always
 resolved from the authenticated caller, never a caller-supplied field
 (Avinash: "the expense is logged by employee so they need to login to
-import logging
 their portal and add their expense").
 
 BU attribution is derived from the logger's own business_unit_id at
@@ -186,8 +185,7 @@ def can_review_as_manager(db: Session, expense: ExpenseRecord, user: Users) -> b
         return False
     assigned = db.query(Task).filter(Task.expense_id == expense.id, Task.status != "COMPLETED",
                                      Task.assigned_to_user_id == user.UserID).first()
-    return assigned is not None or perms.is_super_user(db, user.UserID, user.tenant_id) \
-        or perms.has_permission(db, user.UserID, "revenue", "view", user.tenant_id)
+    return assigned is not None or perms.has_permission(db, user.UserID, "revenue", "view", user.tenant_id)
 
 
 def _close_open_tasks(db: Session, expense: ExpenseRecord) -> None:

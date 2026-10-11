@@ -1,5 +1,4 @@
 """
-import logging
 Phase 3 Part A2 -- HRMS-1101 System Orchestration Router.
 
 Two tables, straight from S-270_HRMS-1101.docx's Data Mapping section:

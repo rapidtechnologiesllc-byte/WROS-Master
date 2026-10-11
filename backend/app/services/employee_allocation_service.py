@@ -2,7 +2,6 @@
 HRMS-0507 -- allocate/end-allocation, the one write path that moves an
 employee off (or back onto) the bench. Per 04-RESOURCE-MANAGEMENT.md's
 own framing, this is always a distinct human decision, never automatic
-import logging
 -- there is no agent or ranking logic here (that's Phase 4 Part A).
 
 Reuses app.services.employee_service.transition_employee_status() for
@@ -105,6 +104,12 @@ def allocate_employee_to_project(
         raise AllocationNeedsClient(
             f"Job {demand.id} has no client. Set the client on the job before allocating anyone to it."
         )
+    if project is None and getattr(demand, "project_id", None):
+        # the job's project, so the allocation's time can be invoiced (an allocation with no
+        # project never reaches an invoice)
+        from app.models.project import Project
+
+        project = db.query(Project).filter(Project.id == demand.project_id).first()
     if project is not None and project.client_id != demand.client_id:
         raise ProjectClientMismatch(
             f"Project {project.id} belongs to a different client than job {demand.id}."

@@ -1,5 +1,4 @@
 """
-import logging
 Goals Management Endpoints - CEO Strategic Goals with Auto-Cascade
 
 CEO sets strategic goals. System automatically cascades to all departments.

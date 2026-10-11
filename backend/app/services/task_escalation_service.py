@@ -1,5 +1,4 @@
 """
-import logging
 S-434 -- Overdue task escalation.
 
 Confirmed 2026-08-04: crossing the due date while still open is a real

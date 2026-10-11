@@ -61,6 +61,7 @@ export const clearAuthSessionAndRedirectToLogin = () => {
     localStorage.removeItem("hrms_token");
     localStorage.removeItem("hrms_refresh_token");
     localStorage.removeItem("hrms_role");
+    localStorage.removeItem("hrms_authority");
     localStorage.removeItem("hrms_user_name");
     localStorage.removeItem("hrms_user_email");
     localStorage.removeItem("hrms_candidate_id");

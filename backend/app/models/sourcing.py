@@ -1,6 +1,5 @@
 """
 HRMS-1102 -- Workforce Demand Monitoring Agent (Phase 3 Workstream 1 /
-import logging
 Recruit), EPIC-11.
 
 Two tables, per S-271_HRMS-1102.docx's Data Mapping section:

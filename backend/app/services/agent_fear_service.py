@@ -1,6 +1,5 @@
 """
 Agent Fear State Calculation Service
-import logging
 ====================================
 
 Calculates agent fear levels based on performance metrics.

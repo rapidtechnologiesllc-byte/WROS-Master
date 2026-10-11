@@ -2,14 +2,12 @@
 Internal Note Schemas
 =====================
 Pydantic models for the Internal HR Note API.
-import logging
 """
 
 import logging
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
-from app.core.logging import logger
 
 # ---------------------------------------------------------------------------
 # Request schemas

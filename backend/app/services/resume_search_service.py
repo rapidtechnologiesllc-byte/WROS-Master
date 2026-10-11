@@ -1,5 +1,4 @@
 """
-import logging
 Resume Search Service - Index and search parsed resumes for candidate-to-job matching
 
 When a candidate resume is parsed, extract and store:
@@ -20,7 +19,6 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.candidate_resume_parsed import CandidateResumeParsed
 

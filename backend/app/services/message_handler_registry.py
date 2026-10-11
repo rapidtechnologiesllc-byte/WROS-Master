@@ -205,39 +205,13 @@ def _initialize_default_handlers():
     except ImportError as e:
         logger.warning(f"[Registry] Could not import Thunder/Formation handlers: {e}")
 
-    # Register offer handlers
-    try:
-        from app.services.message_handlers.offer_approved_handler import handle_offer_approved
-        from app.services.message_handlers.offer_sent_handler import handle_offer_sent
-        from app.services.message_handlers.offer_accepted_handler import handle_offer_accepted
-        from app.services.message_handlers.offer_rejected_handler import handle_offer_rejected
-        MessageHandlerRegistry.register("offer_approved", handle_offer_approved)
-        MessageHandlerRegistry.register("offer_sent", handle_offer_sent)
-        MessageHandlerRegistry.register("offer_accepted", handle_offer_accepted)
-        MessageHandlerRegistry.register("offer_rejected", handle_offer_rejected)
-    except ImportError as e:
-        logger.warning(f"[Registry] Could not import offer handlers: {e}")
+    # Offers move through the offer-letter endpoints and offer_response_service only; the
+    # offer_approved/sent/accepted/rejected queue handlers had no producer and were deleted.
 
-    # Register Phase 2: Revenue & Invoicing handlers (CRITICAL - ASC 606 compliance)
-    try:
-        from app.services.message_handlers.invoice_generation_handler import InvoiceGenerationHandler
-        from app.services.message_handlers.invoice_approved_handler import InvoiceApprovedHandler
-        from app.services.message_handlers.invoice_sent_handler import InvoiceSentHandler
-        from app.services.message_handlers.invoice_paid_handler import InvoicePaidHandler
-        from app.services.message_handlers.revenue_recognized_handler import RevenueRecognizedHandler
-
-        # Standard timesheet-based invoicing (5 handlers)
-        MessageHandlerRegistry.register("invoice_generation", InvoiceGenerationHandler.process)
-        MessageHandlerRegistry.register("invoice_approved", InvoiceApprovedHandler.process)
-        MessageHandlerRegistry.register("invoice_sent", InvoiceSentHandler.process)
-        MessageHandlerRegistry.register("invoice_paid", InvoicePaidHandler.process)
-        MessageHandlerRegistry.register("revenue_recognized", RevenueRecognizedHandler.process)
-
-        logger.info("[Registry] Registered Phase 2 invoice & revenue handlers (5 handlers total)")
-    except ImportError as e:
-        logger.warning(f"[Registry] Could not import invoice/revenue handlers: {e}")
-    except Exception as e:
-        logger.error(f"[Registry] Failed to register invoice/revenue handlers: {e}", exc_info=True)
+    # Invoice status changes happen only in invoice_service (approve: Finance Senior Manager+;
+    # send: request_invoice_email; paid: bank_reconciliation_service) and revenue only in
+    # revenue_chain_service.recognize_revenue. The old queue handlers that set those statuses
+    # directly (bypassing those rules) were deleted 2026-10-10.
 
     # interview_scheduled (queued by POST /interviews after it creates the interview): pause
     # Thunder outreach only. The old handler created a second, duplicate interview row.

@@ -1,5 +1,4 @@
 """
-import logging
 S-043/HRMS-0443 -- Candidate Ghosting Detection.
 
 Real architecture adaptations:

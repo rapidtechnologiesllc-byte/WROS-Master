@@ -22,11 +22,7 @@ router = APIRouter(prefix="/agents", tags=["Agents"])
 
 
 def _can_see_all_partners(db: Session, current_user: Users) -> bool:
-    from app.services.role_template_permission_service import RoleTemplatePermissionService
-
-    return RoleTemplatePermissionService.is_super_user(db, current_user.UserID, current_user.tenant_id) \
-        or PermissionHelper.has_any_permission(current_user.UserID, ["admin.manage", "revenue.manage"], db,
-                                               current_user.tenant_id)
+    return PermissionHelper.has_any_permission(current_user.UserID, ["revenue.edit"], db, current_user.tenant_id)
 
 
 def _own_partner_or_403(db: Session, current_user: Users, partner_id: str) -> None:

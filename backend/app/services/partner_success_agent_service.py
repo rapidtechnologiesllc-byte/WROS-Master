@@ -14,7 +14,7 @@ Philosophy: Partners succeed = company succeeds.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_, select
@@ -26,7 +26,6 @@ from app.services.finance_agent import partner_bu_ids
 from app.services.opportunity_service import calculate_weighted_forecast
 from app.services.opportunity_tracker_agent_service import OpportunityTrackerAgent
 from app.models.user import Users
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

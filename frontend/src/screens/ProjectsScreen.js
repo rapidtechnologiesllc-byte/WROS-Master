@@ -98,11 +98,9 @@ function CreateProjectForm({ onCreated }) {
       return;
     }
     try {
-      const [partners, ceos] = await Promise.all([
-        searchUsers({ name: value, permission_role: "Partner", limit: 5 }),
-        searchUsers({ name: value, permission_role: "Super User", limit: 5 }),
-      ]);
-      const merged = [...(partners?.users || []), ...(ceos?.users || [])];
+      // Partner / C-level and above, by role template level
+      const partners = await searchUsers({ name: value, authority: "partner", limit: 10 });
+      const merged = partners?.users || [];
       setClientPartnerSuggestions(merged);
       setShowClientPartnerSuggestions(merged.length > 0);
     } catch (err) {

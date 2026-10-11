@@ -12,34 +12,15 @@ Responsibilities:
   6. Log every action as a ConversationEvent.
 """
 
-import json
-import os
-import re
 import logging
-import requests
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
-from fastapi import HTTPException, Depends
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.graph_auth import get_graph_token
-from app.core.llm_prompt_safety import build_safe_prompt, flag_suspicious_patterns
-from app.core.logging import logger
 from app.models.candidate import (
     Candidate,
-    CandidateInfoForm,
-    CandidateExperienceForm,
-    CandidateEducationForm,
 )
-from app.models.candidate_ai import (
-    CandidateAIAssignment,
-    CandidateConversation,
-    ConversationEvent,
-)
-from app.models.user import Users
-from app.services.email_service import EmailService
-from app.services.permission_helper import PermissionHelper
 
 logger = logging.getLogger(__name__)
 
@@ -131,98 +112,6 @@ def read_inbox_by_email(email: str) -> List[Dict]:
 def resolve_default_tenant_id() -> str:
     """Resolve default tenant ID."""
     return "1"
-
-
-def run_auto_assign_ai_agent_in_background(candidate_id: str):
-    """
-    Background task: Prepare candidate for Thunder autonomous processing.
-
-    Called immediately after candidate creation. Creates initial conversation
-    record and logs the outreach event. The Thunder autonomous loop
-    (running every 5 seconds) will then process this candidate.
-
-    This follows the same pattern the (removed) thunder_autonomous_loop used:
-    1. Create CandidateConversation record (candidate is now "ready for outreach")
-    2. Log outreach initiation event
-    3. Let the autonomous loop handle actual outreach scheduling
-
-    Args:
-        candidate_id: The newly created candidate's ID
-    """
-    from app.core.database import SessionLocal
-    from app.models.user import Users
-
-    db = None
-    try:
-        db = SessionLocal()
-
-        # Get candidate to verify it exists
-        try:
-            candidate = db.query(Candidate).filter(
-                Candidate.candidateID == candidate_id
-            ).first()
-        except Exception as e:
-            logger.error(f"[Thunder] Failed to query candidate: {e}", exc_info=True)
-            raise
-
-        if not candidate:
-            logger.error(f"[Thunder] Candidate {candidate_id} not found for outreach preparation")
-            return
-
-        # Check if conversation already exists (shouldn't, but defensive)
-        try:
-            existing = db.query(CandidateConversation).filter(
-                CandidateConversation.candidate_id == candidate_id
-            ).first()
-        except Exception as e:
-            logger.error(f"[Thunder] Failed to query conversation: {e}", exc_info=True)
-            raise
-
-        if existing:
-            logger.info(f"[Thunder] Candidate {candidate_id} already has conversation, skipping")
-            return
-
-        # Get system admin for tenant_id (required by FK constraint)
-        try:
-            system_admin = db.query(Users).filter(
-                Users.UserRole == "Super User"
-            ).first()
-        except Exception as e:
-            logger.error(f"[Thunder] Failed to query system admin: {e}", exc_info=True)
-            raise
-
-        if not system_admin:
-            try:
-                system_admin = db.query(Users).filter(
-                    Users.UserRole.ilike("%admin%")
-                ).first()
-            except Exception as e:
-                logger.error(f"[Thunder] Failed to query admin by role: {e}", exc_info=True)
-                raise
-
-        if not system_admin:
-            logger.error(f"[Thunder] No system admin found, cannot prepare candidate {candidate_id}")
-            return
-
-        # The create_conversation / send_initial_email messages this used to queue had no
-        # handler and never ran; applicant outreach belongs to the Thunder email cadence.
-        logger.info(f"[Thunder] Candidate {candidate_id} has an admin owner; outreach is handled by the email cadence")
-        return
-
-
-    except Exception as e:
-        logger.error(f"[Thunder] Failed to prepare candidate {candidate_id}: {str(e)}", exc_info=True)
-        if db:
-            db.rollback()
-            logger.error(f"[Thunder] Rolled back transaction for candidate {candidate_id}")
-    finally:
-        if db:
-            db.close()
-
-
-def auto_assign_ai_agent_on_creation(candidate_id: str, db: Session) -> Dict:
-    """Auto-assign AI agent on candidate creation."""
-    return {"status": "assigned"}
 
 
 def merge_fields_to_db(candidate_id: str, fields: Dict, db: Session) -> bool:

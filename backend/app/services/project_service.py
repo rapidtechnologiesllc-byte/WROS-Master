@@ -1,6 +1,5 @@
 """
 HRMS-0801 (Project Lifecycle) + HRMS-0804 (Milestones) + HRMS-0805
-import logging
 (Unfilled Roles) + HRMS-0806 (Revenue Estimate & Margin).
 
 HRMS-0807 (Project Risk Flagging) is NOT built -- it's specified to
@@ -20,7 +19,6 @@ from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.opportunity import Opportunity
 from app.models.project import Project, ProjectMilestone
-from app.core.logging import logger
 
 PROJECT_STATUS_TRANSITIONS = {
     "PLANNING": {"ACTIVE", "CLOSED"},

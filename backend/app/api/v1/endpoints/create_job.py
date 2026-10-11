@@ -9,7 +9,6 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.logging import logger
 from app.core.rate_limiter import rate_limit
-from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import find_duplicate_candidate
 from app.services.message_queue_service import MessageQueueService
 from app.models.user import Jobs
@@ -33,7 +32,6 @@ from app.schemas.candidate import (
     EducationEntry, ExperienceEntry, JobApplicationResponse
 )
 from app.models.user import Users
-from app.models.role_template import RoleTemplate
 
 from app.utils.uniq_id_generator import job_id_generator
 
@@ -43,25 +41,6 @@ from app.services.recruitment_job_creation_service import get_recruitment_job_ag
 from app.models.agent_execution_log import AgentExecutionLog
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
-
-# ---------------------------------------------------------------------------
-# Auto-approval logic
-# ---------------------------------------------------------------------------
-
-# Roles that can publish jobs immediately - no approval workflow needed
-AUTO_APPROVE_ROLES = {"super user", "super admin", "bu head", "hiring manager"}
-
-def _can_auto_approve_job(user) -> bool:
-    """
-    Returns True if the user's role allows immediate job publishing.
-    Checks the RBAC role first, then falls back to the legacy UserRole string.
-    """
-    role_name = ""
-    if user.role_template and user.role_template.name:
-        role_name = user.role_template.name
-    elif user.UserRole:
-        role_name = user.UserRole
-    return role_name.lower() in AUTO_APPROVE_ROLES
 
 @router.post(
     "/generate_job_description",
@@ -445,10 +424,10 @@ def get_my_jobs(
 
     my_id = user.UserID
     
-    # Check if user is a BU Head
-    is_bu_head = False
-    if user.role_template and user.role_template.name == "BU Head":
-        is_bu_head = True
+    # BU leaders (role template hierarchy level) see every job in their business unit
+    from app.core import authority
+
+    is_bu_head = authority.is_bu_leader(db, user)
 
     # Build the OR conditions
     filters = [
@@ -630,20 +609,14 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
     if request.recuriter_id in ("string", ""):
         request.recuriter_id = None
 
-    # AUTO-DERIVE: If BU is selected but hiring_manager not provided, auto-assign from BU
+    # AUTO-DERIVE: no hiring manager given -> the business unit's head (BU structure, not a role name)
     if request.business_unit and not request.hiring_manager_id:
+        from app.models.business_unit import BusinessUnit
 
-        # Get Hiring Manager role from this BU
-        hiring_manager_role = db.query(RoleTemplate).filter(RoleTemplate.name == "Hiring Manager").first()
-        if hiring_manager_role:
-            potential_hm = db.query(Users).filter(
-                Users.business_unit_id == request.business_unit,
-                Users.role_template_id == hiring_manager_role.id
-            ).first()
-
-            if potential_hm:
-                request.hiring_manager_id = potential_hm.UserID
-                logger.info(f"[JobCreation] Auto-assigned Hiring Manager: {potential_hm.UserEmail} for BU: {request.business_unit}")
+        unit = db.query(BusinessUnit).filter(BusinessUnit.id == request.business_unit).first()
+        if unit is not None and unit.manager_id:
+            request.hiring_manager_id = unit.manager_id
+            logger.info(f"[JobCreation] Hiring manager defaulted to the head of BU {request.business_unit}")
 
     # Validate that provided user IDs actually exist
     for user_id, field_name in [
@@ -659,54 +632,9 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
                     detail=f"User '{user_id}' provided for {field_name} does not exist in the system."
                 )
 
-    # JOB APPROVAL FLOW -- DISABLED (2026-10-05, product decision: approval
-    # needs an approver assignment + Approve UI that aren't built yet).
-    # Every new job is published immediately. To re-enable, uncomment the
-    # block below and delete the two lines after it. POST /approve_job and
-    # _can_auto_approve_job() are left in place for that.
-    # # VALIDATION: Prevent BU Head from being their own Hiring Manager (separation of duties)
-    # if request.hiring_manager_id and request.business_unit:
-    #     from app.models.bu_access import BUAccess
-    #
-    #     # Get BU Head for this business unit
-    #     bu_head_role = db.query(RoleTemplate).filter(RoleTemplate.name == "BU Head").first()
-    #     if bu_head_role:
-    #         bu_head = db.query(Users).filter(
-    #             Users.role_template_id == bu_head_role.id,
-    #             Users.business_unit_id == request.business_unit
-    #         ).first()
-    #
-    #         # If hiring_manager_id is same as BU Head, reject (prevent self-approval)
-    #         if bu_head and request.hiring_manager_id == bu_head.UserID:
-    #             raise HTTPException(
-    #                 status_code=400,
-    #                 detail=f"BU Head cannot be their own Hiring Manager (separation of duties). Please assign a different hiring manager for this job."
-    #             )
-    #
-    # # Determine job status based on the creator's role
-    # if _can_auto_approve_job(user):
-    #     job_status = "active"
-    #     response_message = "Job published successfully"
-    # else:
-    #     job_status = "pending_approval"
-    #
-    #     # Check if we can assign approval to the Business Unit Head
-    #     if request.business_unit:
-    #         bu_head_role = db.query(RoleTemplate).filter(RoleTemplate.name == "BU Head").first()
-    #         if bu_head_role:
-    #             bu_head = db.query(Users).filter(
-    #                 Users.role_template_id == bu_head_role.id,
-    #                 Users.business_unit_id == request.business_unit
-    #             ).first()
-    #             if bu_head:
-    #                 approver_name = bu_head.UserName or bu_head.UserEmail
-    #                 response_message = f"Job submitted for approval. Awaiting approval from BU Head: {approver_name}"
-    #             else:
-    #                 response_message = "Job submitted for approval. A Super User must approve it before it goes live (No BU Head found for this unit)."
-    #         else:
-    #             response_message = "Job submitted for approval. A Super User or BU Head must approve it before it goes live."
-    #     else:
-    #         response_message = "Job submitted for approval. A Super User or BU Head must approve it before it goes live."
+    # Job approval is disabled (2026-10-05 product decision: no approver assignment or
+    # Approve UI yet), so every new job is published immediately. When it returns, the
+    # approver is chosen by role template (app.core.authority.is_bu_leader), never by name.
     job_status = "active"
     response_message = "Job published successfully"
 
@@ -936,6 +864,12 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
         if request.project_id:
             validate_job_project(db, request.project_id, job.client)
         job.project_id = request.project_id or None
+    elif job.project_id and (request.client_id is not None or request.company_name is not None):
+        # the client changed but the project did not: it must still be this client's project
+        from app.models.client import Client
+
+        validate_job_project(db, job.project_id,
+                             db.query(Client).filter(Client.id == job.client_id).first() if job.client_id else None)
     if request.contact_person is not None:
         job.contactPerson = request.contact_person
     if request.no_of_positions is not None:
@@ -1025,7 +959,13 @@ def delete_job(job_id: str, db: Session = Depends(get_db), user = Depends(get_cu
             status_code=404,
             detail=f"Job with ID {job_id} not found"
         )
-    
+
+    from app.services.job_lifecycle_service import JobHasHistory, assert_deletable
+
+    try:
+        assert_deletable(db, job_id)
+    except JobHasHistory as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     db.delete(job)
     db.commit()
 
@@ -1308,21 +1248,12 @@ async def apply_for_job(
     # 2026-08-05 real fix: must NOT pass this request's own `db` (or ORM
     # objects bound to it) into a BackgroundTask -- the session is closed
     # before the task runs. See ats.run_ats_scoring_in_background()'s own
-    # docstring; same convention as run_auto_assign_ai_agent_in_background
-    # below.
+    # docstring.
     try:
         from app.api.v1.endpoints.ats import run_ats_scoring_in_background
         background_tasks.add_task(run_ats_scoring_in_background, candidate_id, job.jobID)
     except Exception:
         pass  # ATS failure must never block an application submission
-
-    # 14. HRMS-0401: assign the AI recruiter automatically.
-    # Tenant scoping removed (single-company deployment) -- function uses default tenant_id=1.
-    # Skips gracefully (logged, not raised) if assignment fails.
-    # 2026-08-05 real fix: must NOT pass this request's own `db` into a
-    # BackgroundTask -- it's closed before the task runs. See
-    # run_auto_assign_ai_agent_in_background()'s own docstring.
-    background_tasks.add_task(run_auto_assign_ai_agent_in_background, candidate_id)
 
     return JobApplicationResponse(
         status="Success",

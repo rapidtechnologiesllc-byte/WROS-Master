@@ -13,7 +13,6 @@ from typing import Any, Dict
 
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.channel_queue import ChannelQueueItem
 from app.models.candidate import Candidate, CandidateStatus, CandidateEducationForm, CandidateExperienceForm
 from app.services.candidate_service import create_candidate, DuplicateCandidateError
@@ -22,8 +21,6 @@ from app.services.message_queue_service import MessageQueueService
 from app.services.message_handlers.base_message_handler import time_bound
 from app.services.candidate_activity_service import (
     log_candidate_created,
-    log_duplicate_merged,
-    log_thunder_queued,
 )
 
 logger = logging.getLogger(__name__)
@@ -73,7 +70,7 @@ class CandidateCreationHandler:
 
             # 1. CREATE CANDIDATE - Direct ORM mapping from payload
             # Map payload fields to Candidate model fields (payload uses candidate_* naming)
-            from app.utils.uniq_id_generator import candidate_id_generator
+            pass
 
             # Extract and validate tenant_id using centralized validation
             # This eliminates duplication across all handlers and services

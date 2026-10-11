@@ -13,11 +13,11 @@ from sqlalchemy.orm import Session
 from app.core.security import create_access_token
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.interview_verdict import InterviewRoundVerdict
-from app.models.role_template import RoleTemplate
 from app.models.tenant import Tenant
 from app.models.user import Interview, PanelMember, Users
 from app.services.interview_rehire_guard_service import candidate_has_past_no_hire
 from app.services.interview_verdict_service import infer_level
+from tests.hiring_fixtures import full_access_role
 
 
 def _uid():
@@ -53,15 +53,15 @@ def world(db):
     if db.query(Tenant).filter_by(id=1).first() is None:
         db.add(Tenant(id=1, name="BlitzenX"))
         db.flush()
-    role = db.query(RoleTemplate).filter_by(tenant_id=1, name="Super Admin").first() or \
-        RoleTemplate(tenant_id=1, name="Super Admin", display_name="Super Admin", enabled=True)
+    role = full_access_role(db)
     db.add(role)
     db.flush()
     users = [Users(UserID=f"U-{_uid()}", UserName=f"Interviewer {i}", UserEmail=f"i{_uid()}@blitzenx.com",
                    UserPassword="x", UserRole="admin", tenant_id=1, role_template_id=role.id,
                    password_reset_required=False) for i in range(2)]
     candidate = Candidate(candidateID=f"CAN-{_uid()}", candidateEmail=f"c{_uid()}@example.com", candidatePassword="x",
-                          candidateFirstName="Ana", candidateLastName="Ruiz", tenant_id=1)
+                          candidateFirstName="Ana", candidateLastName="Ruiz", tenant_id=1,
+                          total_experience_months=72)
     db.add_all(users + [candidate])
     db.flush()
     db.add(CandidateStatus(candidateID=candidate.candidateID, status="Active", piplineStatus="Interview"))
@@ -161,3 +161,45 @@ def test_round_level_can_be_corrected(client, db, world):
     assert fixed.status_code == 200 and fixed.json()["level"] == "L1"
     bad = client.put(f"/api/v1/interviews/panels/{panel['id']}/level", headers=_headers(users[0]), json={"level": "L9"})
     assert bad.status_code == 400
+
+
+@pytest.mark.parametrize("months", [59, None])
+def test_no_interview_under_five_years_experience(client, db, world, months):
+    users, candidate = world
+    candidate.total_experience_months = months
+    db.commit()
+    response = _panel(client, users, candidate, "L1 Technical")
+    assert response.status_code == 400 and "Cannot schedule an interview" in response.json()["detail"]
+
+
+def test_five_year_rule_at_every_interview_entry_point(client, db, world):
+    from types import SimpleNamespace
+
+    from app.models.interview_rehire_review import InterviewRehireReview
+    from app.services.interview_rehire_guard_service import decide_rehire_review
+    from app.services.message_handlers.interview_scheduled_handler import InterviewScheduledHandler
+    from app.services.submission_service import ExperienceIneligible
+
+    users, candidate = world
+    panel = _panel(client, users, candidate, "L1 Technical")
+    assert panel.status_code == 201, panel.text
+    candidate.total_experience_months = 30  # corrected after the panel existed
+    db.commit()
+    start = datetime.utcnow() + timedelta(days=1)
+    scheduled = client.post("/api/v1/interviews/create", headers=_headers(users[0]), json={
+        "panel_id": panel.json()["id"], "candidate_id": candidate.candidateID,
+        "start_time": start.isoformat(), "end_time": (start + timedelta(hours=1)).isoformat()})
+    assert scheduled.status_code == 400 and "Cannot schedule an interview" in scheduled.json()["detail"]
+
+    review = InterviewRehireReview(candidate_id=candidate.candidateID, round_name="L1", justification="re-try",
+                                   status="PENDING_HM_APPROVAL")
+    db.add(review)
+    db.commit()
+    with pytest.raises(ExperienceIneligible):
+        decide_rehire_review(db, review.id, "approve", users[0].UserID)
+    db.rollback()
+    assert db.get(InterviewRehireReview, review.id).status == "PENDING_HM_APPROVAL"
+
+    message = SimpleNamespace(id=str(uuid.uuid4()), payload={"candidate_id": candidate.candidateID, "interview_date": start.isoformat()})
+    with pytest.raises(ValueError, match="Cannot schedule an interview"):
+        InterviewScheduledHandler.process(message, db)

@@ -5,11 +5,8 @@ This allows candidates without Microsoft accounts to upload documents.
 """
 
 import logging
-import os
 import requests
 from datetime import datetime, timedelta
-from typing import Optional
-from app.core.logging import logger
 
 def _credentials():
     """(tenant, client_id, secret), read when needed -- not at import, which in

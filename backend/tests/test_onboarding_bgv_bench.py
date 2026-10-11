@@ -27,6 +27,7 @@ from app.models.user import InterviewPanel, Users
 from app.services import hiring_pipeline_service as hp
 from app.services.message_handlers.send_pipeline_email_handler import SendPipelineEmailHandler
 from app.services.submission_service import check_hiring_pipeline_rule
+from tests.hiring_fixtures import full_access_role
 
 
 def _uid():
@@ -96,8 +97,7 @@ def world(db):
     if db.query(Tenant).filter_by(id=1).first() is None:
         db.add(Tenant(id=1, name="BlitzenX"))
         db.flush()
-    role = db.query(RoleTemplate).filter_by(tenant_id=1, name="Super Admin").first() or \
-        RoleTemplate(tenant_id=1, name="Super Admin", display_name="Super Admin", enabled=True)
+    role = full_access_role(db)
     db.add(role)
     module = db.query(Module).filter_by(name="Personal", tenant_id=1).first() or \
         Module(name="Personal", display_name="Personal", tenant_id=1)
@@ -115,7 +115,7 @@ def world(db):
     db.flush()
     candidate = Candidate(candidateID=f"CAN-{_uid()}", candidateEmail=f"ria{_uid()}@example.com", candidatePassword="x",
                           candidateFirstName="Ria", candidateLastName="Das", tenant_id=1, thunder_enabled=True,
-                          associated_bu_id=unit.id, candidateMobile="+919800000000")
+                          associated_bu_id=unit.id, candidateMobile="+919800000000", total_experience_months=72)
     db.add(candidate)
     db.flush()
     db.add(CandidateStatus(candidateID=candidate.candidateID, status="Active", piplineStatus="Hired",
@@ -262,7 +262,7 @@ def test_waiving_bgv_needs_a_reason_and_hr_cannot_verify_an_unuploaded_document(
     assert early.status_code == 400
     # another candidate can't upload into this candidate's document
     other = Candidate(candidateID=f"CAN-{_uid()}", candidateEmail=f"o{_uid()}@example.com", candidatePassword="x",
-                      candidateFirstName="O", candidateLastName="X", tenant_id=1)
+                      candidateFirstName="O", candidateLastName="X", tenant_id=1, total_experience_months=72)
     db.add(other)
     db.commit()
     stolen = client.post(f"/api/v1/portal/onboarding/documents/{doc.id}", headers=_cand(other),

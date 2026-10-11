@@ -1,5 +1,4 @@
 """
-import logging
 Pydantic schemas for Revenue Recognition (HRMS-0316)
 
 Supports:
@@ -11,10 +10,9 @@ Supports:
 """
 
 import logging
-from datetime import datetime, date
+from datetime import date
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
-from app.core.logging import logger
 
 # ============================================================================
 # REQUEST SCHEMAS

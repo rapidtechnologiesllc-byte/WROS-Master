@@ -25,10 +25,9 @@ from app.models.employee import Employee
 from app.models.offer_letter import OfferLetter
 from app.models.project import Project
 from app.models.revenue import Revenue
-from app.models.role_template import RoleTemplate
 from app.models.tenant import Tenant
 from app.models.user import Jobs, Users
-from tests.hiring_fixtures import clear_hiring
+from tests.hiring_fixtures import clear_hiring, finance_approver, full_access_role
 
 TODAY = date.today()
 MONDAY = TODAY - timedelta(days=TODAY.weekday())
@@ -82,11 +81,7 @@ def world(db):
     if db.query(Tenant).filter_by(id=1).first() is None:
         db.add(Tenant(id=1, name="test-tenant"))
         db.flush()
-    admin_role = db.query(RoleTemplate).filter_by(tenant_id=1, name="Super Admin").first()
-    if admin_role is None:
-        admin_role = RoleTemplate(tenant_id=1, name="Super Admin", display_name="Super Admin", enabled=True)
-        db.add(admin_role)
-        db.flush()
+    admin_role = full_access_role(db)
     admin = Users(UserID=f"ADM-{_uid()}", UserName="Finance Admin", UserEmail=f"fin{_uid()}@blitzenx.com",
                   UserPassword="x", UserRole="admin", tenant_id=1, role_template_id=admin_role.id)
     partner = Users(UserID=f"PTR-{_uid()}", UserName="Pat Partner", UserEmail=f"pat{_uid()}@blitzenx.com",
@@ -177,7 +172,9 @@ def test_candidate_to_partner_and_org_pnl(db, api, world):
         "project_id": world["project"].id, "period_start": MONDAY.isoformat(),
         "period_end": (MONDAY + timedelta(days=6)).isoformat()}))
     assert invoice["total_usd_cents"] == hours * RATE
-    ok(client.post(f"/api/v1/invoices/{invoice['id']}/approve", headers=admin_h))
+    # only Finance at Senior Manager+ approves invoices: the admin is refused, the Finance Director approves
+    assert client.post(f"/api/v1/invoices/{invoice['id']}/approve", headers=admin_h).status_code == 403
+    ok(client.post(f"/api/v1/invoices/{invoice['id']}/approve", headers=_login(finance_approver(db))))
     ok(client.post(f"/api/v1/invoices/{invoice['id']}/record-external-delivery", headers=admin_h,
                    json={"note": "Uploaded to client portal"}))
     paid = ok(client.post(f"/api/v1/invoices/{invoice['id']}/record-payment", headers=admin_h, json={

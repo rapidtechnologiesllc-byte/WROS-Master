@@ -2,7 +2,6 @@
 Agent Maturity Dashboard API
 =============================
 Prefix: /admin/agents
-import logging
 Tag: admin-agents
 
 Endpoints for viewing and managing agent performance/maturity metrics.

@@ -4,18 +4,16 @@ Provides production-ready mail & interview scheduling APIs backed by
 Microsoft Graph via helpdesk_hrms@blitzenx.com.
 """
 import logging
-from typing import Any, Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user, get_current_user, require_permission, require_resource_permission
-from app.core.logging import logger
+from app.core.dependencies import get_current_internal_user, get_current_user, require_resource_permission
 from app.models import Candidate, Interview, InterviewPanel, PanelMember, Users
 from app.services.email_service import EmailService
-from fastapi import Request
 
 router = APIRouter(prefix="/email", tags=["Email Service"])
 
@@ -202,7 +200,7 @@ async def send_mail_with_attachments(
 
 @router.post(
     "/notify/event",
-    dependencies=[Depends(require_resource_permission("message-queue", "send"))],
+    dependencies=[Depends(require_resource_permission("notifications", "create"))],
     summary="Send a rich event notification email (open to any authenticated user)",
     response_description="Email send result",
 )

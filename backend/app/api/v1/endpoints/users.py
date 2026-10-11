@@ -1,5 +1,4 @@
-﻿from datetime import datetime
-import logging
+﻿import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,7 +8,6 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db, check_user
 from app.core.security import get_password_hash, create_access_token, verify_password
 from app.core.dependencies import get_current_internal_user, require_resource_permission
-from app.services.permission_helper import PermissionHelper
 from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, BusinessUnit, Department
 
 # Alias for backward compatibility
@@ -20,26 +18,16 @@ from app.models.client import Client
 from app.models.document import CandidateDocument
 from app.models.role_template import RoleTemplate
 from app.models.newsletter import Newsletter
-from app.models.permission import JobTitle
 from app.schemas.auth import SignupRequest
 from app.schemas.user import (
     AllUsersResponse, UserResponse,
     CandidateAssignmentCreate, CandidateAssignmentResponse,
-    InterviewCreate, InterviewResponse, InterviewUpdateRequest,
-    InterviewFeedbackCreate, InterviewFeedbackResponse,
-    AssignedCandidateResponse, AssignedInterviewResponse,
-    PanelMemberCreate, PanelMemberResponse, DeleteResponse,
-    ChangePasswordRequest, HrMeResponse,
-    SingleUserResponse, HiringManagerAssignedCandidateResponse,
-    DigestPreferenceRequest, DigestPreferenceResponse,
-    AdminResetPasswordRequest,
-    CreateUserWithRolesRequest,
+    AssignedCandidateResponse, AssignedInterviewResponse, DeleteResponse,
+    ChangePasswordRequest, SingleUserResponse,
+    AdminResetPasswordRequest, CreateUserWithRolesRequest,
     UpdateUserWithRolesRequest,
 )
-from app.utils.uniq_id_generator import user_id_generator
 from app.services.org_hierarchy_validator import validate_before_employee_creation
-from app.services.message_queue_service import MessageQueueService
-from app.models.org_structure import OrgNode
 from app.models.location import Location
 
 logger = logging.getLogger(__name__)
@@ -229,13 +217,13 @@ def search_users(
         default=None,
         description="Partial, case-insensitive search on user name or email",
     ),
-    permission_role: Optional[str] = Query(
+    authority: Optional[str] = Query(
         default=None,
-        description="Exact RBAC role name to filter by (e.g. 'HR Manager', 'Admin')",
+        description="Role-template authority: partner | bu_leader | director | finance_leader | org_level",
     ),
     user_role: Optional[str] = Query(
         default=None,
-        description="Legacy UserRole field filter (e.g. 'HR', 'Admin', 'Recruiter')",
+        description="Role template name (a list filter for display, never an authority check)",
     ),
     department: Optional[str] = Query(
         default=None,
@@ -285,8 +273,27 @@ def search_users(
             RoleTemplate.name == user_role
         )
 
-    # NOTE: permission_role filter removed 2026-08-24 (referenced non-existent Role model and Users.role_id field)
-    # If needed, use RoleTemplate join: query.join(RoleTemplate, RoleTemplate.id == Users.role_template_id)
+    # role-template authority (app.core.authority thresholds), never a role name
+    if authority:
+        from sqlalchemy import or_ as any_of
+
+        from app.core.authority import FINANCE_SPECIALIZATIONS
+        from app.core.config import settings
+
+        levels = {"partner": settings.PARTNER_MIN_LEVEL, "bu_leader": settings.BU_LEADER_MIN_LEVEL,
+                  "director": settings.DIRECTOR_MIN_LEVEL, "finance_leader": settings.SENIOR_MANAGER_MIN_LEVEL}
+        if authority not in levels and authority != "org_level":
+            raise HTTPException(status_code=422, detail=f"authority must be one of {sorted(levels) + ['org_level']}")
+        if not user_role:
+            query = query.join(RoleTemplate, RoleTemplate.id == Users.role_template_id)
+        query = query.filter(RoleTemplate.enabled.is_(True))
+        if authority == "org_level":
+            query = query.filter(RoleTemplate.org_level_access.is_(True))
+        else:
+            query = query.filter(RoleTemplate.hierarchy_level >= levels[authority])
+        if authority == "finance_leader":
+            query = query.filter(any_of(*[sql_func.lower(RoleTemplate.specialization).like(f"%{w}%")
+                                          for w in FINANCE_SPECIALIZATIONS]))
 
     # â"€â"€ Department filter â€" join through Department â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     if department:

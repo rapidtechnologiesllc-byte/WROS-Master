@@ -143,6 +143,15 @@ def _walk(db: Session, pipeline: HiringPipeline) -> Tuple[str, List[str], Dict]:
                     or levels.get("SCREEN") == "PASS" or "L1" in levels or "L2" in levels)
         if not screened:
             return reached, ["recruiter screen pending"], refs
+        # CEO decision 2026-10-10: nobody under 5 years' experience is interviewed, offered or
+        # moved on -- checked at every stage, so a rounds-first or corrected record is still caught
+        from app.services.submission_service import check_experience_eligibility
+
+        candidate = db.query(Candidate).filter(Candidate.candidateID == cid).first()
+        if candidate is not None:
+            experience = check_experience_eligibility(candidate)
+            if not experience["is_eligible"]:
+                return reached, [f"not eligible (5-year rule): {experience['message']}"], refs
         reached = "L1"
         # L1 -> L2 -> OFFER
         for level, nxt in (("L1", "L2"), ("L2", "OFFER")):
@@ -210,6 +219,9 @@ def _walk(db: Session, pipeline: HiringPipeline) -> Tuple[str, List[str], Dict]:
     if active:
         refs["submission_id"] = active[-1].id
         return "SUBMITTED", [f"client reviewing submission ({active[-1].status.replace('_', ' ').lower()})"], refs
+    if pipeline.grandfathered and bgv_status(db, cid) not in ("PASSED", "WAIVED"):
+        # CEO decision 2026-10-10: employees from before the pipeline need a BGV too
+        return "BENCH", ["background verification required before any client submission"], refs
     return "BENCH", ["on the bench, not yet submitted to a client"], refs
 
 
@@ -259,6 +271,10 @@ def get_or_create_pipeline(db: Session, candidate_id: str, job_id: Optional[str]
     db.flush()
     db.add(HiringPipelineEvent(pipeline_id=pipeline.id, from_stage=None, to_stage="SCREEN", trigger="created",
                                actor=created_by, note="grandfathered: already an employee" if employee else None))
+    if employee is not None:  # they still need a BGV before a client: give HR a record to work
+        from app.services.bgv_service import ensure_bgv
+
+        ensure_bgv(db, candidate_id, None, candidate.tenant_id)
     return evaluate(db, pipeline, trigger="created", actor=created_by)
 
 
@@ -522,6 +538,11 @@ def run_pipeline_sweep(db: Session) -> Dict:
     open_ids = {r[0] for r in db.query(HiringPipeline.candidate_id).filter(HiringPipeline.closed_at.is_(None)).all()}
     candidates = [r[0] for r in db.query(CandidateStatus.candidateID).filter(
         CandidateStatus.piplineStatus.notin_(["Rejected", "Withdrawn", "Archived"])).all() if r[0] not in open_ids]
+    # employees from before the pipeline: their pipeline (and BGV record) up front, so HR can
+    # clear BGV before anyone tries to submit them to a client
+    candidates = [r[0] for r in db.query(Employee.candidate_id).filter(
+        Employee.candidate_id.isnot(None), Employee.status != "EXITED").all() if r[0] not in open_ids] + candidates
+    candidates = list(dict.fromkeys(candidates))
     backfilled = 0
     for candidate_id in candidates[:SWEEP_BACKFILL_LIMIT]:
         if db.query(HiringPipeline.id).filter(HiringPipeline.candidate_id == candidate_id).first():

@@ -1,5 +1,4 @@
 """
-import logging
 Work Order Service - DEFECT-1: Work Order / PO Model
 
 A Work Order (aka PO, SOW, or Engagement Record) is the signed authority
@@ -25,13 +24,11 @@ from app.models.demand import Demand
 from app.models.client import Client
 from app.models.employee import Employee
 from app.models.project import Project
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
 class WorkOrderValidationError(Exception):
     """Raised when work order creation/update violates business rules."""
-    pass
 
 def create_work_order(
     db: Session,

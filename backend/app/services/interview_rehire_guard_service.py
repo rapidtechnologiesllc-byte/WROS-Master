@@ -5,7 +5,6 @@ epic-01 is complete" (2026-08-05). His own words: "if there was a
 nohire in the past then when the next time someone is trying to
 schedule interview to the candidate they need to provide a clear
 justification an agentic bot should review and decide or take approval
-import logging
 from hiring manager before scheduling the interview."
 
 Attaches to the LEGACY interview system
@@ -238,6 +237,13 @@ def decide_rehire_review(
     review.decided_at = datetime.utcnow()
 
     if decision == "approve":
+        from app.models.candidate import Candidate
+        from app.services.submission_service import assert_experience_eligible
+
+        candidate = db.query(Candidate).filter(Candidate.candidateID == review.candidate_id).first()
+        if candidate is None:
+            raise RehireReviewNotFound(f"Candidate {review.candidate_id} of review {review_id} not found")
+        assert_experience_eligible(candidate, "schedule an interview")  # before anything changes
         panel = InterviewPanel(
             candidate_id=review.candidate_id,
             round_name=review.round_name,

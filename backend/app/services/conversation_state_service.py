@@ -1,5 +1,4 @@
 """
-import logging
 S-018/HRMS-0418 -- Conversation State Manager.
 
 Adapted to this codebase's real state model, which is deliberately
@@ -48,12 +47,11 @@ PREBOARDING/COMPLETED/ESCALATED/PAUSED/WITHDRAWN):
 """
 import logging
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict
 
 from sqlalchemy.orm import Session
 
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
-from app.core.logging import logger
 
 # Axis 1: conversation lifecycle. "closed" is terminal -- matches BR-02's
 # "COMPLETED cannot go back to QUALIFYING" (forward-only, non-reversible).

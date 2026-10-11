@@ -1,5 +1,4 @@
 """
-import logging
 S-372/HRMS-0528 -- Confirmed vs Potential Demand Workflow.
 
 Built from `Requirements/S-372_HRMS-0528.docx` directly.

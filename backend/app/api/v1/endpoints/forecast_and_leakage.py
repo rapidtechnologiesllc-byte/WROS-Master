@@ -1,5 +1,4 @@
 """
-import logging
 S-242 (Forecast vs Actual) + S-243 (Revenue Leakage Detection).
 
 Gated behind revenue.view / revenue.view_pnl same as every other

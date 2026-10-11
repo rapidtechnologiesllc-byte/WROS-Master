@@ -51,6 +51,14 @@ MANUALLY_VERIFIED_EXCEPTIONS = {
     "GET /msgraph/calendar/meetings",
     "POST /msgraph/calendar/schedule",
     "POST /msgraph/mail/send",
+    # Set-your-password from an emailed single-use link: no session exists yet by
+    # definition. Public in AuthenticationMiddleware.PUBLIC_ROUTES under /api/v1; the
+    # token itself (hashed, single use, expiring) is the credential.
+    "POST /auth/activate",
+    "POST /auth/forgot-password",
+    # Not in PUBLIC_ROUTES, so AuthenticationMiddleware requires a bearer token before
+    # this runs; it only issues a CSRF token for that already-authenticated session.
+    "GET /csrf/token",
 }
 
 GENUINE_OPEN_QUESTIONS = set()  # both resolved 2026-07-20: active-jobs kept

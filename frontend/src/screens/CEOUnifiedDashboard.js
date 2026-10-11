@@ -1,3 +1,4 @@
+import FinancialOutlookPanel from "../components/FinancialOutlookPanel";
 import { useEffect, useState } from "react";
 import { TrendingUp, AlertTriangle, Users, Briefcase, RefreshCw, ChevronDown, CheckCircle } from "lucide-react";
 import { Card, Button, Input, StatusBadge } from "../components/ui";
@@ -399,6 +400,7 @@ export default function CEOUnifiedDashboard() {
           {activeTab === "fy-progress" && fySummary && (
             <div className="space-y-6">
               {/* Executive Summary Cards */}
+              <FinancialOutlookPanel title="Org revenue & expense: plan vs actual" groupBy="partner" />
               <FYProgressPanel fyData={fyData} onChangeStartMonth={handleChangeFYStart} />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

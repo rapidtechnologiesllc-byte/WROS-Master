@@ -16,13 +16,10 @@ Best Match: top candidate for job
 import json
 from datetime import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
-from decimal import Decimal
 import logging
 
 from app.models.candidate import Candidate
 from app.models.demand import Demand
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

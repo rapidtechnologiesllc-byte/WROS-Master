@@ -2,7 +2,6 @@
 S-360/HRMS-P506-REV -- HTD Training Module Tracker: 4-Phase Gate
 Structure. `employees.htd_phase`/`htd_track`/`htd_start_date` already
 existed (built proactively in HRMS-0101-REV); htd_phase_gates is the
-import logging
 one new table this revision actually needs.
 
 "HEMANT_BU_HEAD" is exactly what the source doc names as a gate-owner

@@ -1,5 +1,4 @@
 """
-import logging
 S-078/HRMS-0478 -- Event Emission Layer for AI Actions.
 
 See app.models.event_log's module docstring for the real architecture
@@ -28,7 +27,6 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from app.models.event_log import EventLog
-from app.core.logging import logger
 
 # Step 1's literal event catalog. candidate_scoped=True means BR-02
 # requires candidate_id on every emit of that type.

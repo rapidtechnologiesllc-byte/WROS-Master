@@ -1,8 +1,7 @@
-from pydantic import BaseModel, EmailStr, constr, Field
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 import logging
 from datetime import datetime, date
-from app.core.logging import logger
 
 # Candidate Assignment Schemas
 class CandidateAssignmentCreate(BaseModel):

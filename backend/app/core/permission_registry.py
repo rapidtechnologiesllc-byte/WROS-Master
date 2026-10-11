@@ -231,7 +231,7 @@ PERMISSION_GROUPS = {
         Permissions.INTERVIEWS_CREATE,
     ],
     "admin": [
-        # Admin has all permissions (defined by is_super_user check)
+        # Admin: whatever its role template permission matrix grants (seeded with every resource)
     ],
 }
 

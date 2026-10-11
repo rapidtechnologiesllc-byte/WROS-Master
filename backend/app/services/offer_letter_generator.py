@@ -2,7 +2,6 @@
 Offer Letter Generator
 ======================
 Fetches the .docx template from SharePoint, replaces {{placeholder}} tokens
-import logging
 with real candidate / offer data, and returns the filled document as bytes.
 
 Placeholder convention (matching the BlitzenX template exactly):

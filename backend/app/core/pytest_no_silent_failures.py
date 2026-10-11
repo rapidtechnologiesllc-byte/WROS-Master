@@ -1,5 +1,4 @@
 """
-import logging
 Pytest plugin: no_silent_failures
 
 Prevents silent failures in service layer functions by detecting patterns where:

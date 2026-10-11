@@ -4,7 +4,6 @@ story's own title, its "Not in Scope" section explicitly disowns any
 AI/behavioral-risk model -- these are the 4 plain structural checks it
 actually describes: weekend entry, >12h in a single day, entry against
 a COMPLETED-status project, and a duplicate entry (same employee +
-import logging
 project + date, across different timesheets).
 
 BR-0910-01 (the only two rules the doc formally numbers): flags are

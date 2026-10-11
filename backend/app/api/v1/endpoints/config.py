@@ -8,12 +8,11 @@ authentication to allow frontend to load configuration data before login.
 They are listed in auth_middleware.py PUBLIC_ROUTES and main.py known_exceptions.
 """
 import logging
-from typing import Dict, List, Any
+from typing import Dict, Any
 
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.core.database import get_db
 from app.models.channel_queue import ChannelQueueItem
 from app.models.candidate import CandidateJobApplication
@@ -143,10 +142,12 @@ async def get_app_config(db: Session = Depends(get_db)):
     """
     try:
         # Query all system config (tenant-wide defaults: business_unit_id IS NULL)
-        # For now, assume tenant_id=1 (single tenant setup)
+        # public endpoint (before login): the deployment's default tenant
+        from app.services.ai_conversation_service import resolve_default_tenant_id
+
         try:
             config_items = db.query(SystemConfig).filter(
-                SystemConfig.tenant_id == context.tenant_id,
+                SystemConfig.tenant_id == int(resolve_default_tenant_id()),
                 SystemConfig.business_unit_id == None
             ).all()
         except Exception as e:

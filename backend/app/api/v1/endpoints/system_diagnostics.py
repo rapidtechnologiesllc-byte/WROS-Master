@@ -18,7 +18,7 @@ router = APIRouter(prefix="/system", tags=["system-diagnostics"])
 
 @router.get(
     "/health/database-pool",
-    dependencies=[Depends(require_role_template_permission("system", "manage"))]
+    dependencies=[Depends(require_role_template_permission("system-health", "view"))]
 )
 def get_database_pool_health(db: Session = Depends(get_db)):
     """Get database connection pool health metrics"""
@@ -37,7 +37,7 @@ def get_database_pool_health(db: Session = Depends(get_db)):
 
 @router.get(
     "/health/permission-circuit",
-    dependencies=[Depends(require_role_template_permission("system", "manage"))]
+    dependencies=[Depends(require_role_template_permission("system-health", "view"))]
 )
 def get_permission_circuit_status():
     """Get permission service circuit breaker status"""
@@ -50,7 +50,7 @@ def get_permission_circuit_status():
 
 @router.get(
     "/health/permission-cache",
-    dependencies=[Depends(require_role_template_permission("system", "manage"))]
+    dependencies=[Depends(require_role_template_permission("system-health", "view"))]
 )
 def get_permission_cache_stats():
     """Get permission cache statistics"""
@@ -63,7 +63,7 @@ def get_permission_cache_stats():
 
 @router.get(
     "/health/summary",
-    dependencies=[Depends(require_role_template_permission("system", "manage"))]
+    dependencies=[Depends(require_role_template_permission("system-health", "view"))]
 )
 def get_system_health_summary(db: Session = Depends(get_db)):
     """Get overall system health summary"""
@@ -100,7 +100,7 @@ def get_system_health_summary(db: Session = Depends(get_db)):
 
 @router.post(
     "/health/cache-invalidate",
-    dependencies=[Depends(require_role_template_permission("system", "manage"))]
+    dependencies=[Depends(require_role_template_permission("system-health", "edit"))]
 )
 def invalidate_permission_cache(user_id: str = None):
     """

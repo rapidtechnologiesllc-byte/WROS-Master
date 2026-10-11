@@ -1,5 +1,4 @@
 """
-import logging
 S-372/HRMS-0528 -- Confirmed vs Potential Demand Workflow.
 
 Built from `Requirements/S-372_HRMS-0528.docx` directly.
@@ -15,7 +14,6 @@ from app.models.demand_confirmation import DemandAlignmentCall
 from app.models.employee import Employee
 from app.models.user import Users
 from app.services.notification_service import send_notification
-from app.core.logging import logger
 
 PARTICIPANTS = ("EMPLOYEE", "BU_HEAD")
 

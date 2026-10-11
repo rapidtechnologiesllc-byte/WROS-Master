@@ -2,7 +2,6 @@
 Public Thunder Chat — API Endpoints
 =====================================
 Prefix: /public/thunder-chat
-import logging
 Tag:    public-thunder-chat
 
 Real, unauthenticated candidate-facing chat widget (careers page / job

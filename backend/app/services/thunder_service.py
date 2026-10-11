@@ -1,5 +1,4 @@
 """
-import logging
 Phase 3 Part A1 -- Thunder Conversation Core.
 
 `03-THUNDER-AGENTIC-LAYER.md` calls for exactly two functions every
@@ -36,7 +35,6 @@ desire_profile=None rather than fabricating one, so a caller can tell
 import logging
 import os
 import re
-import secrets
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
@@ -44,14 +42,12 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from sqlalchemy.orm import Session
 
 from app.core.llm_prompt_safety import build_safe_prompt, flag_suspicious_patterns
-from app.core.logging import logger
-from app.core.security import get_password_hash
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.consent import ConsentRecord
 from app.models.internal_note import InternalNote
 from app.models.user import Jobs, Users
-from app.services.ai_conversation_service import AI_AGENT_NAME, AI_AGENT_PERSONA, resolve_thunder_config
+from app.services.ai_conversation_service import AI_AGENT_NAME, resolve_thunder_config
 from app.services.conversation_state_service import escalate as escalate_conversation
 from app.services.thunder_pause_service import (  # noqa: F401 -- re-exported for callers
     ThunderPausedError,
@@ -275,8 +271,6 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
         logger.warning(f"[Thunder] Email consent not given for candidate {candidate.candidateID!r}, skipping outreach")
         return
 
-    from app.services.message_queue_service import MessageQueueService
-
     try:
         # Use delivery service for email sending (instead of EmailService.send_email)
         delivery_service = get_delivery_service(db=db, tenant_id=candidate.tenant_id)
@@ -287,7 +281,9 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
             html=False
         )
 
-        # Create MessageDeliveryLog for tracking
+        # Create MessageDeliveryLog for tracking -- in a savepoint, so a failed log write
+        # undoes only itself, never the conversation work already in this transaction
+        savepoint = db.begin_nested()
         try:
             log_entry = MessageDeliveryLog(
                 conversation_id=conversation.id,
@@ -304,10 +300,11 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
             )
             db.add(log_entry)
             db.flush()
+            savepoint.commit()
             logger.debug(f"[Thunder] Created MessageDeliveryLog for email: {result.delivery_id}")
         except Exception as log_err:
-            logger.error(f"[Thunder] Failed to create MessageDeliveryLog: {log_err}")
-            db.rollback()
+            logger.error(f"[Thunder] Failed to create MessageDeliveryLog: {log_err}", exc_info=True)
+            savepoint.rollback()
 
         # Check delivery result
         if result.status == "failed":
@@ -326,23 +323,6 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
             triggered_by="ai_agent",
         ))
         db.flush()
-
-        # Mark candidate_created message as COMPLETED after email sent successfully
-        try:
-            from app.models.message_queue import MessageQueue
-            message = db.query(MessageQueue).filter(
-                MessageQueue.resource_id == candidate.candidateID,
-                MessageQueue.type == "candidate_created",
-                MessageQueue.status != MessageQueueService.STATUS_COMPLETED,
-            ).first()
-
-            if message:
-                MessageQueueService.mark_completed(message.id, db=db)
-                logger.debug(f"[Thunder] Marked candidate_created message as COMPLETED: {message.id}")
-        except Exception as msg_err:
-            logger.error(f"Error: {str(msg_err)}", exc_info=True)
-            logger.error(f"[Thunder] Failed to mark message as completed: {msg_err}", exc_info=True)
-            # Don't fail email sending if message queue update fails
     except Exception as exc:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[Thunder] Email send failed for candidate {candidate.candidateID!r}: {exc}")

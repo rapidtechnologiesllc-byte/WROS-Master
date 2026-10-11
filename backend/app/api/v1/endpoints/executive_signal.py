@@ -2,7 +2,6 @@
 Executive Signal & Culture Agent.
 ==================================================================
 Prefix: /executive-signal
-import logging
 Tag:    executive-signal
 
 Advisory-only surface -- watches, drafts, surfaces; never autonomously

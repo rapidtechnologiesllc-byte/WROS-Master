@@ -1,5 +1,4 @@
 """
-import logging
 S-076/HRMS-0476 -- AuditLogger service.
 
 A simple INSERT function -- no business logic, no transformations, no

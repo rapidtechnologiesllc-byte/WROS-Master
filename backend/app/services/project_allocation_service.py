@@ -1,4 +1,3 @@
-from app.core.logging import logger
 """HRMS-0317 -- Project Allocation (Phase 4)"""
 import uuid
 from datetime import datetime

@@ -1,4 +1,3 @@
-from app.core.logging import logger
 """Pydantic Schemas -- S-064/HRMS-0464 AI Explainability Panel."""
 from datetime import datetime
 import logging

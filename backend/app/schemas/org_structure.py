@@ -2,10 +2,9 @@
 Schemas for Organizational Structure API requests and responses.
 """
 from datetime import datetime
-from typing import Optional, List, Union
+from typing import Optional, Union
 import logging
 from pydantic import BaseModel, Field, field_validator
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

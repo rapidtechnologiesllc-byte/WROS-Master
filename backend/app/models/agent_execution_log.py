@@ -1,5 +1,4 @@
 """
-import logging
 S-066/HRMS-0466 -- Supervisor Agent, agent_execution_log.
 
 Real architecture adaptation (per Avinash's explicit direction,

@@ -2,7 +2,6 @@
 HRMS-0907 -- Invoice Generation, Status Tracking -- API Endpoints
 =========================================================================
 Prefix: /invoices
-import logging
 Tag:    invoices
 
 Wires app.services.invoice_service (real, tested backend, pre-existing
@@ -63,6 +62,7 @@ from app.services.invoice_service import (
     NothingToInvoice,
     MissingBillRate,
     InvalidInvoiceTransition,
+    InvoiceApproverNotAllowed,
     OpenDisputeBlocksInvoice,
     UnapprovedTimesheetBlocksInvoice,
     approve_invoice,
@@ -112,7 +112,8 @@ def generate_invoice_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    project = db.query(Project).filter(Project.id == body.project_id).first()
+    project = db.query(Project).filter(Project.id == body.project_id,
+                                       Project.tenant_id == current_user.tenant_id).first()
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found.")
 
@@ -127,6 +128,9 @@ def generate_invoice_endpoint(
         raise HTTPException(status_code=409, detail=str(exc))
     except (NothingToInvoice, MissingBillRate, AlreadyInvoiced) as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
     db.commit()
     db.refresh(invoice)
 
@@ -160,10 +164,17 @@ def approve_invoice_endpoint(
     invoice = _get_invoice_or_404(db, invoice_id, current_user.tenant_id)
     try:
         invoice = approve_invoice(db, invoice, approved_by=current_user.UserID)
+    except InvoiceApproverNotAllowed as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
     except InvalidInvoiceTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     db.commit()
     db.refresh(invoice)
+
+    # an invoice auto-invoicing drafted goes to the client as soon as Finance approves it
+    from app.services.invoice_automation_service import send_after_approval
+
+    send_after_approval(db, invoice, current_user.UserID)
 
     # Queue invoice approval for FLASH orchestrator
     try:

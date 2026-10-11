@@ -1,5 +1,4 @@
 """
-import logging
 Flash Interview Transcript Service
 
 Reads interview transcripts from Office 365 Teams meetings and sends to Claude LLM
@@ -19,7 +18,6 @@ from anthropic import Anthropic
 
 from app.models.interview_pipeline import SubmissionInterview
 from app.models.candidate_ai import ConversationEvent
-from app.core.logging import logger
 from app.core.graph_auth import GraphServiceAuth
 
 logger = logging.getLogger(__name__)

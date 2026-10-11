@@ -6,7 +6,6 @@ their BU); finance & HR manager (no actual p&l)." Refined the same
 day: "a partner has it's own clients and the work is done in their BU
 only... any business he generates should go only to that BU" -- BU
 ownership is a real, client-level fact (Client.business_unit_id), not
-import logging
 a role-attribute abstraction.
 
 Deliberately a SEPARATE scoping mechanism from app.core.bu_scope's
@@ -27,27 +26,19 @@ from sqlalchemy.orm import Query, Session
 
 from app.models.client import Client
 from app.models.user import Users
-from app.services.permission_helper import PermissionHelper
-
-# Only these two roles are BU-scoped for revenue/planning screens --
-# everyone else with revenue.view (Super User/CEO, Finance, HR Manager)
-# sees org-wide, per Avinash's exact spec.
-REVENUE_BU_SCOPED_ROLES = {"Partner", "BU Head"}
-
-def get_user_role_name(db: Session, user: Users) -> Optional[str]:
-    # Get user's primary role from role_template
-    if hasattr(user, 'role_template') and user.role_template:
-        return user.role_template.name
-    return None
 
 def is_revenue_bu_scoped(db: Session, user: Users) -> bool:
-    return get_user_role_name(db, user) in REVENUE_BU_SCOPED_ROLES
+    """BU leaders (role template hierarchy level) see revenue for their own BU only;
+    org-level and super-user roles see it org-wide (app.core.authority)."""
+    from app.core import authority
+
+    return authority.is_revenue_bu_scoped(db, user)
 
 def can_view_pnl(db: Session, user: Users) -> bool:
-    """revenue.view_pnl -- Super User, Partner, BU Head, Finance. NOT
-    HR Manager, per Avinash's explicit "no actual p&l" instruction."""
-    tenant_id = getattr(user, 'TenantID', 1) if user else 1
-    return PermissionHelper.has_permission(user.UserID, "revenue.view_pnl", db, tenant_id)
+    """P&L needs the revenue view permission on the user's role template."""
+    from app.core import authority
+
+    return authority.has_permission(db, user, "revenue.view")
 
 def apply_revenue_bu_scope_to_client_query(db: Session, query: Query, current_user: Users) -> Query:
     """Narrows a Client query to clients with no BU assigned yet

@@ -2,7 +2,6 @@
 Pydantic schemas — S-220/HRMS-0901 (Create Weekly Timesheet) + S-221
 (Timesheet Validation & Submission Lock) + S-222/HRMS-0902 (Manager
 Approval) API.
-import logging
 """
 
 import logging
@@ -10,7 +9,6 @@ from datetime import date, datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

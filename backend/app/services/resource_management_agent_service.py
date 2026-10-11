@@ -2,7 +2,6 @@
 HRMS-1105 (canonical S-320 -- not S-274 as its `.docx` filename says, and
 NOT "HRMS-0312" as that same doc's own prerequisite line and
 04-RESOURCE-MANAGEMENT.md both say; both corrected against
-import logging
 `WROS_Canonical_Backlog_S001-401.xlsx`) -- Resource Management Agent.
 
 Built from `Requirements/S-274_HRMS-1105.docx` directly.
@@ -51,7 +50,6 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from sqlalchemy.orm import Session
 
 from app.core.llm_prompt_safety import build_safe_prompt
-from app.core.logging import logger
 from app.models.core_pull import CorePullEvent
 from app.models.demand import Demand
 from app.models.employee import Employee

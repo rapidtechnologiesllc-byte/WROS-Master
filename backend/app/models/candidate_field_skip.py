@@ -1,6 +1,5 @@
 """
 S-024/HRMS-0424 -- tracks fields a candidate has explicitly declined
-import logging
 to answer (or Thunder auto-skipped after BR-02's max-ask limit).
 
 No candidate_missing_fields table exists in this codebase -- missing

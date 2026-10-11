@@ -2,7 +2,6 @@
 Secure Document Upload Endpoints
 Uses service layer for better separation of concerns and scalability.
 Uses service account authentication - candidates don't need Microsoft accounts.
-import logging
 """
 
 from typing import Optional

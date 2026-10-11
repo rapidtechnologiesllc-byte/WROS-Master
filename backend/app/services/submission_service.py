@@ -1,5 +1,4 @@
 """
-import logging
 HRMS-0711 -- Client Submission Pipeline, Phase 2 Domain 2.
 
 Compliance gates (checkExperienceEligibility / checkMarketProfileRule /
@@ -94,6 +93,15 @@ def check_experience_eligibility(candidate: Candidate) -> dict:
         "experience_months": months, "deficit_months": deficit,
     }
 
+class ExperienceIneligible(ValueError):
+    """The 5-year rule (CEO): checked before every interview, at the pipeline, at offer and at submission."""
+
+
+def assert_experience_eligible(candidate: Candidate, step: str) -> None:
+    result = check_experience_eligibility(candidate)
+    if not result["is_eligible"]:
+        raise ExperienceIneligible(f"Cannot {step}: {result['message']}")
+
 def check_market_profile_rule(db: Session, candidate_id: str) -> dict:
     employee = db.query(Employee).filter(Employee.candidate_id == candidate_id).first()
     if employee is None:
@@ -133,6 +141,13 @@ def check_hiring_pipeline_rule(db: Session, candidate_id: str) -> dict:
         reasons = "; ".join(blocked.blockers) or f"at {blocked.stage}"
         return {"allowed": False, "error": "PIPELINE_INCOMPLETE", "stage": blocked.stage,
                 "message": f"Candidate has not cleared hiring yet ({blocked.stage}): {reasons}."}
+    from app.services.hiring_pipeline_service import bgv_status, get_or_create_pipeline
+
+    pipeline = get_or_create_pipeline(db, candidate_id)
+    if pipeline.grandfathered and bgv_status(db, candidate_id) not in ("PASSED", "WAIVED"):
+        # CEO decision 2026-10-10: employees from before the pipeline need a BGV too
+        return {"allowed": False, "error": "PIPELINE_INCOMPLETE", "stage": pipeline.stage,
+                "message": "Background verification must pass (or be waived) before a client submission."}
     return {"allowed": True}
 
 def _log_violation(
@@ -313,9 +328,14 @@ def _allocate_placed_employee(db: Session, submission: Submission, demand, start
     from app.models.project import Project
     from app.services.employee_allocation_service import allocate_employee_to_project
 
+    from app.services.employee_allocation_service import AllocationNeedsClient
+
     employee = db.query(Employee).filter(Employee.candidate_id == submission.candidate_id).first()
-    if employee is None or not demand.client_id:
-        return
+    if employee is None:
+        raise AllocationNeedsClient(f"Candidate {submission.candidate_id} has no employee record; "
+                                    "only a bench employee can be placed.")
+    if not demand.client_id:
+        raise AllocationNeedsClient(f"Job {demand.id} has no client. Set the client on the job before placing.")
     already = db.query(EmployeeAllocation).filter(
         EmployeeAllocation.employee_id == employee.id, EmployeeAllocation.demand_id == demand.id,
         EmployeeAllocation.status == "ACTIVE",

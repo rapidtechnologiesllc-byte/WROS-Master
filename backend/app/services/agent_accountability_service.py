@@ -1,5 +1,4 @@
 """
-import logging
 Agent Accountability Service - Every agent has ONE job: get more people to 2,000 by 2030.
 
 No silos. No "we did great at our stage" when the next agent fails.
@@ -28,15 +27,14 @@ If 2+ links broken, escalate to CEO.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
+from typing import Dict, Any
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
+from sqlalchemy import func
 
 from app.models.candidate import Candidate
 from app.models.offer_letter import OfferLetter
 from app.models.user import Interview
 from app.models.employee import Employee
-from app.core.logging import logger
 from app.services.candidate_pipeline_stage import OFFER_EXTENDED_STATUSES, employee_active_allocation_ids, has_thunder_conversation, interview_feedback_done_condition, interview_scheduled_condition, pipeline_stage_in
 
 logger = logging.getLogger(__name__)

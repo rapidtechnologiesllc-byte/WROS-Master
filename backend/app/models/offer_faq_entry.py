@@ -1,5 +1,4 @@
 """
-import logging
 S-055/HRMS-0455 -- Offer FAQ Bot.
 
 offer_faq_entries: genuinely new table -- the real, honest substitute

@@ -8,11 +8,8 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 from app.models.invoice import Invoice
 from app.models.timesheet import Timesheet
-from app.models.employee_allocation import EmployeeAllocation
 from app.models.client import Client
 import logging
-from app.models.project import Project
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

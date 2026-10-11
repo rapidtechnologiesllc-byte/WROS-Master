@@ -14,10 +14,10 @@ from app.core.security import create_access_token
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.interview_verdict import InterviewRoundVerdict
 from app.models.offer_letter import OfferLetter
-from app.models.role_template import RoleTemplate
 from app.models.tenant import Tenant
 from app.models.user import InterviewPanel, Users
 from app.services import hiring_pipeline_service as hp
+from tests.hiring_fixtures import full_access_role
 
 
 def _uid():
@@ -53,8 +53,7 @@ def world(db):
     if db.query(Tenant).filter_by(id=1).first() is None:
         db.add(Tenant(id=1, name="BlitzenX"))
         db.flush()
-    role = db.query(RoleTemplate).filter_by(tenant_id=1, name="Super Admin").first() or \
-        RoleTemplate(tenant_id=1, name="Super Admin", display_name="Super Admin", enabled=True)
+    role = full_access_role(db)
     db.add(role)
     db.flush()
     hr = Users(UserID=f"HR-{_uid()}", UserName="HR", UserEmail=f"hr{_uid()}@blitzenx.com", UserPassword="x",
@@ -140,3 +139,23 @@ def test_release_is_blocked_for_a_candidate_who_failed_l2(client, db, world):
     response = client.post(f"/api/v1/offer-letter/release/{offer.id}",
                            headers=_headers(hr.UserID, role_template_id=hr.role_template_id))
     assert response.status_code == 409 and response.json()["detail"]["blockers"] == ["L2 interview: No Hire"]
+
+
+def test_five_year_rule_blocks_offer_create_and_release_even_after_rounds_passed(client, db, world):
+    """CEO: the 5-year rule is enforced at every step -- a record corrected after the
+    interviews (or rounds entered first) is still stopped at offer create and at release."""
+    hr, candidate = world
+    _pass(db, candidate, "L1", "L2")
+    candidate.total_experience_months = 48
+    db.commit()
+    blocked = _create(client, hr, candidate)
+    assert blocked.status_code == 409 and "5-year rule" in blocked.json()["detail"]["blockers"][0]
+    offer = OfferLetter(candidate_id=candidate.candidateID, position="Engineer", salary="1800000",
+                        joining_date=date.today() + timedelta(days=20), offer_expire_date=date.today() + timedelta(days=7),
+                        offer_status="Approved", approval_status="Approved", created_by=hr.UserID)
+    db.add(offer)
+    db.commit()
+    released = client.post(f"/api/v1/offer-letter/release/{offer.id}",
+                           headers=_headers(hr.UserID, role_template_id=hr.role_template_id))
+    assert released.status_code == 409
+    assert any("5-year experience requirement" in b for b in released.json()["detail"]["blockers"])

@@ -1,5 +1,4 @@
 """
-import logging
 HRMS-0113 -- Notification Engine Base.
 
 The one shared notification dispatch backbone every other story is

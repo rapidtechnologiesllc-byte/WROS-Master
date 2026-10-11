@@ -1,5 +1,4 @@
 """
-import logging
 Flash Orchestration Engine - Daily Command Coordination
 
 Flash is NOT a tracker. Flash is an ORCHESTRATOR that:
@@ -19,22 +18,17 @@ Philosophy: "We work FOR partners to enable success, not burden them with report
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
 from app.core.agent_logging import log_agent_execution
-from app.models.opportunity import Opportunity
-from app.models.employee import Employee
 from app.models.business_unit import BusinessUnit
-from app.models.user import Users
 from app.models.candidate import Candidate
 from app.services.htd_pipeline_accountability_agent import HTDPipelineAccountabilityAgent
 from app.services.opportunity_tracker_agent_service import OpportunityTrackerAgent
 from app.services.relation_building_agent_service import RelationBuildingAgent
 from app.utils.agent_logger import log_agent_execution as record_agent_run
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

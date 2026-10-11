@@ -1,5 +1,4 @@
 """
-import logging
 S-216/HRMS-0118 -- Shared Activity Timeline & File Attachment Framework.
 
 upload_file() is BR-0118-01's one sanctioned file-attachment path for
@@ -25,7 +24,6 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.graph_auth import get_graph_token
-from app.core.logging import logger
 from app.models.file_upload import FileUpload
 
 SHAREPOINT_SITE_ID = os.getenv("SHAREPOINT_SITE_ID", "")

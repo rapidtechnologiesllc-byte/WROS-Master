@@ -1,5 +1,4 @@
 """
-import logging
 S-021/HRMS-0421 -- Candidate Memory Store.
 
 Uses this codebase's real Integer-autoincrement PK + String(50)

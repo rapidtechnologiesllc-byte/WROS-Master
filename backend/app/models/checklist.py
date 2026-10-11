@@ -1,5 +1,4 @@
 """
-import logging
 Checklist Models — Templates and Candidate-specific checklists.
 
 Two item types:

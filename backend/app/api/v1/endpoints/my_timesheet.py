@@ -2,7 +2,6 @@
 Employee self-service timesheet.
 ==================================================================
 Prefix: /my
-import logging
 Tag:    my-timesheet
 
 Real gap closed 2026-08-04: the existing timesheet engine (see
@@ -100,10 +99,22 @@ def submit_my_own_timesheet(
 ):
 
     employee = _current_employee_or_404(db, current_user)
+    from app.services.timesheet_service import (
+        InvalidTimesheetEntry,
+        InvalidTimesheetTransition,
+        StaleTimesheetSubmission,
+    )
+
     try:
         timesheet = submit_my_timesheet(db, employee, timesheet_id)
     except NotYourTimesheet as exc:
         raise HTTPException(status_code=403, detail=str(exc))
+    except InvalidTimesheetTransition as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc))
+    except (InvalidTimesheetEntry, StaleTimesheetSubmission) as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
     return timesheet_to_item(db, timesheet)
 
 @router.get(

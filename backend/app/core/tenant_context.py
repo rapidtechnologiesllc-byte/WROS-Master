@@ -1,5 +1,4 @@
 """
-import logging
 Tenant resolution — HRMS-0109, Phase 1 Security Foundation.
 
 The one rule this module exists to enforce: a request's tenant_id comes

@@ -3,10 +3,9 @@ S-311: Interview Decision Engine — Pydantic Schemas
 Request/Response models for interview decision endpoints.
 """
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 import logging
 from datetime import datetime
-from app.core.logging import logger
 
 # ────────────────────────────────────────────────────────────────────────────
 # Request Schemas

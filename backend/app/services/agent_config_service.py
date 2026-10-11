@@ -1,5 +1,4 @@
 """
-import logging
 Agent Config Service - Manages agent configuration and pipeline orchestration.
 
 Provides CRUD operations for agent configs and auto-syncs permissions
@@ -13,8 +12,6 @@ from sqlalchemy import and_
 import uuid
 
 from app.models.agent_config import AgentConfig
-from app.models.role_template import RoleTemplate, RoleTemplatePermission, Resource
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
@@ -71,8 +68,6 @@ class AgentConfigService:
             db.add(agent)
             db.flush()
 
-            # Auto-sync permissions
-            AgentConfigService.auto_sync_permissions(db, agent)
             db.commit()
 
             logger.info(f"Created agent config: {name} (order={order})")
@@ -102,8 +97,6 @@ class AgentConfigService:
 
             db.flush()
 
-            # Auto-sync permissions
-            AgentConfigService.auto_sync_permissions(db, agent)
             db.commit()
 
             logger.info(f"Updated agent config: {agent.name}")
@@ -163,65 +156,3 @@ class AgentConfigService:
             logger.error(f"Error fetching pipeline order for tenant {tenant_id}: {str(e)}")
             raise
 
-    @staticmethod
-    def auto_sync_permissions(db: Session, agent_config: AgentConfig) -> None:
-        """
-        Auto-sync permissions when agent config is created or updated.
-
-        Ensures that the "agents" resource exists and SuperUser roles have
-        appropriate permissions for managing agents.
-        """
-        try:
-            # 1. Check if "agents" resource exists
-            resource = db.query(Resource).filter(
-                and_(
-                    Resource.name == "agents",
-                    Resource.tenant_id == agent_config.tenant_id
-                )
-            ).first()
-
-            if not resource:
-                logger.warning(f"Agents resource not found for tenant {agent_config.tenant_id}")
-                return
-
-            # 2. Find all SuperUser role templates for this tenant
-            super_user_roles = db.query(RoleTemplate).filter(
-                and_(
-                    RoleTemplate.name == "Super User",
-                    RoleTemplate.tenant_id == agent_config.tenant_id
-                )
-            ).all()
-
-            if not super_user_roles:
-                logger.warning(f"No SuperUser roles found for tenant {agent_config.tenant_id}")
-                return
-
-            # 3. For each SuperUser role, ensure it has permissions for agents resource
-            for role in super_user_roles:
-                # Check if permission already exists
-                existing_perm = db.query(RoleTemplatePermission).filter(
-                    and_(
-                        RoleTemplatePermission.role_template_id == role.id,
-                        RoleTemplatePermission.resource_id == resource.id
-                    )
-                ).first()
-
-                if not existing_perm:
-                    # Create permission with full access
-                    perm = RoleTemplatePermission(
-                        id=uuid.uuid4(),
-                        role_id=role.id,
-                        resource_id=resource.id,
-                        action="manage",  # Full access
-                        tenant_id=agent_config.tenant_id
-                    )
-                    db.add(perm)
-                    logger.info(f"Created agents.manage permission for role {role.name}")
-
-            db.commit()
-
-        except Exception as e:
-            logger.error(f"Error: {str(e)}", exc_info=True)
-            db.rollback()
-            logger.error(f"Error auto-syncing permissions for agent {agent_config.name}: {str(e)}")
-            raise

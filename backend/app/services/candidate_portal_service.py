@@ -1,5 +1,4 @@
 """
-import logging
 S-017/HRMS-0417 -- Candidate Self-Service Web Portal.
 
 Adapted to this codebase's real architecture:

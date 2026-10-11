@@ -2,7 +2,6 @@
 S-205/HRMS-0107 -- Business Unit Entity & Context Switching.
 ==================================================================
 Prefix: /bu-context
-import logging
 Tag:    bu-context
 
 GET  /bu-context/my-access   -- BUs this user can access (>1 = real
@@ -46,7 +45,7 @@ def _user_can_view_all_bus(db: Session, current_user: Users) -> bool:
     from app.services.permission_helper import PermissionHelper
     return PermissionHelper.has_any_permission(
         current_user.UserID,
-        ["admin.manage", "business-units", "edit"],
+        ["business-units.edit"],
         db,
         current_user.tenant_id
     )

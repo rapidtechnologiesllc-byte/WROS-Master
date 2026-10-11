@@ -431,5 +431,15 @@ def recognize_revenue(db: Session, invoice: Invoice, *, recognized_at: Optional[
     )
     db.add(row)
     db.flush()
+    if partner_id is None:
+        # revenue is recorded (the money arrived) but nobody is credited: Finance fixes the client's BU/partner
+        from app.services.task_service import create_task
+
+        create_task(db, title=f"Revenue without a partner: invoice {invoice.id[:8]}", priority="HIGH",
+                    category="FINANCE", tenant_id=invoice.tenant_id, visibility_scope="ORG_WIDE",
+                    description=(f"Paid invoice {invoice.id} ({revenue / 100:,.2f} USD) for "
+                                 f"{client.company_name if client else invoice.client_id} has no partner: the client "
+                                 f"{'has no business unit' if unit is None else 'business unit has no partner'}. "
+                                 "Set it, then re-attribute this revenue."))
     logger.info(f"[Revenue] recognised invoice={invoice.id} revenue={revenue} cost={cost} partner={partner_id}")
     return row

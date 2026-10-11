@@ -62,7 +62,7 @@ import AssignmentsScreen from "../screens/AssignmentsScreen";
 import CandidateCreate from "../screens/CandidateCreate";
 import CandidateSearch from "../screens/CandidateSearch";
 import CandidateSelfService from "../screens/CandidateSelfService";
-import { canAccessMyWorkspace, isCandidateUser } from "../utils/permissionsRoleTemplate";
+import { canAccessMyWorkspace, hasPermission, isCandidateUser } from "../utils/permissionsRoleTemplate";
 import { useNavigate } from "react-router-dom";
 import CandidateDetailsWrapper from "./wrappers/CandidateDetailsWrapper";
 import JobWorkspaceWrapper from "./wrappers/JobWorkspaceWrapper";
@@ -133,38 +133,16 @@ import DocumentUploadScreen from "../screens/DocumentUploadScreen";
 
 // Wrapper component that renders the appropriate dashboard based on user permissions
 // RBAC-driven: Uses permissions from role templates, not hardcoded job titles
-const DashboardRouter = ({ candidates, jobs, interviews, offers, jobTitle }) => {
-  const perms = (() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
-      // If stored as object (permission metadata), convert keys to array
-      if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
-        return Object.keys(stored);
-      }
-      return Array.isArray(stored) ? stored : [];
-    } catch {
-      return [];
-    }
-  })();
-
-  // CEO/SuperUser dashboard (wildcard permission)
-  if (Array.isArray(perms) && perms.includes('*.*')) {
+const DashboardRouter = ({ candidates, jobs, interviews, offers }) => {
+  // The first executive dashboard the role template permits (permissions only)
+  if (hasPermission("ceo-dashboard", "view")) {
     return <CEOUnifiedDashboard />;
   }
-
-  // CFO dashboard (finance.manage permission)
-  if (Array.isArray(perms) && perms.includes('finance.manage')) {
+  if (hasPermission("cfo-dashboard", "view")) {
     return <CFOAgentScreen />;
   }
-
-  // Partner dashboard (business_unit.manage permission or partner-specific)
-  if ((Array.isArray(perms) && perms.includes('business_unit.manage')) || (Array.isArray(perms) && perms.includes('reports.manage'))) {
+  if (hasPermission("partner-dashboard", "view")) {
     return <PartnerROIAgentScreen />;
-  }
-
-  // HR Manager and Resource Manager get standard dashboard
-  if ((Array.isArray(perms) && perms.includes('employees.manage')) || (Array.isArray(perms) && perms.includes('recruitment.create'))) {
-    return <Dashboard candidates={candidates} jobs={jobs} interviews={interviews} offers={offers} />;
   }
 
   // Everyone else gets the generic dashboard
@@ -296,6 +274,19 @@ const normalizeJobStatusForApi = (uiStatus) => {
 // Role names from role templates are not hardcoded in frontend
 // Instead, check user's permissions (which come from role template assignments)
 
+const logout = () => {
+  localStorage.removeItem("hrms_token");
+  localStorage.removeItem("hrms_role");
+  localStorage.removeItem("hrms_authority");
+  localStorage.removeItem("hrms_user_name");
+  localStorage.removeItem("hrms_user_email");
+  localStorage.removeItem("hrms_candidate_id");
+  localStorage.removeItem("hrms_user_type");
+  localStorage.removeItem("hrms_roles");
+  localStorage.removeItem("hrms_permissions");
+  window.location.href = "/";
+};
+
 export default function AppRoutes() {
   // Public, unauthenticated Thunder chat widget -- a real external
   // visitor (careers page / job listing) has no account and never
@@ -346,6 +337,22 @@ export default function AppRoutes() {
     return <ForcePasswordReset />;
   }
 
+  // Candidates get their own self-service app (decided before any hook runs)
+  if (
+    isCandidateUser({
+      role: localStorage.getItem("permission_role"),
+      userType: String(localStorage.getItem("hrms_user_type") || "").trim().toLowerCase(),
+    })
+  ) {
+    return <CandidateSelfService onLogout={logout} />;
+  }
+
+  // Hooks live in AuthenticatedApp: they must run in the same order on every render,
+  // which the early returns above would break (react-hooks/rules-of-hooks)
+  return <AuthenticatedApp />;
+}
+
+function AuthenticatedApp() {
   const [storedRole, setStoredRole] = useState(localStorage.getItem("permission_role"));
   const [storedJobTitle, setStoredJobTitle] = useState(localStorage.getItem("job_title"));
   const [permissionsLoading, setPermissionsLoading] = useState(true);
@@ -353,28 +360,10 @@ export default function AppRoutes() {
     .trim()
     .toLowerCase();
 
-  // RBAC-driven: Check permissions instead of hardcoded role names
-  // Import these from permissionsRbac for consistent permission checking
-  const { isSuperAdmin: isSuperUser } = (() => {
-    try {
-      const perms = JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
-      return { isSuperAdmin: Array.isArray(perms) && perms.includes('*.*') };
-    } catch {
-      return { isSuperAdmin: false };
-    }
-  })();
+  // Deleting a job needs the jobs delete permission on the role template
+  const canDeleteJobs = hasPermission("jobs", "delete");
 
-  const handleLogout = () => {
-    localStorage.removeItem("hrms_token");
-    localStorage.removeItem("hrms_role");
-    localStorage.removeItem("hrms_user_name");
-    localStorage.removeItem("hrms_user_email");
-    localStorage.removeItem("hrms_candidate_id");
-    localStorage.removeItem("hrms_user_type");
-    localStorage.removeItem("hrms_roles");
-    localStorage.removeItem("hrms_permissions");
-    window.location.href = "/";
-  };
+  const handleLogout = logout;
 
   // Root cause fix: Refresh role and permissions from /hr/me on app initialization
   // CRITICAL: This runs BEFORE Shell renders to ensure fresh permissions are loaded
@@ -420,15 +409,6 @@ export default function AppRoutes() {
       setPermissionsLoading(false);
     }
   }, []);
-
-  if (
-    isCandidateUser({
-      role: storedRole,
-      userType: storedUserType,
-    })
-  ) {
-    return <CandidateSelfService onLogout={handleLogout} />;
-  }
 
   const [role, setRole] = useState(storedRole);
   const [candidateRecord, setCandidateRecord] = useState(null);
@@ -820,7 +800,7 @@ export default function AppRoutes() {
                     }
                   }}
                   onDeleteJob={
-                    isSuperUser
+                    canDeleteJobs
                       ? async (jobId) => {
                           const ok = window.confirm(`Delete job ${jobId}?`);
                           if (!ok) return;

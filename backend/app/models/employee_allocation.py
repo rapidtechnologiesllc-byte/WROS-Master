@@ -1,5 +1,4 @@
 """
-import logging
 HRMS-0507 -- Employee Allocation Records.
 
 This is deliberately the minimal "allocate employee to project" data

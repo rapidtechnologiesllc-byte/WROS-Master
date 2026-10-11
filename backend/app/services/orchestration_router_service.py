@@ -1,5 +1,4 @@
 """
-import logging
 Phase 3 Part A2 -- HRMS-1101 System Orchestration Router.
 
 Per S-270_HRMS-1101.docx's own "How is Agentic AI Used" section, this
@@ -51,7 +50,6 @@ from app.models.candidate_ai import CandidateConversation
 from app.models.orchestration import RESOLUTION_ACTIONS, SEVERITIES, ConflictRule, OrchestrationEvent
 from app.models.user import Users
 from app.services.notification_service import send_notification
-from app.core.logging import logger
 
 NOVEL_PATTERN_WINDOW_MINUTES = 5   # BR-1101 Step 4
 HIGH_SEVERITY_PAGE_SLA_SECONDS = 300  # BR-1101-04
@@ -102,7 +100,7 @@ class ActionDelayed(Exception):
 def create_conflict_rule(
     db: Session,
     *,
-    actor_role: str,
+    actor: Users,
     rule_name: str,
     entity_type_a: str,
     action_type_a: str,
@@ -113,12 +111,30 @@ def create_conflict_rule(
     delay_minutes: Optional[int] = None,
     tenant_id: Optional[int] = None,
 ) -> ConflictRule:
-    """BR-1101-05: write access gated by role=Admin, full stop -- there is
-    no "trusted service account" bypass, matching this codebase's
-    Development & Review Standard posture on role checks living
-    server-side, never assumed from the caller's good intentions."""
-    if actor_role != "Admin":
-        raise RuleEditForbidden(f"conflict_rules may only be written by Admin, got role '{actor_role}'.")
+    """BR-1101-05: write access needs the admin-settings edit permission on the actor's
+    role template (super users pass) -- no "trusted service account" bypass. The rules
+    the code itself defines are seeded through _insert_conflict_rule."""
+    _require_rule_editor(db, actor)
+    return _insert_conflict_rule(
+        db, rule_name=rule_name, entity_type_a=entity_type_a, action_type_a=action_type_a,
+        entity_type_b=entity_type_b, action_type_b=action_type_b,
+        collision_window_minutes=collision_window_minutes, resolution_action=resolution_action,
+        delay_minutes=delay_minutes, tenant_id=tenant_id,
+    )
+
+
+def _require_rule_editor(db: Session, actor: Users) -> None:
+    from app.core import authority
+
+    if not authority.has_permission(db, actor, "admin-settings.edit"):
+        raise RuleEditForbidden("conflict_rules may only be written by a role with admin-settings edit permission.")
+
+
+def _insert_conflict_rule(
+    db: Session, *, rule_name: str, entity_type_a: str, action_type_a: str, entity_type_b: str,
+    action_type_b: str, collision_window_minutes: int, resolution_action: str,
+    delay_minutes: Optional[int] = None, tenant_id: Optional[int] = None,
+) -> ConflictRule:
     if resolution_action not in RESOLUTION_ACTIONS:
         raise InvalidConflictRule(f"resolution_action must be one of {RESOLUTION_ACTIONS}, got '{resolution_action}'.")
     if not (1 <= collision_window_minutes <= 1440):
@@ -137,12 +153,11 @@ def create_conflict_rule(
     db.flush()
     return rule
 
-def deactivate_conflict_rule(db: Session, rule: ConflictRule, *, actor_role: str) -> ConflictRule:
+def deactivate_conflict_rule(db: Session, rule: ConflictRule, *, actor: Users) -> ConflictRule:
     """"Deactivate a rule without deleting audit history" (UI field spec) --
     is_active=False, the row and every OrchestrationEvent that ever
     snapshotted its resolution_action stay exactly as they were."""
-    if actor_role != "Admin":
-        raise RuleEditForbidden(f"conflict_rules may only be written by Admin, got role '{actor_role}'.")
+    _require_rule_editor(db, actor)
     rule.is_active = False
     db.add(rule)
     return rule
@@ -161,8 +176,8 @@ def seed_default_conflict_rules(db: Session, *, tenant_id: Optional[int] = None)
     if OUTREACH_VS_COREPULL_RULE_NAME not in existing_names:
         # BR-1101-01: HRMS-1105 Core-pull flag within 60 min of HRMS-1104
         # outreach on the same entity_id -> outreach BLOCKED.
-        created.append(create_conflict_rule(
-            db, actor_role="Admin", rule_name=OUTREACH_VS_COREPULL_RULE_NAME,
+        created.append(_insert_conflict_rule(
+            db, rule_name=OUTREACH_VS_COREPULL_RULE_NAME,
             entity_type_a="candidate", action_type_a="core_pull_flag",
             entity_type_b="candidate", action_type_b="outreach_send",
             collision_window_minutes=60, resolution_action="BLOCK",
@@ -175,8 +190,8 @@ def seed_default_conflict_rules(db: Session, *, tenant_id: Optional[int] = None)
         # (app.services.whatsapp_routing_service.is_ai_owner). This rule
         # exists so any future agent that calls the Router directly (not
         # through send_thunder_message) is still caught.
-        created.append(create_conflict_rule(
-            db, actor_role="Admin", rule_name=THUNDER_OWNERSHIP_LOCK_RULE_NAME,
+        created.append(_insert_conflict_rule(
+            db, rule_name=THUNDER_OWNERSHIP_LOCK_RULE_NAME,
             entity_type_a=CANDIDATE_CONVERSATION_ENTITY_TYPE, action_type_a=ANY_SEND_ACTION_TYPE,
             entity_type_b=CANDIDATE_CONVERSATION_ENTITY_TYPE, action_type_b=ANY_SEND_ACTION_TYPE,
             collision_window_minutes=1, resolution_action="BLOCK",

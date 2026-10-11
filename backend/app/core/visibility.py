@@ -12,39 +12,12 @@ logger = logging.getLogger(__name__)
 
 
 def is_org_level_user(user: Users) -> bool:
-    """
-    Check if user should see organization-level data (not BU-scoped).
-
-    Queries role_template.org_level_access flag instead of hardcoded role names.
-    Supports both new RBAC (role_template) and legacy UserRole systems.
-    """
-    if not user:
+    """Sees organization-wide data (not BU-scoped): the user's enabled role template is
+    flagged org_level_access. Never by role name, legacy UserRole or a super-user flag."""
+    role = getattr(user, "role_template", None) if user else None
+    if role is None or not role.enabled:
         return False
-
-    # New RBAC: Check role_template.org_level_access flag
-    if user.role_template_id and user.role_template:
-        try:
-            org_level = getattr(user.role_template, 'org_level_access', False)
-            if org_level:
-                logger.debug(f"User {user.UserEmail} is org-level via role_template {user.role_template.name}")
-                return True
-        except Exception as e:
-            logger.warning(f"Failed to check role_template org_level_access: {e}")
-
-    # Legacy RBAC: Check hardcoded role set (for backward compatibility)
-    # These roles will be migrated to set org_level_access=True on their role_template
-    legacy_org_level_roles = {"super user", "admin", "ceo", "cfo"}
-
-    if user.UserRole and user.UserRole.lower() in legacy_org_level_roles:
-        logger.debug(f"User {user.UserEmail} is org-level via legacy UserRole: {user.UserRole}")
-        return True
-
-    # Check role_template (new RBAC system) for org_level_access flag
-    if user.role_template and hasattr(user.role_template, 'org_level_access') and user.role_template.org_level_access:
-        logger.debug(f"User {user.UserEmail} is org-level via role_template: {user.role_template.name}")
-        return True
-
-    return False
+    return bool(role.org_level_access)
 
 
 def should_bypass_bu_filter(user: Users) -> bool:

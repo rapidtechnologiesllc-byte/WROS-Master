@@ -8,7 +8,6 @@ import {
   Plus, Edit2, Trash2, Lock, Users, Building2, MapPin, Globe, AlertCircle, CheckCircle, X
 } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
-import { canEdit, canDelete } from "../services/permissions";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
 import {
   getAllUsers,
@@ -333,7 +332,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
             key: "actions",
             cell: (row) => (
               <div className="flex items-center gap-2">
-                {canEdit(currentUserPermissions, "user") && (
+                {hasPermission("users-access-control", "edit") && (
                   <button
                     onClick={() => navigate(`/admin/users-access-control/users/${row.user_id}/edit`)}
                     className="text-blue-600 hover:text-blue-700"
@@ -352,7 +351,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                 >
                   <Lock className="h-4 w-4" />
                 </button>
-                {canDelete(currentUserPermissions, "user") && (
+                {hasPermission("users-access-control", "delete") && (
                   <button
                     onClick={() => {
                       setSelectedUserId(row.user_id);
@@ -427,14 +426,8 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
     );
   }, [roles, searchTerm]);
 
-  // Count users per template - match by template name
-  const getUserCount = (templateId, templateName) => {
-    return users.filter(u => {
-      // Match by user_role field (e.g., "Admin" matches template.name "Admin")
-      if (u.user_role === templateName) return true;
-      return false;
-    }).length;
-  };
+  // Count users per template by the template id they hold (names can be renamed)
+  const getUserCount = (templateId) => users.filter((u) => u.role_template_id === templateId).length;
 
   // Fetch users for a specific role template
   const handleShowUsers = async (roleId, roleName) => {
@@ -776,7 +769,7 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredRoles.map(role => {
-            const userCount = getUserCount(role.id, role.name);
+            const userCount = getUserCount(role.id);
             const isActive = role.enabled !== false; // Use enabled field from backend
             return (
               <div
@@ -1797,26 +1790,8 @@ function LocationsSection() {
     { id: "role-templates", label: "Role Templates", icon: null, label2: "📋", href: "/admin/users-access-control/role-templates" }
   ];
 
-  // Check if user has permission to manage role templates (Super User, Admin, CEO)
-  const hrmsRole = localStorage.getItem("hrms_role") || "";
-  const permissionRole = localStorage.getItem("permission_role") || "";
-  const hrmsPermissionsStr = localStorage.getItem("hrms_permissions") || "[]";
-  let hrmsPermissions = [];
-  try {
-    const parsed = JSON.parse(hrmsPermissionsStr);
-    hrmsPermissions = Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    // If parsing fails, use empty array
-    hrmsPermissions = [];
-  }
-
-  const canManageRoleTemplates = hrmsRole.toLowerCase() === "admin" ||
-                                 hrmsRole.toLowerCase() === "super user" ||
-                                 permissionRole.toLowerCase() === "admin" ||
-                                 permissionRole.toLowerCase() === "super user" ||
-                                 hrmsPermissions.some(p => p.includes("role") && p.includes("manage")) ||
-                                 hrmsPermissions.some(p => p.includes("rbac") && p.includes("manage")) ||
-                                 currentUserPermissions?.["role.manage"];
+  // Managing role templates needs the role-templates edit permission (role template matrix only)
+  const canManageRoleTemplates = hasPermission("role-templates", "edit");
 
   // Determine the current nav section ID from activeTab
   const currentNavId = Object.keys(sectionMap).find(key => sectionMap[key] === activeTab) || "users";

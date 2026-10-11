@@ -3,7 +3,6 @@ S-353 (HRMS-0514) Core-Pull Engine + S-373 (HRMS-0529) Specialty Pool
 Minimum 40 Guard — API Endpoints
 =========================================================================
 Prefix: /core-pull
-import logging
 Tag:    core-pull
 
 Wires app.services.core_pull_service (built earlier this program, no
@@ -11,9 +10,9 @@ REST layer previously existed) to real HTTP routes. See the Definition
 of Done correction in CLAUDE.md.
 
 Auth: same posture as Thunder/Resource Management (get_current_internal_user
--- any internal user). override is additionally gated on the acting
-user's UserRole == "BU Head" inside override_core_pull() itself (403 if
-not); no separate RBAC permission exists for this area yet.
+-- any internal user). override is additionally gated inside
+override_core_pull() on the acting user's role template being BU Head
+level or above (app.core.authority.is_bu_leader; 403 if not).
 
 Routes:
   GET    /core-pull/specialty-pool-status
@@ -190,8 +189,7 @@ def override_event(
     try:
         event = override_core_pull(
             db, event,
-            actor_role=current_user.UserRole,
-            actor_user_id=current_user.UserID,
+            actor=current_user,
             justification=body.justification,
             tenant_id=current_user.tenant_id,
             director=None,

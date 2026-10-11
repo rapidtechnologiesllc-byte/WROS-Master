@@ -1,5 +1,4 @@
 """
-import logging
 S-215/HRMS-0117 -- Error Logging Framework.
 
 Additive to the existing file-based structured logging

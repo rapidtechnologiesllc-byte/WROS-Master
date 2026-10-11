@@ -1,5 +1,4 @@
 """
-import logging
 Pre-Onboarding API
 
 Endpoints related to the Hiring Manager review and approval workflow,

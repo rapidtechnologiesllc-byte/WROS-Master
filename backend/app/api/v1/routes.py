@@ -105,7 +105,6 @@ from app.api.v1.endpoints.flash_queue_metrics import router as flash_queue_metri
 from app.api.v1.endpoints.csrf_token import router as csrf_token_router
 from app.api.v1.endpoints.system_diagnostics import router as system_diagnostics_router
 from app.api.v1.endpoints.api_keys import router as api_keys_router
-from app.api.v1.endpoints.admin_setup import router as admin_setup_router
 from app.api.v1.endpoints.role_templates import rbac_router
 # Dashboard APIs deleted in 985681ca while their screens were still live
 from app.api.v1.endpoints.bi_explorer import router as bi_explorer_router
@@ -136,7 +135,6 @@ router.include_router(router=slm_exports_router)
 router.include_router(router=flash_queue_metrics_router)
 router.include_router(router=csrf_token_router)
 router.include_router(router=system_diagnostics_router)
-router.include_router(router=admin_setup_router)
 router.include_router(router=api_keys_router)
 router.include_router(router=users_router)
 router.include_router(router=create_job_router)
@@ -225,8 +223,7 @@ router.include_router(router=admin_queue_router)
 # agent_config, bi_explorer, bu_head_dashboard, candidate_ranking, candidate_rejection,
 # dynamic_config, interview_decision, queue, resume_upload, training_dashboards:
 # endpoint modules were removed from the working tree; not registered until restored.
-# doctor_traces_dashboard: references app.models.doctor_trace.DoctorTrace, which was
-# never added to this codebase; not registered until that model exists.
+# doctor_traces_dashboard: deleted (it referenced a DoctorTrace model that never existed).
 router.include_router(router=employee_conversion_router)
 router.include_router(router=hiring_pipeline_router)
 router.include_router(router=bgv_router)

@@ -1,12 +1,11 @@
 import logging
-from app.core.logging import logger
 """Agent Shield Service - Spartan Phalanx formation monitoring and integrity checks."""
 
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List
 from app.models.agent_phalanx import (
-    AgentInFormation, ShieldWatch, PhalanxAlert, FormationIntegrity, AgentPhalanxFormation
+    AgentInFormation, PhalanxAlert, FormationIntegrity, AgentPhalanxFormation
 )
 from app.services.agent_registry_service import AGENT_REGISTRY
 

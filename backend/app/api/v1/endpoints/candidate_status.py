@@ -1,5 +1,4 @@
 """
-import logging
 Candidate Status Management API
 
 Endpoints for updating and viewing a candidate's:

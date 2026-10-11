@@ -1,5 +1,4 @@
 """
-import logging
 S-045/HRMS-0445 -- Reactivation Campaign.
 
 *** REAL, EXPLICIT SPEC OVERRIDE FROM AVINASH -- READ BEFORE TOUCHING ***

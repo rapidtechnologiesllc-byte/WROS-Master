@@ -5,10 +5,9 @@ a public route, a properly-declared route, and a route with no
 declaration at all.
 """
 import pytest
-import logging
 from fastapi import Depends, FastAPI
 
-from app.core.dependencies import require_permission, require_attribute
+from app.core.dependencies import require_permission, require_role_template_permission
 from app.core.route_security_audit import (
     find_routes_missing_permission_declaration,
     assert_all_routes_have_permission_declarations,
@@ -27,7 +26,7 @@ def _toy_app() -> FastAPI:
     def list_candidates():
         return []
 
-    @app.post("/candidates", dependencies=[Depends(require_attribute("pipeline_control"))])
+    @app.post("/candidates", dependencies=[Depends(require_role_template_permission("candidates", "create"))])
     def create_candidate():
         return {}
 

@@ -1,4 +1,3 @@
-from app.core.logging import logger
 """Defect reporting schemas."""
 import logging
 from pydantic import BaseModel

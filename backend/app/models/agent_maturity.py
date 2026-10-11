@@ -1,6 +1,5 @@
 """
 Agent Maturity Tracking — Performance Metrics & Learning Curves
-import logging
 ================================================================
 
 Tracks agent performance over time for the Reporting/Oversight agent.

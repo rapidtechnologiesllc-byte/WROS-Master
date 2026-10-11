@@ -1,5 +1,4 @@
 import logging
-from app.core.logging import logger
 """Role-Based Access Control for Employee Referrals.
 
 ZERO-HARDCODING: All access rules determined by database-driven role_templates,
@@ -54,7 +53,7 @@ class ReferralAccessControl:
         # Admin and Workforce Manager see everything
         user = db.query(Users).filter(Users.UserID == user_id).first()
         tenant_id = (user.tenant_id or 1) if user else 1
-        if PermissionHelper.has_any_permission(user_id, ["admin-settings", "edit", "revenue", "edit"], db, tenant_id):
+        if PermissionHelper.has_any_permission(user_id, ["admin-settings.edit", "revenue.edit"], db, tenant_id):
             return True
 
         # BU Head/Partner see only their BU
@@ -74,10 +73,10 @@ class ReferralAccessControl:
             # Admin and Finance see ALL referrals
             user = db.query(Users).filter(Users.UserID == user_id).first()
             tenant_id = (user.tenant_id or 1) if user else 1
-            if PermissionHelper.has_any_permission(user_id, ["admin-settings", "edit", "revenue", "edit"], db, tenant_id):
+            if PermissionHelper.has_any_permission(user_id, ["admin-settings.edit", "revenue.edit"], db, tenant_id):
                 referrals = db.query(EmployeeReferral).all()
             # BU Head/Partner and HR Manager see only their BU's referrals
-            elif PermissionHelper.has_any_permission(user_id, ["business-units", "edit", "employees", "edit"], db, tenant_id):
+            elif PermissionHelper.has_any_permission(user_id, ["business-units.edit", "employees.edit"], db, tenant_id):
                 referrals = (
                     db.query(EmployeeReferral)
                     .join(Employee, EmployeeReferral.referring_employee_id == Employee.id)
@@ -120,10 +119,10 @@ class ReferralAccessControl:
             # Admin and Finance see ALL bonuses for payment processing
             user = db.query(Users).filter(Users.UserID == user_id).first()
             tenant_id = (user.tenant_id or 1) if user else 1
-            if PermissionHelper.has_any_permission(user_id, ["admin-settings", "edit", "revenue", "edit"], db, tenant_id):
+            if PermissionHelper.has_any_permission(user_id, ["admin-settings.edit", "revenue.edit"], db, tenant_id):
                 bonuses = db.query(ReferralBonus).all()
             # BU Head/Partner and HR Manager see only their BU's bonuses
-            elif PermissionHelper.has_any_permission(user_id, ["business-units", "edit", "employees", "edit"], db, tenant_id):
+            elif PermissionHelper.has_any_permission(user_id, ["business-units.edit", "employees.edit"], db, tenant_id):
                 bonuses = (
                     db.query(ReferralBonus)
                     .join(Employee, ReferralBonus.referring_employee_id == Employee.id)
@@ -167,14 +166,14 @@ class ReferralAccessControl:
         tenant_id = (user.tenant_id or 1) if user else 1
         can_view_stats = PermissionHelper.has_any_permission(
             user_id,
-            ["admin-settings", "edit", "revenue", "edit", "business-units", "edit", "employees", "edit"],
+            ["admin-settings.edit", "revenue.edit", "business-units.edit", "employees.edit"],
             db, tenant_id
         )
         if not can_view_stats:
             return None
 
         # BU Head/HR can only see their BU's jobs
-        if PermissionHelper.has_any_permission(user_id, ["business-units", "edit", "employees", "edit"], db, tenant_id):
+        if PermissionHelper.has_any_permission(user_id, ["business-units.edit", "employees.edit"], db, tenant_id):
             # Verify this job is in their BU
             # For now, assume job belongs to a BU (would need job model update)
             # TODO: Add business_unit field to Jobs model

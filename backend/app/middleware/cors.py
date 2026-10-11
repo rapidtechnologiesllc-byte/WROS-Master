@@ -8,7 +8,6 @@ import logging
 from typing import List
 
 from app.core.config import settings
-from app.core.logging import logger
 
 def setup_cors(app: FastAPI) -> None:
     """

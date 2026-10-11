@@ -1,5 +1,4 @@
 """
-import logging
 S-076/HRMS-0476 -- Conversation Audit Log.
 
 A compliance-grade, insert-only record of significant AI/HR actions on a

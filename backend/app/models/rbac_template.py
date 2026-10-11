@@ -2,7 +2,6 @@
 Compatibility stub for legacy RBAC tests.
 RBAC system has been removed - use RoleTemplate system instead.
 This module only exists to prevent import errors in legacy tests.
-import logging
 """
 
 # Stub classes for backward compatibility

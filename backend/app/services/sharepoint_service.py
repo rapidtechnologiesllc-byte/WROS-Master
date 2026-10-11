@@ -4,7 +4,6 @@ SharePoint Service
 Thin wrapper around the Microsoft Graph REST API for SharePoint Drive operations.
 Uses the application-level service-account token (AZURE_* credentials) already
 configured in app/core/graph_auth.py — no user sign-in required.
-import logging
 """
 
 import io

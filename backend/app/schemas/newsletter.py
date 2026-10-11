@@ -1,8 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, List
+from typing import Optional
 import logging
 from datetime import datetime
-from app.core.logging import logger
 
 # ---------------------------------------------------------------------------
 # Subscriber Schemas
@@ -16,7 +15,6 @@ class SubscriberBase(BaseModel):
 
 class SubscriberCreate(SubscriberBase):
     """Payload for subscribing to the newsletter."""
-    pass
 
 class SubscriberStatusUpdate(BaseModel):
     """Payload for activating / deactivating a subscriber."""
@@ -39,7 +37,6 @@ class NewsletterBase(BaseModel):
 
 class NewsletterCreate(NewsletterBase):
     """Payload for creating a new newsletter draft."""
-    pass
 
 class NewsletterUpdate(BaseModel):
     """Partial payload for editing a newsletter (all fields optional)."""

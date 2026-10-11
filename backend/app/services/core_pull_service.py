@@ -1,6 +1,5 @@
 """
 S-353/HRMS-0514 -- Core-Pull Conflict Rule Engine ("Core Wins Policy") and
-import logging
 S-373/HRMS-0529 -- Specialty Pool Minimum 40 Core-Certified Guard.
 
 Built directly from `Requirements/S-353_HRMS-0514.docx` and
@@ -32,7 +31,6 @@ from app.models.core_pull import CorePullEvent, SpecialtyPoolReplacementPlan
 from app.models.user import Users
 from app.services.notification_service import send_notification
 from app.services.orchestration_router_service import evaluate_action_intent
-from app.core.logging import logger
 
 CORE_PULL_AGENT_ID = "core_pull_engine"
 SPECIALTY_POOL_MINIMUM = 40  # S-373 BR: a hard floor, not a target
@@ -293,7 +291,7 @@ def execute_core_pull(
 
     new_allocation = EmployeeAllocation(
         tenant_id=tenant_id, employee_id=employee.id, demand_id=core_demand.id,
-        client_id=core_demand.client_id, start_date=today,
+        client_id=core_demand.client_id, project_id=getattr(core_demand, "project_id", None), start_date=today,
         utilization_pct=speciality_allocation.utilization_pct,
         billing_rate_usd_cents=core_demand.billing_rate_usd_cents,
     )
@@ -343,8 +341,7 @@ def override_core_pull(
     db: Session,
     event: CorePullEvent,
     *,
-    actor_role: str,
-    actor_user_id: str,
+    actor: Users,
     justification: str,
     tenant_id: Optional[int] = None,
     director: Optional[Users] = None,
@@ -357,10 +354,11 @@ def override_core_pull(
     caller-supplied recipient, same posture as every other roster-
     resolution gap already flagged in this codebase).
     """
-    if actor_role != "BU Head":
-        raise CorePullOverrideForbidden(
-            f"Core-Pull override requires BU Head role, got '{actor_role}'."
-        )
+    from app.core import authority
+
+    if not authority.is_bu_leader(db, actor):
+        raise CorePullOverrideForbidden("Core-Pull override requires a BU Head (or more senior) role.")
+    actor_user_id = actor.UserID
     if event.status != "PENDING":
         raise ValueError(f"CorePullEvent {event.id} is not PENDING (status={event.status}).")
     if len(justification or "") < OVERRIDE_JUSTIFICATION_MIN_CHARS:

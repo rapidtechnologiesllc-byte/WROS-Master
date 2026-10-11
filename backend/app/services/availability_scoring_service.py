@@ -1,5 +1,4 @@
 """
-import logging
 S-039/HRMS-0439 -- Availability Score.
 
 Real architecture adaptations:

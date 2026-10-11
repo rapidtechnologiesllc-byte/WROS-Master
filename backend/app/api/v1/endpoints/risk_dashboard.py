@@ -2,7 +2,6 @@
 S-063/HRMS-0463 -- Candidate Risk Dashboard
 ==================================================================
 Prefix: /risk
-import logging
 Tag:    risk-dashboard
 
 GET /risk/dashboard

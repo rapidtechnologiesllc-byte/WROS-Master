@@ -1,4 +1,3 @@
-from app.core.logging import logger
 """Pydantic Schemas -- S-059/HRMS-0459 Candidate Journey Dashboard."""
 from datetime import datetime
 import logging

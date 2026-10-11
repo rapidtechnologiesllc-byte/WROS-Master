@@ -1,5 +1,4 @@
 """
-import logging
 S-063/HRMS-0463 -- Candidate Risk Dashboard.
 
 Real architecture adaptations:
