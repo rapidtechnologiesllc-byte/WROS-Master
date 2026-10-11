@@ -1,3 +1,4 @@
+import FinancialOutlookPanel from "../components/FinancialOutlookPanel";
 import { useEffect, useState } from "react";
 import { Users, TrendingUp, DollarSign, AlertCircle, Briefcase } from "lucide-react";
 import { Card } from "../components/ui";
@@ -66,6 +67,8 @@ export default function BUHeadDashboardScreen() {
         <p className="text-gray-600 mt-1">Complete visibility of delivery, team, and revenue</p>
       </div>
       {picker}
+
+      <FinancialOutlookPanel title="This business unit: plan vs actual" businessUnitId={selectedBuId || undefined} />
 
       {targets.length > 0 && (
         <Card title="FY targets vs actuals by company">

@@ -188,6 +188,8 @@ class Settings:
     FX_INR_PER_USD: float = float(os.getenv("FX_INR_PER_USD") or 85)
     # Paid hours in a month (40h x 52 weeks / 12); turns monthly loaded cost into an hourly cost
     STANDARD_MONTHLY_HOURS: float = float(os.getenv("STANDARD_MONTHLY_HOURS", "173.33"))
+    # planned billable hours per business day for projected revenue (allocation x utilization)
+    STANDARD_DAILY_HOURS: float = float(os.getenv("STANDARD_DAILY_HOURS", "8"))
 
     # Background jobs (app/core/scheduled_jobs.py): comma-separated names. Unset = every
     # registered job (all internal: drafts, staff reminders, AR tasks, metrics); set it to ""
