@@ -193,6 +193,13 @@ from app.models.candidate_desire_profile import CandidateDesireProfile
 from app.models.motivation import MotivationContentLibrary, MotivationOutcome
 from app.models.strategic_goal import StrategicGoal, CascadedGoal, GoalTarget, PyramidReport
 from app.models.linkedin_candidate_pipeline import LinkedInCandidatePipeline, LinkedInPipelineStatus
+from app.models.learning_events import (
+    LearningEvent,
+    LearningEventBatch,
+    SegmentLearningProfile,
+    DecisionOutcome,
+    ProcessedWebhookEvent,
+)
 
 __all__ = [
     # Base
@@ -403,5 +410,11 @@ __all__ = [
     # LinkedIn Candidate Pipeline (Manual Recruiter Sourcing)
     "LinkedInCandidatePipeline",
     "LinkedInPipelineStatus",
+    # Unified Learning Framework (Decision tracking & outcomes)
+    "LearningEvent",
+    "LearningEventBatch",
+    "SegmentLearningProfile",
+    "DecisionOutcome",
+    "ProcessedWebhookEvent",
 ]
 

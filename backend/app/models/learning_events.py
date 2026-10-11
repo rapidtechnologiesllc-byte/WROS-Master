@@ -136,3 +136,68 @@ class SegmentLearningProfile(Base):
 
     # Bias detection
     bias_flags = Column(JSON, nullable=True)  # Any suspected biases detected {"disparity_factor": 1.8, "affected_groups": [...]}
+
+
+class DecisionOutcome(Base):
+    """Track decisions before/after outcomes for learning"""
+    __tablename__ = "decision_outcomes"
+
+    id = Column(String(512), primary_key=True)  # UUID string
+    tenant_id = Column(String(512), nullable=False, index=True)
+
+    # Decision identification
+    decision_type = Column(String(100), nullable=False)  # outreach_channel, match_quality, interview_readiness, etc.
+    orchestrator = Column(String(50), nullable=False, index=True)  # thunder, flash, interview, offer, finance, employee
+    entity_id = Column(String(512), nullable=False, index=True)  # candidate_id, job_id, interview_id, etc.
+
+    # Predicted outcome (before known)
+    predicted_outcome = Column(String(100), nullable=False)
+    predicted_probability = Column(Float, nullable=False)  # 0.0-1.0 confidence
+
+    # Actual outcome (after known)
+    actual_outcome = Column(String(100), nullable=True)  # Null while pending
+    actual_success = Column(Boolean, nullable=True)  # True/False once known
+    actual_metadata = Column(JSON, nullable=True)  # Additional outcome details
+
+    # Status tracking
+    status = Column(String(50), nullable=False, index=True)  # pending, completed, failed, timeout
+    created_at = Column(DateTime, nullable=False, index=True)
+    expected_outcome_at = Column(DateTime, nullable=True)
+    outcome_recorded_at = Column(DateTime, nullable=True, index=True)
+
+    # Learning metrics
+    confidence_gap = Column(Float, nullable=True)  # |predicted_probability - actual_result|
+    outcome_delay_hours = Column(Float, nullable=True)  # How long before outcome was recorded
+
+    # Decision factors
+    factors_used = Column(JSON, nullable=True)  # Factors that influenced this decision
+    cascade_source = Column(String(512), nullable=True)  # Which module triggered this
+    segment_id = Column(String(512), nullable=True, index=True)  # Segment for learning
+
+    # Indexes for common queries
+    __table_args__ = (
+        Index('ix_decision_outcomes_status', 'status'),
+        Index('ix_decision_outcomes_segment', 'segment_id', 'created_at'),
+        Index('ix_decision_outcomes_pending', 'tenant_id', 'status', 'expected_outcome_at'),
+    )
+
+
+class ProcessedWebhookEvent(Base):
+    """Track processed webhook events to prevent duplicate processing (idempotency)"""
+    __tablename__ = "processed_webhook_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(String(512), nullable=False, index=True)
+
+    # Event identification
+    provider = Column(String(50), nullable=False, index=True)  # sendgrid, mailgun, twilio, whatsapp, etc.
+    idempotency_key = Column(String(512), nullable=False, index=True)  # SHA256 hash of (provider + message_id + event_type + email/phone)
+
+    # Processing metadata
+    processed_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+    # Indexes for common queries
+    __table_args__ = (
+        Index('ix_processed_webhook_events_idempotency', 'tenant_id', 'idempotency_key'),
+        Index('ix_processed_webhook_events_provider', 'provider', 'processed_at'),
+    )
