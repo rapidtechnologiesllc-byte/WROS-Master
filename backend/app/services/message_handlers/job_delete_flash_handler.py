@@ -1,8 +1,8 @@
-"""Job Delete Flash Handler - Queue-driven job deletion with cascade cleanup."""
+"""Job Delete Flash Handler: confirms a job deletion for Flash. Nothing is cascaded -- a job
+with history cannot be deleted at all (app.services.job_lifecycle_service)."""
 import logging
 from typing import Dict, Any
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError, OperationalError
 from app.models.user import Jobs
 from datetime import datetime, timedelta
 from app.services.message_handlers.base_message_handler import time_bound
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class JobDeleteFlashHandler:
-    """Handles job_deleted_flash queue messages with cascade cleanup."""
+    """Confirms job_deleted_flash events (the endpoint already deleted the job)."""
 
     TIMEOUT_SECONDS = 45
     MAX_RETRIES = 3
@@ -21,7 +21,7 @@ class JobDeleteFlashHandler:
     @time_bound(timeout_seconds=15)
     def process(message: Any, db: Session) -> Dict[str, Any]:
         """
-        Process: Delete job and cascade cleanup from queue message
+        Process: confirm the job is gone
 
         Args:
             message: ChannelQueueItem with type='job_deleted_flash'
@@ -63,93 +63,12 @@ class JobDeleteFlashHandler:
             if not job_id:
                 raise ValueError("Missing required field: job_id")
 
-            # PHASE 2: QUERY (Verify job exists)
-            try:
-                job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
-                if not job:
-                    raise ValueError(f"Job not found: {job_id}")
-
-            except ValueError:
-                raise  # Re-raise ValueError as-is (not retryable)
-            except Exception as e:
-                raise RuntimeError(f"Failed to query job {job_id}: {str(e)}") from e
-
-            # PHASE 3: CASCADE CLEANUP (Count and delete rows in FK order)
-            cascade_summary = []
-
-            try:
-                # Cleanup 1: CandidateJobApplication
-                from app.models.candidate import CandidateJobApplication
-                cja_count = db.query(CandidateJobApplication).filter(
-                    CandidateJobApplication.job_id == job_id
-                ).count()
-                if cja_count > 0:
-                    db.query(CandidateJobApplication).filter(
-                        CandidateJobApplication.job_id == job_id
-                    ).delete()
-                    cascade_summary.append(f"CandidateJobApplication: {cja_count} rows")
-                    logger.info(f"[JobDeleteFlash] Cleaned {cja_count} CandidateJobApplication rows for {job_id}")
-
-                # Cleanup 2: Interviews -- linked to a job through their panel
-                from app.models.user import Interview, InterviewPanel
-                panel_ids = [p.id for p in db.query(InterviewPanel.id).filter(InterviewPanel.job_id == job_id).all()]
-                interview_count = db.query(Interview).filter(Interview.panel_id.in_(panel_ids)).count() if panel_ids else 0
-                if interview_count > 0:
-                    db.query(Interview).filter(Interview.panel_id.in_(panel_ids)).delete(synchronize_session=False)
-                    cascade_summary.append(f"Interview: {interview_count} rows")
-                    logger.info(f"[JobDeleteFlash] Cleaned {interview_count} Interview rows for {job_id}")
-
-                # Cleanup 3: InterviewPanel (if table exists)
-                try:
-                    from app.models.user import InterviewPanel
-                    panel_count = db.query(InterviewPanel).filter(
-                        InterviewPanel.job_id == job_id
-                    ).count()
-                    if panel_count > 0:
-                        db.query(InterviewPanel).filter(
-                            InterviewPanel.job_id == job_id
-                        ).delete()
-                        cascade_summary.append(f"InterviewPanel: {panel_count} rows")
-                        logger.info(f"[JobDeleteFlash] Cleaned {panel_count} InterviewPanel rows for {job_id}")
-                except Exception as e:
-                    logger.warning(f"[JobDeleteFlash] Could not cleanup InterviewPanel (may not exist): {e}")
-
-                # (CandidateAssignment rows are per candidate, not per job: nothing to clean)
-
-            except IntegrityError as e:
-                db.rollback()
-                logger.error(f"[JobDeleteFlash] FK constraint during cascade cleanup for {job_id}: {e}", exc_info=True)
-                raise RuntimeError(f"Cascade cleanup FK constraint: {str(e)}") from e
-
-            # PHASE 4: DELETE JOB RECORD
-            try:
-                db.delete(job)
-                db.flush()
-
-                # PHASE 5: NEIGHBOR MONITORING (Verify deletion persisted)
-                persisted_job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
-                if persisted_job:
-                    raise RuntimeError("Write validation failed: job still exists after delete")
-
-                db.commit()
-                logger.info(f"[JobDeleteFlash] ✅ Deleted job {job_id}, cascade cleanup: {cascade_summary}")
-
-                return {
-                    'status': 'success',
-                    'job_id': job_id,
-                    'deleted_at': datetime.utcnow().isoformat(),
-                    'cascade_tables_cleaned': cascade_summary
-                }
-
-            except IntegrityError as e:
-                db.rollback()
-                logger.error(f"[JobDeleteFlash] FK constraint deleting job {job_id}: {e}", exc_info=True)
-                raise RuntimeError(f"Cannot delete job (FK constraint): {str(e)}") from e
-
-            except OperationalError as e:
-                db.rollback()
-                logger.error(f"[JobDeleteFlash] DB operational error for {job_id}: {e}", exc_info=True)
-                raise RuntimeError(f"DB unavailable: {str(e)}") from e
+            # The endpoint deleted the job (only possible when nothing refers to it --
+            # job_lifecycle_service.assert_deletable); this event only confirms it for Flash.
+            if db.query(Jobs).filter(Jobs.jobID == job_id).first() is not None:
+                raise ValueError(f"Job {job_id} still exists: a delete event for a job that was not deleted")
+            logger.info(f"[JobDeleteFlash] Job {job_id} deletion confirmed")
+            return {'status': 'success', 'job_id': job_id, 'confirmed_at': datetime.utcnow().isoformat()}
 
         except ValueError as ve:
             logger.error(f"[JobDeleteFlash] Validation error: {ve}")

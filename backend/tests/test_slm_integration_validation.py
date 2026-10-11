@@ -26,7 +26,6 @@ def validate_handler_slm_integration():
 
     critical_handlers = [
         "interview_scheduled_handler.py",
-        "offer_accepted_handler.py"
     ]
 
     results = {

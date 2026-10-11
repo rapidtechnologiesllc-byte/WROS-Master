@@ -281,7 +281,9 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
             html=False
         )
 
-        # Create MessageDeliveryLog for tracking
+        # Create MessageDeliveryLog for tracking -- in a savepoint, so a failed log write
+        # undoes only itself, never the conversation work already in this transaction
+        savepoint = db.begin_nested()
         try:
             log_entry = MessageDeliveryLog(
                 conversation_id=conversation.id,
@@ -298,10 +300,11 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
             )
             db.add(log_entry)
             db.flush()
+            savepoint.commit()
             logger.debug(f"[Thunder] Created MessageDeliveryLog for email: {result.delivery_id}")
         except Exception as log_err:
-            logger.error(f"[Thunder] Failed to create MessageDeliveryLog: {log_err}")
-            db.rollback()
+            logger.error(f"[Thunder] Failed to create MessageDeliveryLog: {log_err}", exc_info=True)
+            savepoint.rollback()
 
         # Check delivery result
         if result.status == "failed":

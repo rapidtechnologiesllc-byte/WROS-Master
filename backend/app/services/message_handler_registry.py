@@ -205,18 +205,8 @@ def _initialize_default_handlers():
     except ImportError as e:
         logger.warning(f"[Registry] Could not import Thunder/Formation handlers: {e}")
 
-    # Register offer handlers
-    try:
-        from app.services.message_handlers.offer_approved_handler import handle_offer_approved
-        from app.services.message_handlers.offer_sent_handler import handle_offer_sent
-        from app.services.message_handlers.offer_accepted_handler import handle_offer_accepted
-        from app.services.message_handlers.offer_rejected_handler import handle_offer_rejected
-        MessageHandlerRegistry.register("offer_approved", handle_offer_approved)
-        MessageHandlerRegistry.register("offer_sent", handle_offer_sent)
-        MessageHandlerRegistry.register("offer_accepted", handle_offer_accepted)
-        MessageHandlerRegistry.register("offer_rejected", handle_offer_rejected)
-    except ImportError as e:
-        logger.warning(f"[Registry] Could not import offer handlers: {e}")
+    # Offers move through the offer-letter endpoints and offer_response_service only; the
+    # offer_approved/sent/accepted/rejected queue handlers had no producer and were deleted.
 
     # Invoice status changes happen only in invoice_service (approve: Finance Senior Manager+;
     # send: request_invoice_email; paid: bank_reconciliation_service) and revenue only in

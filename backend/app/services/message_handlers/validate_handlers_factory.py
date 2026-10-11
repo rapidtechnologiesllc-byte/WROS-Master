@@ -460,58 +460,6 @@ class ValidateHandlersFactory:
             raise RuntimeError(f"Database error: {str(e)}") from e
 
     @staticmethod
-    def _validate_offer_transition(result: Dict[str, Any], db: Session, handler_name: str,
-                                   expected_status: str, timestamp_field: str) -> None:
-        """Offer (app.models.offer.Offer) must exist, be in expected_status, and
-        have its transition timestamp (approved_at/sent_at/...) set."""
-        from app.models.offer import Offer
-
-        if not result or "offer_id" not in result:
-            raise ValueError(f"Invalid result: {result}")
-
-        offer_id = result.get("offer_id")
-
-        try:
-            offer = db.query(Offer).filter(Offer.id == offer_id).first()
-            if not offer:
-                raise ValueError(f"Offer {offer_id} not found")
-
-            if offer.status != expected_status:
-                raise ValueError(f"Offer {offer_id} status is {offer.status}, expected {expected_status}")
-
-            if getattr(offer, timestamp_field) is None:
-                raise ValueError(f"Offer {offer_id} missing {timestamp_field} timestamp")
-
-            logger.info(f"✅ {handler_name} validated: {offer_id} {expected_status}")
-
-        except ValueError:
-            raise
-
-        except Exception as e:
-            logger.error(f"[{handler_name}] RETRYABLE error: {e}", exc_info=True)
-            raise RuntimeError(f"Database error: {str(e)}") from e
-
-    @staticmethod
-    def validate_offer_approval_recorded(result: Dict[str, Any], db: Session, handler_name: str) -> None:
-        """Validate offer approval (status APPROVED, approved_at set)."""
-        ValidateHandlersFactory._validate_offer_transition(result, db, handler_name, "APPROVED", "approved_at")
-
-    @staticmethod
-    def validate_offer_sent_recorded(result: Dict[str, Any], db: Session, handler_name: str) -> None:
-        """Validate offer sent (status SENT, sent_at set)."""
-        ValidateHandlersFactory._validate_offer_transition(result, db, handler_name, "SENT", "sent_at")
-
-    @staticmethod
-    def validate_offer_acceptance_recorded(result: Dict[str, Any], db: Session, handler_name: str) -> None:
-        """Validate offer acceptance (status ACCEPTED, accepted_at set)."""
-        ValidateHandlersFactory._validate_offer_transition(result, db, handler_name, "ACCEPTED", "accepted_at")
-
-    @staticmethod
-    def validate_offer_rejection_recorded(result: Dict[str, Any], db: Session, handler_name: str) -> None:
-        """Validate offer rejection (status REJECTED, rejected_at set)."""
-        ValidateHandlersFactory._validate_offer_transition(result, db, handler_name, "REJECTED", "rejected_at")
-
-    @staticmethod
     def validate_job_status_changed(result: Dict[str, Any], db: Session, handler_name: str, expected_status: str = None) -> None:
         """Validate job status transitioned to expected state."""
         from app.models.user import Jobs

@@ -959,7 +959,13 @@ def delete_job(job_id: str, db: Session = Depends(get_db), user = Depends(get_cu
             status_code=404,
             detail=f"Job with ID {job_id} not found"
         )
-    
+
+    from app.services.job_lifecycle_service import JobHasHistory, assert_deletable
+
+    try:
+        assert_deletable(db, job_id)
+    except JobHasHistory as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     db.delete(job)
     db.commit()
 
