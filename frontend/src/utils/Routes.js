@@ -34,6 +34,7 @@ export const ROUTES = {
   API_KEYS_SETTINGS: "/api-keys",
   SLM_DASHBOARD: "/admin/slm-dashboard",
   SLM_TRAINING: "/admin/slm-training",
+  SLM_LEARNING_TRANSCRIPT: "/admin/slm-learning-transcript",
   AGENT_CONFIG: "/admin/agent-config",
   CANDIDATES: "/candidates",
   CANDIDATE_CREATE: "/candidates/create",
