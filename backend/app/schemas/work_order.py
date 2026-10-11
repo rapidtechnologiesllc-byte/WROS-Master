@@ -7,7 +7,6 @@ from datetime import date
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +65,6 @@ class EndWorkOrderRequest(BaseModel):
 
 class PauseWorkOrderRequest(BaseModel):
     """Pause a work order."""
-    pass
 
 class ResumeWorkOrderRequest(BaseModel):
     """Resume a paused work order."""
-    pass

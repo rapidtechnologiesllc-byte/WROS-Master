@@ -43,7 +43,7 @@ export default function BusinessUnitFormPage() {
   });
   // Org -> Company (BX-US, BX-IN) -> Partner -> BU. A BU can run in several companies.
   const [companies, setCompanies] = useState([]);
-  const [leaders, setLeaders] = useState({ partners: [], heads: [], partner_roles: [], head_roles: [] });
+  const [leaders, setLeaders] = useState({ partners: [], heads: [], partner_requirement: '', head_requirement: '' });
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState(null);
@@ -236,7 +236,7 @@ export default function BusinessUnitFormPage() {
               label="Partner (owner)"
               value={formData.partner_user_id}
               options={leaders.partners || []}
-              roles={leaders.partner_roles || []}
+              requirement={leaders.partner_requirement}
               disabled={saving}
               onChange={setField('partner_user_id')}
             />
@@ -244,7 +244,7 @@ export default function BusinessUnitFormPage() {
               label="BU Head"
               value={formData.head_user_id}
               options={leaders.heads || []}
-              roles={leaders.head_roles || []}
+              requirement={leaders.head_requirement}
               disabled={saving}
               onChange={setField('head_user_id')}
             />
@@ -273,7 +273,7 @@ export default function BusinessUnitFormPage() {
   );
 }
 
-function LeaderSelect({ label, value, options, roles, disabled, onChange }) {
+function LeaderSelect({ label, value, options, requirement, disabled, onChange }) {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
@@ -290,8 +290,8 @@ function LeaderSelect({ label, value, options, roles, disabled, onChange }) {
       </select>
       <p className="mt-1 text-xs text-gray-500">
         {options.length === 0
-          ? `No users with the ${roles.join(' or ')} role yet. Give someone that role on the Users tab.`
-          : `Users with the ${roles.join(' or ')} role.`}
+          ? `No users at ${requirement || 'the required level'} yet. Set a role's level on the Users tab.`
+          : `Users at ${requirement || 'the required level'}.`}
       </p>
     </div>
   );

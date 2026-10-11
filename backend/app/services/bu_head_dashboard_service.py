@@ -1,5 +1,4 @@
 import logging
-from app.core.logging import logger
 
 """BU Head Dashboard Service - Real data aggregation for Business Unit leadership."""
 
@@ -10,7 +9,7 @@ from app.models.employee_allocation import EmployeeAllocation
 from app.models.invoice import Invoice, InvoiceLineItem
 from app.models.project import Project
 from app.models.business_unit import BusinessUnit
-from datetime import datetime, timedelta
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +52,6 @@ class BUHeadDashboardService:
 
         # Revenue MTD: sum of (hours Ã— rate_usd_cents) from invoice line items
         # Group by invoices and their billing period
-        from sqlalchemy import text
         mtd_start = datetime.utcnow().replace(day=1).date()
 
         # Invoices belong to a BU through their client

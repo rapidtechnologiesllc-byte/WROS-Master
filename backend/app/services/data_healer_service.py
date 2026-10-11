@@ -11,7 +11,6 @@ import re
 from typing import Dict, Any, Tuple, Optional
 from datetime import datetime
 
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

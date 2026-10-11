@@ -39,14 +39,9 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
-import json
 import uuid
 
-from app.core.logging import logger
 from app.models.candidate import Candidate
-from app.models.offer_letter import OfferLetter
-from app.models.employee import Employee
-from app.api.v1.endpoints.admin_queue import TaskStatus
 
 logger = logging.getLogger(__name__)
 

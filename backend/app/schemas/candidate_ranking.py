@@ -6,9 +6,7 @@ Pydantic models for request/response validation.
 """
 import logging
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict
-from datetime import datetime
-from app.core.logging import logger
+from typing import Optional, List
 
 logger = logging.getLogger(__name__)
 

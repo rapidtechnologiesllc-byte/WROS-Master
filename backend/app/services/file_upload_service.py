@@ -24,7 +24,6 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.graph_auth import get_graph_token
-from app.core.logging import logger
 from app.models.file_upload import FileUpload
 
 SHAREPOINT_SITE_ID = os.getenv("SHAREPOINT_SITE_ID", "")

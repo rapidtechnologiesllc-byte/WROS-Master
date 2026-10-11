@@ -1,4 +1,3 @@
-from app.core.logging import logger
 """Pydantic schemas for employee conversion"""
 from datetime import date
 from typing import List, Optional

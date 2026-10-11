@@ -14,10 +14,7 @@ from sqlalchemy.orm import Session
 from app.models.interview_pipeline import SubmissionInterview
 from app.models.candidate import Candidate
 from app.models.user import Users
-from app.models.employee import Employee
 from app.services.email_service import EmailService
-from app.core.logging import logger
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 

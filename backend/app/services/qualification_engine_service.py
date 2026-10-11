@@ -47,7 +47,6 @@ from typing import Callable, Dict, List, Optional
 import requests
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.candidate_field_skip import CandidateFieldSkip

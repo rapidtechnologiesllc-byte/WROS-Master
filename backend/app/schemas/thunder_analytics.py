@@ -1,4 +1,3 @@
-from app.core.logging import logger
 """Pydantic Schemas -- S-071/HRMS-0471 AI Recruiter Performance Analytics."""
 import logging
 from typing import List, Optional

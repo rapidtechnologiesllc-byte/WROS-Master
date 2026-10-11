@@ -117,9 +117,9 @@ UNSUPPORTED_QUERY_MESSAGE = (
 # get access to financial data and BU only get their bu related not org wide only
 # finance and ceo can see full org finance." Reuses app.core.revenue_visibility_scope
 # verbatim -- that module already encodes exactly this policy for the real dashboard/
-# API endpoints (can_view_pnl() excludes HR Manager by name; REVENUE_BU_SCOPED_ROLES
-# = {"Partner", "BU Head"} restricts those two to their own BU, everyone else with the
-# permission sees org-wide) -- Thunder must never become a side-door around RBAC, so
+# API endpoints (can_view_pnl() needs revenue view permission on the role template;
+# BU leaders by hierarchy level see their own BU only, org-level roles see it all;
+# see app.core.authority) -- Thunder must never become a side-door around RBAC, so
 # it calls the identical gate rather than reimplementing the policy a second time.
 PERMISSION_DENIED_FINANCE_MESSAGE = (
     "I can't answer that -- financial data (P&L, margin, overdue invoices) is limited "
@@ -739,7 +739,7 @@ def _user_can_create_jobs(db: Session, user: Users) -> bool:
     from app.services.permission_helper import PermissionHelper
     return PermissionHelper.has_any_permission(
         user.UserID,
-        ["admin.manage", "admin.create", "jobs", "create"],
+        ["jobs.create"],
         db,
         user.tenant_id
     )

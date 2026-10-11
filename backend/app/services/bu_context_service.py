@@ -1,15 +1,8 @@
 """
 S-205/HRMS-0107 -- Business Unit Entity & Context Switching.
 
-No literal "Director" role exists in this codebase's real RBAC seed
-(app.services.rbac_service) -- the real role list is Super User, BU
-Head, Hiring Manager, HR Manager, HR Operations, HRBP, Recruitment
-Manager, Recruitment Team Lead, Recruiter, Employee, Consultant,
-Candidate (same real gap app.core.mfa's own docstring already
-documents for "Admin"/"Director"). ALL_BUS_ROLES below maps the
-spec's "Director" to "Super User" -- the same real analog mfa.py
-already chose for the identical problem -- flagged as an assumption,
-not a confirmed decision, same posture that file already took.
+Who may view all business units at once is decided by the role template
+(business-units edit permission; super users pass) -- see app.core.authority.
 
 BR-0107-01: business_unit_id is re-validated against the user's real
 bu_access rows on EVERY call via validate_active_bu() -- never trusted
@@ -25,11 +18,8 @@ from sqlalchemy.orm import Session
 
 from app.models.audit_log import AuditLog
 from app.models.bu_access import BUAccess
-from app.models.business_unit import BusinessUnit
 from app.models.user import Users
-from app.core.logging import logger
 
-ALL_BUS_ROLES = ("Super User",)  # see module docstring -- "Director" analog
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +58,7 @@ def activate_all_bus_view(db: Session, user: Users) -> AuditLog:
     from app.services.permission_helper import PermissionHelper
     has_admin_perms = PermissionHelper.has_any_permission(
         user.UserID,
-        ["admin.manage", "business-units", "edit"],
+        ["business-units.edit"],
         db,
         user.tenant_id
     )

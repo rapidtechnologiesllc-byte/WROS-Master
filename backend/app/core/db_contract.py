@@ -321,6 +321,23 @@ LEADERSHIP_ROLES = {
                   "organizational-hierarchy", "ask-thunder"],
         },
     },
+    # Finance at Senior Manager level: reviews and approves invoices (CEO 2026-10-10: only
+    # Finance at Senior Manager or above may approve). Assign it (or a more senior Finance
+    # role -- Director 11, VP 14, CFO 16) to the people who approve what clients are billed.
+    "Finance Manager": {
+        "display_name": "Finance Manager",
+        "description": "Finance, Senior Manager level: reviews and approves invoices, payments, revenue",
+        "hierarchy_level": 9,
+        "specialization": "Finance",
+        "org_level_access": True,
+        "permissions": {
+            "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
+                    "activity-feed", "ask-flash", "invoices", "invoice-management", "expenses", "revenue",
+                    "finance-operations", "forecasts", "budget-management", "payroll"],
+            "v": ["clients", "projects", "allocations", "timesheets", "employees", "reports",
+                  "executive-revenue-dashboard", "kpi-dashboard", "analytics", "business-units"],
+        },
+    },
     # Every converted employee gets this: their own work only. (The system "User" role is
     # seeded with every permission, so it must never be an employee's default.)
     "Employee": {
@@ -345,7 +362,7 @@ def ensure_role(db, name: str, spec: dict) -> bool:
     role = RoleTemplate(
         name=name, display_name=spec["display_name"], description=spec["description"],
         hierarchy_level=spec["hierarchy_level"], org_level_access=spec["org_level_access"],
-        is_system=False, tenant_id=1,
+        specialization=spec.get("specialization", "General"), is_system=False, tenant_id=1,
     )
     db.add(role)
     db.flush()
@@ -366,17 +383,36 @@ def ensure_role(db, name: str, spec: dict) -> bool:
 
 
 def _initialize_leadership_roles():
-    """Create the Partner, BU Head and Employee role templates if missing (idempotent)."""
+    """Create the Partner, BU Head, Finance Manager and Employee role templates if missing (idempotent)."""
     db = SessionLocal()
     try:
         for name, spec in LEADERSHIP_ROLES.items():
             ensure_role(db, name, spec)
         _move_converted_employees_off_user_role(db)
+        _initialize_role_authority(db)
     except Exception:
         db.rollback()
         raise
     finally:
         db.close()
+
+
+def _initialize_role_authority(db):
+    """Who sees every business unit is read from RoleTemplate.org_level_access only
+    (app.core.authority). So that switching to the flag never narrows anyone's view, set
+    it on the seeded Super Admin and Admin roles ONCE -- only while no role in the tenant
+    carries it yet, so a later change in the Role Templates editor is never overwritten.
+    (What any role may DO comes from its permission matrix alone; system roles are seeded
+    with every permission by _initialize_rbac.)"""
+    for flag, names in (("org_level_access", ("Super Admin", "Admin")),):
+        column = getattr(RoleTemplate, flag)
+        if db.query(RoleTemplate.id).filter(column.is_(True), RoleTemplate.enabled.is_(True)).first():
+            continue
+        updated = db.query(RoleTemplate).filter(RoleTemplate.name.in_(names)) \
+            .update({column: True}, synchronize_session=False)
+        db.commit()
+        if updated:
+            logger.info(f"[Contract] Set {flag} on {updated} seeded role template(s) {names}")
 
 
 def _move_converted_employees_off_user_role(db):
@@ -961,11 +997,6 @@ def _run_schema_migrations():
                 ("upload_sequence", "INTEGER NULL"),
             ],
         }
-        super_flag_existed = db.execute(text("""
-            SELECT 1 FROM information_schema.columns
-            WHERE table_schema = 'app_schema' AND table_name = 'role_templates'
-              AND column_name = 'is_super_user'
-        """)).scalar() is not None
         for table_name, columns in drifted_tables.items():
             for column_name, column_def in columns:
                 try:
@@ -982,19 +1013,7 @@ def _run_schema_migrations():
                         logger.warning(f"[Contract] Migration warning for {table_name}.{column_name}: {e}")
                     db.rollback()
 
-        # Flag the existing Super Admin template only when the column was
-        # just created, so a later deliberate change is never overwritten.
-        if not super_flag_existed:
-            try:
-                db.execute(text("""
-                    UPDATE app_schema.role_templates SET is_super_user = true
-                    WHERE name = 'Super Admin'
-                """))
-                db.commit()
-                logger.info("[Contract] Migration: flagged existing Super Admin role template")
-            except Exception as e:
-                logger.warning(f"[Contract] Migration warning for role_templates.is_super_user backfill: {e}")
-                db.rollback()
+        # (org_level_access is set once by _initialize_role_authority.)
 
         # Migration 5b: linkedin_candidate_pipeline was first created with
         # uuid columns for user/candidate ids, but ids in this system are

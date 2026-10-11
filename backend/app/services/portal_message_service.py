@@ -42,10 +42,8 @@ from typing import Dict, Optional
 
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
-from app.core.dependencies import get_current_candidate
 
 MAX_MESSAGE_LENGTH = 4000
 RATE_LIMIT_PER_HOUR = 20

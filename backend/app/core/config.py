@@ -174,9 +174,18 @@ class Settings:
     FINANCE_MAILBOX: str = os.getenv("FINANCE_MAILBOX", "") or THUNDER_MAILBOX
     # Rupees per US dollar, to turn an accepted offer letter's annual CTC (INR) into the
     # employee's monthly USD cost. Unset = cost stays unknown (flagged in the P&L), never guessed.
+    # Authority thresholds on RoleTemplate.hierarchy_level (1 Intern .. 17 CEO; see
+    # org_hierarchy_validator.HIERARCHY_LEVELS). app.core.authority reads these.
+    SENIOR_MANAGER_MIN_LEVEL: int = int(os.getenv("SENIOR_MANAGER_MIN_LEVEL", "9"))
+    DIRECTOR_MIN_LEVEL: int = int(os.getenv("DIRECTOR_MIN_LEVEL", "11"))
+    BU_LEADER_MIN_LEVEL: int = int(os.getenv("BU_LEADER_MIN_LEVEL", "14"))
+    PARTNER_MIN_LEVEL: int = int(os.getenv("PARTNER_MIN_LEVEL", "16"))
+    CEO_LEVEL: int = int(os.getenv("CEO_LEVEL", "17"))
+    MFA_TOTP_MIN_LEVEL: int = int(os.getenv("MFA_TOTP_MIN_LEVEL", "14"))
     # auto-invoicing considers this many complete months back (oldest first), so late approvals still bill
     AUTO_INVOICE_LOOKBACK_MONTHS: int = int(os.getenv("AUTO_INVOICE_LOOKBACK_MONTHS", "3"))
-    FX_INR_PER_USD: Optional[float] = float(os.getenv("FX_INR_PER_USD")) if os.getenv("FX_INR_PER_USD") else None
+    # INR per 1 USD (CEO 2026-10-11: $1 = 85 INR); the FX_INR_PER_USD env var overrides it
+    FX_INR_PER_USD: float = float(os.getenv("FX_INR_PER_USD") or 85)
     # Paid hours in a month (40h x 52 weeks / 12); turns monthly loaded cost into an hourly cost
     STANDARD_MONTHLY_HOURS: float = float(os.getenv("STANDARD_MONTHLY_HOURS", "173.33"))
 

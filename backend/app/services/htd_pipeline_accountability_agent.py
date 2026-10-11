@@ -14,18 +14,15 @@ Partner Focus: "Here's your CORE conversion forecast. Here's where people are st
 """
 
 import logging
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from typing import Dict, Any
+from datetime import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func
 
 from app.core.agent_logging import log_agent_execution
 from app.models.employee import Employee
 from app.models.htd_phase_gate import HTDPhaseGate, HTD_GATE_PHASES
 from app.models.business_unit import BusinessUnit
-from app.models.user import Users
 from app.utils.agent_logger import log_agent_execution as record_agent_run
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

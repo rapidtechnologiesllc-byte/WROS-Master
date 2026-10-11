@@ -35,7 +35,6 @@ desire_profile=None rather than fabricating one, so a caller can tell
 import logging
 import os
 import re
-import secrets
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
@@ -43,14 +42,12 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from sqlalchemy.orm import Session
 
 from app.core.llm_prompt_safety import build_safe_prompt, flag_suspicious_patterns
-from app.core.logging import logger
-from app.core.security import get_password_hash
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.consent import ConsentRecord
 from app.models.internal_note import InternalNote
 from app.models.user import Jobs, Users
-from app.services.ai_conversation_service import AI_AGENT_NAME, AI_AGENT_PERSONA, resolve_thunder_config
+from app.services.ai_conversation_service import AI_AGENT_NAME, resolve_thunder_config
 from app.services.conversation_state_service import escalate as escalate_conversation
 from app.services.thunder_pause_service import (  # noqa: F401 -- re-exported for callers
     ThunderPausedError,

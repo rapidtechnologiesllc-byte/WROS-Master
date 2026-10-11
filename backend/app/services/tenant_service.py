@@ -17,7 +17,6 @@ from sqlalchemy.orm import Session
 
 from app.models.tenant import TENANT_DATE_FORMATS, Tenant
 from app.models.client import BILLING_CURRENCIES
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

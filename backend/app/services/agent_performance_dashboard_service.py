@@ -1,10 +1,8 @@
 import logging
-from app.core.logging import logger
 """Agent Performance Dashboard - Individual agent metrics vs targets."""
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
-from datetime import datetime, timedelta
+from sqlalchemy import desc
 from typing import List, Dict, Any
 from app.services.agent_registry_service import AGENT_REGISTRY
 from app.services import agent_state_service

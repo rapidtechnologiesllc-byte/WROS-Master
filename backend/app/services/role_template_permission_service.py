@@ -13,7 +13,6 @@ import logging
 from sqlalchemy.orm import Session
 from app.models.role_template import RoleTemplate, RoleTemplatePermission, Resource
 from app.models.user import Users, UserCustomPermission
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
@@ -30,17 +29,17 @@ class RoleTemplatePermissionService:
     @staticmethod
     def get_user_role(db: Session, user_id: str, tenant_id: int = 1) -> RoleTemplate | None:
         """Get the user's assigned role template (single role, not multiple)."""
-        print(f"[DEBUG] get_user_role: user_id={user_id}, tenant_id={tenant_id}")
+        logger.debug(f"get_user_role: user_id={user_id}, tenant_id={tenant_id}")
         try:
             user = db.query(Users).filter(Users.UserID == user_id).first()
             if not user:
-                print(f"[DEBUG] User {user_id} not found in database")
+                logger.debug(f"User {user_id} not found in database")
                 logger.warning(f"User not found: {user_id}")
                 return None
 
-            print(f"[DEBUG] User found: {user_id}, role_template_id={user.role_template_id}")
+            logger.debug(f"User found: {user_id}, role_template_id={user.role_template_id}")
             if not user.role_template_id:
-                print(f"[DEBUG] User {user_id} has no role_template_id assigned")
+                logger.debug(f"User {user_id} has no role_template_id assigned")
                 logger.warning(f"User {user_id} has no role_template_id assigned")
                 return None
 
@@ -51,11 +50,11 @@ class RoleTemplatePermissionService:
             ).first()
 
             if not role:
-                print(f"[DEBUG] Role template {user.role_template_id} not found for user {user_id} with tenant {tenant_id}")
+                logger.debug(f"Role template {user.role_template_id} not found for user {user_id} with tenant {tenant_id}")
                 logger.warning(f"Role template {user.role_template_id} not found for user {user_id}")
                 return None
 
-            print(f"[DEBUG] Role found: id={role.id}, name={role.name}")
+            logger.debug(f"Role found: id={role.id}, name={role.name}")
             return role
 
         except (AttributeError, ValueError, TypeError) as e:
@@ -65,9 +64,9 @@ class RoleTemplatePermissionService:
     @staticmethod
     def get_resource_by_name(db: Session, resource_name: str, tenant_id: int = 1) -> Resource | None:
         """Get a resource by name (case-insensitive)."""
-        print(f"[DEBUG] get_resource_by_name: resource={resource_name}, tenant_id={tenant_id}")
+        logger.debug(f"get_resource_by_name: resource={resource_name}, tenant_id={tenant_id}")
         if not resource_name:
-            print(f"[DEBUG] Resource name is empty")
+            logger.debug("Resource name is empty")
             return None
 
         try:
@@ -79,12 +78,12 @@ class RoleTemplatePermissionService:
                 Resource.enabled == True
             ).first()
             if resource:
-                print(f"[DEBUG] Found resource: id={resource.id}, name={resource.name}, tenant={resource.tenant_id}")
+                logger.debug(f"Found resource: id={resource.id}, name={resource.name}, tenant={resource.tenant_id}")
             else:
-                print(f"[DEBUG] Resource '{resource_name}' not found in database for tenant {tenant_id}")
+                logger.debug(f"Resource '{resource_name}' not found in database for tenant {tenant_id}")
             return resource
         except (AttributeError, ValueError) as e:
-            print(f"[DEBUG] Exception in get_resource_by_name: {e}")
+            logger.debug(f"Exception in get_resource_by_name: {e}")
             logger.error(f"get_resource_by_name({resource_name}, tenant={tenant_id}): {e}", exc_info=True)
             raise ValueError("Operation failed")
 
@@ -119,11 +118,11 @@ class RoleTemplatePermissionService:
         Returns:
             True if user has permission, False otherwise. Returns True on DB errors (graceful degradation).
         """
-        print(f"[DEBUG] has_permission called: user={user_id}, resource={resource_name}, action={action}, tenant={tenant_id}")
+        logger.debug(f"has_permission called: user={user_id}, resource={resource_name}, action={action}, tenant={tenant_id}")
         try:
             # Validate inputs
             if not user_id or not resource_name or not action:
-                print(f"[DEBUG] Invalid inputs: user={user_id}, resource={resource_name}, action={action}")
+                logger.debug(f"Invalid inputs: user={user_id}, resource={resource_name}, action={action}")
                 return False
 
             # Map action to permission field
@@ -139,26 +138,26 @@ class RoleTemplatePermissionService:
                 return False
 
             permission_field = action_map[action]
-            print(f"[DEBUG] Mapped action '{action}' to field '{permission_field}'")
+            logger.debug(f"Mapped action '{action}' to field '{permission_field}'")
 
             # Get user's role template (single role)
-            print(f"[DEBUG] Getting user role for user {user_id}")
+            logger.debug(f"Getting user role for user {user_id}")
             role = RoleTemplatePermissionService.get_user_role(db, user_id, tenant_id)
             if not role:
-                print(f"[DEBUG] User role not found for {user_id}")
+                logger.debug(f"User role not found for {user_id}")
                 return False
-            print(f"[DEBUG] Found role: id={role.id}, name={role.name}, tenant={role.tenant_id}")
+            logger.debug(f"Found role: id={role.id}, name={role.name}, tenant={role.tenant_id}")
 
             # Get the resource
-            print(f"[DEBUG] Getting resource '{resource_name}' with tenant {tenant_id}")
+            logger.debug(f"Getting resource '{resource_name}' with tenant {tenant_id}")
             resource = RoleTemplatePermissionService.get_resource_by_name(db, resource_name, tenant_id)
             if not resource:
-                print(f"[DEBUG] Resource '{resource_name}' not found for tenant {tenant_id}")
+                logger.debug(f"Resource '{resource_name}' not found for tenant {tenant_id}")
                 return False
-            print(f"[DEBUG] Found resource: id={resource.id}, name={resource.name}, tenant={resource.tenant_id}")
+            logger.debug(f"Found resource: id={resource.id}, name={resource.name}, tenant={resource.tenant_id}")
 
             # Step 1: Check role template permission (with tenant isolation)
-            print(f"[DEBUG] Querying permission: role_id={role.id}, resource_id={resource.id}, tenant_id={tenant_id}")
+            logger.debug(f"Querying permission: role_id={role.id}, resource_id={resource.id}, tenant_id={tenant_id}")
             role_perm = db.query(RoleTemplatePermission).filter(
                 RoleTemplatePermission.role_template_id == role.id,
                 RoleTemplatePermission.resource_id == resource.id,
@@ -168,9 +167,9 @@ class RoleTemplatePermissionService:
             role_has_permission = False
             if role_perm:
                 role_has_permission = getattr(role_perm, permission_field, False)
-                print(f"[DEBUG] Found permission: id={role_perm.id}, {permission_field}={role_has_permission}")
+                logger.debug(f"Found permission: id={role_perm.id}, {permission_field}={role_has_permission}")
             else:
-                print(f"[DEBUG] No permission record found for role {role.id} and resource {resource.id}")
+                logger.debug(f"No permission record found for role {role.id} and resource {resource.id}")
 
             # Step 2: Check user custom override (can grant or restrict)
             # Query user_custom_permissions if it exists
@@ -189,37 +188,12 @@ class RoleTemplatePermissionService:
                 pass
 
             # Return role permission (no custom override)
-            print(f"[DEBUG] Returning: role_has_permission={role_has_permission}")
+            logger.debug(f"Returning: role_has_permission={role_has_permission}")
             return role_has_permission
 
         except (AttributeError, ValueError, TypeError) as e:
-            print(f"[DEBUG] Exception in has_permission: {e}")
+            logger.debug(f"Exception in has_permission: {e}")
             logger.error(f"has_permission({user_id}, {resource_name}, {action}, tenant={tenant_id}): {e}", exc_info=True)
-            return False
-
-    @staticmethod
-    def is_super_user(db: Session, user_id: str, tenant_id: int = 1) -> bool:
-        """Check if user is a super user (has all permissions)."""
-        try:
-            if not user_id:
-                return False
-
-            user = db.query(Users).filter(
-                Users.UserID == user_id,
-                Users.tenant_id == tenant_id
-            ).first()
-            if not user:
-                return False
-
-            # Check if user has a super user role (database flag, not hardcoded names)
-            role = RoleTemplatePermissionService.get_user_role(db, user_id, tenant_id)
-            if not role:
-                return False
-
-            # Check is_super_user flag (production safe)
-            return role.is_super_user is True
-        except Exception as e:
-            logger.error(f"is_super_user({user_id}): {e}", exc_info=True)
             return False
 
     @staticmethod
@@ -241,39 +215,6 @@ class RoleTemplatePermissionService:
     def can_delete(db: Session, user_id: str, resource_name: str, tenant_id: int = 1) -> bool:
         """Check if user can DELETE from a resource."""
         return RoleTemplatePermissionService.has_permission(db, user_id, resource_name, 'delete', tenant_id)
-
-    @staticmethod
-    def is_super_user(db: Session, user_id: str, tenant_id: int = 1) -> bool:
-        """
-        Check if user has the 'Super User' role template.
-
-        Super users bypass all permission checks.
-
-        Args:
-            db: Database session
-            user_id: User ID to check
-            tenant_id: Tenant ID (for multi-tenancy)
-
-        Returns:
-            True if user is Super User, False otherwise
-        """
-        try:
-            user = db.query(Users).filter(Users.UserID == user_id).first()
-            if not user or not user.role_template_id:
-                return False
-
-            role_template = db.query(RoleTemplate).filter(
-                RoleTemplate.id == user.role_template_id,
-                RoleTemplate.name == "Super Admin",
-                RoleTemplate.tenant_id == tenant_id,
-                RoleTemplate.enabled == True
-            ).first()
-
-            return role_template is not None
-
-        except (AttributeError, ValueError, TypeError) as e:
-            logger.error(f"is_super_user({user_id}, tenant={tenant_id}): {e}", exc_info=True)
-            return False
 
     @staticmethod
     def get_user_permissions(db: Session, user_id: str, tenant_id: int = 1) -> dict:

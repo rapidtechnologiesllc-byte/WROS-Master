@@ -71,6 +71,23 @@ const canDeleteObject = (resourceName, permissions) => {
  * @param {string} action - Action to check (e.g., "view", "create", "edit", "delete")
  * @returns {boolean} True if user has permission
  */
+/**
+ * Role-template authority flags from the login response (server: app.core.authority).
+ * The UI decides by these and by the permission matrix -- never by a role's name, and
+ * there is no super-user bypass: every role sees what its modules/resources grant.
+ */
+export const getAuthority = () => {
+  try {
+    return JSON.parse(localStorage.getItem('hrms_authority') || '{}') || {};
+  } catch (e) {
+    console.error('Failed to parse hrms_authority from localStorage:', e);
+    return {};
+  }
+};
+export const isOrgLevel = () => Boolean(getAuthority().org_level_access);
+export const isBuLeader = () => Boolean(getAuthority().is_bu_leader);
+export const isFinanceLeader = () => Boolean(getAuthority().is_finance_leader);
+
 export const hasPermission = (resourceName, action = 'view') => {
   if (!resourceName) return false;
 
@@ -80,7 +97,6 @@ export const hasPermission = (resourceName, action = 'view') => {
   // Handle array-based permissions (legacy format)
   if (Array.isArray(permissions)) {
     // Wildcard check for super user
-    if (permissions.includes('*.*') || permissions.includes('*')) return true;
 
     const resourceLower = String(resourceName).toLowerCase();
     const actionLower = String(action).toLowerCase();
@@ -100,7 +116,6 @@ export const hasPermission = (resourceName, action = 'view') => {
   // Handle object-based permissions (role template format)
   if (typeof permissions === 'object' && !Array.isArray(permissions)) {
     // Wildcard check
-    if (permissions['*'] || permissions['*.*']) return true;
 
     const actionMap = {
       'view': canViewObject,
@@ -152,19 +167,11 @@ export const hasAllPermissions = (permissionList) => {
   });
 };
 
-/**
- * Check if user is super admin (has wildcard permission)
- */
-export const isSuperUser = () => {
-  return hasPermission('*');
-};
 
 /**
  * Check if user is admin (has administration.manage permission)
  */
-export const isAdmin = () => {
-  return hasPermission('administration', 'manage');
-};
+export const isAdmin = () => hasPermission('admin-settings', 'edit');
 
 /**
  * Get user roles array
@@ -222,9 +229,8 @@ export const getBusinessUnitId = () => {
 /**
  * Check if user can access workspace
  */
-export const canAccessMyWorkspace = ({ permissionRole, jobTitle }) => {
+export const canAccessMyWorkspace = ({ permissionRole }) => {
   const role = String(permissionRole || '').trim().toLowerCase();
-  if (jobTitle === 'Super User' || isSuperUser()) return true;
   return role !== 'candidate';
 };
 
@@ -283,4 +289,22 @@ export const filterNavigationByModules = (navigationItems, allowedModules) => {
     const itemModule = item.key || item.id || item.path?.split('/')[1];
     return allowedModules.includes(itemModule) || !itemModule;
   });
+};
+
+/**
+ * Where an internal user lands after login: the first screen their role template lets
+ * them view, most senior first. Routing config (resource -> route), not authority.
+ */
+const LANDING_BY_RESOURCE = [
+  ['ceo-dashboard', '/ceo-fy-progress'],
+  ['cfo-dashboard', '/cfo-dashboard'],
+  ['partner-dashboard', '/partner-roi'],
+  ['bu-head-dashboard', '/bu-dashboard'],
+  ['employees', '/employees'],
+  ['candidates', '/candidates'],
+  ['my-tasks', '/my-tasks'],
+];
+export const landingPath = (fallback) => {
+  const hit = LANDING_BY_RESOURCE.find(([resource]) => hasPermission(resource, 'view'));
+  return hit ? hit[1] : fallback;
 };

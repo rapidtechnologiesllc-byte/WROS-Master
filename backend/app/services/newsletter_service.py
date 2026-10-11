@@ -14,7 +14,6 @@ from app.schemas.newsletter import (
     SubscriberCreate,
     NewsletterSendResult,
 )
-from app.core.logging import logger
 from app.core.scheduler import add_job, remove_job
 from app.utils.uniq_id_generator import newsletter_id_generator
 

@@ -18,15 +18,12 @@ This creates exponential accuracy growth:
 """
 
 import logging
-import json
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from datetime import datetime
+from typing import Dict, List
 
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
-from app.services.slm_feedback_engine import SLMFeedbackEngine, SLMModelVersion
-from app.models.candidate_resume_parsed import CandidateResumeParsed
+from app.services.slm_feedback_engine import SLMFeedbackEngine
 
 logger = logging.getLogger(__name__)
 

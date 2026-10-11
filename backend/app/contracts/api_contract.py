@@ -78,6 +78,8 @@ class UnifiedLoginResponse(BaseModel):
     user_name: Optional[str] = Field(default=None)
     user_email: Optional[EmailStr] = Field(default=None)
     permissions: Optional[Dict[str, Any]] = Field(default=None)
+    # role-template authority flags (app.core.authority.summary); the UI decides by these
+    authority: Optional[Dict[str, Any]] = Field(default=None)
 
     # Candidate fields (None for users)
     candidate_id: Optional[str] = Field(default=None)

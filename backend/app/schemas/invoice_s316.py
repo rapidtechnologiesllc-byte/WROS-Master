@@ -11,7 +11,6 @@ import logging
 from datetime import date, datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field, validator
-from app.core.logging import logger
 
 # ============================================================================
 # REQUEST SCHEMAS

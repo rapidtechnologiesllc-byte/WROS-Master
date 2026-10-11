@@ -29,7 +29,6 @@ from typing import Dict
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.services.ai_conversation_service import resolve_thunder_config

@@ -7,11 +7,11 @@ import {
   Search,
   Users,
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { Button, Card, StatusBadge } from "../components/ui";
 import { useNavigate } from "react-router-dom";
 import LinkedInActivityTable from "../components/LinkedInActivityTable";
-import { getRoles, hasPermission } from "../utils/permissionsRoleTemplate";
+import { hasPermission, isOrgLevel } from "../utils/permissionsRoleTemplate";
 import { getHrMe } from "../services/api/users";
 
 function StatCard({ title, value, icon, onClick }) {
@@ -37,61 +37,14 @@ export default function Dashboard({
   onGo,
 }) {
   const navigate = useNavigate();
-  const navigationAttemptedRef = useRef(false);
 
-  useEffect(() => {
-    if (navigationAttemptedRef.current) return;
-
-    const checkPermissionsAndRedirect = async () => {
-      try {
-        // RBAC-driven: Check specific permissions instead of hardcoded role names
-        // Each dashboard is gated by specific permission requirements
-        const stored = JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
-        // If stored as object (permission metadata), convert keys to array
-        const perms = (stored && typeof stored === 'object' && !Array.isArray(stored))
-          ? Object.keys(stored)
-          : (Array.isArray(stored) ? stored : []);
-        navigationAttemptedRef.current = true;
-
-        // Permission-based routing (not role-based hardcoding)
-        // If user has CEO/CFO/Partner permissions, redirect to their dashboard
-        // The role template name is NOT used for routing
-        if (Array.isArray(perms) && perms.includes('*.*')) {
-          window.location.replace("/ceo-fy-progress");
-          return;
-        }
-        if (Array.isArray(perms) && perms.includes('finance.manage')) {
-          // Finance management permission
-          window.location.replace("/cfo-dashboard");
-          return;
-        }
-        if (Array.isArray(perms) && perms.includes('business_unit.manage')) {
-          // BU Head permission
-          window.location.replace("/bu-head-dashboard");
-          return;
-        }
-        if (Array.isArray(perms) && perms.includes('recruitment.manage')) {
-          // Recruiter/Hiring Manager permission
-          window.location.replace("/recruitment-dashboard");
-          return;
-        }
-
-        // Default: stay on general dashboard if no special permissions
-      } catch (err) {
-        console.error("Failed to check permissions and redirect:", err);
-        // Default: stay on general dashboard on error
-      }
-    };
-
-    checkPermissionsAndRedirect();
-  }, []);
+  // Landing per role is chosen at login (utils/permissionsRoleTemplate landingPath)
 
   // Get user's BU for filtering
   const userBuId = parseInt(localStorage.getItem("hrms_business_unit_id") || "0", 10);
 
-  // ZERO-HARDCODING: Get permission from role template, not hardcoded roles
-  // Check if user has org-level view permission (not BU-scoped)
-  const canViewAllData = hasPermission("candidates", "view") || hasPermission("system", "manage");
+  // Org-level roles (role template flag) see every BU; others see their own BU and the org pool
+  const canViewAllData = isOrgLevel();
 
   // Filter data based on user permission
   const filteredCandidates = canViewAllData

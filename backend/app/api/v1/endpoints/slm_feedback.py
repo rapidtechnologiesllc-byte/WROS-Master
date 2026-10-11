@@ -15,17 +15,14 @@ Endpoints:
 """
 
 import logging
-from datetime import datetime
-from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
-from app.core.logging import logger
-from app.services.slm_feedback_engine import SLMFeedbackEngine, SLMFeedback
+from app.services.slm_feedback_engine import SLMFeedbackEngine
 from app.services.slm_daily_improvement import SLMDailyImprovement
 
 router = APIRouter(prefix="/slm", tags=["slm-feedback"])

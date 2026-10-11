@@ -341,8 +341,7 @@ def override_core_pull(
     db: Session,
     event: CorePullEvent,
     *,
-    actor_role: str,
-    actor_user_id: str,
+    actor: Users,
     justification: str,
     tenant_id: Optional[int] = None,
     director: Optional[Users] = None,
@@ -355,10 +354,11 @@ def override_core_pull(
     caller-supplied recipient, same posture as every other roster-
     resolution gap already flagged in this codebase).
     """
-    if actor_role != "BU Head":
-        raise CorePullOverrideForbidden(
-            f"Core-Pull override requires BU Head role, got '{actor_role}'."
-        )
+    from app.core import authority
+
+    if not authority.is_bu_leader(db, actor):
+        raise CorePullOverrideForbidden("Core-Pull override requires a BU Head (or more senior) role.")
+    actor_user_id = actor.UserID
     if event.status != "PENDING":
         raise ValueError(f"CorePullEvent {event.id} is not PENDING (status={event.status}).")
     if len(justification or "") < OVERRIDE_JUSTIFICATION_MIN_CHARS:

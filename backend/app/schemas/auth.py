@@ -1,10 +1,6 @@
 # login schemas
-from pydantic import BaseModel, EmailStr, constr
-from typing import Optional, List
-import logging
-from datetime import datetime, date
-from app.core.logging import logger
-logger = logging.getLogger(__name__)
+from pydantic import BaseModel, EmailStr
+from typing import Optional
 
 class SignupRequest(BaseModel):
     user_name: str
@@ -66,6 +62,8 @@ class UnifiedLoginResponse(BaseModel):
     user_name: Optional[str] = None
     user_email: Optional[EmailStr] = None
     permissions: Optional[dict] = None  # Role template permissions {resource: {can_view, can_create, can_edit, can_delete}}
+    # role-template authority flags (app.core.authority.summary); the UI decides by these, never by user_role
+    authority: Optional[dict] = None
 
     # Candidate-specific (None for users)
     candidate_id: Optional[str] = None

@@ -1,8 +1,7 @@
-from app.core.logging import logger
 """Pydantic schemas -- Executive Signal & Culture Agent."""
 from datetime import datetime
 import logging
-from typing import Dict, List, Optional
+from typing import Optional
 
 from pydantic import BaseModel
 

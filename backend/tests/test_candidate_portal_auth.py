@@ -15,9 +15,9 @@ from app.core.dependencies import get_current_candidate
 from app.core.security import create_access_token
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.offer_letter import OfferLetter
-from app.models.role_template import RoleTemplate
 from app.models.tenant import Tenant
 from app.models.user import Users
+from tests.hiring_fixtures import full_access_role
 
 STAFF_ONLY = {"role_template_permission_check", "any_internal_user", "admin_role_only"}
 
@@ -55,8 +55,7 @@ def world(db):
     if db.query(Tenant).filter_by(id=1).first() is None:
         db.add(Tenant(id=1, name="BlitzenX"))
         db.flush()
-    role = db.query(RoleTemplate).filter_by(tenant_id=1, name="Super Admin").first() or \
-        RoleTemplate(tenant_id=1, name="Super Admin", display_name="Super Admin", enabled=True)
+    role = full_access_role(db)
     db.add(role)
     db.flush()
     hr = Users(UserID=f"HR-{_uid()}", UserName="HR", UserEmail=f"hr{_uid()}@blitzenx.com", UserPassword="x",

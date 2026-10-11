@@ -42,7 +42,15 @@ NET_MARGIN_FLOOR_PCT = 25
 
 
 def partner_bu_ids(db: Session, partner_id: str) -> List[int]:
-    return [row[0] for row in db.query(BusinessUnit.id).filter(BusinessUnit.manager_id == partner_id).all()]
+    """The BUs this partner owns (BusinessUnit.partner_user_id; manager_id is the BU head)."""
+    return [row[0] for row in db.query(BusinessUnit.id).filter(BusinessUnit.partner_user_id == partner_id).all()]
+
+
+def partner_user_ids(db: Session, tenant_id) -> List[str]:
+    """Partners are the users the BU structure names as partner, not a UserRole string."""
+    rows = db.query(BusinessUnit.partner_user_id).filter(BusinessUnit.tenant_id == tenant_id,
+                                                         BusinessUnit.partner_user_id.isnot(None)).distinct().all()
+    return [row[0] for row in rows]
 
 
 def _client_ids(bu_ids: Iterable[int]):
@@ -199,10 +207,7 @@ class FinanceAgent:
         """Check every partner's P&L; return the escalations and caution flags."""
         from app.models.user import Users
 
-        partners = db.query(Users).filter(
-            Users.tenant_id == tenant_id,
-            Users.UserRole == "Partner"
-        ).all()
+        partners = db.query(Users).filter(Users.UserID.in_(partner_user_ids(db, tenant_id))).all()
 
         results = []
         for partner in partners:

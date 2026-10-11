@@ -20,24 +20,19 @@ import logging
 from typing import Optional, List, Tuple
 from datetime import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_
 
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.candidate_rejection import CandidateRejection, CandidateRejectionReason
-from app.models.user import Users
 from app.models.candidate_history import CandidateHistory
-from app.core.logging import logger
-from app.core.security import get_password_hash
 
 logger = logging.getLogger(__name__)
 
 class CandidateRejectionError(Exception):
     """Raised when rejection operation fails."""
-    pass
 
 class CandidateNotFoundError(Exception):
     """Raised when candidate doesn't exist."""
-    pass
 
 def reject_candidate(
     db: Session,

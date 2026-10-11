@@ -48,12 +48,9 @@ def is_bu_restricted(db: Session, user: Users) -> bool:
     - Org-level users (via role_template.org_level_access) see ALL candidates (not restricted)
     - Regular users (BU-scoped) see only their BU's candidates (restricted)
     """
-    # If user should bypass BU filter (org-level), they are NOT restricted
-    if should_bypass_bu_filter(user):
-        return False
-
-    # If user has a BU assigned, they ARE restricted to that BU
-    return bool(get_user_bu_ids(db, user))
+    # Everyone who is not org-level is restricted -- a user with no BU assigned sees the
+    # Org Pool only (fail closed), same rule as apply_bu_scope_to_candidate_query
+    return not should_bypass_bu_filter(user)
 
 def apply_bu_scope_to_candidate_query(db: Session, query: Query, current_user: Users) -> Query:
     """
@@ -149,8 +146,5 @@ def get_candidate_by_id_with_bu_scope(db: Session, candidate_id: str, current_us
         ).first()
         return candidate_scoped
     except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"[BU-Scope] Error fetching candidate {candidate_id}: {e}", exc_info=True)
-        raise ValueError("Operation failed")
+        raise ValueError("Operation failed") from e

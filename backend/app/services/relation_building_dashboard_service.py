@@ -12,14 +12,12 @@ Format: SDLC Daily Kanban Standup
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
+from typing import Dict, Any
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.candidate_memory import CandidateMemory, CandidateMemoryFact
-from app.services.performance_store_service import get_performance_events
 
 logger = logging.getLogger(__name__)
 

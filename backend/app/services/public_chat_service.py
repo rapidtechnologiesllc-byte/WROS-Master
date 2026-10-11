@@ -25,11 +25,10 @@ from typing import Dict, List, Optional
 from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.consent import ConsentRecord
-from app.models.user import Jobs, Users
+from app.models.user import Jobs
 from app.services.ai_conversation_service import assign_ai_agent, resolve_default_tenant_id
 from app.services.candidate_service import find_duplicate_candidate
 from app.services.candidate_creation_sync_wait import queue_and_wait_for_candidate

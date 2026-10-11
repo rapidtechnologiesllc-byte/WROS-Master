@@ -7,13 +7,12 @@ Spartan Pattern: This service reports health metrics to Flash (Alpha Wolf).
 """
 from datetime import date
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from datetime import datetime
+from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.candidate import Candidate
-from app.models.user import Jobs, Users
+from app.models.user import Jobs
 from app.models.candidate_job_score import CandidateJobScore
 
 logger = logging.getLogger(__name__)

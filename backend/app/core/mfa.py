@@ -21,7 +21,6 @@ QR code / accept a TOTP code -- flipping it on blind would lock every
 Super User / BU Head account out of login with no way to complete the
 challenge.
 """
-import base64
 import hashlib
 import os
 import secrets
@@ -29,14 +28,10 @@ from typing import List, Tuple
 
 import pyotp
 
-MFA_REQUIRED_ROLES = {"Super User", "BU Head"}
 MFA_PENDING_TOKEN_MINUTES = 5
 
 def mfa_enforcement_enabled() -> bool:
     return os.getenv("MFA_ENFORCEMENT_ENABLED", "false").lower() == "true"
-
-def role_requires_mfa(role_name: str) -> bool:
-    return bool(role_name) and role_name in MFA_REQUIRED_ROLES
 
 # ---------------------------------------------------------------------------
 # Backlog item, 2026-08-05 -- email-based one-time code, SUPPLEMENTING the
@@ -51,21 +46,12 @@ def role_requires_mfa(role_name: str) -> bool:
 # "ENFORCEMENT IS OFF BY DEFAULT, do not enable until the frontend has
 # a real screen for it" posture as mfa_enforcement_enabled() above.
 # ---------------------------------------------------------------------------
-# Every real internal role except Candidate (candidates are the
-# separate, opt-in, NOT-built-this-pass half of the same ask -- see
-# wros_email_2fa_backlog memory note).
-EMAIL_OTP_REQUIRED_ROLES = {
-    "Super User", "Partner", "BU Head", "Hiring Manager", "HR Manager",
-    "HR Operations", "HRBP", "Recruitment Manager", "Recruitment Team Lead",
-    "Recruiter", "Employee", "Consultant",
-}
+# Who must use TOTP / email OTP is decided by the role template (app.core.authority:
+# requires_totp by hierarchy level, requires_email_otp for every internal role).
 EMAIL_OTP_TTL_MINUTES = 10
 
 def email_otp_enforcement_enabled() -> bool:
     return os.getenv("EMAIL_OTP_ENFORCEMENT_ENABLED", "false").lower() == "true"
-
-def role_requires_email_otp(role_name: str) -> bool:
-    return bool(role_name) and role_name in EMAIL_OTP_REQUIRED_ROLES
 
 def generate_email_otp_code() -> str:
     """6-digit numeric code, zero-padded -- easy to read aloud/type,

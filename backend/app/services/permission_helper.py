@@ -1,40 +1,17 @@
-import logging
-"""Permission Helper Service - Centralized permission and data scope management.
-
-Core functions for:
-- Getting user permissions from role templates
-- Checking specific permissions
-- Getting accessible modules
-- Calculating data access scope (BU, Location, Hierarchy)
-- Getting user's subordinates
-
-All permission checks should use these functions instead of hardcoded checks.
-ZERO-HARDCODING principle: All permission checks go through these helpers.
-"""
+"""Permission checks by user id: a thin adapter over app.core.authority, where every
+authority rule lives (role template flags, hierarchy level, permission matrix)."""
 
 from typing import List, Set
-from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from app.models.user import Users
-from app.models.role_template import RoleTemplate, RoleTemplatePermission, Module, Resource
-from app.services.organization_service import OrganizationService
-from app.core.logging import logger
-
-@dataclass
-class DataScope:
-    """User's data access scope - what data they can see."""
-    tenant_id: int
-    user_id: str
-    accessible_locations: List[str]  # Geographic boundary
-    accessible_bus: List[str]  # Business units
-    subordinates: List[str]  # Reporting chain
-    can_see_global_data: bool  # Cross-BU visibility
+from app.models.role_template import RoleTemplatePermission, Resource
+import logging
 
 logger = logging.getLogger(__name__)
 
 class PermissionHelper:
-    """Centralized permission and scope checking."""
+    """Permission checks by user id (see app.core.authority)."""
 
     @staticmethod
     def get_user_permissions(user_id: str, db: Session, tenant_id: int = 1) -> Set[str]:
@@ -73,123 +50,26 @@ class PermissionHelper:
         return permissions
 
     @staticmethod
-    def has_permission(user_id: str, permission: str, db: Session, tenant_id: int = 1) -> bool:
-        """Check if user has specific permission.
+    def _user(user_id: str, db: Session, tenant_id: int):
+        return db.query(Users).filter(Users.UserID == user_id, Users.tenant_id == tenant_id).first()
 
-        permission format: 'resource.action' (e.g., 'recruitment.manage', 'project.view')
-        """
-        permissions = PermissionHelper.get_user_permissions(user_id, db, tenant_id)
-        return permission.lower() in permissions
+    @staticmethod
+    def has_permission(user_id: str, permission: str, db: Session, tenant_id: int = 1) -> bool:
+        """permission: '<resource>.<view|create|edit|delete>' on a seeded resource (e.g.
+        'candidates.view'). Super users (role template flag) pass. A malformed string raises."""
+        from app.core import authority
+
+        return authority.has_permission(db, PermissionHelper._user(user_id, db, tenant_id), permission)
 
     @staticmethod
     def has_any_permission(user_id: str, permissions: List[str], db: Session, tenant_id: int = 1) -> bool:
-        """Check if user has any of the given permissions."""
-        user_permissions = PermissionHelper.get_user_permissions(user_id, db, tenant_id)
-        for perm in permissions:
-            if perm.lower() in user_permissions:
-                return True
-        return False
+        from app.core import authority
+
+        return authority.has_any_permission(db, PermissionHelper._user(user_id, db, tenant_id), permissions)
 
     @staticmethod
     def has_all_permissions(user_id: str, permissions: List[str], db: Session, tenant_id: int = 1) -> bool:
-        """Check if user has all of the given permissions."""
-        user_permissions = PermissionHelper.get_user_permissions(user_id, db, tenant_id)
-        for perm in permissions:
-            if perm.lower() not in user_permissions:
-                return False
-        return True
+        from app.core import authority
 
-    @staticmethod
-    def is_super_admin(user_id: str, db: Session, tenant_id: int = 1) -> bool:
-        """Check if user is super admin (has admin.manage permission)."""
-        return PermissionHelper.has_permission(user_id, "admin.manage", db, tenant_id)
-
-    @staticmethod
-    def get_accessible_modules(user_id: str, db: Session, tenant_id: int = 1) -> List[Module]:
-        """Get list of modules user can access."""
-        user = db.query(Users).filter(
-            Users.UserID == user_id,
-            Users.tenant_id == tenant_id
-        ).first()
-
-        if not user or not user.role_template_id:
-            # User has no role template assigned - return empty list
-            return []
-
-        modules = set()
-
-        perms = db.query(RoleTemplatePermission).filter(
-            RoleTemplatePermission.role_template_id == user.role_template_id
-        ).all()
-
-        for perm in perms:
-            resource = db.query(Resource).filter(Resource.id == perm.resource_id).first()
-            if resource and resource.module_id:
-                module = db.query(Module).filter(Module.id == resource.module_id).first()
-                if module:
-                    modules.add(module)
-
-        return list(modules)
-
-    @staticmethod
-    def get_data_access_scope(user_id: str, db: Session, tenant_id: int = 1) -> DataScope:
-        """Calculate user's data access scope.
-
-        Returns DataScope object with accessible locations, BUs, subordinates, and global visibility.
-        """
-        user = db.query(Users).filter(
-            Users.UserID == user_id,
-            Users.tenant_id == tenant_id
-        ).first()
-
-        if not user:
-            return DataScope(
-                tenant_id=tenant_id,
-                user_id=user_id,
-                accessible_locations=[],
-                accessible_bus=[],
-                subordinates=[],
-                can_see_global_data=False
-            )
-
-        # Get accessible locations
-        accessible_locations = OrganizationService.get_user_accessible_locations(user_id, db, tenant_id)
-
-        # Get accessible business units
-        accessible_bus = OrganizationService.get_user_accessible_business_units(user_id, db, tenant_id)
-
-        # Get subordinates in reporting chain
-        subordinates = OrganizationService.get_all_subordinates(user_id, db, tenant_id)
-
-        # Check if user can see global data
-        can_see_global = PermissionHelper.has_any_permission(
-            user_id,
-            ["admin.manage", "finance.view_global", "revenue.view_pnl"],
-            db,
-            tenant_id
-        )
-
-        return DataScope(
-            tenant_id=tenant_id,
-            user_id=user_id,
-            accessible_locations=accessible_locations or ["*"],
-            accessible_bus=accessible_bus or ["*"],
-            subordinates=subordinates,
-            can_see_global_data=can_see_global
-        )
-
-    @staticmethod
-    def get_user_subordinates(user_id: str, db: Session, tenant_id: int = 1) -> List[str]:
-        """Get all subordinates in reporting chain (recursive)."""
-        return OrganizationService.get_all_subordinates(user_id, db, tenant_id)
-
-    @staticmethod
-    def is_manager_of(manager_id: str, employee_id: str, db: Session, tenant_id: int = 1) -> bool:
-        """Check if manager_id manages employee_id."""
-        return OrganizationService.is_manager_of(manager_id, employee_id, db, tenant_id)
-
-    @staticmethod
-    def get_permissions_by_module(user_id: str, module_name: str, db: Session, tenant_id: int = 1) -> List[str]:
-        """Get all permissions user has for a specific module."""
-        all_permissions = PermissionHelper.get_user_permissions(user_id, db, tenant_id)
-        return [p for p in all_permissions if p.startswith(f"{module_name.lower()}.")]
+        user = PermissionHelper._user(user_id, db, tenant_id)
+        return all(authority.has_permission(db, user, p) for p in permissions)

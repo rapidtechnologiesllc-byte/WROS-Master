@@ -44,30 +44,22 @@ class InvoiceApproverNotAllowed(Exception):
 # CEO decision 2026-10-10: every invoice is reviewed by a person in Finance at Senior Manager
 # or above (Senior Manager, Director, VP, CFO...). Levels are the 17-level org hierarchy
 # (org_hierarchy_validator.HIERARCHY_LEVELS: 9 = Senior Manager). No admin bypass.
-INVOICE_APPROVER_MIN_LEVEL = 9
-FINANCE_NAMES = ("finance", "accounts", "accounting", "cfo")
-
 def is_invoice_approver(db: Session, user) -> bool:
-    from app.models.role_template import RoleTemplate
+    """Finance at Senior Manager level or above (CEO decision 2026-10-10). No super-user
+    bypass: approving what a client is billed is Finance's call, not an administrator's."""
+    from app.core import authority
 
-    if user is None:
-        return False
-    role = db.query(RoleTemplate).filter(RoleTemplate.id == user.role_template_id).first()
-    if role is None or (role.hierarchy_level or 0) < INVOICE_APPROVER_MIN_LEVEL:
-        return False
-    texts = [role.specialization, role.name, role.display_name]
-    department = getattr(user, "department", None)
-    if department is not None:
-        texts.append(department.name)
-    return any(word in (t or "").lower() for t in texts for word in FINANCE_NAMES)
+    return authority.is_finance_leader(db, user)
 
 def invoice_approvers(db: Session, tenant_id: Optional[int]) -> list:
     """Everyone who may approve invoices, most junior first (they get the review task)."""
     from app.models.role_template import RoleTemplate
     from app.models.user import Users
 
+    from app.core.config import settings
+
     query = db.query(Users).join(RoleTemplate, RoleTemplate.id == Users.role_template_id).filter(
-        RoleTemplate.hierarchy_level >= INVOICE_APPROVER_MIN_LEVEL)
+        RoleTemplate.hierarchy_level >= settings.SENIOR_MANAGER_MIN_LEVEL)
     if tenant_id is not None:
         query = query.filter(Users.tenant_id == tenant_id)
     users = [u for u in query.order_by(RoleTemplate.hierarchy_level).all() if is_invoice_approver(db, u)]

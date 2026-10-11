@@ -15,6 +15,7 @@ import {
   verifyStaffEmailOtp,
 } from "../services/api/auth";
 import { getHrMe } from "../services/api/users";
+import { landingPath } from "../utils/permissionsRoleTemplate";
 
 export default function AuthPage() {
   const [loading, setLoading] = useState(false);
@@ -114,6 +115,12 @@ export default function AuthPage() {
     if (Array.isArray(data?.roles)) {
       localStorage.setItem("hrms_roles", JSON.stringify(data.roles));
     }
+    // Role-template authority flags (super user, org level, hierarchy) -- the UI decides by these
+    if (data?.authority) {
+      localStorage.setItem("hrms_authority", JSON.stringify(data.authority));
+    } else {
+      localStorage.removeItem("hrms_authority");
+    }
     // Store role template permissions (can be array or object)
     if (data?.permissions) {
       localStorage.setItem("hrms_permissions", JSON.stringify(data.permissions));
@@ -181,37 +188,8 @@ export default function AuthPage() {
         localStorage.setItem("hrms_user_email", data.user_email);
       }
 
-      // Role-based landing page redirection for all roles
-      // Check new RBAC roles array first, then fall back to legacy user_role
-      let userRole = null;
-      if (Array.isArray(data?.roles) && data.roles.length > 0) {
-        // Use first role from RBAC system (convert to uppercase for matching)
-        userRole = String(data.roles[0] || "").trim().toUpperCase();
-      } else {
-        // Fall back to legacy user_role field
-        userRole = String(data?.user_role || "").trim().toUpperCase();
-      }
-
-      const roleRedirectMap = {
-        "CEO": "/ceo-fy-progress",
-        "CFO": "/cfo-dashboard",
-        "PARTNER": "/partner-roi",
-        "BU_HEAD": "/bu-dashboard",
-        "BU HEAD": "/bu-dashboard",
-        "HR_MANAGER": "/employees",
-        "HR MANAGER": "/employees",
-        "HR": "/candidates",
-        "RECRUITMENT_MANAGER": "/candidates",
-        "RECRUITMENT MANAGER": "/candidates",
-        "RECRUITER": "/candidates",
-        "HIRING_MANAGER": "/candidates",
-        "HIRING MANAGER": "/candidates",
-        "EMPLOYEE": "/my-tasks"
-      };
-
-      if (roleRedirectMap[userRole]) {
-        redirectPath = roleRedirectMap[userRole];
-      }
+      // Landing page: the first screen the role template permits (never the role's name)
+      redirectPath = landingPath(redirectPath);
     }
 
     if (offer2faOptIn) {
@@ -233,6 +211,7 @@ export default function AuthPage() {
       // Clear stale auth context before a fresh unified login attempt.
       localStorage.removeItem("hrms_token");
       localStorage.removeItem("hrms_role");
+      localStorage.removeItem("hrms_authority");
       localStorage.removeItem("hrms_user_name");
       localStorage.removeItem("hrms_user_email");
       localStorage.removeItem("hrms_candidate_id");

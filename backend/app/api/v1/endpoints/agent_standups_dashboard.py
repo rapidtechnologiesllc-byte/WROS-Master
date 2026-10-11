@@ -7,7 +7,6 @@ from app.core.dependencies import get_current_internal_user, require_resource_pe
 from app.core.database import get_db
 from app.models.user import Users
 from app.services.agent_daily_standup_service import AgentDailyStandup
-import logging
 from app.services.permission_helper import PermissionHelper
 
 router = APIRouter(prefix="/admin/agent-standups", tags=["Agent Standups Dashboard"])
@@ -29,10 +28,10 @@ def get_standups_dashboard(
     """
     try:
         tenant_id = getattr(current_user, 'TenantID', 1)
-        if not PermissionHelper.is_super_admin(current_user.UserID, db, tenant_id):
+        if not PermissionHelper.has_permission(current_user.UserID, "ceo-dashboard.view", db, tenant_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only CEO/Super User can view Agent Standups Dashboard"
+                detail="The Agent Standups Dashboard needs the CEO dashboard view permission"
             )
 
         # Get standup and scrum reports
@@ -90,7 +89,7 @@ async def ceo_provide_feedback(
         # Check admin permission via RBAC (not hardcoded role name)
         has_admin_perms = PermissionHelper.has_any_permission(
             current_user.UserID,
-            ["admin.manage", "admin.edit"],
+            ["admin-settings.edit"],
             db,
             current_user.tenant_id
         )

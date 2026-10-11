@@ -120,7 +120,7 @@ export default function FinanceOperationsScreen() {
     listIntercompanySettlements()
       .then((list) => setSettlements(list || []))
       .catch((err) => console.error("Failed to load intercompany settlements:", err));
-    searchUsers({ permission_role: "Partner", limit: 100 })
+    searchUsers({ authority: "partner", limit: 100 })
       .then((res) => setPartners(res?.users || []))
       .catch((err) => console.error("Failed to load partners:", err));
     loadAllExpenses();

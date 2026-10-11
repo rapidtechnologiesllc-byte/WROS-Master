@@ -3,11 +3,10 @@
 Routes candidate-related messages to appropriate handlers with retry logic.
 """
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.channel_queue import ChannelQueueItem
 from app.services.message_handlers.candidate_creation_unified_handler import CandidateCreationUnifiedHandler
 from app.services.message_handlers.candidate_conversion_handler import CandidateConversionHandler

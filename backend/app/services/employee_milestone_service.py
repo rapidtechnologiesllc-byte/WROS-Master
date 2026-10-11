@@ -13,7 +13,6 @@ from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.employee_milestone import (
     OPEN_MILESTONE_STATUSES,
     EmployeeMilestone,

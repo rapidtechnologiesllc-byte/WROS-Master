@@ -27,8 +27,6 @@ from app.core.mfa import (
     generate_email_otp_code,
     hash_email_otp_code,
     mfa_enforcement_enabled,
-    role_requires_email_otp,
-    role_requires_mfa,
 )
 from app.services.email_service import EmailService
 from app.services.role_template_permission_service import RoleTemplatePermissionService
@@ -159,25 +157,22 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             )
 
         role_template_id = user.role_template_id
-        user_role = "User"
-
         try:
             rt = db.query(RoleTemplate).filter(RoleTemplate.id == role_template_id).first()
-            if not rt:
-                logger.error(f"Role template {role_template_id} not found")
-                raise HTTPException(status_code=403, detail="Role template not found")
-            if not hasattr(rt, 'name') or not rt.name:
-                logger.error(f"Role template {role_template_id} has no name")
-                raise HTTPException(status_code=403, detail="Role template has no name")
-            user_role = rt.name
-        except HTTPException:
-            raise
         except Exception as e:
             logger.error(f"Failed to fetch role template {role_template_id}: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Failed to load user role. Please try again.")
+        if not rt or not rt.enabled:
+            logger.error(f"Login rejected: role template {role_template_id} missing or disabled")
+            raise HTTPException(status_code=403, detail="Your role is not active. Please reach out to help desk.")
 
-        totp_gate = mfa_enforcement_enabled() and role_requires_mfa(user_role)
-        email_otp_gate = email_otp_enforcement_enabled() and role_requires_email_otp(user_role)
+        user_role = rt.display_name or rt.name  # display label only; authority comes from the template's flags
+
+        # MFA by the role template (hierarchy level), never by the role's name
+        from app.core import authority
+
+        totp_gate = mfa_enforcement_enabled() and authority.requires_totp(db, user)
+        email_otp_gate = email_otp_enforcement_enabled() and authority.requires_email_otp(db, user)
 
         if totp_gate or email_otp_gate:
             pending_token = create_access_token(
@@ -250,6 +245,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                 access_token=pending_token,
                 is_first_time=False,
                 user_role=user_role,
+                authority=authority.summary(db, user),
                 user_name=user.UserName if hasattr(user, 'UserName') and user.UserName else "",
                 user_email=user.UserEmail,
                 permissions=user_permissions,
@@ -310,6 +306,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             refresh_token=refresh_token,
             is_first_time=False,
             user_role=user_role,
+            authority=authority.summary(db, user),
             user_name=user.UserName if hasattr(user, 'UserName') and user.UserName else "",
             user_email=user.UserEmail,
             permissions=user_permissions,
@@ -530,17 +527,10 @@ def refresh_token_endpoint(
                 detail="Your permissions have been revoked. Please contact help desk."
             )
 
-        user_role = "User"
-        if user and hasattr(user, 'UserRole') and user.UserRole:
-            user_role = user.UserRole
+        from app.core import authority
 
-        if hasattr(user, 'role_template_id') and user.role_template_id:
-            try:
-                rt = db.query(RoleTemplate).filter(RoleTemplate.id == user.role_template_id).first()
-                if rt and hasattr(rt, 'name') and rt.name:
-                    user_role = rt.name
-            except Exception as e:
-                logger.error(f"Failed to fetch role template: {e}", exc_info=True)
+        role = authority.role_of(db, user)
+        user_role = (role.display_name or role.name) if role else None  # display label only
 
         logger.info(f"Token refreshed for user {user.UserID}")
         return UnifiedLoginResponse(
@@ -549,6 +539,7 @@ def refresh_token_endpoint(
             refresh_token=new_refresh_token,
             is_first_time=False,
             user_role=user_role,
+            authority=authority.summary(db, user),
             user_name=user.UserName if hasattr(user, 'UserName') and user.UserName else "",
             user_email=user.UserEmail,
             permissions=user_permissions,

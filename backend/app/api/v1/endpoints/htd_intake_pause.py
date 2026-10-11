@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
-from app.models.htd_intake_pause import HtdMonthlyMetric, HtdPauseLogEntry
+from app.models.htd_intake_pause import HtdPauseLogEntry
 from app.models.user import Users
 from app.schemas.htd_intake_pause import (
     CalculateMonthlyMetricRequest,
@@ -72,7 +72,7 @@ def calculate_monthly_metric_endpoint(
 
 @router.post(
     "/check-breach", response_model=HtdIntakeStatusResponse,
-    dependencies=[Depends(require_resource_permission("resources", "access"))],
+    dependencies=[Depends(require_resource_permission("resources", "edit"))],
     summary="Check the 2 most recently calculated months; auto-pause if both are below 50%",
 )
 def check_breach_endpoint(

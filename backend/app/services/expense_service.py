@@ -185,8 +185,7 @@ def can_review_as_manager(db: Session, expense: ExpenseRecord, user: Users) -> b
         return False
     assigned = db.query(Task).filter(Task.expense_id == expense.id, Task.status != "COMPLETED",
                                      Task.assigned_to_user_id == user.UserID).first()
-    return assigned is not None or perms.is_super_user(db, user.UserID, user.tenant_id) \
-        or perms.has_permission(db, user.UserID, "revenue", "view", user.tenant_id)
+    return assigned is not None or perms.has_permission(db, user.UserID, "revenue", "view", user.tenant_id)
 
 
 def _close_open_tasks(db: Session, expense: ExpenseRecord) -> None:

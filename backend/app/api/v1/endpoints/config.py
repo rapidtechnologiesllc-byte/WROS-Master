@@ -8,12 +8,11 @@ authentication to allow frontend to load configuration data before login.
 They are listed in auth_middleware.py PUBLIC_ROUTES and main.py known_exceptions.
 """
 import logging
-from typing import Dict, List, Any
+from typing import Dict, Any
 
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.core.database import get_db
 from app.models.channel_queue import ChannelQueueItem
 from app.models.candidate import CandidateJobApplication

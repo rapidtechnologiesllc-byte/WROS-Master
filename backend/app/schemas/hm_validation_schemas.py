@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

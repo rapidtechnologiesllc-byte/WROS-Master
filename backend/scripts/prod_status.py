@@ -170,12 +170,15 @@ def main() -> int:
 
         section("Roles and authority (role templates; no personal data)")
         try:
-            for name, display, level, spec, superuser, org, enabled, users in rows(
-                    "SELECT rt.name, rt.display_name, rt.hierarchy_level, rt.specialization, rt.is_super_user, "
-                    "rt.org_level_access, rt.enabled, count(u.\"UserID\") FROM role_templates rt "
-                    "LEFT JOIN users u ON u.role_template_id = rt.id GROUP BY rt.id ORDER BY rt.hierarchy_level DESC, rt.name"):
-                print(f"{name!r} ({display}): level={level} spec={spec} super_user={superuser} org_level={org} "
-                      f"enabled={enabled} users={users}")
+            resources = rows("SELECT count(*) FROM resources")[0][0]
+            print(f"resources seeded: {resources}")
+            for name, display, level, spec, org, enabled, users, granted in rows(
+                    "SELECT rt.name, rt.display_name, rt.hierarchy_level, rt.specialization, rt.org_level_access, "
+                    "rt.enabled, (SELECT count(*) FROM users u WHERE u.role_template_id = rt.id), "
+                    "(SELECT count(*) FROM role_template_permissions p WHERE p.role_template_id = rt.id AND p.can_view) "
+                    "FROM role_templates rt ORDER BY rt.hierarchy_level DESC, rt.name"):
+                print(f"{name!r} ({display}): level={level} spec={spec} org_level={org} enabled={enabled} "
+                      f"users={users} resources_viewable={granted}/{resources}")
             print("users by legacy UserRole:", ", ".join(f"{a}={b}" for a, b in rows(
                 'SELECT coalesce("UserRole", \'(none)\'), count(*) FROM users GROUP BY 1 ORDER BY 2 DESC')))
             print("users without a role template:", rows('SELECT count(*) FROM users WHERE role_template_id IS NULL')[0][0])

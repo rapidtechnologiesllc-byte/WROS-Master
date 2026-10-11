@@ -19,7 +19,6 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.candidate_resume_parsed import CandidateResumeParsed
 

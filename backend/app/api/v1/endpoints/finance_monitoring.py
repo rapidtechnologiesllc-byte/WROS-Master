@@ -17,12 +17,12 @@ Access Control:
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from datetime import datetime
 
-from app.core.dependencies import get_db, get_current_user, require_resource_permission
+from app.core.dependencies import get_current_user, require_resource_permission
 from app.models.user import Users
 from app.models.business_unit import BusinessUnit
 from app.services.finance_agent import FinanceAgent, partner_bu_ids
@@ -30,18 +30,20 @@ from app.core.database import get_db
 
 router = APIRouter(prefix="/finance", tags=["finance"])
 logger = logging.getLogger(__name__)
-COMPANY_WIDE_ROLES = ("CEO", "Admin", "Super Admin")
 
 def get_user_business_units(user_id: str, tenant_id: int, db: Session) -> List[int]:
     """Get all BUs user has access to"""
-    # Check if user is CEO - they see all BUs
+    # org-level roles (role template flag) see every BU
+    from app.core import authority
+
     user = db.query(Users).filter(Users.UserID == user_id).first()
-    if user and user.UserRole in COMPANY_WIDE_ROLES:
+    if authority.is_org_level(db, user):
         bus = db.query(BusinessUnit).filter(BusinessUnit.tenant_id == tenant_id).all()
         return [bu.id for bu in bus]
 
-    # BUs the user heads (partners) plus their own BU
-    bu_ids = partner_bu_ids(db, user_id)
+    # BUs the user owns (partner) or runs (head), plus their own BU
+    bu_ids = partner_bu_ids(db, user_id) + [row[0] for row in db.query(BusinessUnit.id).filter(
+        BusinessUnit.manager_id == user_id).all()]
     if user and user.business_unit_id and user.business_unit_id not in bu_ids:
         bu_ids.append(user.business_unit_id)
     return bu_ids
@@ -50,8 +52,9 @@ def check_bu_access(user_id: str, bu_id: int, tenant_id: int, db: Session) -> bo
     """Verify user has access to this BU"""
     user = db.query(Users).filter(Users.UserID == user_id).first()
 
-    # CEO / admins can access all
-    if user and user.UserRole in COMPANY_WIDE_ROLES:
+    from app.core import authority
+
+    if authority.is_org_level(db, user):
         return True
 
     # User must have this BU assigned
@@ -74,8 +77,10 @@ async def hourly_profitability_check(
     Returns all partners below 25% net profit floor
     """
 
-    if current_user.UserRole not in ["CEO", "Finance"]:
-        raise HTTPException(status_code=403, detail="Only CEO and Finance can access this endpoint")
+    from app.core import authority
+
+    if not (authority.is_finance_leader(db, current_user) or authority.is_ceo(db, current_user)):
+        raise HTTPException(status_code=403, detail="Only Finance (Senior Manager or above) and the CEO can access this")
 
     results = FinanceAgent.hourly_partner_check(db, current_user.tenant_id)
 

@@ -18,11 +18,9 @@ from enum import Enum
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
 from app.core.agent_logging import log_agent_execution
 from app.models.agent_execution_log import AgentExecutionLog
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

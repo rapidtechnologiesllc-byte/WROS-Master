@@ -50,7 +50,6 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from sqlalchemy.orm import Session
 
 from app.core.llm_prompt_safety import build_safe_prompt
-from app.core.logging import logger
 from app.models.core_pull import CorePullEvent
 from app.models.demand import Demand
 from app.models.employee import Employee

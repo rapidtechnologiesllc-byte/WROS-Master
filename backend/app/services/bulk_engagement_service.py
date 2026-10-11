@@ -42,12 +42,10 @@ from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.bulk_engagement import BulkEngagementError, BulkEngagementJob
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation
 from app.models.user import Users
-from app.services.candidate_service import DuplicateCandidateError
 from app.services.candidate_creation_wrapper import queue_candidate_creation
 from app.services.notification_service import send_notification
 
@@ -191,7 +189,7 @@ def run_bulk_engagement_worker(db: Session, job_id: str, *, sleep_fn=None, batch
     db.add(job)
     db.commit()
 
-    from app.services.ai_conversation_service import auto_assign_ai_agent_on_creation
+    from app.services.message_queue_service import MessageQueueService
 
     candidate_ids = job.candidate_ids or []
     for batch_start in range(0, len(candidate_ids), batch_size):
@@ -211,7 +209,12 @@ def run_bulk_engagement_worker(db: Session, job_id: str, *, sleep_fn=None, batch
                 if _already_engaged(db, candidate_id):  # BR-02
                     job.skipped_count += 1
                     continue
-                auto_assign_ai_agent_on_creation(candidate_id, job.tenant_id, db)
+                # the same Thunder engagement a newly created candidate gets (idempotent per job)
+                MessageQueueService.enqueue(
+                    task_name="engage_candidate_with_thunder", task_id=f"bulk-engage:{job.id}:{candidate_id}",
+                    data={"candidate_id": candidate_id, "email": candidate.candidateEmail,
+                          "first_name": candidate.candidateFirstName, "last_name": candidate.candidateLastName,
+                          "source": "bulk_launch", "tenant_id": job.tenant_id})
                 job.success_count += 1
             except Exception as exc:
                 logger.error(f"Error: {str(exc)}", exc_info=True)

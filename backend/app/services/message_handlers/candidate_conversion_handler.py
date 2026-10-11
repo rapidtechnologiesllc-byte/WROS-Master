@@ -6,16 +6,14 @@ Implements idempotent candidate-to-employee conversion through message queue.
 - Creates employee record atomically
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Dict
 
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.channel_queue import ChannelQueueItem
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.employee import Employee
-from app.models.candidate_ai import ConversationEvent
 from app.services.message_handlers.base_message_handler import time_bound
 
 logger = logging.getLogger(__name__)

@@ -21,14 +21,13 @@ here.
 import logging
 import time
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict
 
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.candidate import Candidate
-from app.models.candidate_ai import CandidateAIAssignment, CandidateConversation, ConversationEvent
-from app.services.ai_conversation_service import DEFAULT_THUNDER_DISPLAY_NAME, resolve_thunder_config
+from app.models.candidate_ai import CandidateConversation, ConversationEvent
+from app.services.ai_conversation_service import resolve_thunder_config
 from app.services.thunder_service import ConsentNotGiven, has_active_consent
 from app.services.whatsapp_routing_service import (
     ConversationOwnedByHuman,

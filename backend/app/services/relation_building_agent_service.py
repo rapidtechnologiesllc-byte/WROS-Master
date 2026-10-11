@@ -23,14 +23,12 @@ to personalize its interactions and decisions.
 
 import logging
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
 from app.core.agent_logging import log_agent_execution
-from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.services.resume_parser_slm import ResumeSLM
-from app.services.candidate_memory_service import upsert_fact, get_memory
+from app.services.candidate_memory_service import upsert_fact
 from app.utils.agent_logger import log_agent_execution as record_agent_run
 from app.services.relation_building_interaction_tracker import InteractionTracker
 from app.services.personal_intelligence_service import (

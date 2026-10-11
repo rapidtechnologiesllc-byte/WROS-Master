@@ -1,4 +1,3 @@
-from app.core.logging import logger
 """Pydantic Schemas -- S-061/HRMS-0461 AI Activity Feed."""
 from datetime import datetime
 import logging

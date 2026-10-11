@@ -8,10 +8,9 @@ Includes request/response models for:
 """
 
 import logging
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

@@ -22,7 +22,7 @@ from app.models.tenant import Tenant
 from app.models.user import Users
 from app.services import account_activation_service as accounts
 from app.services.message_handlers.send_account_email_handler import SendAccountEmailHandler
-from tests.hiring_fixtures import clear_hiring
+from tests.hiring_fixtures import clear_hiring, full_access_role
 
 
 def _uid():
@@ -78,8 +78,7 @@ def world(db):
     if db.query(Tenant).filter_by(id=1).first() is None:
         db.add(Tenant(id=1, name="BlitzenX"))
         db.flush()
-    role = db.query(RoleTemplate).filter_by(tenant_id=1, name="Super Admin").first() or \
-        RoleTemplate(tenant_id=1, name="Super Admin", display_name="Super Admin", enabled=True)
+    role = full_access_role(db)
     db.add(role)
     db.flush()
     # the resources the production Employee role is seeded with, then the role itself (same code as startup)

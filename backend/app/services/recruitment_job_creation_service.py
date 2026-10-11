@@ -21,7 +21,6 @@ import os
 import re
 import json
 from dotenv import load_dotenv
-from app.core.logging import logger
 
 load_dotenv()
 
@@ -30,6 +29,9 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 XAI_API_KEY = os.getenv("XAI_API_KEY")
 
 # Round-robin LLM providers: Gemini (primary) → Claude (backup) → fallback response
+logger = logging.getLogger(__name__)
+
+
 def _get_llm_provider():
     """Claude, then Gemini; None when no real key is configured (the agent
     then uses its deterministic fallbacks)."""
@@ -45,7 +47,6 @@ def _get_llm_provider():
 
 llm = _get_llm_provider()
 
-logger = logging.getLogger(__name__)
 
 class RecruitmentJobCreationAgent:
     """
@@ -79,7 +80,7 @@ class RecruitmentJobCreationAgent:
             self._validate_response_structure(parsed)
             return parsed
         except (json.JSONDecodeError, ValueError) as e:
-            raise ValueError("Operation failed")
+            raise ValueError(f"The AI response was not the expected job JSON: {e}") from e
 
     # These field names are contractual: generate_complete_job() reads answers
     # back out by these exact keys, so every response must include them.

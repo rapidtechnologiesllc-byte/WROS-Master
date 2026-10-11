@@ -1,4 +1,3 @@
-from app.core.logging import logger
 """Pydantic Schemas -- S-020/HRMS-0420 Engagement SLA Monitoring."""
 from datetime import datetime
 import logging

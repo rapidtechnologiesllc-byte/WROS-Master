@@ -41,7 +41,6 @@ import { Outlet } from "react-router-dom";
 import {
   hasPermission,
   getPermissions,
-  isSuperUser,
   canViewModule,
   filterNavigationByModules,
 } from "../utils/permissionsRoleTemplate";
@@ -332,28 +331,6 @@ export default function Shell({
     };
   }, []); // Run once on mount
 
-  // RBAC-driven: Permission-based checks (no hardcoded role names)
-  // These derive from role template permissions, not legacy role strings
-  const perms = (() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
-      // If stored as object (permission metadata), convert keys to array
-      if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
-        return Object.keys(stored);
-      }
-      return Array.isArray(stored) ? stored : [];
-    } catch (err) {
-      console.error('Failed to parse cached permissions:', err);
-      throw new Error(`Permission cache is corrupted: ${err.message}`);
-    }
-  })();
-
-  // Permission-based feature flags (derived from role template permissions)
-  const isSuperUser = Array.isArray(perms) && perms.includes('*.*');  // Only SuperUser role template gets wildcard
-  const isAdmin = Array.isArray(perms) && perms.includes('administration.manage');  // Only Admin role template gets this
-  const isHR_Manager = Array.isArray(perms) && perms.includes('employees.manage');  // HR Manager role template
-  const isHiringManager = Array.isArray(perms) && perms.includes('recruitment.create');  // Hiring Manager role template
-  const isHrOperations = Array.isArray(perms) && perms.includes('recruitment.edit');  // HR Operations role template
 
   // Fetch navigation structure from backend based on role template permissions (all 175 resources)
   const [nav, setNav] = useState({

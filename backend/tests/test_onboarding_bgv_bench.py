@@ -27,6 +27,7 @@ from app.models.user import InterviewPanel, Users
 from app.services import hiring_pipeline_service as hp
 from app.services.message_handlers.send_pipeline_email_handler import SendPipelineEmailHandler
 from app.services.submission_service import check_hiring_pipeline_rule
+from tests.hiring_fixtures import full_access_role
 
 
 def _uid():
@@ -96,8 +97,7 @@ def world(db):
     if db.query(Tenant).filter_by(id=1).first() is None:
         db.add(Tenant(id=1, name="BlitzenX"))
         db.flush()
-    role = db.query(RoleTemplate).filter_by(tenant_id=1, name="Super Admin").first() or \
-        RoleTemplate(tenant_id=1, name="Super Admin", display_name="Super Admin", enabled=True)
+    role = full_access_role(db)
     db.add(role)
     module = db.query(Module).filter_by(name="Personal", tenant_id=1).first() or \
         Module(name="Personal", display_name="Personal", tenant_id=1)

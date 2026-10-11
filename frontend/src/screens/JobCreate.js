@@ -205,24 +205,10 @@ export default function JobCreate({
       setUsersBusy(true);
 
       try {
-        const [hrManagers, reportingManagers] = await Promise.all([
-          searchUsers({
-            user_role: "HR",
-          }),
-          searchUsers({
-            permission_role: "Reporting Manager",
-          }),
-        ]);
+        // any internal user can be the reporting manager or contact (an assignment, not authority)
+        const all = await searchUsers({ limit: 200 });
         if (!isMounted) return;
-
-        const mergedUsers = [
-          ...(hrManagers?.users ?? []),
-          ...(reportingManagers?.users ?? []),
-        ];
-        const uniqueUsers = Array.from(
-          new Map(mergedUsers.map((user) => [user?.user_id, user])).values(),
-        );
-        setUsers(uniqueUsers);
+        setUsers(all?.users ?? []);
       } catch (error) {
         console.error("Failed to load users:", error);
         if (!isMounted) return;
@@ -328,9 +314,8 @@ export default function JobCreate({
   useEffect(() => {
     const loadHiringManagers = async () => {
       try {
-        const response = await searchUsers({
-          permission_role: "Hiring Manager",
-        });
+        // any internal user can be a job's hiring manager (an assignment, not authority)
+        const response = await searchUsers({ limit: 200 });
 
         setHiringManagers(Array.isArray(response?.users) ? response.users : []);
       } catch (error) {

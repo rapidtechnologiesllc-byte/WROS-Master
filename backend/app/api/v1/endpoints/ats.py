@@ -13,7 +13,6 @@ POST /ats/rescore                   – re-run ATS scoring for any candidate+job
 
 import json
 import asyncio
-from typing import List
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -381,8 +380,7 @@ async def run_ats_scoring_in_background(candidate_id: str, job_id: str) -> None:
     `Depends(get_db)` session -- it's closed as soon as the HTTP response
     is sent, before a BackgroundTask necessarily gets its turn. Same
     SessionLocal()-per-background-task convention as
-    app.services.ai_conversation_service.run_auto_assign_ai_agent_in_background()
-    and app.api.v1.endpoints.bulk_engagement._run_worker_in_background()."""
+    app.api.v1.endpoints.bulk_engagement._run_worker_in_background()."""
     from app.core.database import SessionLocal
     db = SessionLocal()
     try:

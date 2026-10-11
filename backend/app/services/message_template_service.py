@@ -8,7 +8,6 @@ from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.message_template import TEMPLATE_KEYS, MessageTemplate
 

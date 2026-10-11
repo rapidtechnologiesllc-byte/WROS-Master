@@ -25,14 +25,12 @@ Used by: Thunder, Interview Scheduler, Offer Generator (for authentic engagement
 """
 
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 from datetime import datetime
 from sqlalchemy.orm import Session
 from enum import Enum
 
-from app.core.logging import logger
-from app.models.candidate import Candidate
-from app.services.candidate_memory_service import upsert_fact, get_memory
+from app.services.candidate_memory_service import upsert_fact
 
 logger = logging.getLogger(__name__)
 

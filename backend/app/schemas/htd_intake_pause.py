@@ -1,5 +1,4 @@
 import logging
-from app.core.logging import logger
 """Pydantic schemas -- S-359/HRMS-P511 (HTD Intake Pause Engine) API."""
 
 from datetime import date, datetime

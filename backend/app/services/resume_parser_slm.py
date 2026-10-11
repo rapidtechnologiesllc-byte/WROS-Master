@@ -19,10 +19,8 @@ Current Implementation:
 
 import logging
 import re
-from typing import Dict, List, Optional, Set
-from datetime import datetime
+from typing import Dict, List, Optional
 
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

@@ -1,5 +1,4 @@
 import logging
-from app.core.logging import logger
 """Pydantic schemas -- S-105/HRMS-P210 (Portal Notification Center) API."""
 
 from datetime import datetime

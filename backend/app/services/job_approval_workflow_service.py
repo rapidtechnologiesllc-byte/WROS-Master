@@ -22,15 +22,23 @@ from sqlalchemy.orm import Session
 from app.models.business_unit import BusinessUnit
 from app.models.user import Jobs, Users
 from app.services.recruiter_assignment_service import assign_to_recruiter_roundrobin
-from app.services.role_template_permission_service import RoleTemplatePermissionService
 
 logger = logging.getLogger(__name__)
 
 
-def _first_super_user(db: Session, tenant_id: int, exclude_user_id: Optional[str] = None) -> Optional[Users]:
+def _can_publish_jobs(db: Session, user: Users) -> bool:
+    """Publishing a job needs the jobs edit permission on the role template."""
+    from app.core import authority
+
+    return authority.has_permission(db, user, "jobs.edit")
+
+
+def _first_org_level_approver(db: Session, tenant_id: int, exclude_user_id: Optional[str] = None) -> Optional[Users]:
+    from app.core import authority
+
     users = db.query(Users).filter(Users.tenant_id == tenant_id, Users.terminated_at.is_(None)).all()
     for user in users:
-        if user.UserID != exclude_user_id and RoleTemplatePermissionService.is_super_user(db, user.UserID, tenant_id):
+        if user.UserID != exclude_user_id and authority.is_org_level(db, user) and _can_publish_jobs(db, user):
             return user
     return None
 
@@ -40,8 +48,8 @@ def get_approval_routing(db: Session, job: Jobs, creator: Optional[Users]) -> Tu
     tenant_id = (creator.tenant_id if creator else None) or 1
     creator_id = creator.UserID if creator else None
 
-    if creator and RoleTemplatePermissionService.is_super_user(db, creator.UserID, tenant_id):
-        return None, "Creator is a super user - no approval needed"
+    if creator and _can_publish_jobs(db, creator):
+        return None, "Creator's role may publish jobs - no approval needed"
 
     bu_id = job.business_unit_id or (creator.business_unit_id if creator else None)
     if bu_id:
@@ -51,9 +59,9 @@ def get_approval_routing(db: Session, job: Jobs, creator: Optional[Users]) -> Tu
             if manager:
                 return manager, f"Route to BU manager {manager.UserName or manager.UserEmail}"
 
-    admin = _first_super_user(db, tenant_id, exclude_user_id=creator_id)
+    admin = _first_org_level_approver(db, tenant_id, exclude_user_id=creator_id)
     if admin:
-        return admin, "Route to super user (no BU manager available)"
+        return admin, "Route to an org-level approver (no BU manager available)"
     return None, "No approver found"
 
 

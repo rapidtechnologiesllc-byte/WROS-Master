@@ -33,7 +33,6 @@ from typing import Optional, Dict, Any
 from sqlalchemy import Column, String, Integer, DateTime, Float, JSON, func, Text
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.base import Base
 
 logger = logging.getLogger(__name__)

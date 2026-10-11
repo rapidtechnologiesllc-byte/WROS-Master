@@ -12,13 +12,10 @@ Used by Thunder to assess resume authenticity before scheduling interviews.
 
 import logging
 from typing import List, Dict, Optional, Tuple
-from datetime import datetime
-from difflib import SequenceMatcher
 
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
-from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.candidate_resume_parsed import CandidateResumeParsed
 

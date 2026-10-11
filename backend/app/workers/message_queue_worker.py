@@ -10,7 +10,6 @@ from datetime import datetime, timedelta
 from typing import Dict, Any
 from functools import wraps
 
-from app.core.logging import logger
 from app.core.database import SessionLocal
 from sqlalchemy import and_, or_
 
@@ -25,7 +24,6 @@ logger = logging.getLogger(__name__)
 
 class HandlerTimeoutError(Exception):
     """Raised when handler execution exceeds timeout."""
-    pass
 
 
 def with_timeout(timeout_seconds: int = 30):

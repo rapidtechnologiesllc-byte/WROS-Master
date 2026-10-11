@@ -43,7 +43,6 @@ from typing import Callable, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from app.constants.prompt_templates import PROMPT_TEMPLATES
-from app.core.logging import logger
 from app.models.prompt_execution_log import PromptExecutionLog
 
 GEMINI_MODEL_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"

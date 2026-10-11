@@ -12,14 +12,11 @@ Every update is questioned and validated.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
-from app.utils.agent_logger import log_agent_execution
 from app.models.agent_execution_log import AgentExecutionLog
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

@@ -14,10 +14,10 @@ from app.core.security import create_access_token
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.interview_verdict import InterviewRoundVerdict
 from app.models.offer_letter import OfferLetter
-from app.models.role_template import RoleTemplate
 from app.models.tenant import Tenant
 from app.models.user import InterviewPanel, Users
 from app.services import hiring_pipeline_service as hp
+from tests.hiring_fixtures import full_access_role
 
 
 def _uid():
@@ -53,8 +53,7 @@ def world(db):
     if db.query(Tenant).filter_by(id=1).first() is None:
         db.add(Tenant(id=1, name="BlitzenX"))
         db.flush()
-    role = db.query(RoleTemplate).filter_by(tenant_id=1, name="Super Admin").first() or \
-        RoleTemplate(tenant_id=1, name="Super Admin", display_name="Super Admin", enabled=True)
+    role = full_access_role(db)
     db.add(role)
     db.flush()
     hr = Users(UserID=f"HR-{_uid()}", UserName="HR", UserEmail=f"hr{_uid()}@blitzenx.com", UserPassword="x",
