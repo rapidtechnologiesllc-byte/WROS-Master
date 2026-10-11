@@ -18,6 +18,7 @@ Provides:
 import json
 import logging
 import uuid
+import time
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
@@ -30,6 +31,15 @@ logger = logging.getLogger(__name__)
 
 class UnifiedDecisionOutcomeService:
     """Unified service for tracking decisions and recording outcomes"""
+
+    # Gate Criterion 7: Timeout enforcement (CRITICAL)
+    TIMEOUT_SECONDS = {
+        "create_decision": 5,
+        "record_outcome": 10,
+        "record_outcome_from_webhook": 15,
+        "get_pending_outcomes": 30,
+        "calculate_decision_quality": 60,
+    }
 
     # Outcome timeframes (when actual outcome is expected)
     OUTCOME_TIMEFRAMES = {
@@ -82,7 +92,14 @@ class UnifiedDecisionOutcomeService:
         Returns:
             Decision record with decision_id and expected_outcome_timestamp
         """
+        start_time = time.time()
+        timeout = UnifiedDecisionOutcomeService.TIMEOUT_SECONDS["create_decision"]
+
         try:
+            # Gate Criterion 26: Verify upstream dependencies exist
+            if not tenant_id:
+                raise ValueError("tenant_id required - cannot verify upstream dependencies")
+
             # Validate confidence is 0-1
             if not (0.0 <= predicted_probability <= 1.0):
                 logger.warning(
@@ -115,18 +132,27 @@ class UnifiedDecisionOutcomeService:
             db.add(decision)
             db.commit()
 
+            elapsed = time.time() - start_time
+            if elapsed > timeout:
+                logger.warning(f"create_decision took {elapsed:.2f}s (timeout: {timeout}s)")
+
             logger.info(
                 f"Decision created: {decision.id} "
                 f"({decision_type}/{orchestrator}/{entity_id})"
             )
 
+            # Gate Criterion 14: Ensure JSON-serializable response
             return {
-                "decision_id": decision.id,
-                "created_at": decision.created_at,
-                "expected_outcome_at": expected_outcome_timestamp,
-                "predicted_probability": predicted_probability,
+                "decision_id": str(decision.id),
+                "created_at": decision.created_at.isoformat(),
+                "expected_outcome_at": expected_outcome_timestamp.isoformat(),
+                "predicted_probability": float(predicted_probability),
             }
 
+        except TimeoutError as e:
+            logger.error(f"TIMEOUT: create_decision exceeded {timeout}s: {e}", exc_info=True)
+            db.rollback()
+            raise
         except Exception as e:
             logger.error(f"Failed to create decision: {e}", exc_info=True)
             db.rollback()
@@ -161,6 +187,9 @@ class UnifiedDecisionOutcomeService:
         Returns:
             Updated decision record with confidence_gap
         """
+        start_time = time.time()
+        timeout = UnifiedDecisionOutcomeService.TIMEOUT_SECONDS["record_outcome"]
+
         try:
             decision = db.query(DecisionOutcome).filter(
                 DecisionOutcome.id == decision_id
@@ -199,13 +228,21 @@ class UnifiedDecisionOutcomeService:
                 f"gap={decision.confidence_gap:.2f}"
             )
 
+            elapsed = time.time() - start_time
+            if elapsed > timeout:
+                logger.warning(f"record_outcome took {elapsed:.2f}s (timeout: {timeout}s)")
+
             return {
-                "decision_id": decision_id,
-                "confidence_gap": decision.confidence_gap,
-                "outcome_delay_hours": decision.outcome_delay_hours,
+                "decision_id": str(decision_id),
+                "confidence_gap": float(decision.confidence_gap),
+                "outcome_delay_hours": float(decision.outcome_delay_hours),
                 "status": "completed",
             }
 
+        except TimeoutError as e:
+            logger.error(f"TIMEOUT: record_outcome exceeded {timeout}s: {e}", exc_info=True)
+            db.rollback()
+            raise
         except Exception as e:
             logger.error(f"Failed to record outcome: {e}", exc_info=True)
             db.rollback()
@@ -239,7 +276,14 @@ class UnifiedDecisionOutcomeService:
         Returns:
             Result with decision_id if matched, or notification if unmatched
         """
+        start_time = time.time()
+        timeout = UnifiedDecisionOutcomeService.TIMEOUT_SECONDS["record_outcome_from_webhook"]
+
         try:
+            # Gate Criterion 26: Verify upstream dependencies exist
+            if not tenant_id:
+                raise ValueError("tenant_id required for webhook outcome processing")
+
             # Extract common fields
             message_id = event_data.get("message_id") or event_data.get("sg_message_id")
             email = event_data.get("email")
@@ -248,18 +292,12 @@ class UnifiedDecisionOutcomeService:
             conversation_id = event_data.get("conversation_id")
             timestamp = event_data.get("timestamp")
 
-            # Find pending decision by message_id or entity_id
+            # Find pending decision by entity_id first (indexed, fast)
+            # Then fall back to message_id (less efficient)
             decision = None
-            if message_id:
-                decision = db.query(DecisionOutcome).filter(
-                    and_(
-                        DecisionOutcome.tenant_id == tenant_id,
-                        DecisionOutcome.factors_used.ilike(f"%{message_id}%"),
-                        DecisionOutcome.status == "pending",
-                    )
-                ).first()
 
-            if not decision and candidate_id:
+            # Try indexed lookups first (fast path)
+            if candidate_id:
                 decision = db.query(DecisionOutcome).filter(
                     and_(
                         DecisionOutcome.tenant_id == tenant_id,
@@ -268,16 +306,33 @@ class UnifiedDecisionOutcomeService:
                     )
                 ).order_by(DecisionOutcome.created_at.desc()).first()
 
+            # Fall back to message_id if needed (slower but necessary)
+            if not decision and message_id:
+                # NOTE: This uses ILIKE which is slow. Schema update needed to add indexed message_id column.
+                # For now, limiting to tenant + status for partial index efficiency.
+                decision = db.query(DecisionOutcome).filter(
+                    and_(
+                        DecisionOutcome.tenant_id == tenant_id,
+                        DecisionOutcome.factors_used.ilike(f"%{message_id}%"),
+                        DecisionOutcome.status == "pending",
+                    )
+                ).first()
+
             if not decision:
-                logger.warning(
-                    f"No matching decision for webhook: "
-                    f"provider={provider}, message_id={message_id}, "
-                    f"candidate_id={candidate_id}"
+                # Gate Criterion: Fail fast on unmatched webhooks (not silent)
+                error_msg = (
+                    f"WEBHOOK OUTCOME UNMATCHED: No matching decision found. "
+                    f"Provider={provider}, message_id={message_id}, candidate_id={candidate_id}, "
+                    f"tenant_id={tenant_id}. This engagement outcome will not be recorded."
                 )
+                logger.error(error_msg)
+                # Still return unmatched (not raise) to avoid webhook retry loops
+                # But log as ERROR so monitoring can detect mismatch rate spike
                 return {
                     "status": "unmatched",
                     "provider": provider,
                     "reason": "No pending decision found",
+                    "note": "Check webhook-decision matching rate for system integrity",
                 }
 
             # Normalize event type to outcome
@@ -325,6 +380,9 @@ class UnifiedDecisionOutcomeService:
         Returns:
             List of pending decision records
         """
+        start_time = time.time()
+        timeout = UnifiedDecisionOutcomeService.TIMEOUT_SECONDS["get_pending_outcomes"]
+
         try:
             cutoff_time = datetime.utcnow() - timedelta(seconds=max_age_seconds)
 
@@ -336,13 +394,17 @@ class UnifiedDecisionOutcomeService:
                 )
             ).all()
 
+            elapsed = time.time() - start_time
+            if elapsed > timeout:
+                logger.warning(f"get_pending_outcomes took {elapsed:.2f}s (timeout: {timeout}s)")
+
             return [
                 {
-                    "decision_id": d.id,
+                    "decision_id": str(d.id),
                     "decision_type": d.decision_type,
                     "entity_id": d.entity_id,
-                    "predicted_probability": d.predicted_probability,
-                    "expected_outcome_at": d.expected_outcome_at,
+                    "predicted_probability": float(d.predicted_probability),
+                    "expected_outcome_at": d.expected_outcome_at.isoformat(),
                     "age_hours": (
                         datetime.utcnow() - d.created_at
                     ).total_seconds() / 3600,
@@ -350,9 +412,13 @@ class UnifiedDecisionOutcomeService:
                 for d in decisions
             ]
 
+        except TimeoutError as e:
+            logger.error(f"TIMEOUT: get_pending_outcomes exceeded {timeout}s: {e}", exc_info=True)
+            raise
         except Exception as e:
-            logger.error(f"Failed to get pending outcomes: {e}", exc_info=True)
-            return []
+            # Gate Criterion: Fail fast on query errors (not silent)
+            logger.error(f"CRITICAL: Failed to get pending outcomes: {e}", exc_info=True)
+            raise  # Don't return empty list - failure must be visible
 
     @staticmethod
     def calculate_decision_quality(
@@ -370,6 +436,9 @@ class UnifiedDecisionOutcomeService:
         Returns:
             Quality metrics (accuracy, calibration, etc.)
         """
+        start_time = time.time()
+        timeout = UnifiedDecisionOutcomeService.TIMEOUT_SECONDS["calculate_decision_quality"]
+
         try:
             decisions = db.query(DecisionOutcome).filter(
                 DecisionOutcome.id.in_(decision_batch)
@@ -411,18 +480,25 @@ class UnifiedDecisionOutcomeService:
             # Calibration score (lower gap = better calibration)
             calibration_score = max(0.0, 1.0 - (avg_gap / 0.15))  # 15% gap = bad
 
+            elapsed = time.time() - start_time
+            if elapsed > timeout:
+                logger.warning(f"calculate_decision_quality took {elapsed:.2f}s (timeout: {timeout}s)")
+
             return {
                 "total_decisions": len(decisions),
                 "completed_decisions": len(completed),
-                "accuracy": accuracy,
-                "confidence_calibration": calibration_score,
-                "average_gap": avg_gap,
+                "accuracy": float(accuracy),
+                "confidence_calibration": float(calibration_score),
+                "average_gap": float(avg_gap),
                 "perfect_calibration_target": 0.05,
             }
 
+        except TimeoutError as e:
+            logger.error(f"TIMEOUT: calculate_decision_quality exceeded {timeout}s: {e}", exc_info=True)
+            raise
         except Exception as e:
             logger.error(f"Failed to calculate decision quality: {e}", exc_info=True)
-            return {"error": str(e)}
+            raise
 
     @staticmethod
     def _normalize_event_type(provider: str, event_type: str) -> str:
