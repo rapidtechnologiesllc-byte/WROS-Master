@@ -118,6 +118,7 @@ from app.api.v1.endpoints.tenant_ai_config import router as tenant_ai_config_rou
 from app.api.v1.endpoints.email_templates import router as email_templates_router
 from app.api.v1.endpoints.webhooks import router as webhooks_router
 from app.api.v1.endpoints.cascade_prediction import router as cascade_prediction_router
+from app.api.v1.endpoints.learning_analytics import router as learning_analytics_router
 
 try:
     router = fastapi.APIRouter(prefix="/api/v1")
@@ -133,6 +134,7 @@ router.include_router(router=org_structure_router)
 router.include_router(router=business_units_router)
 router.include_router(router=users_access_control_router)
 router.include_router(router=learning_router)
+router.include_router(router=learning_analytics_router)
 router.include_router(router=learning_transcript_router)
 router.include_router(router=health_check_router)
 router.include_router(router=slm_exports_router)

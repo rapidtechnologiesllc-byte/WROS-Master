@@ -129,6 +129,7 @@ import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
 import MyReferralsScreen from "../screens/MyReferralsScreen";
 import LinkedInPipelineScreen from "../screens/LinkedInPipelineScreen";
 import DocumentUploadScreen from "../screens/DocumentUploadScreen";
+import LearningAnalyticsDashboard from "../screens/LearningAnalyticsDashboard";
 
 
 // Wrapper component that renders the appropriate dashboard based on user permissions
@@ -673,6 +674,7 @@ function AuthenticatedApp() {
             <Route path="ceo-dashboard" element={<CEOUnifiedDashboard />} />
             <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
             <Route path="recruiter/thunder-analytics" element={<ThunderAnalyticsScreen />} />
+            <Route path="learning-analytics" element={<LearningAnalyticsDashboard />} />
             <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
             <Route path="admin/ai-config" element={<TenantAIConfigScreen />} />
             <Route path="my-tasks" element={<MyTasksScreen />} />

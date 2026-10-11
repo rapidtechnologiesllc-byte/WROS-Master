@@ -136,6 +136,8 @@ export const NAV_ITEMS = {
   // Phase B - Message Queue & SLM Analytics
   messageQueueMonitor: { path: "/admin/messagequeue", label: "Message Queue Monitor", icon: MessageSquareText },
   slmAnalytics: { path: "/admin/slm-dashboard", label: "SLM Analytics", icon: TrendingUp },
+  // Phase 4 - Autonomous Learning System Analytics Dashboard
+  learningAnalytics: { path: ROUTES.LEARNING_ANALYTICS, label: "Autonomous Learning Analytics", icon: TrendingUp },
   // S-062/HRMS-0462 -- candidates that need a human right now (escalations,
   // high drop risk, SLA breaches, etc.), same recruiter-facing grouping as
   // the rest of Recruitment.
