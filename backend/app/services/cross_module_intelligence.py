@@ -535,3 +535,103 @@ class CrossModuleIntelligence:
                 "recommendation": "CHECK_LOGS",
                 "error": str(e),
             }
+
+    @staticmethod
+    def _infer_candidate_segment(candidate) -> str:
+        """
+        Infer candidate segment from profile for learning lookups.
+
+        Format: {seniority}_{location}_{skills}
+        Example: "senior_us_python"
+
+        Args:
+            candidate: Candidate model instance
+
+        Returns:
+            Segment string for learning profile lookup
+        """
+        try:
+            seniority = (candidate.seniority_level or "mid").lower().replace("-level", "").replace(" ", "_")
+            location = "unknown"
+            if candidate.current_location:
+                # Extract country code from location (e.g., "New York, USA" → "us")
+                if "usa" in candidate.current_location.lower() or "united states" in candidate.current_location.lower():
+                    location = "us"
+                elif "uk" in candidate.current_location.lower():
+                    location = "uk"
+                elif "india" in candidate.current_location.lower():
+                    location = "in"
+                else:
+                    # Use first word as location abbreviation
+                    location = candidate.current_location.split(",")[0].lower()[:2]
+
+            # Extract primary skill from specialization
+            skill = "unknown"
+            if candidate.specialization:
+                skills = [s.strip().lower() for s in candidate.specialization.split(";")]
+                if skills:
+                    skill = skills[0].replace(" ", "_")
+
+            segment = f"{seniority}_{location}_{skill}"
+            return segment
+
+        except Exception as e:
+            logger.warning(f"[CrossModule] Failed to infer candidate segment: {e}")
+            return "unknown_unknown_unknown"
+
+    @staticmethod
+    def _infer_job_segment(job) -> str:
+        """
+        Infer job segment from job posting for learning lookups.
+
+        Format: {level}_{specialization}_{location}
+        Example: "senior_python_us"
+
+        Args:
+            job: Job model instance
+
+        Returns:
+            Segment string for learning profile lookup
+        """
+        try:
+            # Extract job level from title or use seniority if available
+            level = "mid"
+            if hasattr(job, "seniority_level") and job.seniority_level:
+                level = job.seniority_level.lower().replace("-level", "").replace(" ", "_")
+            elif hasattr(job, "job_title") and job.job_title:
+                title = job.job_title.lower()
+                if "senior" in title or "staff" in title or "principal" in title:
+                    level = "senior"
+                elif "junior" in title or "entry" in title:
+                    level = "junior"
+
+            # Extract specialization from job_description or other fields
+            specialization = "unknown"
+            if hasattr(job, "job_description") and job.job_description:
+                if "python" in job.job_description.lower():
+                    specialization = "python"
+                elif "java" in job.job_description.lower():
+                    specialization = "java"
+                elif "javascript" in job.job_description.lower():
+                    specialization = "javascript"
+                elif "aws" in job.job_description.lower():
+                    specialization = "aws"
+
+            # Extract location
+            location = "unknown"
+            if hasattr(job, "location") and job.location:
+                if "usa" in job.location.lower() or "united states" in job.location.lower():
+                    location = "us"
+                elif "uk" in job.location.lower():
+                    location = "uk"
+                elif "india" in job.location.lower():
+                    location = "in"
+                else:
+                    location = job.location.split(",")[0].lower()[:2]
+
+            segment = f"{level}_{specialization}_{location}"
+            return segment
+
+        except Exception as e:
+            logger.warning(f"[CrossModule] Failed to infer job segment: {e}")
+            return "mid_unknown_unknown"
