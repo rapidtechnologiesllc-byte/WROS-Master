@@ -17,7 +17,6 @@ jobs:
     outputs:
       backend-changed: ${{ steps.changes.outputs.backend }}
       frontend-changed: ${{ steps.changes.outputs.frontend }}
-      careers-changed: ${{ steps.changes.outputs.careers }}
 
     steps:
       - uses: actions/checkout@v4
@@ -46,12 +45,6 @@ jobs:
             echo "frontend=true" >> $GITHUB_OUTPUT
           else
             echo "frontend=false" >> $GITHUB_OUTPUT
-          fi
-
-          if grep -q "^careers/" /tmp/changed_files.txt; then
-            echo "careers=true" >> $GITHUB_OUTPUT
-          else
-            echo "careers=false" >> $GITHUB_OUTPUT
           fi
 
   test-backend:
@@ -89,13 +82,32 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt pytest pytest-asyncio httpx pytest-cov
 
+      # Gates the production deploy. Exit code must reach the runner: never pipe pytest
+      # into head/tail or append || true (that let every deploy through before 2026-10-11).
       - name: Run backend tests
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wros_test
+          DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/wros_test
+          JWT_SECRET: ci-test-jwt-secret-not-for-production-use-only
+          ENVIRONMENT: test
+          PYTHONUNBUFFERED: "1"
         run: |
           cd backend
-          pytest tests/regression_suite.py -v --tb=short 2>&1 | head -100
-        continue-on-error: false
+          python -c "
+          from sqlalchemy import create_engine, text
+          from app.models.base import Base
+          engine = create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/wros_test')
+          with engine.begin() as conn:
+              conn.execute(text('CREATE SCHEMA IF NOT EXISTS app_schema'))
+          Base.metadata.create_all(engine)
+          "
+          pytest -q --tb=short -p no:cacheprovider \
+            tests/regression_suite.py \
+            tests/test_authority.py \
+            tests/test_billing_chain.py \
+            tests/test_financial_outlook.py \
+            tests/test_hiring_pipeline.py \
+            tests/test_interview_verdicts.py \
+            tests/test_job_lifecycle.py
 
   test-frontend:
     name: Frontend - Build
@@ -125,36 +137,9 @@ jobs:
           cd frontend
           npm run build
 
-  test-careers:
-    name: Careers - Tests
-    needs: detect-changes
-    runs-on: ubuntu-latest
-    if: needs.detect-changes.outputs.careers-changed == 'true'
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: Install careers dependencies
-        run: |
-          cd careers
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt pytest
-        continue-on-error: true
-
-      - name: Run careers tests
-        run: |
-          cd careers
-          pytest tests/ -v 2>&1 | head -50 || echo "No tests found"
-        continue-on-error: true
-
   deploy:
     name: Deploy Changed Services
-    needs: [detect-changes, test-backend, test-frontend, test-careers]
+    needs: [detect-changes, test-backend, test-frontend]
     runs-on: ubuntu-latest
     # One production deploy at a time; deploy_backend.sh also refuses to
     # move the server to an older commit when runs finish out of order

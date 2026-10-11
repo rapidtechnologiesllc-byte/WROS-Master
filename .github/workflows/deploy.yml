@@ -57,10 +57,12 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Run tests (with fallback)
+      # No masking: a failing frontend test must stop the deploy.
+      - name: Run tests
         working-directory: frontend
-        run: npm test -- --ci --coverage --passWithNoTests 2>/dev/null || echo "No test suite configured"
-        continue-on-error: true
+        env:
+          CI: "true"
+        run: npm test -- --ci --watchAll=false --passWithNoTests
 
   deploy:
     name: Deploy to Production
