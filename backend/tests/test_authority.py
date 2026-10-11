@@ -168,3 +168,32 @@ def test_no_super_user_bypass_anywhere():
             if "is_super_user" in line.split("#", 1)[0] or "is_super_admin" in line:
                 offenders.append(f"{path.relative_to(APP.parent)}:{lineno}: {line.strip()}")
     assert not offenders, "\n".join(offenders)
+
+
+def test_seed_gives_super_admin_and_admin_org_level_once_even_when_another_role_has_it(db):
+    """Production 2026-10-11: the Finance Manager role is seeded with org_level_access, so
+    the old "only while no role has it" guard never fired and Super Admin/Admin stayed
+    BU-scoped. The seed now runs once per tenant (system_config marker) and never again."""
+    from app.core.db_contract import _initialize_role_authority
+    from app.models.system_config import SystemConfig
+
+    tenant = Tenant(name=f"t-{_uid()}")
+    db.add(tenant)
+    db.flush()
+    roles = {name: RoleTemplate(tenant_id=tenant.id, name=name, display_name=name, hierarchy_level=level,
+                                org_level_access=org, enabled=True)
+             for name, level, org in (("Super Admin", 5, False), ("Admin", 5, False), ("Finance Manager", 9, True))}
+    db.add_all(roles.values())
+    db.flush()
+
+    _initialize_role_authority(db)
+    for role in roles.values():
+        db.refresh(role)
+    assert roles["Super Admin"].org_level_access and roles["Admin"].org_level_access
+    assert db.query(SystemConfig).filter_by(tenant_id=tenant.id, config_key="role_authority_seeded").count() == 1
+
+    roles["Admin"].org_level_access = False  # an owner narrows Admin in the Role Templates editor
+    db.commit()
+    _initialize_role_authority(db)
+    db.refresh(roles["Admin"])
+    assert roles["Admin"].org_level_access is False

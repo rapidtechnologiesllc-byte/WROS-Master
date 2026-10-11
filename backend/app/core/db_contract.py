@@ -397,22 +397,36 @@ def _initialize_leadership_roles():
         db.close()
 
 
+ROLE_AUTHORITY_SEED_KEY = "role_authority_seeded"
+ORG_LEVEL_SEED_ROLES = ("Super Admin", "Admin")
+
+
 def _initialize_role_authority(db):
     """Who sees every business unit is read from RoleTemplate.org_level_access only
     (app.core.authority). So that switching to the flag never narrows anyone's view, set
-    it on the seeded Super Admin and Admin roles ONCE -- only while no role in the tenant
-    carries it yet, so a later change in the Role Templates editor is never overwritten.
+    it on the seeded Super Admin and Admin roles ONCE per tenant. A system_config marker
+    records that it ran, so a later change in the Role Templates editor is never
+    overwritten. (It used to run only while no role carried the flag; the seeded Finance
+    Manager role carries it from creation, so Super Admin and Admin never got it.)
     (What any role may DO comes from its permission matrix alone; system roles are seeded
     with every permission by _initialize_rbac.)"""
-    for flag, names in (("org_level_access", ("Super Admin", "Admin")),):
-        column = getattr(RoleTemplate, flag)
-        if db.query(RoleTemplate.id).filter(column.is_(True), RoleTemplate.enabled.is_(True)).first():
+    from app.models.system_config import SystemConfig
+
+    tenant_ids = [t for (t,) in db.query(RoleTemplate.tenant_id)
+                  .filter(RoleTemplate.name.in_(ORG_LEVEL_SEED_ROLES)).distinct().all()]
+    for tenant_id in tenant_ids:
+        marker = db.query(SystemConfig.id).filter(
+            SystemConfig.tenant_id == tenant_id, SystemConfig.business_unit_id.is_(None),
+            SystemConfig.config_key == ROLE_AUTHORITY_SEED_KEY).first()
+        if marker:
             continue
-        updated = db.query(RoleTemplate).filter(RoleTemplate.name.in_(names)) \
-            .update({column: True}, synchronize_session=False)
+        updated = db.query(RoleTemplate).filter(
+            RoleTemplate.tenant_id == tenant_id, RoleTemplate.name.in_(ORG_LEVEL_SEED_ROLES)) \
+            .update({RoleTemplate.org_level_access: True}, synchronize_session=False)
+        db.add(SystemConfig(tenant_id=tenant_id, business_unit_id=None, config_category="SYSTEM",
+                            config_key=ROLE_AUTHORITY_SEED_KEY, config_value={"org_level_access": list(ORG_LEVEL_SEED_ROLES)}))
         db.commit()
-        if updated:
-            logger.info(f"[Contract] Set {flag} on {updated} seeded role template(s) {names}")
+        logger.info(f"[Contract] Set org_level_access on {updated} seeded role template(s) for tenant {tenant_id}")
 
 
 def _move_converted_employees_off_user_role(db):
