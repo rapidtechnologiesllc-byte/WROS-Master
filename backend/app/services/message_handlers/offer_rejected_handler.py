@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import OperationalError
 
 from app.services.message_handlers.base_message_handler import time_bound
-from app.models.offer import Offer
+from app.models.offer import Offer, OfferStatus
 
 logger = logging.getLogger(__name__)
 
@@ -64,11 +64,9 @@ class OfferRejectedHandler:
             if not offer:
                 raise ValueError(f"Offer {offer_id} not found")
 
-            offer.status = 'REJECTED' if hasattr(offer, 'status') else None
-            if hasattr(offer, 'rejection_reason'):
-                offer.rejection_reason = reason
-            if hasattr(offer, 'rejected_at'):
-                offer.rejected_at = datetime.utcnow()
+            offer.status = OfferStatus.REJECTED.value
+            offer.rejection_reason = reason
+            offer.rejected_at = datetime.utcnow()
 
             try:
                 db.commit()
@@ -80,18 +78,18 @@ class OfferRejectedHandler:
             # Send rejection notification email to hiring team
             delivery_id = None
             try:
-                if hasattr(offer, 'job') and offer.job and hasattr(offer.job, 'created_by'):
-                    from app.services.email_service import EmailService
-                    from app.models.user import User
+                from app.services.email_service import EmailService
 
-                    # Get hiring manager email
-                    hiring_manager = db.query(User).filter(User.id == offer.job.created_by).first()
-                    if hiring_manager and hasattr(hiring_manager, 'email'):
-                        hm_email = hiring_manager.email
-                        hm_name = getattr(hiring_manager, 'firstName', 'Hiring Manager')
+                # Notify the job's hiring manager; fall back to the offer's creator.
+                hiring_manager = (offer.job.hiring_manager if offer.job else None) or offer.created_by
+                if hiring_manager is None:
+                    logger.warning(f"[OfferRejected] No hiring manager or offer creator to notify for offer {offer_id}")
+                elif hiring_manager.UserEmail:
+                    hm_email = hiring_manager.UserEmail
+                    hm_name = hiring_manager.UserName or 'Hiring Manager'
 
-                        rejection_email_subject = f"Candidate Rejection Notification - Offer {offer_id}"
-                        rejection_email_body = f"""
+                    rejection_email_subject = f"Candidate Rejection Notification - Offer {offer_id}"
+                    rejection_email_body = f"""
 Dear {hm_name},
 
 The candidate has rejected the offer for the position.
@@ -106,24 +104,24 @@ Best regards,
 Recruiting System
 """
 
-                        result = EmailService.send_email(
-                            to_email=hm_email,
-                            subject=rejection_email_subject,
-                            body_content=rejection_email_body,
-                            is_html=True
-                        )
+                    result = EmailService.send_email(
+                        to_email=hm_email,
+                        subject=rejection_email_subject,
+                        body_content=rejection_email_body,
+                        is_html=False
+                    )
 
-                        if result.get('status') == 'skipped':
-                            logger.warning(f"[OfferRejected] Email skipped to {hm_email}: {result.get('reason')}")
-                        elif result.get('status') != 'success':
-                            logger.warning(f"[OfferRejected] Failed to send rejection notification: {result}")
-                        else:
-                            delivery_id = "msgraph_" + str(hash(hm_email))
-                            logger.info(f"[OfferRejected] Rejection notification sent to {hm_email}, delivery_id={delivery_id}")
+                    if result.get('status') == 'skipped':
+                        logger.warning(f"[OfferRejected] Email skipped to {hm_email}: {result.get('reason')}")
+                    elif result.get('status') != 'success':
+                        logger.warning(f"[OfferRejected] Failed to send rejection notification: {result}")
+                    else:
+                        delivery_id = "msgraph_" + str(hash(hm_email))
+                        logger.info(f"[OfferRejected] Rejection notification sent to {hm_email}, delivery_id={delivery_id}")
             except Exception as email_err:
                 logger.warning(f"[OfferRejected] Email delivery error (non-blocking): {email_err}")
 
-            logger.info(f"[OfferRejected] ✅ Offer rejected")
+            logger.info("[OfferRejected] ✅ Offer rejected")
 
             # ============ PLACE 2: POST-FLIGHT OUTCOME RECORDING ============
             if slm_analysis:
@@ -149,7 +147,7 @@ Recruiting System
                         },
                         db=db
                     )
-                    logger.info(f"[OfferRejected] SLM outcome recorded")
+                    logger.info("[OfferRejected] SLM outcome recorded")
                 except Exception as slm_record_err:
                     logger.warning(f"[OfferRejected] SLM outcome recording failed: {slm_record_err}")
 

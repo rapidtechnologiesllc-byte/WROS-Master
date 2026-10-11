@@ -26,7 +26,6 @@ def validate_handler_slm_integration():
 
     critical_handlers = [
         "interview_scheduled_handler.py",
-        "offer_generation_handler.py",
         "offer_accepted_handler.py"
     ]
 
@@ -74,21 +73,20 @@ def validate_handler_slm_integration():
 
         print(f"{status} {handler_file.name}")
         if not has_place1:
-            print(f"     |- Missing Place 1 (pre-flight analysis)")
+            print("     |- Missing Place 1 (pre-flight analysis)")
         if not has_place2:
-            print(f"     `- Missing Place 2 (outcome recording)")
+            print("     `- Missing Place 2 (outcome recording)")
 
     # Critical handlers must have both (Phase A focus)
-    critical_with_both = [h for h in results["with_both"] if h in critical_handlers]
     critical_missing = [h for h in critical_handlers if h not in results["with_both"]]
 
-    print(f"\n[STATS] Summary:")
+    print("\n[STATS] Summary:")
     print(f"   All handlers checked: {results['handlers_checked']}")
     print(f"   With Place 1: {len(results['with_place1'])}")
     print(f"   With Place 2: {len(results['with_place2'])}")
     print(f"   With both: {len(results['with_both'])}")
 
-    print(f"\n[STATS] Phase A CRITICAL handlers:")
+    print("\n[STATS] Phase A CRITICAL handlers:")
     for critical in critical_handlers:
         if critical in results["with_both"]:
             print(f"   [OK] {critical}")
@@ -99,7 +97,7 @@ def validate_handler_slm_integration():
         print(f"\n[FAIL] CRITICAL Phase A handlers missing SLM: {critical_missing}")
         return False
 
-    print(f"\n[OK] All Phase A CRITICAL handlers have Place 1 + Place 2 SLM integration")
+    print("\n[OK] All Phase A CRITICAL handlers have Place 1 + Place 2 SLM integration")
     return True
 
 

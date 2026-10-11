@@ -96,6 +96,23 @@ def _already_sent(db: Session, conversation_id: int) -> bool:
         is not None
     )
 
+def _tenant_whatsapp_client(db: Session, candidate: Candidate):
+    """Default transport when no whatsapp_client is injected: the tenant's
+    configured delivery provider (same path send_whatsapp_message() uses).
+    Returns a (to_number, from_number, body) -> bool callable; a provider
+    'failed' status counts as not delivered so BR-04's retry kicks in."""
+    from app.services.delivery_factory import get_delivery_service
+
+    def _send(to_number: str, from_number: str, body: str) -> bool:
+        delivery_service = get_delivery_service(db=db, tenant_id=candidate.tenant_id)
+        result = delivery_service.send_whatsapp(to_number=to_number, body=body, from_number=from_number)
+        if result.status == "failed":
+            logger.error(f"[FirstEngagement] WhatsApp delivery failed for {candidate.candidateID}: {result.error}")
+            return False
+        return True
+
+    return _send
+
 def _send_first_whatsapp_attempt(
     db: Session, conversation: CandidateConversation, candidate: Candidate, body: str, whatsapp_client,
 ) -> bool:
@@ -119,8 +136,7 @@ def _send_first_whatsapp_attempt(
     if not from_number:
         raise NoWhatsAppNumberAvailable("No WhatsApp number available to send from.")
 
-    from app.services.whatsapp_routing_service import _send_whatsapp_unconfigured
-    client = whatsapp_client or _send_whatsapp_unconfigured
+    client = whatsapp_client or _tenant_whatsapp_client(db, candidate)
     try:
         delivered = bool(client(candidate.candidateMobile, from_number, body))
     except Exception as exc:

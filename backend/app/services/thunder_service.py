@@ -271,8 +271,6 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
         logger.warning(f"[Thunder] Email consent not given for candidate {candidate.candidateID!r}, skipping outreach")
         return
 
-    from app.services.message_queue_service import MessageQueueService
-
     try:
         # Use delivery service for email sending (instead of EmailService.send_email)
         delivery_service = get_delivery_service(db=db, tenant_id=candidate.tenant_id)
@@ -322,23 +320,6 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
             triggered_by="ai_agent",
         ))
         db.flush()
-
-        # Mark candidate_created message as COMPLETED after email sent successfully
-        try:
-            from app.models.message_queue import MessageQueue
-            message = db.query(MessageQueue).filter(
-                MessageQueue.resource_id == candidate.candidateID,
-                MessageQueue.type == "candidate_created",
-                MessageQueue.status != MessageQueueService.STATUS_COMPLETED,
-            ).first()
-
-            if message:
-                MessageQueueService.mark_completed(message.id, db=db)
-                logger.debug(f"[Thunder] Marked candidate_created message as COMPLETED: {message.id}")
-        except Exception as msg_err:
-            logger.error(f"Error: {str(msg_err)}", exc_info=True)
-            logger.error(f"[Thunder] Failed to mark message as completed: {msg_err}", exc_info=True)
-            # Don't fail email sending if message queue update fails
     except Exception as exc:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[Thunder] Email send failed for candidate {candidate.candidateID!r}: {exc}")

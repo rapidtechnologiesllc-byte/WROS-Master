@@ -161,7 +161,7 @@ Recruiting Team
                         },
                         db=db
                     )
-                    logger.info(f"[OfferSent] SLM outcome recorded")
+                    logger.info("[OfferSent] SLM outcome recorded")
                 except Exception as slm_record_err:
                     logger.warning(f"[OfferSent] SLM outcome recording failed: {slm_record_err}")
 
@@ -181,7 +181,7 @@ Recruiting Team
     def validate(message: Any, result: Dict[str, Any], db: Session) -> None:
         """Validate that offer notification was queued successfully."""
         from app.services.message_handlers.validate_handlers_factory import ValidateHandlersFactory
-        return ValidateHandlersFactory.validate_offer_sent_notification_queued(result, db, "offer_sent")
+        return ValidateHandlersFactory.validate_offer_sent_recorded(result, db, "offer_sent")
 
     @staticmethod
     def should_retry(message: Any) -> bool:

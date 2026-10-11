@@ -1,6 +1,6 @@
 """Job Delete Flash Handler - Queue-driven job deletion with cascade cleanup."""
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, OperationalError
 from app.models.user import Jobs
@@ -79,7 +79,7 @@ class JobDeleteFlashHandler:
 
             try:
                 # Cleanup 1: CandidateJobApplication
-                from app.models.user import CandidateJobApplication
+                from app.models.candidate import CandidateJobApplication
                 cja_count = db.query(CandidateJobApplication).filter(
                     CandidateJobApplication.job_id == job_id
                 ).count()
@@ -129,7 +129,7 @@ class JobDeleteFlashHandler:
                 # PHASE 5: NEIGHBOR MONITORING (Verify deletion persisted)
                 persisted_job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
                 if persisted_job:
-                    raise RuntimeError(f"Write validation failed: job still exists after delete")
+                    raise RuntimeError("Write validation failed: job still exists after delete")
 
                 db.commit()
                 logger.info(f"[JobDeleteFlash] ✅ Deleted job {job_id}, cascade cleanup: {cascade_summary}")
@@ -251,7 +251,7 @@ class JobDeleteFlashHandler:
                     f"Handler claimed to delete but record persists."
                 )
 
-            logger.info(f"[Handler] ✅ Step 2: Database verification passed, job properly deleted")
+            logger.info("[Handler] ✅ Step 2: Database verification passed, job properly deleted")
 
             # ===== FINAL: Mark COMPLETED after all validations pass =====
             message.status = "COMPLETED"
@@ -264,7 +264,7 @@ class JobDeleteFlashHandler:
                 db.rollback()
                 raise RuntimeError(f"Failed to commit success status: {str(commit_err)}") from commit_err
 
-            logger.info(f"[Handler] ✅✅✅ ALL VALIDATIONS PASSED - Message marked COMPLETED")
+            logger.info("[Handler] ✅✅✅ ALL VALIDATIONS PASSED - Message marked COMPLETED")
 
         except ValueError as e:
             # Non-retryable error
