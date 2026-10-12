@@ -87,7 +87,6 @@ from app.api.v1.endpoints.goals_management import router as goals_router
 from app.api.v1.endpoints.slm_feedback import router as slm_feedback_router
 from app.api.v1.endpoints.message_queue import router as message_queue_router
 from app.api.v1.endpoints.linkedin_candidate_pipeline import router as linkedin_pipeline_router
-from app.api.v1.endpoints.business_units import router as business_units_router
 from app.api.v1.endpoints.admin_queue import router as admin_queue_router
 from app.api.v1.endpoints.employee_conversion import router as employee_conversion_router
 from app.api.v1.endpoints.hiring_pipeline import router as hiring_pipeline_router
@@ -132,7 +131,6 @@ router.include_router(router=role_templates_router)
 router.include_router(router=rbac_router)
 router.include_router(router=role_template_modules_router)
 router.include_router(router=org_structure_router)
-router.include_router(router=business_units_router)
 router.include_router(router=users_access_control_router)
 router.include_router(router=learning_router)
 router.include_router(router=learning_analytics_router)

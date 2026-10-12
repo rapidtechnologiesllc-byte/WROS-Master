@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, AlertCircle, X } from 'lucide-react';
+import { ArrowLeft, X } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
 import { apiRequest } from '../services/api/client';
-import { toast } from 'react-toastify';
 import { hasPermission } from '../utils/permissionsRoleTemplate';
 
 // users_access_control router is mounted under /api/admin/users-access-control
@@ -13,6 +12,7 @@ const DELIVERY_CENTERS_PATH = '/api/v1/api/admin/users-access-control/delivery-c
 
 export default function BusinessUnitFormPage() {
   // Permission Gate: Only users with business-units.edit can create/edit business units
+  // (a separate component so the form's hooks always run in the same order)
   if (!hasPermission('business-units', 'edit')) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -29,7 +29,10 @@ export default function BusinessUnitFormPage() {
       </div>
     );
   }
+  return <BusinessUnitForm />;
+}
 
+function BusinessUnitForm() {
   const { buId } = useParams();
   const navigate = useNavigate();
   const mode = buId ? 'edit' : 'create';
@@ -39,7 +42,9 @@ export default function BusinessUnitFormPage() {
     description: '',
     company_ids: [],
     partner_user_id: '',
-    head_user_id: ''
+    // BU head per company: { company_id: user_id }. AXION has one partner but its own
+    // head in BX-US and in BX-IN; one person may head several.
+    location_heads: {}
   });
   // Org -> Company (BX-US, BX-IN) -> Partner -> BU. A BU can run in several companies.
   const [companies, setCompanies] = useState([]);
@@ -48,11 +53,6 @@ export default function BusinessUnitFormPage() {
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState(null);
 
-  useEffect(() => {
-    if (mode === 'edit' && buId) {
-      loadBusinessUnit();
-    }
-  }, [buId, mode]);
 
   useEffect(() => {
     Promise.all([
@@ -66,7 +66,7 @@ export default function BusinessUnitFormPage() {
       .catch((err) => setActionError(`Could not load companies/people: ${err.message}`));
   }, []);
 
-  const loadBusinessUnit = async () => {
+  const loadBusinessUnit = useCallback(async () => {
     try {
       setLoading(true);
       const { data } = await apiRequest(`/rbac/business-units/${buId}`);
@@ -76,7 +76,9 @@ export default function BusinessUnitFormPage() {
           description: data.description || '',
           company_ids: (data.companies || []).map((c) => c.id),
           partner_user_id: data.partner?.user_id || '',
-          head_user_id: data.head?.user_id || ''
+          location_heads: Object.fromEntries(
+            (data.companies || []).map((c) => [c.id, c.head?.user_id || ''])
+          )
         });
       }
     } catch (err) {
@@ -85,7 +87,13 @@ export default function BusinessUnitFormPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [buId]);
+
+  useEffect(() => {
+    if (mode === 'edit' && buId) {
+      loadBusinessUnit();
+    }
+  }, [buId, mode, loadBusinessUnit]);
 
   // Input (components/ui/Input.js) calls onChange with the raw string value,
   // not a synthetic event, so this handler must be curried per field rather
@@ -109,7 +117,10 @@ export default function BusinessUnitFormPage() {
         company_ids: formData.company_ids,
         // "" clears the link on the backend
         partner_user_id: formData.partner_user_id,
-        head_user_id: formData.head_user_id
+        // only companies the BU operates in; "" clears that company's head
+        location_heads: Object.fromEntries(
+          formData.company_ids.map((id) => [id, formData.location_heads[id] || ''])
+        )
       };
 
       if (mode === 'create') {
@@ -231,23 +242,35 @@ export default function BusinessUnitFormPage() {
             <p className="mt-1 text-xs text-gray-500">Every company this BU operates in. Each company gets its own revenue and headcount target for the BU.</p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <LeaderSelect
-              label="Partner (owner)"
-              value={formData.partner_user_id}
-              options={leaders.partners || []}
-              requirement={leaders.partner_requirement}
-              disabled={saving}
-              onChange={setField('partner_user_id')}
-            />
-            <LeaderSelect
-              label="BU Head"
-              value={formData.head_user_id}
-              options={leaders.heads || []}
-              requirement={leaders.head_requirement}
-              disabled={saving}
-              onChange={setField('head_user_id')}
-            />
+          <LeaderSelect
+            label="Partner (owner of the BU in every company)"
+            value={formData.partner_user_id}
+            options={leaders.partners || []}
+            requirement={leaders.partner_requirement}
+            disabled={saving}
+            onChange={setField('partner_user_id')}
+          />
+
+          <div>
+            <div className="block text-sm font-medium text-gray-700 mb-1">BU Head by company</div>
+            {formData.company_ids.length === 0 ? (
+              <p className="text-xs text-gray-500">Select the companies above; each one gets its own BU head.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {companies.filter((c) => formData.company_ids.includes(c.id)).map((c) => (
+                  <LeaderSelect
+                    key={c.id}
+                    label={`Head in ${c.name}`}
+                    value={formData.location_heads[c.id] || ''}
+                    options={leaders.heads || []}
+                    requirement={leaders.head_requirement}
+                    disabled={saving}
+                    onChange={(val) => setField('location_heads')({ ...formData.location_heads, [c.id]: val })}
+                  />
+                ))}
+              </div>
+            )}
+            <p className="mt-1 text-xs text-gray-500">A head sees and approves for this BU in their company only; the partner sees it everywhere.</p>
           </div>
 
           <div className="flex gap-2 justify-end pt-4 border-t">

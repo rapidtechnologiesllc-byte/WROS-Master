@@ -609,13 +609,14 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
     if request.recuriter_id in ("string", ""):
         request.recuriter_id = None
 
-    # AUTO-DERIVE: no hiring manager given -> the business unit's head (BU structure, not a role name)
+    # AUTO-DERIVE: no hiring manager given -> the head of the business unit in the client's
+    # company (BU heads are per company; BU structure, not a role name)
     if request.business_unit and not request.hiring_manager_id:
-        from app.models.business_unit import BusinessUnit
+        from app.services.bu_leadership import head_for_client
 
-        unit = db.query(BusinessUnit).filter(BusinessUnit.id == request.business_unit).first()
-        if unit is not None and unit.manager_id:
-            request.hiring_manager_id = unit.manager_id
+        head_id = head_for_client(db, request.business_unit, request.client_id)
+        if head_id:
+            request.hiring_manager_id = head_id
             logger.info(f"[JobCreation] Hiring manager defaulted to the head of BU {request.business_unit}")
 
     # Validate that provided user IDs actually exist

@@ -5,7 +5,7 @@ Monitors P&L per partner and per BU and escalates when net profit falls
 below the 25% floor.
 
 Real data model:
-- A partner owns the BUs where BusinessUnit.manager_id is their UserID.
+- A partner owns the BUs where BusinessUnit.partner_user_id is their UserID.
 - Revenue is client invoices (Invoice.total_usd_cents, excluding DRAFT);
   invoices reach a BU through Client.business_unit_id.
 - Payroll is Employee.base_salary_usd_cents (monthly) for the BU's
@@ -42,7 +42,7 @@ NET_MARGIN_FLOOR_PCT = 25
 
 
 def partner_bu_ids(db: Session, partner_id: str) -> List[int]:
-    """The BUs this partner owns (BusinessUnit.partner_user_id; manager_id is the BU head)."""
+    """The BUs this partner owns (BusinessUnit.partner_user_id). BU heads are per company (BusinessUnitLocationHead)."""
     return [row[0] for row in db.query(BusinessUnit.id).filter(BusinessUnit.partner_user_id == partner_id).all()]
 
 
