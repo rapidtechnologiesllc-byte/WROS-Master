@@ -107,7 +107,8 @@ jobs:
             tests/test_financial_outlook.py \
             tests/test_hiring_pipeline.py \
             tests/test_interview_verdicts.py \
-            tests/test_job_lifecycle.py
+            tests/test_job_lifecycle.py \
+            tests/test_navigation_menu.py
 
   test-frontend:
     name: Frontend - Build

@@ -20,7 +20,7 @@ class LearningTranscript(Base):
     __tablename__ = "learning_transcript"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    tenant_id = Column(String(36), ForeignKey("tenant.id"), nullable=False)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
     # Event identification
     event_type = Column(String(100), nullable=False)  # opportunity_created, recruitment_triggered, project_assigned, timesheet_recorded, etc.
@@ -69,7 +69,6 @@ class LearningTranscript(Base):
         Index('idx_learning_transcript_tenant', 'tenant_id'),
         Index('idx_learning_transcript_entity', 'entity_id', 'entity_type'),
         Index('idx_learning_transcript_module', 'module_name', 'decision_type'),
-        Index('idx_learning_transcript_cascade', 'cascade_impacts'),
         Index('idx_learning_transcript_created', 'created_at'),
     )
 
@@ -85,7 +84,7 @@ class LearningAuditSummary(Base):
     __tablename__ = "learning_audit_summary"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    tenant_id = Column(String(36), ForeignKey("tenant.id"), nullable=False)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
     # Summary period
     period = Column(String(20), nullable=False)  # daily, weekly, monthly
@@ -135,7 +134,7 @@ class LearningCascadeChain(Base):
     __tablename__ = "learning_cascade_chain"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    tenant_id = Column(String(36), ForeignKey("tenant.id"), nullable=False)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
     # Chain identification
     chain_id = Column(String(36), nullable=False)  # Groups related decisions

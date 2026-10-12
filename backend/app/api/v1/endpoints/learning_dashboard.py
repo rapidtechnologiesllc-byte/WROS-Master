@@ -11,27 +11,29 @@ Endpoints:
 """
 
 import logging
-from typing import Optional
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db, get_current_user
-from app.models.user import User
+from app.core.dependencies import get_db, get_current_user, require_resource_permission
+from app.models.user import Users
 from app.models.slm_learning_metrics import SLMMetrics
 from app.services.unified_learning_orchestrator import UnifiedLearningOrchestrator
 from app.services.learning_weight_optimizer import LearningWeightOptimizer
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/learning", tags=["learning"])
+# Learning-system data is SLM administration: every route needs slm-dashboard view,
+# and anything that starts a learning cycle needs slm-dashboard edit (route-level below).
+router = APIRouter(prefix="/learning", tags=["learning"],
+                   dependencies=[Depends(require_resource_permission("slm-dashboard", "view"))])
 
 
 @router.get("/health")
 def get_system_health(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Users = Depends(get_current_user),
 ):
     """
     Get current system health score.
@@ -89,7 +91,7 @@ def get_system_health(
 @router.get("/dashboard")
 def get_learning_dashboard(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Users = Depends(get_current_user),
 ):
     """
     Get complete learning dashboard with trends and recommendations.
@@ -134,7 +136,7 @@ def get_learning_dashboard(
 def get_orchestrator_metrics(
     name: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Users = Depends(get_current_user),
 ):
     """
     Get detailed metrics for specific orchestrator (thunder, flash, interview, offer, finance).
@@ -182,7 +184,7 @@ def get_recent_outcomes(
     limit: int = 20,
     days: int = 7,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Users = Depends(get_current_user),
 ):
     """
     Get recent decision outcomes (predicted vs actual).
@@ -221,10 +223,10 @@ def get_recent_outcomes(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/cycle")
+@router.post("/cycle", dependencies=[Depends(require_resource_permission("slm-dashboard", "edit"))])
 def trigger_learning_cycle(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Users = Depends(get_current_user),
 ):
     """
     Manually trigger a learning cycle (normally runs automatically every hour).
@@ -267,7 +269,7 @@ def trigger_learning_cycle(
 @router.get("/recommendations")
 def get_active_recommendations(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Users = Depends(get_current_user),
 ):
     """
     Get active system recommendations based on learning analysis.
@@ -316,7 +318,7 @@ def get_active_recommendations(
 @router.get("/cross-module")
 def get_cross_module_insights(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Users = Depends(get_current_user),
 ):
     """
     Get cross-module intelligence insights (Thunder → Flash → Interview → Offer).

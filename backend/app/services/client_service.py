@@ -22,9 +22,6 @@ from app.models.interview_pipeline import SubmissionInterview
 from app.models.user import Users
 from app.services.notification_service import send_notification
 
-# BR-02: roles allowed to see markup_rate_pct. CS and recruiters are
-# deliberately excluded -- margin data is not their business to see.
-
 logger = logging.getLogger(__name__)
 
 class ClientValidationError(Exception):
@@ -219,9 +216,8 @@ def update_client_details(db: Session, client: Client, updates: dict) -> Client:
     `status` (its own sanctioned path is set_client_status(), which
     enforces BR-01's contact requirement -- bypassing that here would
     let a status change skip the check), and `markup_rate_pct` (BR-02
-    confidential -- restricted to MARKUP_VISIBLE_ROLES at read time;
-    a write path here would let a broader-access edit endpoint bypass
-    that read restriction, so margin changes stay out of scope)."""
+    confidential: no client API returns it, and a write path here would
+    let a broad-access edit endpoint change margins, so it stays out)."""
     unknown = set(updates) - EDITABLE_CLIENT_FIELDS
     if unknown:
         raise ClientValidationError(f"Not editable via this path: {sorted(unknown)}")

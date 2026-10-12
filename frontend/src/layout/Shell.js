@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BadgeDollarSign,
   Briefcase,
@@ -30,23 +30,15 @@ import {
   Award,
   Target,
   KeyRound,
+  Linkedin,
 } from "lucide-react";
 import cx from "../utils/cx";
 import TopBar from "./TopBar";
 import FlashWidget from "../components/FlashWidget";
-import { ROUTES } from "../utils/Routes";
-import { NAV_ITEMS } from "./navItems";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Outlet } from "react-router-dom";
-import {
-  hasPermission,
-  getPermissions,
-  canViewModule,
-  filterNavigationByModules,
-} from "../utils/permissionsRoleTemplate";
 
 // Constants
-const MAX_RETRIES = 12; // Retry every 5s for up to 60 seconds (0s, 5s, 10s, ..., 55s)
 
 // MODULE_CONFIG removed: backend permission system filters navigation items
 
@@ -100,6 +92,7 @@ const iconForResource = (key) => ICON_MAP_BY_RESOURCE[String(key || "").replace(
 
 // Map icon names (strings from backend) to icon components
 const ICON_COMPONENTS_BY_NAME = {
+  "Linkedin": Linkedin,
   "Users": Users,
   "Users2": Users2,
   "Briefcase": Briefcase,
@@ -188,78 +181,6 @@ async function fetchNavigationFromBackend() {
 }
 
 
-// Permission-based navigation builder (2026-08-12)
-// Maps nav keys to their required permissions
-// NOTE: Updated to match actual permission names from CEO role in database
-const NAV_PERMISSIONS = {
-  // Recruitment Module (using actual permission names from database)
-  candidates: "candidates",
-  jobs: "jobs",
-  candidateReview: "candidate_review.view",
-  offerLetters: "offer-letters",
-  offerLettersListing: "offer-letters",
-  submissions: "submissions.view",
-  interventionQueue: "intervention_queue.view",
-  rehireApprovals: "rehire_approvals.view",
-  riskDashboard: "risk_dashboard.view",
-  thunderAnalytics: "thunder_analytics.view",
-  bulkLaunch: "bulk_launch.view",
-
-  // Sales/Client Module
-  clientManagement: "clients",
-  demandConfirmation: "demand.view",
-  opportunityPipeline: "opportunities",
-  partnerRoi: "partner_roi.view",
-
-  // Workforce/HR Module
-  employees: "employees",
-  employeeConversion: "employees",  // convert uses employee.view permission
-  htdIntake: "htd_intake.view",
-  buddyProgram: "buddy_program.view",
-  buHeadDashboard: "business_unit.view",
-
-  // Resource Management Module
-  corePull: "core_pull.view",
-  projects: "projects.view",
-  allocations: "allocations.view",
-  resourceManagement: "resource_management.view",
-  utilization: "utilization.view",
-  forecast: "forecast.view",
-
-  // Finance Module
-  myExpenses: "expenses.view",
-  timesheets: "timesheets.view",
-  invoices: "invoices.view",
-  invoiceManagement: "invoices.view",
-  revenue: "revenue.view",
-  forecastVsActual: "forecast.view",
-  executiveRevenueDashboard: "reports.view",
-  financeOperations: "finance_operations.view",
-
-  // Admin Module
-  usersAccessControl: "users",
-  certifications: "certifications.view",
-  tenantLocale: "locale.view",
-  tenantAiConfig: "ai_config.view",
-  messageQueueDashboard: "message_queue.view",
-  messageTemplates: "message_templates.view",
-  ticketRoutingAdmin: "ticket_routing.view",
-  executiveSignal: "executive_signal.view",
-  errorLog: "error_log.view",
-  adminWeeklyRecap: "admin_weekly_recap.view",
-
-  // Dashboard/Agent Screens
-  ceoFyProgress: "reports.view",
-  cfoDashboard: "reports.view",
-  learningAnalytics: "learning.view",
-
-  // AI & Automation Module
-  askThunder: "ask-thunder",
-  thunderAnalyticsAI: "thunder-analytics",
-  askFlash: "ask-flash",
-  aiCoaching: "ai-coaching",
-};
-
 export default function Shell({
   role,
   screen,
@@ -272,7 +193,7 @@ export default function Shell({
 }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const [, setPermissionsLoaded] = useState(false);
 
   // Root cause fix: Refresh permissions from /hr/me on app load with retries
   useEffect(() => {
@@ -290,15 +211,20 @@ export default function Shell({
           if (user.roles && Array.isArray(user.roles)) {
             localStorage.setItem("hrms_roles", JSON.stringify(user.roles));
           }
+          if (user.authority) {
+            // home dashboard and leadership flags follow role changes without a re-login
+            localStorage.setItem("hrms_authority", JSON.stringify(user.authority));
+          }
           if (user.permissions !== undefined) {
             // Store permissions even if empty - means we got a response
             localStorage.setItem("hrms_permissions", JSON.stringify(user.permissions || []));
-            setPermissionsLoaded(true); // Trigger re-render with new permissionsreturn true; // Success, stop retrying
+            setPermissionsLoaded(true); // Trigger re-render with new permissions
+            return true; // Success, stop retrying
           }
         }
       } catch (error) {
-        if (retryCount >= MAX_RETRIES - 1) {
-          throw new Error(`Failed to refresh permissions after ${MAX_RETRIES} attempts: ${error.message}`);
+        if (retryCount >= maxRetries - 1) {
+          throw new Error(`Failed to refresh permissions after ${maxRetries} attempts: ${error.message}`);
         }
       }
       return false; // Failed, continue retrying
@@ -338,7 +264,6 @@ export default function Shell({
     standalone: [],
     groups: []
   });
-  const [allowedModules, setAllowedModules] = useState([]);
 
   useEffect(() => {
     const loadNavigation = async () => {

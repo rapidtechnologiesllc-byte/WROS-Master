@@ -67,38 +67,28 @@ class UnifiedWebhookIntegrationService:
 
     @staticmethod
     def _check_idempotency(db: Session, tenant_id: str, idempotency_key: str) -> bool:
-        """Check if webhook event already processed (returns True if duplicate, False if new)."""
-        # Import ProcessedWebhookEvent if it exists, else return False to allow processing
-        try:
-            from app.models.webhook_events import ProcessedWebhookEvent
-            existing = db.query(ProcessedWebhookEvent).filter(
-                and_(
-                    ProcessedWebhookEvent.tenant_id == tenant_id,
-                    ProcessedWebhookEvent.idempotency_key == idempotency_key,
-                )
-            ).first()
-            return existing is not None  # True if duplicate, False if new
-        except (ImportError, Exception):
-            # Model doesn't exist yet, allow processing
-            logger.debug("ProcessedWebhookEvent model not found, allowing webhook processing")
-            return False
+        """Whether this webhook event was already processed (True = duplicate)."""
+        from app.models.learning_events import ProcessedWebhookEvent
+
+        return db.query(ProcessedWebhookEvent.id).filter(
+            and_(
+                ProcessedWebhookEvent.tenant_id == tenant_id,
+                ProcessedWebhookEvent.idempotency_key == idempotency_key,
+            )
+        ).first() is not None
 
     @staticmethod
     def _record_webhook_processed(db: Session, tenant_id: str, idempotency_key: str, provider: str) -> None:
-        """Record that a webhook event was processed (for idempotency)."""
-        try:
-            from app.models.webhook_events import ProcessedWebhookEvent
-            event = ProcessedWebhookEvent(
-                tenant_id=tenant_id,
-                idempotency_key=idempotency_key,
-                provider=provider,
-                processed_at=datetime.utcnow(),
-            )
-            db.add(event)
-            db.commit()
-        except (ImportError, Exception):
-            # Model doesn't exist yet, skip recording
-            pass
+        """Record that a webhook event was processed, so a redelivery is skipped."""
+        from app.models.learning_events import ProcessedWebhookEvent
+
+        db.add(ProcessedWebhookEvent(
+            tenant_id=tenant_id,
+            idempotency_key=idempotency_key,
+            provider=provider,
+            processed_at=datetime.utcnow(),
+        ))
+        db.commit()
 
     @staticmethod
     def process_sendgrid_webhook(

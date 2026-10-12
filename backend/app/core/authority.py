@@ -94,6 +94,25 @@ def requires_email_otp(db: Session, user: Optional[Users]) -> bool:
     return role_of(db, user) is not None
 
 
+# Home dashboard by position (CEO 2026-10-12): which one is decided by the role template's
+# level and specialization, never by holding a permission (an admin role holds every
+# permission and must not land on the CEO dashboard). Each still needs its view permission;
+# without it the next one down applies. "default" is the general dashboard.
+HOME_DASHBOARDS = (
+    ("ceo", "ceo-dashboard", lambda db, u: is_ceo(db, u)),
+    ("cfo", "cfo-dashboard", lambda db, u: is_partner(db, u) and in_finance(db, u)),  # C-level finance
+    ("partner", "partner-dashboard", lambda db, u: is_partner(db, u)),
+    ("bu_head", "bu-head-dashboard", lambda db, u: is_bu_leader(db, u)),
+)
+
+
+def home_dashboard(db: Session, user: Optional[Users]) -> str:
+    for key, resource, holds_position in HOME_DASHBOARDS:
+        if holds_position(db, user) and has_permission(db, user, f"{resource}.view"):
+            return key
+    return "default"
+
+
 def summary(db: Session, user: Optional[Users]) -> dict:
     """What the client needs to shape its UI -- the same flags the server enforces with."""
     role = role_of(db, user)
@@ -101,7 +120,8 @@ def summary(db: Session, user: Optional[Users]) -> dict:
             "hierarchy_level": int(role.hierarchy_level or 0) if role else 0,
             "specialization": role.specialization if role else None,
             "is_bu_leader": is_bu_leader(db, user),
-            "is_finance_leader": is_finance_leader(db, user)}
+            "is_finance_leader": is_finance_leader(db, user),
+            "home_dashboard": home_dashboard(db, user)}
 
 
 def has_permission(db: Session, user: Optional[Users], permission: str) -> bool:

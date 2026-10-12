@@ -20,7 +20,6 @@ from app.models.cascading_signal_log import (
     CascadingSignalLog,
     CascadingSignalMetrics,
 )
-from app.models.agent_phalanx import AgentPhalanx
 
 logger = logging.getLogger(__name__)
 

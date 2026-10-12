@@ -62,7 +62,7 @@ import AssignmentsScreen from "../screens/AssignmentsScreen";
 import CandidateCreate from "../screens/CandidateCreate";
 import CandidateSearch from "../screens/CandidateSearch";
 import CandidateSelfService from "../screens/CandidateSelfService";
-import { canAccessMyWorkspace, hasPermission, isCandidateUser } from "../utils/permissionsRoleTemplate";
+import { canAccessMyWorkspace, hasPermission, homeDashboard, isCandidateUser } from "../utils/permissionsRoleTemplate";
 import { useNavigate } from "react-router-dom";
 import CandidateDetailsWrapper from "./wrappers/CandidateDetailsWrapper";
 import JobWorkspaceWrapper from "./wrappers/JobWorkspaceWrapper";
@@ -129,21 +129,26 @@ import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
 import MyReferralsScreen from "../screens/MyReferralsScreen";
 import LinkedInPipelineScreen from "../screens/LinkedInPipelineScreen";
 import DocumentUploadScreen from "../screens/DocumentUploadScreen";
-import LearningAnalyticsDashboard from "../screens/LearningAnalyticsDashboard";
 
 
 // Wrapper component that renders the appropriate dashboard based on user permissions
 // RBAC-driven: Uses permissions from role templates, not hardcoded job titles
 const DashboardRouter = ({ candidates, jobs, interviews, offers }) => {
-  // The first executive dashboard the role template permits (permissions only)
-  if (hasPermission("ceo-dashboard", "view")) {
+  // Home dashboard by position, decided server-side (authority.home_dashboard): CEO level ->
+  // CEO, C-level finance -> CFO, partner level -> Partner, BU head level -> BU Head. Holding a
+  // dashboard's permission (as an admin role does) never makes it home.
+  const home = homeDashboard();
+  if (home === "ceo") {
     return <CEOUnifiedDashboard />;
   }
-  if (hasPermission("cfo-dashboard", "view")) {
+  if (home === "cfo") {
     return <CFOAgentScreen />;
   }
-  if (hasPermission("partner-dashboard", "view")) {
+  if (home === "partner") {
     return <PartnerROIAgentScreen />;
+  }
+  if (home === "bu_head") {
+    return <BuHeadDashboardScreen />;
   }
 
   // Everyone else gets the generic dashboard
@@ -674,7 +679,6 @@ function AuthenticatedApp() {
             <Route path="ceo-dashboard" element={<CEOUnifiedDashboard />} />
             <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
             <Route path="recruiter/thunder-analytics" element={<ThunderAnalyticsScreen />} />
-            <Route path="learning-analytics" element={<LearningAnalyticsDashboard />} />
             <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
             <Route path="admin/ai-config" element={<TenantAIConfigScreen />} />
             <Route path="my-tasks" element={<MyTasksScreen />} />

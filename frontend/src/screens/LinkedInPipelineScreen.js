@@ -1,8 +1,11 @@
-import { useState, useEffect } from "react";
-import { Plus, Loader, CheckCircle, AlertCircle, Phone, Trash2, RefreshCw, X } from "lucide-react";
-import axios from "axios";
-
-const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:8080";
+import { useState, useEffect, useCallback } from "react";
+import { Plus, Loader, CheckCircle, AlertCircle, RefreshCw, X } from "lucide-react";
+import {
+  completeLinkedInImport,
+  listLinkedInPipeline,
+  queueLinkedInCandidate,
+  updateLinkedInPipelineStatus,
+} from "../services/api/linkedinPipeline";
 
 export default function LinkedInPipelineScreen() {
   const [linkedInUrl, setLinkedInUrl] = useState("");
@@ -16,55 +19,30 @@ export default function LinkedInPipelineScreen() {
   const [phoneInput, setPhoneInput] = useState({});
   const [emailInput, setEmailInput] = useState({});
   const [statusFilter, setStatusFilter] = useState("all");
-  const [loadAttempted, setLoadAttempted] = useState(false);
 
   // Page-level error/warning state
   const [error, setError] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
 
-  const token = localStorage.getItem("hrms_token");
-
-  useEffect(() => {
-    if (!loadAttempted) {
-      loadPipeline();
-      setLoadAttempted(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (loadAttempted) {
-      loadPipeline();
-    }
-  }, [statusFilter]);
-
-  const loadPipeline = async () => {
+  const loadPipeline = useCallback(async () => {
     setFetching(true);
     setError(null);
     try {
-      const url = `${API_BASE}/api/v1/linkedin-candidate-pipeline/list`;
-      const params = statusFilter !== "all" ? { status_filter: statusFilter } : {};
-      const headers = { Authorization: `Bearer ${token}` };
-
-      console.log("[LinkedIn Pipeline] Loading...", { url, params, token: token ? "YES" : "NO" });
-
-      const response = await axios.get(url, { params, headers });
-      console.log("[LinkedIn Pipeline] Success:", response.status, response.data);
-      setPipelineItems(response.data.items || []);
+      const data = await listLinkedInPipeline(statusFilter);
+      setPipelineItems(data?.items || []);
     } catch (error) {
-      console.error("[LinkedIn Pipeline] Full error:", {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        message: error.message,
-        config: error.config
-      });
-      const errorMsg = error.response?.data?.detail || error.message || "Failed to load pipeline items";
-      setError(errorMsg);
+      console.error(`[LinkedIn Pipeline] Failed to load: ${error.message}`);
+      setError(error.message || "Failed to load pipeline items");
     } finally {
       setFetching(false);
     }
-  };
+  }, [statusFilter]);
+
+  // Load on mount and whenever the status filter changes
+  useEffect(() => {
+    loadPipeline();
+  }, [loadPipeline]);
 
   const handleQueueCandidate = async (e) => {
     e.preventDefault();
@@ -78,18 +56,12 @@ export default function LinkedInPipelineScreen() {
 
     setLoading(true);
     try {
-      const response = await axios.post(
-        `${API_BASE}/api/v1/linkedin-candidate-pipeline/linkedin-queue`,
-        {
-          linkedin_url: linkedInUrl,
-          first_name: firstName.trim() || null,
-          last_name: lastName.trim() || null,
-          email: email.trim() || null,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      const result = response.data;
+      const result = await queueLinkedInCandidate({
+        linkedinUrl: linkedInUrl.trim(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim(),
+      });
 
       if (result.status === "QUEUED") {
         setActionSuccess("✅ Added to your pipeline. The candidate record is being created and a follow-up task is on My Tasks.");
@@ -105,8 +77,7 @@ export default function LinkedInPipelineScreen() {
         setActionError(`📋 ${result.message} (status: ${st})`);
       }
     } catch (error) {
-      const msg = error.response?.data?.detail || "Failed to queue candidate";
-      setActionError(msg);
+      setActionError(error.message || "Failed to queue candidate");
     } finally {
       setLoading(false);
     }
@@ -129,11 +100,9 @@ export default function LinkedInPipelineScreen() {
     }
 
     try {
-      const response = await axios.post(
-        `${API_BASE}/api/v1/linkedin-candidate-pipeline/${pipelineId}/complete-import`,
-        { linkedin_url: item.linkedin_url, phone_number: phone, email: importEmail },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await completeLinkedInImport(pipelineId, {
+        linkedinUrl: item.linkedin_url, phoneNumber: phone, email: importEmail,
+      });
 
       setActionSuccess("✅ Candidate imported! Ready for Thunder autonomous loop.");
       setPhoneInput({ ...phoneInput, [pipelineId]: "" });
@@ -141,8 +110,7 @@ export default function LinkedInPipelineScreen() {
       setExpandedId(null);
       loadPipeline();
     } catch (error) {
-      const msg = error.response?.data?.detail || "Failed to complete import";
-      setActionError(msg);
+      setActionError(error.message || "Failed to complete import");
     }
   };
 
@@ -151,15 +119,11 @@ export default function LinkedInPipelineScreen() {
     setActionSuccess(null);
 
     try {
-      await axios.put(
-        `${API_BASE}/api/v1/linkedin-candidate-pipeline/${pipelineId}/status`,
-        { status: newStatus },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await updateLinkedInPipelineStatus(pipelineId, newStatus);
       setActionSuccess("✅ Status updated. Your next follow-up task is on My Tasks.");
       loadPipeline();
     } catch (error) {
-      setActionError(error.response?.data?.detail || "Failed to update status");
+      setActionError(error.message || "Failed to update status");
     }
   };
 
