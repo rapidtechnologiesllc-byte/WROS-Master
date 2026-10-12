@@ -292,19 +292,16 @@ export const filterNavigationByModules = (navigationItems, allowedModules) => {
 };
 
 /**
- * Where an internal user lands after login: the first screen their role template lets
- * them view, most senior first. Routing config (resource -> route), not authority.
+ * Where an internal user lands after login: their home dashboard, which the server decides
+ * from the role template's position (level + specialization) -- authority.home_dashboard.
+ * Holding a dashboard's permission does not make it home (an admin role holds them all).
+ * Routing config (home key -> route) only.
  */
-const LANDING_BY_RESOURCE = [
-  ['ceo-dashboard', '/ceo-fy-progress'],
-  ['cfo-dashboard', '/cfo-dashboard'],
-  ['partner-dashboard', '/partner-roi'],
-  ['bu-head-dashboard', '/bu-dashboard'],
-  ['employees', '/employees'],
-  ['candidates', '/candidates'],
-  ['my-tasks', '/my-tasks'],
-];
-export const landingPath = (fallback) => {
-  const hit = LANDING_BY_RESOURCE.find(([resource]) => hasPermission(resource, 'view'));
-  return hit ? hit[1] : fallback;
+const HOME_ROUTES = {
+  ceo: '/ceo-fy-progress',
+  cfo: '/cfo-dashboard',
+  partner: '/partner-roi',
+  bu_head: '/bu-dashboard',
 };
+export const homeDashboard = () => getAuthority().home_dashboard || 'default';
+export const landingPath = (fallback) => HOME_ROUTES[homeDashboard()] || fallback;

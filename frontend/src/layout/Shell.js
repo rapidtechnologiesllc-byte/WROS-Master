@@ -39,7 +39,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Outlet } from "react-router-dom";
 
 // Constants
-const MAX_RETRIES = 12; // Retry every 5s for up to 60 seconds (0s, 5s, 10s, ..., 55s)
 
 // MODULE_CONFIG removed: backend permission system filters navigation items
 
@@ -212,6 +211,10 @@ export default function Shell({
           if (user.roles && Array.isArray(user.roles)) {
             localStorage.setItem("hrms_roles", JSON.stringify(user.roles));
           }
+          if (user.authority) {
+            // home dashboard and leadership flags follow role changes without a re-login
+            localStorage.setItem("hrms_authority", JSON.stringify(user.authority));
+          }
           if (user.permissions !== undefined) {
             // Store permissions even if empty - means we got a response
             localStorage.setItem("hrms_permissions", JSON.stringify(user.permissions || []));
@@ -220,8 +223,8 @@ export default function Shell({
           }
         }
       } catch (error) {
-        if (retryCount >= MAX_RETRIES - 1) {
-          throw new Error(`Failed to refresh permissions after ${MAX_RETRIES} attempts: ${error.message}`);
+        if (retryCount >= maxRetries - 1) {
+          throw new Error(`Failed to refresh permissions after ${maxRetries} attempts: ${error.message}`);
         }
       }
       return false; // Failed, continue retrying

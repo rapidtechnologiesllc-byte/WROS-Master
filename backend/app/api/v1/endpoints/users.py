@@ -44,117 +44,46 @@ async def get_me(
     current_user: Users = Depends(get_current_internal_user),
 ):
     """
-    Return the profile of the currently authenticated HR / Admin user
-    together with a fresh access token, roles, and permissions.
-
-    Useful for:
-    - Restoring session state after page reload
-    - Refreshing the token without a full re-login
-    - Fetching up-to-date role / business-unit information
-    - Building dynamic navigation based on user permissions
+    The signed-in internal user's profile with a fresh access token, role, permissions and
+    authority (incl. home_dashboard), in the login response's format. Called on every app
+    load, so a role or permission change takes effect without logging out. Failures raise
+    (500) -- an empty permission list would silently show a blank app.
     """
-    try:
-        from app.services.role_template_permission_service import RoleTemplatePermissionService
+    from app.core import authority
+    from app.services.role_template_permission_service import RoleTemplatePermissionService
 
-        # Get tenant ID (use current_user's tenant_id, default to 1)
-        tenant_id = current_user.tenant_id or 1
-
-        # Get user's assigned role template
-        user_roles = []
-        roles_list = []
-        permission_role = None
-
-        # Try to get role template, but don't fail if missing
-        try:
-            if current_user.role_template_id:
-                rt = db.query(RoleTemplate).filter(RoleTemplate.id == current_user.role_template_id).first()
-                if rt:
-                    roles_list.append(rt.name)
-                    permission_role = rt.name
-                    user_roles.append({
-                        "id": rt.id,
-                        "name": rt.name,
-                    })
-        except Exception as e:
-            logger.warning(f"Failed to get role template for user {current_user.UserID}: {e}")
-            # Continue - don't fail on role template errors
-
-        # Get all permissions for the user
-        permissions_dict = {}
-
-        # Try to fetch permissions, but don't fail if the service is down
-        try:
-            perms_result = RoleTemplatePermissionService.get_user_permissions(
-                db, current_user.UserID, tenant_id
-            )
-            permissions_dict = perms_result or {}
-            logger.debug(f"get_user_permissions returned type={type(permissions_dict)}, len={len(permissions_dict)}")
-        except Exception as e:
-            # Log but don't fail - return empty permissions instead of 500
-            logger.warning(f"Failed to get permissions for user {current_user.UserID}: {e}")
-            permissions_dict = {}
-
-        # Mint a fresh token using the same claims as login
-        access_token = create_access_token(
-            data={
-                "sub": current_user.UserID,
-                "email": current_user.UserEmail,
-                "type": "user",
-                "name": current_user.UserName,
-                "tenant_id": tenant_id,
-                "role_template_id": current_user.role_template_id,
-            }
-        )
-
-        # Return response matching the login endpoint format
-        return {
-            "user_id": current_user.UserID,
-            "user_name": current_user.UserName,
-            "user_email": current_user.UserEmail,
-            "user_role": current_user.UserRole,
-            "job_title": getattr(current_user, 'job_title', None),
-            "permission_role": permission_role,
+    tenant_id = current_user.tenant_id or 1
+    role = db.query(RoleTemplate).filter(RoleTemplate.id == current_user.role_template_id).first() \
+        if current_user.role_template_id else None
+    permissions = RoleTemplatePermissionService.get_user_permissions(db, current_user.UserID, tenant_id) or {}
+    access_token = create_access_token(
+        data={
+            "sub": current_user.UserID,
+            "email": current_user.UserEmail,
+            "type": "user",
+            "name": current_user.UserName,
+            "tenant_id": tenant_id,
             "role_template_id": current_user.role_template_id,
-            "business_unit_id": getattr(current_user, 'business_unit_id', None),
-            "whatsapp_number": getattr(current_user, 'whatsapp_number', None),
-            "permissions": permissions_dict,
-            "created_at": current_user.CreatedAt,
-            "access_token": access_token,
-            "token_type": "bearer",
-            "digest_enabled": getattr(current_user, 'digest_enabled', True),
-            "roles": roles_list,
         }
-    except Exception as e:
-        # Last resort fallback - still return user data even if something fails
-        logger.error(f"[get_me] Error getting user profile: {e}", exc_info=True)
-        # Return minimal user data instead of 500 error
-        access_token = create_access_token(
-            data={
-                "sub": current_user.UserID,
-                "email": current_user.UserEmail,
-                "type": "user",
-                "name": current_user.UserName,
-                "tenant_id": current_user.tenant_id or 1,
-                "role_template_id": current_user.role_template_id,
-            }
-        )
-        return {
-            "user_id": current_user.UserID,
-            "user_name": current_user.UserName,
-            "user_email": current_user.UserEmail,
-            "user_role": current_user.UserRole,
-            "job_title": getattr(current_user, 'job_title', None),
-            "permission_role": None,
-            "role_template_id": current_user.role_template_id,
-            "business_unit_id": getattr(current_user, 'business_unit_id', None),
-            "whatsapp_number": getattr(current_user, 'whatsapp_number', None),
-            "permissions": {},
-            "created_at": current_user.CreatedAt,
-            "access_token": access_token,
-            "token_type": "bearer",
-            "digest_enabled": getattr(current_user, 'digest_enabled', True),
-            "roles": [],
-        }
+    )
+    return {
+        "user_id": current_user.UserID,
+        "user_name": current_user.UserName,
+        "user_email": current_user.UserEmail,
+        "user_role": current_user.UserRole,
+        "job_title": getattr(current_user, "job_title", None),
+        "permission_role": role.name if role else None,
+        "role_template_id": current_user.role_template_id,
+        "business_unit_id": getattr(current_user, "business_unit_id", None),
+        "whatsapp_number": getattr(current_user, "whatsapp_number", None),
+        "permissions": permissions,
+        "authority": authority.summary(db, current_user),
+        "created_at": current_user.CreatedAt,
+        "access_token": access_token,
+        "token_type": "bearer",
+        "digest_enabled": getattr(current_user, "digest_enabled", True),
+        "roles": [role.name] if role else [],
+    }
 
 
 @router.get(
