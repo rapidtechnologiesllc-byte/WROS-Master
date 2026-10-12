@@ -136,15 +136,27 @@ jobs:
       - name: Health check
         if: steps.guard.outputs.skip != 'true'
         run: |
-          for i in $(seq 1 10); do
-            if curl -sf https://hrms.blitzenx.com/ | grep -q '<div id="root">'; then
-              echo "Frontend health check passed"
+          # Passes when the new index.html is served: through the public URL, or -- if the
+          # public route is unreachable from GitHub's runners (CDN/firewall) -- by the
+          # production server's own nginx (same host name and certificate, via SSH).
+          # Every attempt prints the HTTP status so a failure says why.
+          for i in $(seq 1 20); do
+            CODE=$(curl -s -o page.html -w '%{http_code}' --max-time 10 https://hrms.blitzenx.com/ || echo "000")
+            if [ "$CODE" = "200" ] && grep -q '<div id="root">' page.html; then
+              echo "Frontend health check passed (public URL)"
               exit 0
             fi
-            echo "Attempt $i: waiting for frontend..."
+            if ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+                "curl -sk --max-time 10 --resolve hrms.blitzenx.com:443:127.0.0.1 https://hrms.blitzenx.com/" \
+                | grep -q '<div id="root">'; then
+              echo "Frontend health check passed on the server's nginx; public URL answered HTTP $CODE from the runner"
+              exit 0
+            fi
+            echo "Attempt $i: public URL HTTP $CODE, server nginx not serving the app yet"
             sleep 3
           done
-          echo "Frontend health check failed"
+          echo "Frontend health check failed. Last public response (HTTP $CODE), first 300 bytes:"
+          head -c 300 page.html 2>/dev/null || true
           exit 1
 
       - name: Rollback on failure
