@@ -60,7 +60,15 @@ def web_status():
     nginx, backend, disk, firewall. Read-only."""
     host = "hrms.blitzenx.com"
     section("Web / network")
-    sh("DNS for the site", f"getent hosts {host}")
+    sh("DNS for the site (this server's resolver)", f"getent hosts {host}; echo exit=$?")
+    sh("DNS via Google 8.8.8.8 / Cloudflare 1.1.1.1",
+       f"for r in 8.8.8.8 1.1.1.1; do for n in {host} blitzenx.com; do "
+       f"echo \"$r $n: $(dig +short +time=3 +tries=1 @$r $n A 2>&1 | tr '\\n' ' ')\"; done; done")
+    sh("Domain nameservers and status",
+       "dig +short +time=3 +tries=1 @8.8.8.8 blitzenx.com NS; "
+       "dig +time=3 +tries=1 @8.8.8.8 hrms.blitzenx.com A | grep -E 'status:|AUTHORITY' ")
+    sh("Domain registration (whois)",
+       "timeout 10 whois blitzenx.com 2>&1 | grep -iE 'expir|status:|name server|registrar:' | head -12")
     sh("This server's public IP", "curl -s --max-time 5 https://api.ipify.org; echo")
     sh("nginx running", "systemctl is-active nginx 2>&1; pgrep -c nginx")
     sh("Listening on 80/443", "ss -ltn | awk 'NR==1 || /:80 |:443 /'")
