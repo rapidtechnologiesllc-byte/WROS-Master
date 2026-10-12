@@ -122,12 +122,20 @@ class RecruiterAssignmentServiceForCandidates:
                         'days_active': None
                     }
 
-            # Guard 3: Find all active recruiters
-            recruiters = db.query(Users).filter(
+            # Guard 3: Find all active recruiters: people in Recruitment (role template
+            # specialization or department) whose role may work candidates. Never by the
+            # legacy UserRole text.
+            from app.core import authority
+            from app.models.role_template import Resource, RoleTemplatePermission
+
+            may_work_candidates = db.query(RoleTemplatePermission.role_template_id).join(
+                Resource, Resource.id == RoleTemplatePermission.resource_id).filter(
+                Resource.name == "candidates", RoleTemplatePermission.can_edit.is_(True))
+            recruiters = [u for u in db.query(Users).filter(
                 Users.tenant_id == tenant_id,
-                Users.UserRole.ilike('%Recruiter%'),
                 Users.terminated_at.is_(None),
-            ).all()
+                Users.role_template_id.in_(may_work_candidates),
+            ).all() if authority.in_function(db, u, "Recruitment")]
 
             if not recruiters:
                 logger.error(f"[CandidateRecruiterAssignment] No recruiters in tenant {tenant_id}")

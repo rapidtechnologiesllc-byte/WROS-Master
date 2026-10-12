@@ -62,18 +62,23 @@ def is_director(db: Session, user: Optional[Users]) -> bool:
     return level(db, user) >= settings.DIRECTOR_MIN_LEVEL
 
 
-def in_finance(db: Session, user: Optional[Users]) -> bool:
-    """The role template's specialization is Finance, or the user's department is a Finance
-    department (whole-word match: app.services.org_hierarchy_validator)."""
+def in_function(db: Session, user: Optional[Users], function: str) -> bool:
+    """The role template's specialization is the function (Finance, Recruitment ...), or the
+    user's department is one of that function (whole-word match:
+    app.services.org_hierarchy_validator). Never by job title or legacy role text."""
     from app.services.org_hierarchy_validator import function_of_department_name
 
     role = role_of(db, user)
     if role is None:
         return False
-    if function_of_department_name(role.specialization) == "Finance":
+    if function_of_department_name(role.specialization) == function:
         return True
     department = getattr(user, "department", None)
-    return department is not None and function_of_department_name(department.name) == "Finance"
+    return department is not None and function_of_department_name(department.name) == function
+
+
+def in_finance(db: Session, user: Optional[Users]) -> bool:
+    return in_function(db, user, "Finance")
 
 
 def is_finance_leader(db: Session, user: Optional[Users]) -> bool:
