@@ -8,13 +8,12 @@ Example: CEO sets "150 consultants" → Workforce Ops auto-gets 150/year (37.5/Q
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from pydantic import BaseModel
-from datetime import datetime
 
-from app.core.dependencies import get_db, get_current_user, require_resource_permission
-from app.models.user import Users
 from app.core.database import get_db
+from app.core.dependencies import get_current_user, require_resource_permission
+from app.models.user import Users
 
 router = APIRouter(prefix="/goals", tags=["goals"])
 
@@ -222,7 +221,10 @@ def get_fy_settings(current_user: Users = Depends(get_current_user), db: Session
 def set_fy_settings(
     body: FYSettingsRequest, current_user: Users = Depends(get_current_user), db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
+    from app.core import authority
     from app.services.fiscal_year_service import fy_info, set_fy_start_month
+    if not authority.is_org_level(db, current_user):
+        raise HTTPException(status_code=403, detail="Only org-level roles can change the fiscal year.")
     try:
         set_fy_start_month(db, body.start_month, current_user.tenant_id, current_user.UserID)
     except ValueError as exc:
@@ -240,8 +242,9 @@ def get_goal_tree_endpoint(
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     """Every level of the FY goal tree with target, actual and allocated-to-children."""
+    from app.core.data_scope import visible_bu_ids
     from app.services.goal_tree_service import get_goal_tree
-    return get_goal_tree(db, current_user.tenant_id, year)
+    return get_goal_tree(db, current_user.tenant_id, year, bu_ids=visible_bu_ids(db, current_user))
 
 
 @router.put(
@@ -257,6 +260,8 @@ def set_goal_target_endpoint(
     try:
         row = set_goal_target(db, current_user, level=body.level, entity_id=body.entity_id,
                               metric=body.metric, target=body.target, year=body.year)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     return {"status": "success", "level": body.level, "entity_id": body.entity_id, "metric": body.metric,
@@ -280,6 +285,8 @@ def set_fy_target(
     try:
         row = set_goal_target(db, current_user, level="ORG", entity_id=ORG_ENTITY,
                               metric=metric, target=body.target, year=year)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     return {"status": "success", "metric": metric, "year": row.year, "target": row.target}

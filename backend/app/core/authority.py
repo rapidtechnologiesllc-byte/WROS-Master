@@ -81,8 +81,9 @@ def is_finance_leader(db: Session, user: Optional[Users]) -> bool:
 
 
 def is_revenue_bu_scoped(db: Session, user: Optional[Users]) -> bool:
-    """BU leaders see revenue for their own BU only; org-level roles see all of it."""
-    return is_bu_leader(db, user) and not is_org_level(db, user)
+    """Only org-level role templates see every business unit's revenue; everyone else sees
+    the business units they partner, head or belong to (app.core.data_scope)."""
+    return not is_org_level(db, user)
 
 
 def requires_totp(db: Session, user: Optional[Users]) -> bool:

@@ -26,6 +26,11 @@ Actuals are computed per (company, BU) and summed upward:
 - new_logos: clients added this FY, by contracting company and BU.
 Rows without a company or partner land in "unassigned" buckets so nothing
 silently disappears from the totals.
+
+Visibility (app.core.data_scope): an org-level role template sees and sets the whole tree.
+Anyone else sees only the branches of the business units they partner, head or belong to
+(the firm-wide FY figures stay on the Organization node, read-only), and may set targets
+only on those BUs' rows.
 """
 import logging
 import re
@@ -216,16 +221,24 @@ def build_company_tree(db: Session, tenant_id: int, year: int, partner_user_id: 
     return company_nodes, setup
 
 
-def get_goal_tree(db: Session, tenant_id: int, year: Optional[int] = None) -> dict:
+def get_goal_tree(db: Session, tenant_id: int, year: Optional[int] = None,
+                  bu_ids: Optional[set] = None) -> dict:
+    """bu_ids (None = everything, editable) narrows the tree to those BUs; only their BU
+    rows stay editable."""
     from app.services.fiscal_year_service import current_fy, fy_info
     year = year or current_fy(db, tenant_id)
     targets = _targets(db, tenant_id, year)
-    company_nodes, setup = build_company_tree(db, tenant_id, year)
+    company_nodes, setup = build_company_tree(db, tenant_id, year, bu_ids=bu_ids)
+    if bu_ids is not None:
+        for company in company_nodes:
+            company["editable"] = False
+            for partner in company["children"]:
+                partner["editable"] = False
 
     progress = get_fy_progress(db, year, tenant_id=tenant_id)
     org_actuals = {m["key"]: m["current"] for m in progress["metrics"]}
     org = {
-        "level": "ORG", "entity_id": ORG_ENTITY, "name": "Organization", "editable": True,
+        "level": "ORG", "entity_id": ORG_ENTITY, "name": "Organization", "editable": bu_ids is None,
         "metrics": _metric_cells("ORG", ORG_ENTITY, list(FY_METRICS), targets, org_actuals, company_nodes),
         "children": company_nodes,
     }
@@ -276,9 +289,22 @@ def _validate_entity(db: Session, tenant_id: int, level: str, entity_id: str) ->
             raise ValueError("Unknown business unit")
 
 
+def _ensure_can_set(db: Session, user: Users, level: str, entity_id: str) -> None:
+    """Org-level role templates set any target; anyone else only their own BUs' rows."""
+    from app.core.data_scope import visible_bu_ids
+
+    visible = visible_bu_ids(db, user)
+    if visible is None:
+        return
+    bu_id = entity_id.partition(":")[2]
+    if level != "BU" or not bu_id.isdigit() or int(bu_id) not in visible:
+        raise PermissionError("You can only set targets for your own business units")
+
+
 def set_goal_target(db: Session, user: Users, *, level: str, entity_id: str, metric: str,
                     target: Optional[float], year: Optional[int] = None) -> Optional[GoalTarget]:
-    """Create/update a target, or clear it with target=None. Raises ValueError on bad input."""
+    """Create/update a target, or clear it with target=None. Raises ValueError on bad input,
+    PermissionError when the row is outside the user's business units."""
     from app.services.fiscal_year_service import current_fy
     year = year or current_fy(db, user.tenant_id)
     if level not in GOAL_LEVELS:
@@ -289,6 +315,7 @@ def set_goal_target(db: Session, user: Users, *, level: str, entity_id: str, met
     if target is not None and target <= 0:
         raise ValueError("Target must be positive")
     tenant_id = user.tenant_id
+    _ensure_can_set(db, user, level, entity_id)
     _validate_entity(db, tenant_id, level, entity_id)
 
     row = db.query(GoalTarget).filter(

@@ -1,31 +1,25 @@
 """
-S-267/HRMS-0301 (BU Revenue Target) + PartnerGoal + S-241/HRMS-0212
-(Executive Revenue Dashboard) + S-244/HRMS-0215 (Pipeline Coverage).
+S-267/HRMS-0301 (BU Revenue Target) + S-241/HRMS-0212 (Executive Revenue Dashboard)
++ S-244/HRMS-0215 (Pipeline Coverage).
 
-Gated behind revenue.view_pnl throughout -- these are target-setting
-and P&L-adjacent figures, the same permission tier this codebase
-already uses for markup/margin-sensitive actions. No bespoke
-"revenue.set_target" permission exists yet; PartnerGoal additionally
-enforces CEO-only in the service layer (an RBAC-role question, not
-a permission-tier one -- see revenue_target_service.set_partner_goal()).
+Gated behind revenue permissions; every figure is narrowed to the business units the caller
+may see (app.core.data_scope) -- org-level role templates see the whole firm.
 """
-from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import require_resource_permission
+from app.core.data_scope import ensure_assignable, ensure_visible
 from app.core.revenue_visibility_scope import get_revenue_scoped_client_ids
 from app.models.user import Users
 from app.schemas.revenue_target import (
     BUTargetCreateRequest, BUTargetVsActualResponse, ExecutiveRevenueDashboardResponse,
-    PartnerGoalCreateRequest, PartnerGoalItem, PartnerMultiYearPositionResponse,
     PipelineCoverageResponse,
 )
 from app.services.revenue_target_service import (
     RevenueTargetValidationError, get_bu_target_vs_actual, get_executive_revenue_dashboard,
-    get_partner_multi_year_position, get_pipeline_coverage, set_bu_revenue_target, set_partner_goal,
+    get_pipeline_coverage, set_bu_revenue_target,
 )
 
 router = APIRouter(tags=["revenue-targets"])
@@ -41,6 +35,7 @@ def create_bu_target(
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
+    ensure_assignable(db, current_user, body.business_unit_id, "revenue target")
     try:
         set_bu_revenue_target(
             db, business_unit_id=body.business_unit_id, target_period=body.target_period,
@@ -63,6 +58,7 @@ def get_bu_target(
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
+    ensure_visible(db, current_user, business_unit_id, "Business unit", unassigned_visible=False)
     return get_bu_target_vs_actual(db, business_unit_id, target_period, fiscal_year)
 
 

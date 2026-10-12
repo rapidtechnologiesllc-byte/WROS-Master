@@ -13,6 +13,9 @@ Routes:
   GET /revenue-chain/summary   The same lines rolled up by employee, candidate,
                                job, project, client, business_unit or partner.
   GET /revenue-chain/pnl       Org P&L with every partner, business unit and client.
+
+Every route shows only the business units the caller may see (app.core.data_scope);
+org-level role templates see the whole firm.
 """
 import logging
 from datetime import date
@@ -22,6 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.data_scope import visible_bu_ids
 from app.core.dependencies import require_role_template_permission
 from app.models.user import Users
 from app.services import revenue_chain_service as chain
@@ -49,7 +53,8 @@ def revenue_chain_lines(
 ):
     _period(start, end)
     lines = chain.chain_lines(db, start=start, end=end, tenant_id=current_user.tenant_id, client_id=client_id,
-                              partner_user_id=partner_user_id, employee_id=employee_id)
+                              partner_user_id=partner_user_id, employee_id=employee_id,
+                              business_unit_ids=visible_bu_ids(db, current_user))
     return {"start": start, "end": end, "count": len(lines), "lines": lines}
 
 
@@ -63,7 +68,7 @@ def revenue_chain_summary(
 ):
     _period(start, end)
     lines = chain.chain_lines(db, start=start, end=end, tenant_id=current_user.tenant_id,
-                              partner_user_id=partner_user_id)
+                              partner_user_id=partner_user_id, business_unit_ids=visible_bu_ids(db, current_user))
     return {"start": start, "end": end, "group_by": group_by, "rows": chain.summarize(lines, group_by)}
 
 
@@ -74,4 +79,5 @@ def revenue_chain_pnl(
     current_user: Users = Depends(require_role_template_permission("revenue", "view")),
 ):
     _period(start, end)
-    return chain.pnl(db, start=start, end=end, tenant_id=current_user.tenant_id)
+    return chain.pnl(db, start=start, end=end, tenant_id=current_user.tenant_id,
+                     business_unit_ids=visible_bu_ids(db, current_user))

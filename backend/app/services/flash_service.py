@@ -629,13 +629,23 @@ def get_finance_pnl_answer(db: Session, user: Users, bu_name_query: str) -> Dict
     year, month = now.year, now.month
 
     if is_revenue_bu_scoped(db, user):
-        if user.business_unit_id is None:
+        from app.core.data_scope import visible_bu_ids
+
+        units = db.query(BusinessUnit).filter(BusinessUnit.id.in_(visible_bu_ids(db, user) or [-1])) \
+            .order_by(BusinessUnit.name).all()
+        if not units:
             return {"denied": False, "no_bu": True}
-        bu = db.query(BusinessUnit).filter(BusinessUnit.id == user.business_unit_id).first()
-        if bu_name_query and bu and bu_name_query.strip().lower() not in (bu.name or "").lower():
-            return {"denied": False, "other_bu_blocked": True, "own_bu_name": bu.name}
-        pnl = get_bu_pnl(db, business_unit_id=user.business_unit_id, year=year, month=month)
-        return {"denied": False, "scope": "bu", "bu_name": bu.name if bu else "your BU", "pnl": pnl}
+        if bu_name_query:
+            wanted = bu_name_query.strip().lower()
+            units_named = [u for u in units if wanted in (u.name or "").lower()]
+            if not units_named:
+                return {"denied": False, "other_bu_blocked": True, "own_bu_name": ", ".join(u.name for u in units)}
+            units = units_named
+        if len(units) > 1:
+            return {"denied": False, "choose_bu": [u.name for u in units]}
+        bu = units[0]
+        pnl = get_bu_pnl(db, business_unit_id=bu.id, year=year, month=month)
+        return {"denied": False, "scope": "bu", "bu_name": bu.name, "pnl": pnl}
 
     if bu_name_query:
         bu = db.query(BusinessUnit).filter(BusinessUnit.name.ilike(f"%{bu_name_query}%")).first()
@@ -652,6 +662,8 @@ def _format_finance_pnl_reply(result: Dict) -> str:
         return PERMISSION_DENIED_FINANCE_MESSAGE
     if result.get("no_bu"):
         return "You're not assigned to a Business Unit, so I can't look up P&L for you."
+    if result.get("choose_bu"):
+        return "Which Business Unit? You can see: " + ", ".join(result["choose_bu"]) + "."
     if result.get("other_bu_blocked"):
         return f"You can only see {result['own_bu_name']}'s P&L, not other Business Units."
     if result.get("bu_not_found"):
@@ -682,15 +694,16 @@ def _format_finance_pnl_reply(result: Dict) -> str:
 def get_ar_aging_answer(db: Session, user: Users) -> Dict:
     """Same permission gate as finance P&L (both are 'financial data'
     per Avinash's 2026-08-06 access rule) -- reuses ar_followup_service's
-    real scan_overdue_invoices(), no new query logic. AR aging isn't
-    inherently BU-scoped in the underlying data model (Invoice has no
-    business_unit_id), so a BU-scoped user (Partner/BU Head) sees
-    org-wide overdue invoices here just like they would for revenue.view
-    elsewhere -- flagged, not silently narrowed to a filter that doesn't
-    exist on the real Invoice table."""
+    real scan_overdue_invoices(). A BU-scoped user sees only invoices of
+    clients in their business units (Invoice -> Client.business_unit_id)."""
     if not can_view_pnl(db, user):
         return {"denied": True}
     overdue = scan_overdue_invoices(db, tenant_id=user.tenant_id)
+    if is_revenue_bu_scoped(db, user):
+        from app.core.data_scope import visible_client_ids
+
+        visible = {row[0] for row in db.execute(visible_client_ids(db, user, unassigned_visible=False)).all()}
+        overdue = [row for row in overdue if row["client_id"] in visible]
     return {"denied": False, "overdue": overdue}
 
 def _format_ar_aging_reply(result: Dict) -> str:
