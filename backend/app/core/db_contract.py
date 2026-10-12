@@ -390,6 +390,7 @@ def _initialize_leadership_roles():
             ensure_role(db, name, spec)
         _move_converted_employees_off_user_role(db)
         _initialize_role_authority(db)
+        _initialize_bu_location_heads(db)
     except Exception:
         db.rollback()
         raise
@@ -427,6 +428,16 @@ def _initialize_role_authority(db):
                             config_key=ROLE_AUTHORITY_SEED_KEY, config_value={"org_level_access": list(ORG_LEVEL_SEED_ROLES)}))
         db.commit()
         logger.info(f"[Contract] Set org_level_access on {updated} seeded role template(s) for tenant {tenant_id}")
+
+
+def _initialize_bu_location_heads(db):
+    """BU heads are per company (BusinessUnitLocationHead). Carry any old single
+    BusinessUnit.manager_id over once (idempotent: it is cleared after the move)."""
+    from app.services.bu_leadership import carry_over_single_heads
+
+    moved = carry_over_single_heads(db)
+    if moved:
+        logger.info(f"[Contract] Carried {moved} BU head(s) over to per-company heads")
 
 
 def _move_converted_employees_off_user_role(db):

@@ -29,7 +29,7 @@ import logging
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Set
 
 from sqlalchemy.orm import Session
 
@@ -114,8 +114,10 @@ def chain_lines(
     db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
     client_id: Optional[str] = None, partner_user_id: Optional[str] = None,
     employee_id: Optional[str] = None, costs: Optional[CostBook] = None,
+    business_unit_ids: Optional[Set[int]] = None,
 ) -> List[Dict]:
-    """Every client-allocated timesheet whose week starts in [start, end], traced end to end."""
+    """Every client-allocated timesheet whose week starts in [start, end], traced end to end.
+    business_unit_ids (None = all) keeps only lines of clients in those business units."""
     costs = costs or CostBook(db)
     query = db.query(Timesheet, EmployeeAllocation).join(
         EmployeeAllocation, Timesheet.allocation_id == EmployeeAllocation.id
@@ -149,6 +151,8 @@ def chain_lines(
         unit = units.get(client.business_unit_id) if client else None
         partner_id = unit.partner_user_id if unit and unit.partner_user_id else None
         if partner_user_id and (partner_id or UNASSIGNED) != partner_user_id:
+            continue
+        if business_unit_ids is not None and (unit is None or unit.id not in business_unit_ids):
             continue
         job = jobs.get(allocation.demand_id)
         project = projects.get(allocation.project_id)
@@ -246,12 +250,15 @@ def summarize(lines: List[Dict], group_by: str) -> List[Dict]:
     return sorted(rows, key=lambda r: r["earned_usd_cents"], reverse=True)
 
 
-def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None) -> Dict:
-    """Org P&L for [start, end] with every partner and business unit underneath it."""
+def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
+        business_unit_ids: Optional[Set[int]] = None) -> Dict:
+    """Org P&L for [start, end] with every partner and business unit underneath it.
+    business_unit_ids (None = the whole org) narrows revenue, staff and expenses to those BUs."""
     if end < start:
         raise ValueError("end must be on or after start")
     costs = CostBook(db)
-    lines = chain_lines(db, start=start, end=end, tenant_id=tenant_id, costs=costs)
+    lines = chain_lines(db, start=start, end=end, tenant_id=tenant_id, costs=costs,
+                        business_unit_ids=business_unit_ids)
 
     delivery_by_employee: Dict[str, int] = defaultdict(int)
     for line in lines:
@@ -265,6 +272,8 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None)
     )
     if tenant_id is not None:
         staff = staff.filter(Employee.tenant_id == tenant_id)
+    if business_unit_ids is not None:
+        staff = staff.filter(Employee.bu_id.in_(business_unit_ids or [-1]))
     staff = staff.all()
     units = {u.id: u for u in db.query(BusinessUnit).all()}
 
@@ -281,7 +290,7 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None)
             continue
         bench_rows[bucket]["bench_cost_usd_cents"] += max(0, payroll - delivery_by_employee.get(employee.id, 0))
 
-    expenses, pending_expenses = _expenses(db, start, end, tenant_id, units)
+    expenses, pending_expenses = _expenses(db, start, end, tenant_id, units, business_unit_ids)
 
     def expense_for(index: int, key) -> int:
         return sum(e["amount"] for e in expenses if e["key"][index] == key)
@@ -338,7 +347,8 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None)
     }
 
 
-def _expenses(db: Session, start: date, end: date, tenant_id: Optional[int], units: Dict):
+def _expenses(db: Session, start: date, end: date, tenant_id: Optional[int], units: Dict,
+              business_unit_ids: Optional[Set[int]] = None):
     """Manager-approved expenses dated in the period, keyed (partner, business unit, client):
     the client's business unit when the expense is for a client, else the logger's.
     Pending expenses are totalled separately; rejected ones never count."""
@@ -351,13 +361,15 @@ def _expenses(db: Session, start: date, end: date, tenant_id: Optional[int], uni
     clients = _by_id(db, Client, Client.id, (r.client_id for r in records))
     out, pending = [], 0
     for record in records:
+        client = clients.get(record.client_id)
+        bu_id = client.business_unit_id if client and client.business_unit_id else record.business_unit_id
+        if business_unit_ids is not None and bu_id not in business_unit_ids:
+            continue
         if record.manager_approval_status == "PENDING":
             pending += record.amount_usd_cents
             continue
         if record.manager_approval_status != "APPROVED":
             continue
-        client = clients.get(record.client_id)
-        bu_id = client.business_unit_id if client and client.business_unit_id else record.business_unit_id
         unit = units.get(bu_id)
         partner = unit.partner_user_id if unit and unit.partner_user_id else UNASSIGNED
         out.append({"key": (partner, bu_id, record.client_id), "amount": record.amount_usd_cents})

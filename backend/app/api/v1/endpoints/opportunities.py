@@ -23,9 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import require_resource_permission
-from app.core.revenue_visibility_scope import get_revenue_scoped_client_ids
 from app.models.client import Client
-from app.models.demand import Demand
 from app.models.employee import Employee
 from app.models.opportunity import OPPORTUNITY_STAGES, Opportunity
 from app.models.user import Users
@@ -41,6 +39,7 @@ from app.services.opportunity_service import (
     transition_stage,
 )
 
+from app.core.data_scope import client_bu_id, client_filter, ensure_visible
 router = APIRouter(prefix="/opportunities", tags=["opportunities"])
 
 def _to_item(db: Session, opportunity: Opportunity) -> OpportunityItem:
@@ -69,11 +68,17 @@ def _to_item(db: Session, opportunity: Opportunity) -> OpportunityItem:
     )
 
 def _scoped_query(db: Session, current_user: Users):
-    query = db.query(Opportunity)
-    client_ids = get_revenue_scoped_client_ids(db, current_user)
-    if client_ids is not None:
-        query = query.filter(Opportunity.client_id.in_(client_ids))
-    return query
+    """Opportunities of the caller's tenant whose client is in a business unit they may see
+    (an opportunity belongs to its client's BU -- app.core.data_scope)."""
+    return db.query(Opportunity).filter(Opportunity.tenant_id == current_user.tenant_id,
+                                        client_filter(db, current_user, Opportunity.client_id))
+
+
+def _get_opportunity_or_404(db: Session, opportunity_id: str, current_user: Users) -> Opportunity:
+    opportunity = _scoped_query(db, current_user).filter(Opportunity.id == opportunity_id).first()
+    if not opportunity:
+        raise HTTPException(status_code=404, detail=f"Opportunity {opportunity_id!r} not found.")
+    return opportunity
 
 @router.post(
     "",
@@ -86,6 +91,7 @@ def create_opportunity_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
+    ensure_visible(db, current_user, client_bu_id(db, body.client_id), "Client")
     try:
         opportunity = create_opportunity(
             db, tenant_id=current_user.tenant_id, client_id=body.client_id,
@@ -183,9 +189,7 @@ def get_opportunity(
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
-    opportunity = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
-    if not opportunity:
-        raise HTTPException(status_code=404, detail=f"Opportunity {opportunity_id!r} not found.")
+    opportunity = _get_opportunity_or_404(db, opportunity_id, current_user)
     return _to_item(db, opportunity)
 
 @router.post(
@@ -199,9 +203,7 @@ def transition_opportunity_stage(
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
-    opportunity = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
-    if not opportunity:
-        raise HTTPException(status_code=404, detail=f"Opportunity {opportunity_id!r} not found.")
+    opportunity = _get_opportunity_or_404(db, opportunity_id, current_user)
     try:
         result = transition_stage(
             db, opportunity, body.new_stage,
@@ -229,9 +231,7 @@ def get_revenue_rollup(
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
-    opportunity = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
-    if not opportunity:
-        raise HTTPException(status_code=404, detail=f"Opportunity {opportunity_id!r} not found.")
+    opportunity = _get_opportunity_or_404(db, opportunity_id, current_user)
     return {"opportunity_id": opportunity_id, "role_demand_revenue_usd_cents": get_opportunity_revenue_rollup(db, opportunity)}
 
 @router.post(
@@ -246,9 +246,7 @@ def create_role_demand(
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
-    opportunity = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
-    if not opportunity:
-        raise HTTPException(status_code=404, detail=f"Opportunity {opportunity_id!r} not found.")
+    opportunity = _get_opportunity_or_404(db, opportunity_id, current_user)
     try:
         demand = create_role_demand_from_opportunity(
             db, opportunity, tenant_id=current_user.tenant_id,

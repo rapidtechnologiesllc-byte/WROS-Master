@@ -95,43 +95,28 @@ def get_all_users(
     db: Session = Depends(get_db),
     user = Depends(get_current_internal_user)
 ):
-    """Get all users (HR, Admin, etc.) from the system."""
-    try:
-        logger.info("get_all_users: Starting query")
-        users = db.query(Users).all()
-        logger.info(f"get_all_users: Found {len(users)} users")
-
-        users_data = []
-        for idx, u in enumerate(users):
-            try:
-                logger.info(f"get_all_users: Processing user {idx+1}/{len(users)} - UserID={u.UserID}")
-                # role_template_id is now mandatory - no need to check for None
-                role_template = db.query(RoleTemplate).filter(RoleTemplate.id == u.role_template_id).first()
-                logger.info(f"get_all_users: Creating UserResponse for {u.UserID}")
-
-                users_data.append(UserResponse(
-                    user_id=u.UserID,
-                    user_name=u.UserName or "",
-                    user_email=u.UserEmail,
-                    user_role=u.UserRole,
-                    job_title=u.job_title,
-                    role_template_id=u.role_template_id,
-                    created_at=u.CreatedAt,
-                    permission_role=(role_template.name if role_template else None),
-                    department_id=u.department_id,
-                    department_name=(u.department.name if (u.department and hasattr(u.department, 'name')) else None),
-                    business_unit_id=u.business_unit_id,
-                    business_unit_name=(u.business_unit.name if (u.business_unit and hasattr(u.business_unit, 'name')) else None),
-                ))
-            except Exception as e:
-                logger.error(f"Error processing user {u.UserID}: {str(e)}", exc_info=True)
-                continue
-
-        logger.info(f"get_all_users: Returning {len(users_data)} users")
-        return AllUsersResponse(total_users=len(users_data), users=users_data)
-    except Exception as e:
-        logger.error(f"CRITICAL: get_all_users failed: {str(e)}", exc_info=True)
-        raise
+    """Every user of the caller's tenant (HR, Admin, etc.)."""
+    users = db.query(Users).filter(Users.tenant_id == user.tenant_id).all()
+    templates = {t.id: t.name for t in db.query(RoleTemplate).filter(
+        RoleTemplate.id.in_({u.role_template_id for u in users if u.role_template_id})).all()}
+    users_data = [
+        UserResponse(
+            user_id=u.UserID,
+            user_name=u.UserName or "",
+            user_email=u.UserEmail,
+            user_role=u.UserRole,
+            job_title=u.job_title,
+            role_template_id=u.role_template_id,
+            created_at=u.CreatedAt,
+            permission_role=templates.get(u.role_template_id),
+            department_id=u.department_id,
+            department_name=u.department.name if u.department else None,
+            business_unit_id=u.business_unit_id,
+            business_unit_name=u.business_unit.name if u.business_unit else None,
+        )
+        for u in users
+    ]
+    return AllUsersResponse(total_users=len(users_data), users=users_data)
 
 @router.get(
     "/users/search",
@@ -184,7 +169,7 @@ def search_users(
 
     # HRMS-0109 -- scope to the caller's tenant before any of the
     # optional filters below narrow it further.
-    query = db.query(Users)
+    query = db.query(Users).filter(Users.tenant_id == user.tenant_id)
 
     # â"€â"€ name filter â€" partial match on UserName OR UserEmail â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     if name:
@@ -278,7 +263,7 @@ def get_user_details_by_id(
     """
     Retrieve user details by their User ID, including department and business unit.
     """
-    u = db.query(Users).filter(Users.UserID == user_id).first()
+    u = db.query(Users).filter(Users.UserID == user_id, Users.tenant_id == current_user.tenant_id).first()
     if not u:
         raise HTTPException(
             status_code=404,
@@ -343,7 +328,7 @@ def create_candidate_assignment(
 
     if request.hiring_manager_id:
         try:
-            hiring_manager = db.query(Users).filter(Users.UserID == request.hiring_manager_id).first()
+            hiring_manager = db.query(Users).filter(Users.UserID == request.hiring_manager_id, Users.tenant_id == user.tenant_id).first()
         except Exception as query_error:
             logger.error(f"Failed to query hiring manager {request.hiring_manager_id}: {query_error}", exc_info=True)
             raise
@@ -356,7 +341,7 @@ def create_candidate_assignment(
 
     if request.reporting_manager_id:
         try:
-            reporting_manager = db.query(Users).filter(Users.UserID == request.reporting_manager_id).first()
+            reporting_manager = db.query(Users).filter(Users.UserID == request.reporting_manager_id, Users.tenant_id == user.tenant_id).first()
         except Exception as query_error:
             logger.error(f"Failed to query reporting manager {request.reporting_manager_id}: {query_error}", exc_info=True)
             raise
@@ -866,7 +851,7 @@ def update_user(
         raise ValueError("user_id is required")
 
     try:
-        target = db.query(Users).filter(Users.UserID == user_id).first()
+        target = db.query(Users).filter(Users.UserID == user_id, Users.tenant_id == current_user.tenant_id).first()
     except Exception as query_error:
         logger.error(f"Failed to query user {user_id}: {query_error}", exc_info=True)
         raise
@@ -953,7 +938,7 @@ def delete_user(
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
     try:
-        target = db.query(Users).filter(Users.UserID == user_id).first()
+        target = db.query(Users).filter(Users.UserID == user_id, Users.tenant_id == current_user.tenant_id).first()
     except Exception as query_error:
         logger.error(f"Failed to query user {user_id}: {query_error}", exc_info=True)
         raise
@@ -1198,7 +1183,7 @@ def admin_reset_password(
     """
 
     # Find target user
-    target_user = db.query(Users).filter(Users.UserID == user_id).first()
+    target_user = db.query(Users).filter(Users.UserID == user_id, Users.tenant_id == current_user.tenant_id).first()
     if not target_user:
         raise HTTPException(
             status_code=404,
@@ -1252,7 +1237,7 @@ def get_user_by_id(
         HTTPException 404: If the user is not found.
     """
 
-    target = db.query(Users).filter(Users.UserID == user_id).first()
+    target = db.query(Users).filter(Users.UserID == user_id, Users.tenant_id == current_user.tenant_id).first()
     if not target:
         raise HTTPException(
             status_code=404,

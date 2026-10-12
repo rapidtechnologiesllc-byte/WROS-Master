@@ -10,7 +10,7 @@ from app.core.config import settings
 from app.models.role_template import Resource, RoleTemplate, RoleTemplatePermission
 from app.models.business_unit import BusinessUnit
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import Dict, List, Optional
 import json
 
 from app.core.audit import write_audit_log
@@ -542,9 +542,11 @@ class BusinessUnitCreateRequest(BaseModel):
     # Companies (legal entities, e.g. BX-US, BX-IN) the BU operates in.
     # None leaves unchanged; [] clears.
     company_ids: Optional[List[str]] = None
-    # Users; "" clears, None leaves unchanged
+    # Users; "" clears, None leaves unchanged. One partner for the whole BU.
     partner_user_id: Optional[str] = None
-    head_user_id: Optional[str] = None
+    # BU head per company the BU operates in: {company_id: user_id, "" clears that company}.
+    # None leaves all heads unchanged; companies not listed are left as they are.
+    location_heads: Optional[Dict[str, str]] = None
 
 
 # Who may be named on a BU: by role template hierarchy level (app.core.authority), not role name
@@ -574,9 +576,10 @@ def _leader(db: Session, tenant_id: int, user_id: str, min_level: int, label: st
 
 
 def _set_bu_structure(db: Session, bu: BusinessUnit, tenant_id: int, req: BusinessUnitCreateRequest) -> None:
-    """Validate and apply companies, partner and BU head."""
+    """Validate and apply companies, partner and the BU head in each company."""
     from app.models.business_unit import BusinessUnitCompany
     from app.models.location import Location
+    from app.services import bu_leadership
 
     if req.company_ids is not None:
         wanted = set(req.company_ids)
@@ -590,31 +593,41 @@ def _set_bu_structure(db: Session, bu: BusinessUnit, tenant_id: int, req: Busine
                 db.delete(row)
         for company_id in wanted - set(current):
             db.add(BusinessUnitCompany(tenant_id=tenant_id, business_unit_id=bu.id, company_id=company_id))
+        db.flush()
+        bu_leadership.drop_heads_outside(db, bu.id, wanted)
 
     if req.partner_user_id is not None:
         bu.partner_user_id = _leader(db, tenant_id, req.partner_user_id, settings.PARTNER_MIN_LEVEL, "Partner").UserID if req.partner_user_id else None
-    if req.head_user_id is not None:
-        bu.manager_id = _leader(db, tenant_id, req.head_user_id, settings.BU_LEADER_MIN_LEVEL, "BU Head").UserID if req.head_user_id else None
+    if req.location_heads is not None:
+        try:
+            bu_leadership.set_location_heads(
+                db, bu, tenant_id, req.location_heads,
+                lambda user_id: _leader(db, tenant_id, user_id, settings.BU_LEADER_MIN_LEVEL, "BU Head"))
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
 
 
 def _bu_dict(db: Session, bu: BusinessUnit) -> dict:
     from app.models.business_unit import BusinessUnitCompany
     from app.models.location import Location
+    from app.services.bu_leadership import location_heads
 
     companies = (
         db.query(Location).join(BusinessUnitCompany, BusinessUnitCompany.company_id == Location.id)
         .filter(BusinessUnitCompany.business_unit_id == bu.id).order_by(Location.name).all()
     )
     person = lambda u: {"user_id": u.UserID, "name": u.UserName or u.UserEmail} if u else None
+    heads = location_heads(db, bu.id)
     return {
         "id": bu.id,
         "name": bu.name,
         "display_name": bu.display_name,
         "description": bu.description,
         "active": bu.active,
-        "companies": [{"id": c.id, "name": c.name} for c in companies],
+        # each company the BU operates in, with the BU head there
+        "companies": [{"id": c.id, "name": c.name, "head": person(heads[c.id].head) if c.id in heads else None}
+                      for c in companies],
         "partner": person(bu.partner),
-        "head": person(bu.manager),
     }
 
 @rbac_router.get("/business-units/leader-options", dependencies=[Depends(require_resource_permission("business-units", "view"))])

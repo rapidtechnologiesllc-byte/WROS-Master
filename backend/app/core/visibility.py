@@ -52,18 +52,15 @@ def get_user_bu_id(user: Users) -> int | None:
 
 def get_user_bu_ids(db, user: Users) -> set[int] | None:
     """
-    Every BU a BU-scoped user may see: their own BU, the BUs they own as
-    Partner, and the BUs they run as BU Head. None = org-level (no filter).
+    The business units a BU-scoped user may see (CEO 2026-10-12: by business unit only,
+    never by location): the BUs they partner, the BUs they head in any company, and their
+    own BU. None = org-level (role template org_level_access) -- no filter.
     """
-    from app.models.business_unit import BusinessUnit
+    from app.services.bu_leadership import led_business_units
 
     if should_bypass_bu_filter(user):
         return None
-    ids = {
-        bu_id for (bu_id,) in db.query(BusinessUnit.id).filter(
-            (BusinessUnit.partner_user_id == user.UserID) | (BusinessUnit.manager_id == user.UserID)
-        )
-    }
+    ids = led_business_units(db, user)
     if user.business_unit_id is not None:
         ids.add(user.business_unit_id)
     return ids
@@ -113,8 +110,7 @@ def resolve_dashboard_head_bu(db, user: Users, requested_bu_id: int | None) -> t
     else:
         rows = db.query(BusinessUnit).filter(
             BusinessUnit.active == True,  # noqa: E712
-            (BusinessUnit.manager_id == user.UserID) | (BusinessUnit.partner_user_id == user.UserID)
-            | (BusinessUnit.id == user.business_unit_id),
+            BusinessUnit.id.in_(get_user_bu_ids(db, user) or set()),
         ).order_by(BusinessUnit.name).all()
         allowed = [{"id": bu.id, "name": bu.display_name or bu.name} for bu in rows]
     allowed_ids = {b["id"] for b in allowed}

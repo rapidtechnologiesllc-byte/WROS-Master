@@ -1,46 +1,20 @@
 """
-S-242 (Forecast vs Actual) + S-243 (Revenue Leakage Detection).
+S-242 (Forecast vs Actual). Revenue leakage lives in revenue.py (/revenue/leakage).
 
-Gated behind revenue.view / revenue.view_pnl same as every other
-EPIC-02 screen, BU-scoped via the same get_revenue_scoped_client_ids()/
-apply_revenue_bu_scope_to_client_query() mechanism revenue_targets.py
-already established -- not a second scoping implementation.
+Gated behind forecasts.view + revenue.view, BU-scoped via get_revenue_scoped_client_ids
+(app.core.data_scope) -- the one rule every screen uses.
 """
-from typing import List, Optional
-
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import require_resource_permission
-from app.core.revenue_visibility_scope import (
-    apply_revenue_bu_scope_to_client_query, get_revenue_scoped_client_ids, is_revenue_bu_scoped,
-)
-from app.models.client import Client
-from app.models.pipeline_leakage import PipelineLeakageFlag
+from app.core.revenue_visibility_scope import get_revenue_scoped_client_ids
 from app.models.user import Users
-from app.schemas.forecast_and_leakage import (
-    ForecastVsActualResponse, ForecastVsActualTrendResponse, PipelineLeakageFlagItem,
-    PipelineLeakageScanResponse, ResolveLeakageFlagRequest,
-)
-from app.services.forecast_variance_service import (
-    get_forecast_vs_actual, get_forecast_vs_actual_by_bu, get_forecast_vs_actual_trend,
-)
-from app.services.pipeline_leakage_service import (
-    get_active_leakage_flags, resolve_leakage_flag, scan_all_leakage,
-)
+from app.schemas.forecast_and_leakage import ForecastVsActualResponse, ForecastVsActualTrendResponse
+from app.services.forecast_variance_service import get_forecast_vs_actual, get_forecast_vs_actual_trend
 
 router = APIRouter(tags=["forecast-and-leakage"])
-
-def _caller_business_unit_ids(db: Session, current_user: Users) -> Optional[List[int]]:
-    """None = org-wide (Super User/Finance/HR Manager). A real list =
-    scoped to whichever BU(s) the caller's own client-visibility
-    resolves to (Partner/BU Head) -- reuses the same client-scoping
-    query rather than a second BU-membership lookup."""
-    if not is_revenue_bu_scoped(db, current_user):
-        return None
-    query = apply_revenue_bu_scope_to_client_query(db, db.query(Client.business_unit_id).distinct(), current_user)
-    return [row[0] for row in query.all() if row[0] is not None]
 
 @router.get(
     "/forecast-vs-actual",

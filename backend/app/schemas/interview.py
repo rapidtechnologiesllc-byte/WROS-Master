@@ -352,6 +352,7 @@ class HMCandidateReviewListResponse(BaseModel):
     hiring_manager_id: str
     hiring_manager_name: str
     total_candidates: int
+    candidates: List[HMCandidateReviewItem]
 
 # ============================================
 # Rehire Guard Schemas (2026-08-05)
@@ -386,7 +387,6 @@ class RehireReviewListResponse(BaseModel):
 class RehireReviewDecideRequest(BaseModel):
     decision: str = Field(..., description="'approve' or 'reject'")
     note: Optional[str] = None
-    candidates: List[HMCandidateReviewItem]
 
 
 class RoundLevelRequest(BaseModel):
