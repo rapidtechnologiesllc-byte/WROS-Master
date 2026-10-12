@@ -38,6 +38,7 @@ from app.services.client_service import (
     set_client_business_unit, update_client_details,
 )
 
+from app.core.data_scope import bu_filter, ensure_assignable, ensure_visible
 router = APIRouter(prefix="/clients", tags=["clients"])
 
 def _bu_name_map(db: Session, bu_ids) -> dict:
@@ -78,6 +79,16 @@ def _employee_name_map(db: Session, employee_ids) -> dict:
         for e in db.query(Employee).filter(Employee.id.in_(ids)).all()
     }
 
+def _get_client_or_404(db: Session, client_id: str, user) -> Client:
+    """The client, if it is in the caller's tenant and business units (app.core.data_scope);
+    404 otherwise -- the same answer as a client that does not exist."""
+    client = db.query(Client).filter(Client.id == client_id, Client.tenant_id == user.tenant_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail=f"Client {client_id!r} not found.")
+    ensure_visible(db, user, client.business_unit_id, "Client")
+    return client
+
+
 @router.get(
     "",
     response_model=ClientListResponse,
@@ -88,7 +99,9 @@ def list_clients(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_internal_user),
 ):
-    query = db.query(Client)
+    # the caller's tenant, and only the business units they may see (plus unassigned prospects)
+    query = db.query(Client).filter(Client.tenant_id == current_user.tenant_id,
+                                    bu_filter(db, current_user, Client.business_unit_id))
     if active_only:
         query = query.filter(Client.status != "INACTIVE")
     clients = query.order_by(Client.company_name).all()
@@ -151,39 +164,31 @@ def list_account_manager_options(
 )
 def get_business_unit_assignments(
     business_unit_id: int,
+    client_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_internal_user),
 ):
-    """Resolves a BU's designated BU Head + HR Manager for Job-creation
-    auto-assignment (agentic-first mandate -- the agent resolves what it
-    already knows, no manual lookup step). Employee -> Users resolution
-    is by email match (this codebase has no direct employees->users FK;
-    Employee.email and Users.UserEmail are the only shared key) --
-    user_id is None if no matching Users row exists for that email, so
-    the caller can fall back to manual assignment rather than silently
-    failing."""
+    """Who runs this business unit for a new job, so Job Create can pre-fill it: the BU head
+    in the client's contracting company (BU heads are per company -- bu_leadership), or the
+    only head when the BU operates in one company. hr_manager is None: no BU-level HR
+    manager is recorded anywhere (it lived on a model nothing writes). The BU must be one
+    the caller may see."""
+    from app.services.bu_leadership import head_for_client
 
-    bu = db.query(BusinessUnit).filter(BusinessUnit.id == business_unit_id).first()
+    bu = db.query(BusinessUnit).filter(BusinessUnit.id == business_unit_id,
+                                       BusinessUnit.tenant_id == current_user.tenant_id).first()
     if bu is None:
         raise HTTPException(status_code=404, detail=f"Business unit {business_unit_id} not found.")
-
-    def _resolve(employee_id: Optional[str]):
-        if employee_id is None:
-            return None
-        employee = db.query(Employee).filter(Employee.id == employee_id).first()
-        if employee is None:
-            return None
-        user = db.query(Users).filter(Users.UserEmail == employee.email).first()
-        return {
-            "employee_id": employee.id, "name": f"{employee.first_name} {employee.last_name}",
-            "email": employee.email, "user_id": user.UserID if user else None,
-        }
-
+    ensure_visible(db, current_user, bu.id, "Business unit")
+    head_id = head_for_client(db, bu.id, client_id)
+    head = db.query(Users).filter(Users.UserID == head_id).first() if head_id else None
     return {
         "business_unit_id": business_unit_id,
-        "bu_head": _resolve(bu.bu_head_employee_id),
-        "hr_manager": _resolve(bu.hr_manager_employee_id),
+        "bu_head": {"user_id": head.UserID, "name": head.UserName or head.UserEmail, "email": head.UserEmail}
+        if head else None,
+        "hr_manager": None,
     }
+
 
 @router.post(
     "",
@@ -202,6 +207,7 @@ def create_client_endpoint(
             resolve_account_manager_user(db, body.account_manager_user_id, current_user.tenant_id)
             if body.account_manager_user_id else None
         )
+        ensure_assignable(db, current_user, body.business_unit_id, "client")
         client = create_client(
             db,
             company_name=body.company_name,
@@ -264,9 +270,7 @@ def get_client_endpoint(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_internal_user),
 ):
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise HTTPException(status_code=404, detail=f"Client {client_id!r} not found.")
+    client = _get_client_or_404(db, client_id, current_user)
     return _to_detail_response(db, client)
 
 @router.get(
@@ -279,9 +283,7 @@ def list_client_contacts_endpoint(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_internal_user),
 ):
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise HTTPException(status_code=404, detail=f"Client {client_id!r} not found.")
+    _get_client_or_404(db, client_id, current_user)
     contacts = db.query(ClientContact).filter(ClientContact.client_id == client_id).all()
     return ClientContactsListResponse(contacts=contacts)
 
@@ -297,9 +299,7 @@ def add_client_contact_endpoint(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_internal_user),
 ):
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise HTTPException(status_code=404, detail=f"Client {client_id!r} not found.")
+    client = _get_client_or_404(db, client_id, current_user)
     try:
         contact = add_client_contact(
             db, client, name=body.name, email=body.email, role_type=body.role_type, phone=body.phone,
@@ -321,9 +321,7 @@ def update_client_endpoint(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_internal_user),
 ):
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise HTTPException(status_code=404, detail=f"Client {client_id!r} not found.")
+    client = _get_client_or_404(db, client_id, current_user)
     updates = body.dict(exclude_unset=True)
     # account_manager_employee_id ("Client Owner") has its own real
     # audit-history + notification path (assign_account_manager, HRMS-0709)
@@ -339,6 +337,7 @@ def update_client_endpoint(
         if has_company:
             _set_contracting_company(db, client, company_id or "", current_user.tenant_id)
         if business_unit_id is not None:
+            ensure_assignable(db, current_user, business_unit_id, "client")
             client = set_client_business_unit(db, client, business_unit_id, current_user.tenant_id)
         if updates:
             client = update_client_details(db, client, updates)

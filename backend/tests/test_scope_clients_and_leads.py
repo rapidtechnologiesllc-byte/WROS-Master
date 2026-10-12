@@ -53,8 +53,8 @@ def test_cannot_edit_or_take_another_bus_client(w, api):
 def test_opportunities_follow_their_client(db, w, api):
     from app.models.opportunity import Opportunity
 
-    opp_a = Opportunity(tenant_id=1, client_id=w.client_a.id, name="Opp A")
-    opp_b = Opportunity(tenant_id=1, client_id=w.client_b.id, name="Opp B")
+    opp_a = Opportunity(tenant_id=1, client_id=w.client_a.id, revenue_value_usd_cents=100000)
+    opp_b = Opportunity(tenant_id=1, client_id=w.client_b.id, revenue_value_usd_cents=100000)
     db.add_all([opp_a, opp_b])
     db.commit()
     listed = ids(api.get(w.partner_a, "/api/v1/opportunities").json())

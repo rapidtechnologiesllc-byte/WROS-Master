@@ -294,8 +294,9 @@ export default function JobCreate({
         return;
       }
       try {
+        const clientId = clientList?.find((c) => c?.company_name === companyClient)?.id;
         const assignments = await getBusinessUnitAssignments(
-          selectedBusinessUnit
+          selectedBusinessUnit, clientId
         );
         setResolvedBuHead(assignments?.bu_head || null);
         setResolvedHrManager(assignments?.hr_manager || null);
@@ -309,7 +310,7 @@ export default function JobCreate({
       }
     };
     resolveAssignments();
-  }, [selectedBusinessUnit, contactPerson]);
+  }, [selectedBusinessUnit, contactPerson, clientList, companyClient]);
 
   useEffect(() => {
     const loadHiringManagers = async () => {
