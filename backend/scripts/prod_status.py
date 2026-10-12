@@ -69,7 +69,9 @@ def web_status():
        "dig +time=3 +tries=1 @8.8.8.8 hrms.blitzenx.com A | grep -E 'status:|AUTHORITY' ")
     sh("Domain registration (whois)",
        "timeout 10 whois blitzenx.com 2>&1 | grep -iE 'expir|status:|name server|registrar:' | head -12")
-    sh("This server's public IP", "curl -s --max-time 5 https://api.ipify.org; echo")
+    # Printed with "_" between the parts so the phone-number mask doesn't hide it: it is what
+    # the site's DNS A record must point to.
+    sh("This server's public IP (dots shown as _)", "curl -s --max-time 5 https://api.ipify.org | tr . _; echo")
     sh("nginx running", "systemctl is-active nginx 2>&1; pgrep -c nginx")
     sh("Listening on 80/443", "ss -ltn | awk 'NR==1 || /:80 |:443 /'")
     sh("HTTPS certificate (served for the site)",
