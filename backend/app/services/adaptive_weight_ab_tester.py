@@ -22,10 +22,25 @@ from app.models.ab_test_deployment import (
     ABTestStageMetrics,
 )
 from app.models.genetic_weight_population import GeneticWeightChromosome
-from scipy import stats
+import math
+import random
 
 logger = logging.getLogger(__name__)
 
+
+
+def chi2_2x2_p_value(table) -> float:
+    """p-value of Pearson's chi-square test on a 2x2 table with Yates' continuity
+    correction -- what scipy.stats.chi2_contingency returns for 1 degree of freedom,
+    without the scipy dependency. A table with an empty row or column carries no
+    evidence: p = 1.0."""
+    (a, b), (c, d) = table
+    n = a + b + c + d
+    margins = (a + b) * (c + d) * (a + c) * (b + d)
+    if n == 0 or margins == 0:
+        return 1.0
+    chi2 = n * max(0.0, abs(a * d - b * c) - n / 2) ** 2 / margins
+    return math.erfc(math.sqrt(chi2 / 2))
 
 class AdaptiveWeightABTester:
     """A/B test weight variants using Thompson sampling"""
@@ -106,18 +121,14 @@ class AdaptiveWeightABTester:
             1.0
             if len(baseline_decisions) == 0
             else max(0.0, min(1.0,
-                stats.beta.rvs(
-                    baseline_successes + 1, baseline_failures + 1
-                )
+                random.betavariate(baseline_successes + 1, baseline_failures + 1)
             ))
         )
         variant_sample = (
             1.0
             if len(variant_decisions) == 0
             else max(0.0, min(1.0,
-                stats.beta.rvs(
-                    variant_successes + 1, variant_failures + 1
-                )
+                random.betavariate(variant_successes + 1, variant_failures + 1)
             ))
         )
 
@@ -194,10 +205,7 @@ class AdaptiveWeightABTester:
             ],
         ]
 
-        try:
-            chi2, p_value, dof, expected = stats.chi2_contingency(contingency_table)
-        except:
-            p_value = 1.0
+        p_value = chi2_2x2_p_value(contingency_table)
 
         # Compute 95% confidence interval using proportions
         variant_ci_lower = (

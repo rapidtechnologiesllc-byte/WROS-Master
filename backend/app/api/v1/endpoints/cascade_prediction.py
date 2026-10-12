@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_resource_permission
 from app.models.candidate import Candidate
-from app.models.jobs import Jobs
+from app.models.user import Jobs
 from app.services.cross_module_intelligence import CrossModuleIntelligence
 from app.core.logging import logger
 
@@ -62,7 +62,7 @@ class CascadePredictionResponse(BaseModel):
 @router.get(
     "/{candidate_id}/{job_id}",
     response_model=CascadePredictionResponse,
-    dependencies=[Depends(require_resource_permission("opportunity", "view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Get cascade success prediction for candidate + job",
 )
 def get_cascade_prediction(
@@ -107,7 +107,7 @@ def get_cascade_prediction(
             raise HTTPException(status_code=404, detail="Candidate not found")
 
         job = db.query(Jobs).filter(
-            Jobs.id == int(job_id),
+            Jobs.jobID == job_id,
             Jobs.tenant_id == current_user.tenant_id
         ).first()
 
@@ -151,7 +151,7 @@ def get_cascade_prediction(
 @router.post(
     "/evaluate",
     response_model=List[CascadePredictionResponse],
-    dependencies=[Depends(require_resource_permission("opportunity", "view"))],
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
     summary="Bulk evaluate cascade predictions for candidates",
 )
 def bulk_evaluate_predictions(
@@ -185,7 +185,7 @@ def bulk_evaluate_predictions(
                     continue
 
                 job = db.query(Jobs).filter(
-                    Jobs.id == int(req.job_id),
+                    Jobs.jobID == req.job_id,
                     Jobs.tenant_id == current_user.tenant_id
                 ).first()
 

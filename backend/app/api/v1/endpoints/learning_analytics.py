@@ -16,7 +16,7 @@ from sqlalchemy import and_, desc
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
-from app.models.user import User
+from app.models.user import Users
 from app.models.genetic_weight_population import GeneticWeightPopulation, GeneticWeightChromosome
 from app.models.ab_test_deployment import ABTestDeployment, ABTestDecision, ABTestStageMetrics
 from app.models.behavioral_adaptation_rules import BehavioralAdaptationRule, RuleExecution, RuleAuditLog
@@ -37,7 +37,7 @@ def get_genetic_populations(
     tenant_id: str = Query(..., description="Tenant ID"),
     limit: int = Query(10, description="Number of generations to return"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Users = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """Get genetic population history for orchestrator"""
     try:
@@ -112,7 +112,7 @@ def get_latest_population(
     orchestrator: str,
     tenant_id: str = Query(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Users = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """Get latest genetic population with all chromosomes"""
     try:
@@ -171,7 +171,7 @@ def get_ab_tests(
     orchestrator: str,
     tenant_id: str = Query(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Users = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """Get A/B tests for orchestrator"""
     try:
@@ -238,7 +238,7 @@ def get_active_ab_test(
     orchestrator: str,
     tenant_id: str = Query(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Users = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """Get currently active A/B test"""
     try:
@@ -314,7 +314,7 @@ def get_behavioral_rules(
     tenant_id: str = Query(...),
     is_active: Optional[bool] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Users = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """Get behavioral adaptation rules for orchestrator"""
     try:
@@ -383,7 +383,7 @@ def get_cascading_signal_metrics(
     target_orchestrator: str = Query(...),
     tenant_id: str = Query(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Users = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """Get signal quality metrics between two orchestrators"""
     try:
@@ -434,7 +434,7 @@ def get_recent_signals(
     tenant_id: str = Query(...),
     limit: int = Query(50),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Users = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """Get recent cascading signals"""
     try:
