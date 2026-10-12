@@ -16,7 +16,7 @@
 //    all before -- Kanban cards and list rows were dead ends).
 //  - createRoleDemandFromOpportunity (POST /opportunities/:id/role-demand)
 //    as a "Create Role Demand" form inside that same detail panel,
-//    shown once the opportunity is WON.
+//    shown once the contract is signed (CONTRACT / ACTIVE).
 import { useEffect, useMemo, useState } from "react";
 import { TrendingUp, Plus, LayoutGrid, List as ListIcon, X } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
@@ -26,6 +26,7 @@ import {
   listOpportunities,
   createOpportunity,
   transitionOpportunityStage,
+  getStageRules,
   getOpportunityRevenueRollup,
   createRoleDemandFromOpportunity,
   listEligibleOpportunityOwners,
@@ -38,12 +39,11 @@ import {
 // create form show what will be assigned instead of a manual input.
 const STAGE_PROBABILITY_PREVIEW = {
   QUALIFICATION: 10, PROSPECT: 25, PROPOSAL: 50,
-  NEGOTIATION: 75, CONTRACT: 90, ACTIVE: 100, LOST: 0,
+  NEGOTIATION: 75, CONTRACT: 100, ACTIVE: 100, LOST: 0,
 };
 
 // Shared with backend PIPELINE_STATUSES - single source of truth
 // Must match app/models/opportunity.py and app/models/client.py
-const STAGES = ["QUALIFICATION", "PROSPECT", "PROPOSAL", "NEGOTIATION", "CONTRACT", "ACTIVE", "LOST"];
 
 const formatUsdCents = (cents) =>
   cents == null
@@ -360,7 +360,23 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
   );
 }
 
+// Where each stage may move next and which stages are won, as the server enforces them
+function useStageRules() {
+  const [rules, setRules] = useState({ stages: [], transitions: {}, won: [] });
+  const [rulesError, setRulesError] = useState("");
+  useEffect(() => {
+    getStageRules()
+      .then((r) => setRules(r || { stages: [], transitions: {}, won: [] }))
+      .catch((err) => {
+        console.error("[OpportunityPipeline] stage rules failed:", err);
+        setRulesError(`Could not load stage rules: ${err.message}`);
+      });
+  }, []);
+  return { ...rules, rulesError };
+}
+
 function OpportunityCard({ opportunity, onMoved, onOpenDetail }) {
+  const { transitions, rulesError } = useStageRules();
   const [moving, setMoving] = useState(false);
   const [moveError, setMoveError] = useState("");
   const [dragActive, setDragActive] = useState(false);
@@ -385,7 +401,7 @@ function OpportunityCard({ opportunity, onMoved, onOpenDetail }) {
     e.dataTransfer.setData("opportunityStage", opportunity.stage);
   };
 
-  const closed = opportunity.stage === "WON" || opportunity.stage === "LOST";
+  const nextStages = transitions[opportunity.stage] || [];
 
   return (
     <div
@@ -414,7 +430,8 @@ function OpportunityCard({ opportunity, onMoved, onOpenDetail }) {
           {moveError}
         </div>
       ) : null}
-      {!closed ? (
+      {rulesError ? <div className="mt-1 text-[11px] text-rose-700">{rulesError}</div> : null}
+      {nextStages.length ? (
         <select
           className="mt-2 w-full rounded-lg border bg-white px-2 py-1 text-xs"
           value=""
@@ -425,7 +442,7 @@ function OpportunityCard({ opportunity, onMoved, onOpenDetail }) {
           <option value="" disabled>
             Move to…
           </option>
-          {STAGES.filter((s) => s !== opportunity.stage).map((s) => (
+          {nextStages.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>
@@ -441,6 +458,7 @@ function OpportunityCard({ opportunity, onMoved, onOpenDetail }) {
 // ends). Surfaces the revenue rollup (GET .../revenue-rollup) and, once
 // WON, a form to spin up the role demand (POST .../role-demand).
 function OpportunityDetailPanel({ opportunity, onClose, onRoleDemandCreated }) {
+  const { won } = useStageRules();
   const [rollup, setRollup] = useState(null);
   const [rollupLoading, setRollupLoading] = useState(true);
   const [rollupError, setRollupError] = useState("");
@@ -580,7 +598,7 @@ function OpportunityDetailPanel({ opportunity, onClose, onRoleDemandCreated }) {
           )}
         </div>
 
-        {opportunity.stage === "WON" ? (
+        {won.includes(opportunity.stage) ? (
           <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
             <div className="mb-2 text-xs font-semibold uppercase text-gray-500">Create Role Demand</div>
             {formError ? <div className="mb-2 text-xs text-rose-700">{formError}</div> : null}
@@ -624,7 +642,8 @@ function OpportunityDetailPanel({ opportunity, onClose, onRoleDemandCreated }) {
           </div>
         ) : (
           <div className="mt-4 text-xs text-gray-500">
-            Role demand can be created once this opportunity is moved to WON.
+            Role demands are raised once the contract is signed: move the opportunity to CONTRACT
+            (its client must belong to a business unit). That creates the project the demand staffs.
           </div>
         )}
       </div>
@@ -647,6 +666,7 @@ export default function OpportunityPipelineScreen() {
   const [listClientId, setListClientId] = useState("");
   const [listRows, setListRows] = useState([]);
   const [loadError, setLoadError] = useState("");
+  const { stages } = useStageRules();
   const [listLoading, setListLoading] = useState(false);
 
   const load = async () => {
@@ -717,6 +737,7 @@ export default function OpportunityPipelineScreen() {
       load();
     } catch (err) {
       console.error("Failed to move opportunity:", err);
+      setLoadError(err.message || "Could not move the opportunity.");
     }
   };
 
@@ -830,7 +851,7 @@ export default function OpportunityPipelineScreen() {
                 label="Filter by Stage"
                 value={listStage}
                 onChange={setListStage}
-                options={[{ label: "All stages", value: "" }, ...STAGES.map((s) => ({ label: s, value: s }))]}
+                options={[{ label: "All stages", value: "" }, ...stages.map((s) => ({ label: s, value: s }))]}
               />
               <Select
                 label="Filter by Client"

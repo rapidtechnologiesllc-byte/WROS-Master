@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.services.demand_service import DemandValidationError
 from app.core.dependencies import require_resource_permission
 from app.models.client import Client
 from app.models.employee import Employee
@@ -172,6 +173,16 @@ def list_eligible_owners(
                            "is_current_user": e.wros_user_id == current_user.UserID} for e in rows]}
 
 
+@router.get("/stages")
+def list_stage_rules(current_user: Users = Depends(require_resource_permission("opportunities", "view"))):
+    """The stage list and where each stage may move next: the screen's Move menu and
+    drag-and-drop read this, so they can never offer a move the server refuses."""
+    from app.models.opportunity import STAGE_TRANSITIONS, WON_STAGES
+
+    return {"stages": list(OPPORTUNITY_STAGES), "won": list(WON_STAGES),
+            "transitions": {stage: sorted(nxt) for stage, nxt in STAGE_TRANSITIONS.items()}}
+
+
 # Declared before /{opportunity_id}, which would otherwise swallow this path (it did: 404)
 @router.get("/client-owners")
 def list_client_owners(
@@ -280,7 +291,11 @@ def create_role_demand(
         )
         db.commit()
         db.refresh(demand)
-    except ValueError as exc:
+    except (ValueError, DemandValidationError) as exc:  # e.g. an OPEN demand for this role already exists
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc))
+    # Sold work is hired for at once: Flash recruiter + sourcing for the open demand
+    from app.services.recruiting_service import start_recruiting
+
+    start_recruiting(demand, reason="role demand for a won opportunity")
     return demand

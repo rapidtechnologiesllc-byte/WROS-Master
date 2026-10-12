@@ -31,7 +31,7 @@ from app.models.user import Users
 
 logger = logging.getLogger(__name__)
 
-WON_STAGES = ("CONTRACT", "ACTIVE")
+from app.models.opportunity import WON_STAGES  # noqa: E402 -- one definition of a win
 
 
 def _partner_opportunities(db: Session, partner_user_id: str, open_only: bool):

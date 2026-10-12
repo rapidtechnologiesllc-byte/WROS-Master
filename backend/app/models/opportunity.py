@@ -36,7 +36,16 @@ def _new_uuid() -> str:
 # Single source of truth: if either changes, both must change
 PIPELINE_STATUSES = ("QUALIFICATION", "PROSPECT", "PROPOSAL", "NEGOTIATION", "CONTRACT", "ACTIVE", "LOST")
 OPPORTUNITY_STAGES = PIPELINE_STATUSES
-CLOSED_STAGES = ("CONTRACT", "ACTIVE", "LOST")  # Contract won/active or lost
+CLOSED_STAGES = ("CONTRACT", "ACTIVE", "LOST")  # not in the open pipeline: won (contract/active) or lost
+OPEN_STAGES = ("QUALIFICATION", "PROSPECT", "PROPOSAL", "NEGOTIATION")
+# Signing the contract is the win: CONTRACT creates the project, ACTIVE is delivery under way
+WON_STAGES = ("CONTRACT", "ACTIVE")
+STAGE_TRANSITIONS = {
+    **{stage: set(OPEN_STAGES + ("CONTRACT", "LOST")) - {stage} for stage in OPEN_STAGES},
+    "CONTRACT": {"ACTIVE"},
+    "ACTIVE": set(),   # terminal
+    "LOST": set(),     # terminal
+}
 
 logger = logging.getLogger(__name__)
 

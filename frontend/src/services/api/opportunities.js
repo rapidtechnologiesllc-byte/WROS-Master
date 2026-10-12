@@ -22,6 +22,20 @@ export const listClientOwners = async () => {
   return data?.users || [];
 };
 
+// Stage list and allowed moves, from the server (one cached request per page load)
+let stageRulesPromise = null;
+export const getStageRules = () => {
+  if (!stageRulesPromise) {
+    stageRulesPromise = apiRequest("/opportunities/stages", { method: "GET" })
+      .then(({ data }) => data)
+      .catch((err) => {
+        stageRulesPromise = null; // let the next caller retry
+        throw err;
+      });
+  }
+  return stageRulesPromise;
+};
+
 export const getPipeline = async () => {
   const { data } = await apiRequest("/opportunities/pipeline", { method: "GET" });
   return data;

@@ -85,7 +85,7 @@ from app.services.scope_helpers import opportunity_in_bu, project_in_bu
 
 logger = logging.getLogger(__name__)
 
-WON_STAGES = ("CONTRACT", "ACTIVE")
+from app.models.opportunity import WON_STAGES  # noqa: E402 -- one definition of a win
 
 
 def _active_project_id(db: Session, employee_id: str):

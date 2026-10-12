@@ -66,8 +66,11 @@ def create_project_from_won_opportunity(
 ) -> Project:
     """HRMS-0801 BR-0801-01: inherits client_id/currency directly from
     the won opportunity, no manual re-selection."""
-    if opportunity.stage != "WON":
-        raise ValueError(f"Cannot create a project from opportunity {opportunity.id} -- stage is '{opportunity.stage}', not WON.")
+    if opportunity.stage != "CONTRACT":
+        raise ValueError(f"Cannot create a project from opportunity {opportunity.id} -- stage is "
+                         f"'{opportunity.stage}', not CONTRACT (the signed contract is the win).")
+    if db.query(Project.id).filter(Project.opportunity_id == opportunity.id).first():
+        raise ValueError(f"Opportunity {opportunity.id} already has a project.")
 
     project = Project(
         tenant_id=tenant_id or opportunity.tenant_id, client_id=opportunity.client_id,

@@ -244,7 +244,7 @@ def get_executive_revenue_dashboard(db: Session, *, client_ids: Optional[List[st
     }
 
 
-WON_STAGES = ("CONTRACT", "ACTIVE")
+from app.models.opportunity import WON_STAGES  # noqa: E402 -- one definition of a win
 BENCH_AGING_DAYS = 60
 
 
@@ -262,7 +262,6 @@ def _executive_extras(db: Session, *, client_ids, pipeline_by_bu: dict, total_pi
     from app.models.strategic_goal import GoalTarget
     from app.services.ar_followup_service import scan_overdue_invoices
 
-    now = datetime.utcnow()
     from app.services.fiscal_year_service import current_fy, fy_window
     year = current_fy(db)
     start, end = fy_window(db, year)
@@ -341,7 +340,7 @@ def _executive_extras(db: Session, *, client_ids, pipeline_by_bu: dict, total_pi
 def get_pipeline_coverage(db: Session, *, client_ids: Optional[List[str]], revenue_target_usd_cents: int) -> Optional[float]:
     """S-244 -- reuses opportunity_service.calculate_pipeline_coverage_ratio(),
     never a second implementation."""
-    query = db.query(Opportunity).filter(Opportunity.stage.notin_(("WON", "LOST")))
+    query = db.query(Opportunity).filter(Opportunity.stage.notin_(WON_STAGES + ("LOST",)))
     if client_ids is not None:
         query = query.filter(Opportunity.client_id.in_(client_ids))
     total_pipeline = sum(o.revenue_value_usd_cents for o in query.all())

@@ -17,7 +17,7 @@ from app.models.opportunity import Opportunity
 
 # An agent below this success rate for the week is shown as degraded
 DEGRADED_BELOW_SUCCESS_PCT = 90
-WON_STAGES = ("CONTRACT", "ACTIVE")
+from app.models.opportunity import WON_STAGES  # noqa: E402 -- one definition of a win
 
 
 def _week_bounds(weeks_back: int):

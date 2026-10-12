@@ -12,7 +12,7 @@ entity this session -- no REST endpoints/UI yet for anything), but this
 underlying calculation is real and tested so whichever screen gets
 built later has one correct source to call.
 
-Stage transition to WON auto-creates a Project (HRMS-0801 BR-0801-01,
+Stage transition to CONTRACT (the signed contract) auto-creates a Project (HRMS-0801 BR-0801-01,
 completing the hook this module's own docstring used to defer -- Project
 now exists as of the Projects build round).
 """
@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.models.client import Client
 from app.models.demand import Demand
-from app.models.opportunity import CLOSED_STAGES, OPPORTUNITY_STAGES, Opportunity
+from app.models.opportunity import OPPORTUNITY_STAGES, Opportunity
 from app.services.demand_service import create_demand
 from app.services.project_service import create_project_from_won_opportunity
 
@@ -47,7 +47,7 @@ STAGE_PROBABILITY = {
     "PROSPECT": 25,
     "PROPOSAL": 50,
     "NEGOTIATION": 75,
-    "CONTRACT": 90,
+    "CONTRACT": 100,  # signed: the revenue is won
     "ACTIVE": 100,
     "LOST": 0,
 }
@@ -133,38 +133,40 @@ def transition_stage(
     *, project_name: Optional[str] = None, billing_type: str = "TIME_AND_MATERIALS",
     continent: Optional[str] = None, changed_by: Optional[str] = None,
 ):
-    """
-    Returns the Opportunity, unless new_stage='WON', in which case
-    returns (opportunity, project) -- HRMS-0801 BR-0801-01: winning an
-    opportunity auto-creates a Project inheriting client_id/currency,
-    no manual re-entry.
+    """Move an opportunity along STAGE_TRANSITIONS. Returns the Opportunity, or
+    (opportunity, project) when it moves to CONTRACT: signing the contract is the win and
+    creates the Project (HRMS-0801 BR-0801-01: client and currency inherited, no re-entry).
+    The client must belong to a business unit by then -- the project's work, people and
+    revenue are that BU's. The parent Client.status follows the most advanced opportunity."""
+    from app.models.opportunity import STAGE_TRANSITIONS
 
-    Also auto-syncs parent Client.status to match the most-advanced
-    opportunity stage (WON > NEGOTIATION > PROPOSAL > QUALIFICATION > LOST).
-    """
-    if opportunity.stage in CLOSED_STAGES:
-        raise InvalidStageTransition(
-            f"Opportunity {opportunity.id} is already closed ({opportunity.stage}) -- cannot change stage."
-        )
     if new_stage not in OPPORTUNITY_STAGES:
         raise InvalidStageTransition(f"'{new_stage}' is not a valid opportunity stage.")
+    allowed = STAGE_TRANSITIONS.get(opportunity.stage, set())
+    if new_stage not in allowed:
+        raise InvalidStageTransition(
+            f"Opportunity cannot move from {opportunity.stage} to {new_stage}. "
+            f"Allowed: {', '.join(sorted(allowed)) or 'none (closed)'}.")
+    if new_stage == "CONTRACT":
+        client = db.query(Client).filter(Client.id == opportunity.client_id).first()
+        if client is None or client.business_unit_id is None:
+            raise InvalidStageTransition(
+                "Assign the client to a business unit before signing the contract: the project, "
+                "its people and its revenue belong to that business unit.")
 
     opportunity.stage = new_stage
     opportunity.probability_pct = default_probability_for_stage(new_stage)
     opportunity.updated_at = datetime.utcnow()
     db.add(opportunity)
-
-    # Auto-sync parent Client status to match opportunity progression
     _update_client_status_from_opportunities(db, opportunity.client_id)
 
-    if new_stage == "WON":
+    if new_stage == "CONTRACT":
         project = create_project_from_won_opportunity(
             db, opportunity,
             name=project_name or f"Project for Opportunity {opportunity.id}",
             billing_type=billing_type, continent=continent, created_by=changed_by,
         )
         return opportunity, project
-
     return opportunity
 
 def calculate_weighted_forecast(opportunity: Opportunity) -> int:
@@ -227,15 +229,35 @@ def create_role_demand_from_opportunity(
     and creating one demand row (not `quantity` duplicate rows) matches
     Demand's own existing headcount/positions_filled model.
     """
+    from app.models.opportunity import WON_STAGES
+    from app.models.project import Project
+    from app.services.bu_leadership import head_for_client
+
     if quantity < 1:
         raise ValueError("quantity must be >= 1.")
+    # Role demands are raised for sold work: the opportunity is won and its project exists,
+    # so the people staffed against it are allocated to that project and get billed.
+    if opportunity.stage not in WON_STAGES:
+        raise ValueError(f"Raise role demands once the contract is signed (stage is {opportunity.stage}).")
+    project = db.query(Project).filter(Project.opportunity_id == opportunity.id).first()
+    if project is None:
+        raise ValueError(f"Opportunity {opportunity.id} has no project -- move it to CONTRACT first.")
+    client = db.query(Client).filter(Client.id == opportunity.client_id).first()
+    business_unit_id = client.business_unit_id if client else None
+    if business_unit_id is None:
+        raise ValueError("The client has no business unit: assign one so the demand has an owner.")
+    # The BU head for the client's company hires for it; else whoever owns the client relationship
+    hiring_manager = head_for_client(db, business_unit_id, opportunity.client_id) or opportunity.client_owner_id
 
+    # Job approval is off (product decision 2026-10-05): a demand for sold work opens now
+    # and recruiting starts when the caller commits (app.services.recruiting_service).
     demand = create_demand(
         db,
         tenant_id=tenant_id, client_id=opportunity.client_id,
         job_title=job_title, required_skills=required_skills,
         min_experience_years=min_experience_years, work_location=work_location,
-        headcount=quantity, status="DRAFT",
+        headcount=quantity, status="OPEN",
+        project_id=project.id, business_unit_id=business_unit_id, hiringManagerID=hiring_manager,
         opportunity_id=opportunity.id, source_type="OPPORTUNITY",
         duration_hours=duration_hours, billing_rate_usd_cents=billing_rate_usd_cents,
         created_by=changed_by,
