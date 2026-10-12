@@ -115,6 +115,23 @@ def _literal_strings(node):
     return []
 
 
+def test_every_permission_the_screens_check_exists():
+    """The same guard for the screens: hasPermission("x", ...) on a resource that isn't
+    seeded is false for everyone but a super user, so the button or page silently vanishes."""
+    import re
+
+    pattern = re.compile(r"hasPermission\(\s*['\"]([^'\"]+)['\"]\s*,\s*['\"]([^'\"]+)['\"]")
+    problems = []
+    for path in (APP.parent.parent / "frontend" / "src").rglob("*"):
+        if path.suffix not in {".js", ".jsx"} or "node_modules" in path.parts:
+            continue
+        for number, line in enumerate(path.read_text(errors="ignore").splitlines(), 1):
+            for resource, action in pattern.findall(line):
+                if resource not in RESOURCES or action not in ACTIONS:
+                    problems.append(f"{path.name}:{number} hasPermission({resource!r}, {action!r})")
+    assert not problems, "\n".join(problems)
+
+
 def test_every_permission_the_code_checks_exists():
     """Static guard: a permission naming no seeded resource (or no real action) matches
     nobody, so the check silently denies -- or, worse, an `or` around it silently allows."""
@@ -210,33 +227,48 @@ def _position(db, name, code, rank):
     return pos
 
 
-def _person(db, role, job_title, node_specialization=None):
-    from app.models.org_structure import OrgNode
-
+def _person(db, role, job_title):
     user = Users(UserID=f"U-{_uid()}", UserName="Home", UserEmail=f"{_uid()}@x.com", UserPassword="x",
                  UserRole="x", tenant_id=1, role_template_id=role.id, job_title=job_title)
-    if node_specialization:
-        node = OrgNode(id=str(uuid.uuid4()), tenant_id=1, name="node", hierarchy_level=16,
-                       position_id=_position(db, "Partner", "partner", 1).id, specialization=node_specialization)
-        db.add(node)
-        db.flush()
-        user.org_node_id = node.id
     db.add(user)
     db.flush()
     return user
 
 
-@pytest.mark.parametrize("job_title,template_level,node_specialization,expected", [
-    ("CEO", 5, None, "ceo"),                       # CEO on a level-5 Super Admin template (production)
-    ("Senior Consultant", 5, None, "default"),     # admin template holding every permission
-    ("Senior Consultant", 17, None, "default"),    # template level never picks the dashboard
-    ("Partner", 5, None, "partner"),
-    ("Partner", 5, "Finance", "cfo"),              # C-level (partner-rank) position in Finance
-    ("BU Head", 5, None, "bu_head"),
-    ("", 5, None, "default"),
+def _roles(db):
+    """The managed roles the tests rely on (seeded by db_contract in a real database)."""
+    from app.models.org_structure import OrgRole
+
+    for name, level, designation in (("CFO", 16, "cfo"), ("Vice President", 14, None)):
+        if not db.query(OrgRole).filter_by(tenant_id=1, name=name).first():
+            db.add(OrgRole(tenant_id=1, name=name, hierarchy_level=level, designation=designation))
+    db.flush()
+
+
+def _make_head(db, user):
+    from app.models.business_unit import BusinessUnit, BusinessUnitLocationHead
+    from app.models.location import Location
+
+    unit, company = BusinessUnit(name=f"bu-{_uid()}", display_name="BU"), Location(tenant_id=1, name=f"co-{_uid()}")
+    db.add_all([unit, company])
+    db.flush()
+    db.add(BusinessUnitLocationHead(business_unit_id=unit.id, company_id=company.id, head_user_id=user.UserID))
+    db.flush()
+
+
+@pytest.mark.parametrize("job_title,template_level,heads_bu,expected", [
+    ("CEO", 5, False, "ceo"),                       # CEO on a level-5 Super Admin template (production)
+    ("Senior Consultant", 5, False, "default"),     # admin template holding every permission
+    ("Senior Consultant", 17, False, "default"),    # template level never picks the dashboard
+    ("Partner", 5, False, "partner"),
+    ("CFO", 5, False, "cfo"),                       # CFO is the role's designation, not a department
+    ("BU Head", 5, True, "bu_head"),
+    ("BU Head", 5, False, "default"),               # the BU Head home needs an actual BU to head
+    ("Vice President", 5, True, "bu_head"),         # managed role at a BU-head level who heads a BU
+    ("", 5, False, "default"),
 ])
 def test_home_dashboard_follows_the_role_position_not_the_template(db, job_title, template_level,
-                                                                      node_specialization, expected):
+                                                                      heads_bu, expected):
     """CEO 2026-10-12: the dashboard is role driven (the position the Job Title names), while
     authority is template driven. An Admin template with every permission landed on the CEO
     dashboard, then the CEO (job title CEO, Super Admin template) landed on the general one."""
@@ -245,9 +277,12 @@ def test_home_dashboard_follows_the_role_position_not_the_template(db, job_title
     for name, code, rank in (("CEO", "ceo", 0), ("Partner", "partner", 1), ("BU Head", "bu_head", 2),
                              ("Senior Consultant", "senior_consultant", 9)):
         _position(db, name, code, rank)
+    _roles(db)
     role = full_access_role(db)
     role.hierarchy_level = template_level
-    user = _person(db, role, job_title, node_specialization)
+    user = _person(db, role, job_title)
+    if heads_bu:
+        _make_head(db, user)
     assert authority.home_dashboard(db, user) == expected
     assert authority.summary(db, user)["home_dashboard"] == expected
 

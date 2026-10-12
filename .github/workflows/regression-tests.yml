@@ -95,7 +95,12 @@ jobs:
           tests/test_navigation_menu.py \
           tests/test_bu_location_heads.py \
           tests/test_scope_*.py \
-          tests/test_roles_not_names.py
+          tests/test_roles_not_names.py \
+          tests/test_user_org_seat.py \
+          tests/test_employee_conversion.py \
+          tests/test_lifecycle_e2e.py \
+          tests/test_recruiter_pool.py \
+          tests/test_code_commit_guard.py
 
 
   required-status-check:

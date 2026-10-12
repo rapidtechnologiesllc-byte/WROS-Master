@@ -149,8 +149,8 @@ def create_employee(
         fields["billing_rate_usd_cents"] = body.billing_rate_usd_cents
     if body.nationality is not None:
         fields["nationality"] = body.nationality
-    if body.org_node_id is not None:
-        fields["org_node_id"] = body.org_node_id
+    # The org-chart seat is not set here: it belongs to the person's login account and is
+    # placed on the user form (place_user_in_org), which also sets this record's seat/manager
     if body.business_unit_id is not None:
         fields["bu_id"] = body.business_unit_id
     if body.company_id:

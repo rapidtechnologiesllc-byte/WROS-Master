@@ -41,6 +41,9 @@ def person(db, role, name, business_unit_id=None) -> Users:
 
 
 def two_bu_world(db) -> SimpleNamespace:
+    from app.core.db_contract import _initialize_org_positions
+
+    _initialize_org_positions(db)  # what startup seeds; a fresh test database has none
     org_role, partner_role = full_access_role(db), scoped_role(db)
     bu_a = BusinessUnit(name=f"BU-A-{uid()}", display_name="BU A")
     bu_b = BusinessUnit(name=f"BU-B-{uid()}", display_name="BU B")

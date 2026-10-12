@@ -22,7 +22,6 @@ from app.models.user import Users
 logger = logging.getLogger(__name__)
 
 ACTIONS = ("view", "create", "edit", "delete")
-FINANCE_SPECIALIZATIONS = ("finance", "accounts", "accounting")
 
 
 def role_of(db: Session, user: Optional[Users]) -> Optional[RoleTemplate]:
@@ -63,16 +62,23 @@ def is_director(db: Session, user: Optional[Users]) -> bool:
     return level(db, user) >= settings.DIRECTOR_MIN_LEVEL
 
 
-def in_finance(db: Session, user: Optional[Users]) -> bool:
-    """The role's specialization (or the user's department) is Finance."""
+def in_function(db: Session, user: Optional[Users], function: str) -> bool:
+    """The role template's specialization is the function (Finance, Recruitment ...), or the
+    user's department is one of that function (whole-word match:
+    app.services.org_hierarchy_validator). Never by job title or legacy role text."""
+    from app.services.org_hierarchy_validator import function_of_department_name
+
     role = role_of(db, user)
     if role is None:
         return False
-    texts = [role.specialization]
+    if function_of_department_name(role.specialization) == function:
+        return True
     department = getattr(user, "department", None)
-    if department is not None:
-        texts.append(department.name)
-    return any(word in (t or "").lower() for t in texts for word in FINANCE_SPECIALIZATIONS)
+    return department is not None and function_of_department_name(department.name) == function
+
+
+def in_finance(db: Session, user: Optional[Users]) -> bool:
+    return in_function(db, user, "Finance")
 
 
 def is_finance_leader(db: Session, user: Optional[Users]) -> bool:
@@ -111,32 +117,47 @@ CFO_HOME = ("cfo", "cfo-dashboard")
 
 
 def position(db: Session, user: Optional[Users]):
-    """(position code, specialization) of the user's role in the firm, or (None, None).
-    The Job Title is what the Users screen shows and edits, so it wins; the org-chart
-    node is the fallback for a title that is not an org position."""
+    """(position code, designation) of the user's role in the firm, or (None, None).
+    The Job Title is what the Users screen shows and edits, so it wins: a managed role
+    (org_roles) gives its level -> position and its designation (ceo / cfo); an org
+    position name is the fallback for older titles, then the org-chart seat."""
     from app.models.org_structure import OrgNode, OrgPosition
+    from app.services.org_hierarchy_validator import LEVEL_POSITION_CODES
+    from app.services.org_roles_service import role_for_title
 
     if user is None:
         return None, None
-    node = db.query(OrgNode).filter(OrgNode.id == user.org_node_id).first() if user.org_node_id else None
-    specialization = node.specialization if node else None
     title = (user.job_title or "").strip()
     if title:
+        role = role_for_title(db, user.tenant_id, title)
+        if role is not None and LEVEL_POSITION_CODES.get(role.hierarchy_level):
+            return LEVEL_POSITION_CODES[role.hierarchy_level], role.designation
         match = db.query(OrgPosition).filter(OrgPosition.name.ilike(title)).first()
         if match:
-            return match.rbac_role_name, specialization
+            return match.rbac_role_name, None
+    node = db.query(OrgNode).filter(OrgNode.id == user.org_node_id).first() if user.org_node_id else None
     if node is not None:
         pos = db.query(OrgPosition).filter(OrgPosition.id == node.position_id).first()
         if pos:
-            return pos.rbac_role_name, specialization
-    return None, specialization
+            return pos.rbac_role_name, None
+    return None, None
+
+
+def heads_a_business_unit(db: Session, user: Optional[Users]) -> bool:
+    """Named BU head of a business unit in some company (BusinessUnitLocationHead)."""
+    from app.models.business_unit import BusinessUnitLocationHead
+
+    return bool(user) and db.query(BusinessUnitLocationHead.id).filter(
+        BusinessUnitLocationHead.head_user_id == user.UserID).first() is not None
 
 
 def home_dashboard(db: Session, user: Optional[Users]) -> str:
-    code, specialization = position(db, user)
-    home = HOME_BY_POSITION.get(code)
-    if code == "partner" and any(w in (specialization or "").lower() for w in FINANCE_SPECIALIZATIONS):
-        home = CFO_HOME
+    """CFO is a designation on the role (never a department name); the BU Head home is for
+    people who actually head a business unit (levels 13-15 share that position code)."""
+    code, designation = position(db, user)
+    home = CFO_HOME if designation == "cfo" else HOME_BY_POSITION.get(code)
+    if home and home[0] == "bu_head" and not heads_a_business_unit(db, user):
+        home = None
     if home and has_permission(db, user, f"{home[1]}.view"):
         return home[0]
     return "default"

@@ -1442,7 +1442,7 @@ ${formattedJD}
                   {isApproved ? "Approved" : "Accept"}
                 </AcceptButton>
               ) : null}
-              {hasPermission("offers", "create") &&
+              {hasPermission("offer-letters", "create") &&
                 candidateDocCount?.total_documents > 0 &&
                 candidateDocCount?.verified_count ===
                   candidateDocCount?.total_documents && (

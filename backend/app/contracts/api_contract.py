@@ -164,7 +164,8 @@ MODULES_AND_RESOURCES = {
                   "admin-agent-state", "admin-weekly-recap", "bu-head-dashboard",
                   "agent-pyramid", "goals"],
     "Admin": ["users-access-control", "admin-settings", "certifications", "role-templates",
-              "business-units", "delivery-centers", "organizational-hierarchy", "permission-composition"],
+              "business-units", "delivery-centers", "organizational-hierarchy", "permission-composition",
+              "org-roles"],
     "Executive Dashboards": ["ceo-dashboard-view", "cfo-dashboard-view", "partner-dashboard-view", "bu-head-dashboard-view"],
     "AI & Automation": ["ask-thunder", "ai-coaching", "slm-dashboard"],
 }

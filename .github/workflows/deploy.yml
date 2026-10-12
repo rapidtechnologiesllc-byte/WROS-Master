@@ -80,6 +80,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # to see whether this push changed the backend
 
       - name: Download build artifact
         uses: actions/download-artifact@v4
@@ -114,6 +116,27 @@ jobs:
             echo "Production build is from a newer commit ($LIVE > $OURS); skipping."
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
+
+      # Screens may call endpoints this push adds: when it changed the backend, wait until
+      # production runs that backend (test-and-deploy.yml) before swapping the build.
+      - name: Wait for this push's backend
+        if: steps.guard.outputs.skip != 'true' && github.event_name == 'push'
+        run: |
+          BEFORE="${{ github.event.before }}"
+          if git cat-file -e "$BEFORE^{commit}" 2>/dev/null && git diff --quiet "$BEFORE" HEAD -- backend/; then
+            echo "No backend change in this push"; exit 0
+          fi
+          SHA=$(git rev-parse HEAD)
+          for i in $(seq 1 60); do
+            if ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+                "cd /home/HRMS/WROS-Master && git merge-base --is-ancestor $SHA HEAD 2>/dev/null && \
+                 [ \"\$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/health)\" = 200 ]"; then
+              echo "Backend at $SHA or newer is live"; exit 0
+            fi
+            sleep 20
+          done
+          echo "Backend for $SHA is not live after 20 minutes; not deploying screens that need it"
+          exit 1
 
       # The server has no GitHub credentials: nothing is pulled there, the
       # CI build is copied. The old build is kept as build-prev-<time>.
