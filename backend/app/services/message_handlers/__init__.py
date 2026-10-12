@@ -29,12 +29,11 @@ _VALIDATED_HANDLERS = {
     'CandidateConversionHandler': CandidateConversionHandler,
 }
 
-# Validate all handlers have proper configuration
+# Every handler declares its timeout and name; a missing one fails at import, not in production
 for handler_name, handler_class in _VALIDATED_HANDLERS.items():
-    if not hasattr(handler_class, 'TIMEOUT_SECONDS'):
-        logger.warning(f"Handler {handler_name} missing TIMEOUT_SECONDS configuration")
-    if not hasattr(handler_class, 'HANDLER_NAME'):
-        logger.warning(f"Handler {handler_name} missing HANDLER_NAME configuration")
+    missing = [attr for attr in ("TIMEOUT_SECONDS", "HANDLER_NAME") if not hasattr(handler_class, attr)]
+    if missing:
+        raise RuntimeError(f"Handler {handler_name} missing {', '.join(missing)} configuration")
 
 # Wrapper function for message queue compatibility
 def handle_candidate_conversion(event_data, db_session):
