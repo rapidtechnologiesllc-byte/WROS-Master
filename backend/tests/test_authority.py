@@ -199,36 +199,64 @@ def test_seed_gives_super_admin_and_admin_org_level_once_even_when_another_role_
     assert roles["Admin"].org_level_access is False
 
 
-@pytest.mark.parametrize("level,specialization,expected", [
-    (5, "General", "default"),     # admin role: holds every permission, no executive position
-    (17, "General", "ceo"),
-    (16, "Finance", "cfo"),        # C-level finance
-    (16, "General", "partner"),
-    (14, "General", "bu_head"),
-    (9, "Finance", "default"),     # Finance Manager: approves invoices, not the CFO dashboard
-])
-def test_home_dashboard_follows_position_not_permissions(db, level, specialization, expected):
-    """Production 2026-10-12: an Admin landed on the CEO dashboard because it holds every
-    permission. Home is chosen by the role's level and specialization; permissions only gate."""
-    from tests.hiring_fixtures import full_access_role
+def _position(db, name, code, rank):
+    from app.models.org_structure import OrgPosition
 
-    role = full_access_role(db)
-    role.hierarchy_level, role.specialization = level, specialization
+    pos = db.query(OrgPosition).filter_by(name=name).first()
+    if pos is None:
+        pos = OrgPosition(name=name, rank=rank, rbac_role_name=code)
+        db.add(pos)
+        db.flush()
+    return pos
+
+
+def _person(db, role, job_title, node_specialization=None):
+    from app.models.org_structure import OrgNode
+
     user = Users(UserID=f"U-{_uid()}", UserName="Home", UserEmail=f"{_uid()}@x.com", UserPassword="x",
-                 UserRole="x", tenant_id=1, role_template_id=role.id)
+                 UserRole="x", tenant_id=1, role_template_id=role.id, job_title=job_title)
+    if node_specialization:
+        node = OrgNode(id=str(uuid.uuid4()), tenant_id=1, name="node", hierarchy_level=16,
+                       position_id=_position(db, "Partner", "partner", 1).id, specialization=node_specialization)
+        db.add(node)
+        db.flush()
+        user.org_node_id = node.id
     db.add(user)
     db.flush()
+    return user
+
+
+@pytest.mark.parametrize("job_title,template_level,node_specialization,expected", [
+    ("CEO", 5, None, "ceo"),                       # CEO on a level-5 Super Admin template (production)
+    ("Senior Consultant", 5, None, "default"),     # admin template holding every permission
+    ("Senior Consultant", 17, None, "default"),    # template level never picks the dashboard
+    ("Partner", 5, None, "partner"),
+    ("Partner", 5, "Finance", "cfo"),              # C-level (partner-rank) position in Finance
+    ("BU Head", 5, None, "bu_head"),
+    ("", 5, None, "default"),
+])
+def test_home_dashboard_follows_the_role_position_not_the_template(db, job_title, template_level,
+                                                                      node_specialization, expected):
+    """CEO 2026-10-12: the dashboard is role driven (the position the Job Title names), while
+    authority is template driven. An Admin template with every permission landed on the CEO
+    dashboard, then the CEO (job title CEO, Super Admin template) landed on the general one."""
+    from tests.hiring_fixtures import full_access_role
+
+    for name, code, rank in (("CEO", "ceo", 0), ("Partner", "partner", 1), ("BU Head", "bu_head", 2),
+                             ("Senior Consultant", "senior_consultant", 9)):
+        _position(db, name, code, rank)
+    role = full_access_role(db)
+    role.hierarchy_level = template_level
+    user = _person(db, role, job_title, node_specialization)
     assert authority.home_dashboard(db, user) == expected
     assert authority.summary(db, user)["home_dashboard"] == expected
 
 
-def test_home_dashboard_needs_the_dashboard_permission(db):
-    role = RoleTemplate(tenant_id=1, name=f"ceo-noperm-{_uid()}", display_name="R", hierarchy_level=17,
+def test_home_dashboard_still_needs_the_dashboard_permission(db):
+    """A CEO position whose template cannot view the CEO dashboard gets the general one."""
+    _position(db, "CEO", "ceo", 0)
+    role = RoleTemplate(tenant_id=1, name=f"noperm-{_uid()}", display_name="R", hierarchy_level=5,
                         org_level_access=True, enabled=True)
     db.add(role)
     db.flush()
-    user = Users(UserID=f"U-{_uid()}", UserName="NoPerm", UserEmail=f"{_uid()}@x.com", UserPassword="x",
-                 UserRole="x", tenant_id=1, role_template_id=role.id)
-    db.add(user)
-    db.flush()
-    assert authority.home_dashboard(db, user) == "default"
+    assert authority.home_dashboard(db, _person(db, role, "CEO")) == "default"
