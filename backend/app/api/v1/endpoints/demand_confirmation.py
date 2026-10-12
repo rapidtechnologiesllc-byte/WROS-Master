@@ -41,7 +41,7 @@ Routes:
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.data_scope import visible_job_or_404
+from app.core.data_scope import ensure_visible, visible_job_or_404
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.demand import Demand
@@ -159,9 +159,11 @@ def schedule_call(
     current_user: Users = Depends(get_current_internal_user),
 ):
     demand = _get_demand_or_404(db, demand_id, current_user)
-    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    employee = db.query(Employee).filter(
+        Employee.id == employee_id, Employee.tenant_id == current_user.tenant_id).first()
     if employee is None:
         raise HTTPException(status_code=404, detail="Employee not found.")
+    ensure_visible(db, current_user, employee.bu_id, "Employee")
 
     call = schedule_alignment_call(
         db, demand, employee,
