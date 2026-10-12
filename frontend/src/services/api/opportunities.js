@@ -19,7 +19,7 @@ export const listEligibleOpportunityOwners = async () => {
 
 export const listClientOwners = async () => {
   const { data } = await apiRequest("/opportunities/client-owners", { method: "GET" });
-  return data?.employees || [];
+  return data?.users || [];
 };
 
 export const getPipeline = async () => {

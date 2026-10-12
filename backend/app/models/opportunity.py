@@ -73,3 +73,16 @@ class Opportunity(Base):
 
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class OpportunityProfile(Base):
+    """What is being sold: service line, Guidewire module, client type and pricing model.
+    A table of its own (one row per opportunity): production adds tables, never columns."""
+    __tablename__ = "opportunity_profiles"
+
+    opportunity_id = Column(String(512), ForeignKey("opportunities.id"), primary_key=True)
+    service = Column(String(100), nullable=True)
+    guidewire_module = Column(String(100), nullable=True)
+    client_type = Column(String(100), nullable=True)
+    pricing_model = Column(String(100), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())

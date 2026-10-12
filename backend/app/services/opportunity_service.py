@@ -64,19 +64,32 @@ def create_opportunity(
     currency: str = "USD",
     revenue_value_native: Optional[int] = None,
     owner_employee_id: Optional[str] = None,
+    client_owner_id: Optional[str] = None,
     expected_close_date=None,
     stage: str = "QUALIFICATION",
+    profile: Optional[dict] = None,
 ) -> Opportunity:
+    from app.models.employee import Employee
+    from app.models.opportunity import OPPORTUNITY_STAGES, OpportunityProfile
+
     if revenue_value_usd_cents <= 0:
         raise OpportunityValidationError("revenue_value_usd_cents must be positive.")
+    if stage not in OPPORTUNITY_STAGES:
+        raise OpportunityValidationError(f"{stage!r} is not an opportunity stage.")
+    if owner_employee_id and not db.query(Employee.id).filter(Employee.id == owner_employee_id).first():
+        raise OpportunityValidationError("Owner is not an employee.")
 
     opportunity = Opportunity(
         tenant_id=tenant_id, client_id=client_id, owner_employee_id=owner_employee_id,
+        client_owner_id=client_owner_id,
         stage=stage, revenue_value_usd_cents=revenue_value_usd_cents,
         revenue_value_native=revenue_value_native, currency=currency,
         probability_pct=default_probability_for_stage(stage), expected_close_date=expected_close_date,
     )
     db.add(opportunity)
+    db.flush()
+    if profile and any(profile.values()):
+        db.add(OpportunityProfile(opportunity_id=opportunity.id, **profile))
     return opportunity
 
 def _update_client_status_from_opportunities(db: Session, client_id: str) -> None:

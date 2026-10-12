@@ -116,6 +116,7 @@ jobs:
             tests/test_employee_conversion.py \
             tests/test_lifecycle_e2e.py \
             tests/test_recruiter_pool.py \
+            tests/test_opportunity_sales.py \
             tests/test_code_commit_guard.py
 
   test-frontend:

@@ -324,9 +324,10 @@ LEADERSHIP_ROLES = {
         "permissions": {
             "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
                     "activity-feed", "ask-flash", "candidates", "jobs", "submissions", "interviews",
-                    "allocations", "timesheets", "projects", "resources", "opportunities", "demand-confirmation"],
+                    "allocations", "timesheets", "projects", "resources", "opportunities", "demand-confirmation",
+                    "pipeline-management", "clients"],
             "v": ["offer-letters", "employees", "onboarding", "utilization-dashboard", "resource-forecast",
-                  "employee-in-bench", "clients", "invoices", "forecasts", "revenue", "goals", "kpi-dashboard",
+                  "employee-in-bench", "invoices", "forecasts", "revenue", "goals", "kpi-dashboard",
                   "bu-head-dashboard", "bu-head-dashboard-view", "business-units", "delivery-centers",
                   "organizational-hierarchy", "ask-thunder"],
         },
@@ -345,7 +346,22 @@ LEADERSHIP_ROLES = {
                     "activity-feed", "ask-flash", "invoices", "invoice-management", "expenses", "revenue",
                     "finance-operations", "forecasts", "budget-management", "payroll"],
             "v": ["clients", "projects", "allocations", "timesheets", "employees", "reports",
-                  "executive-revenue-dashboard", "kpi-dashboard", "analytics", "business-units"],
+                  "executive-revenue-dashboard", "kpi-dashboard", "analytics", "business-units",
+                  "opportunities", "pipeline-management"],
+        },
+    },
+    # Sells: finds opportunities, owns client relationships, raises role demands for won
+    # work. Scoped to their business units; no P&L (revenue) access.
+    "Sales": {
+        "display_name": "Sales",
+        "description": "Opens and works opportunities and client relationships for their business units",
+        "hierarchy_level": 8,
+        "specialization": "Sales",
+        "org_level_access": False,
+        "permissions": {
+            "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
+                    "activity-feed", "ask-flash", "clients", "opportunities", "proposals", "pipeline-management"],
+            "v": ["demand-confirmation", "projects", "jobs", "business-units"],
         },
     },
     # Every converted employee gets this: their own work only. (The system "User" role is
@@ -403,6 +419,7 @@ def _initialize_leadership_roles():
         _initialize_bu_location_heads(db)
         _initialize_org_positions(db)
         _initialize_org_roles(db)
+        _initialize_pipeline_access(db)
     except Exception:
         db.rollback()
         raise
@@ -438,6 +455,62 @@ def _initialize_role_authority(db):
                             config_key=ROLE_AUTHORITY_SEED_KEY, config_value={"org_level_access": list(ORG_LEVEL_SEED_ROLES)}))
         db.commit()
         logger.info(f"[Contract] Set org_level_access on {updated} seeded role template(s) for tenant {tenant_id}")
+
+
+PIPELINE_ACCESS_SEED_KEY = "pipeline_access_seeded"
+
+
+def _initialize_pipeline_access(db):
+    """Opportunities stopped requiring the P&L permission (revenue). So that nobody loses the
+    pipeline and the Kanban opens for everyone who works opportunities, ONCE per tenant (a
+    system_config marker; later Role Templates edits are never overwritten), by permission:
+    a role that could see revenue may view opportunities, and a role that may view
+    opportunities may view the pipeline board."""
+    from app.models.system_config import SystemConfig
+
+    resources = {r.name: r.id for r in db.query(Resource).filter(
+        Resource.name.in_(("revenue", "opportunities", "pipeline-management")))}
+    missing = {"revenue", "opportunities", "pipeline-management"} - set(resources)
+    if missing:
+        raise RuntimeError(f"Pipeline access seed: resources not seeded: {sorted(missing)}")
+
+    def grant(role, resource_name):
+        row = db.query(RoleTemplatePermission).filter(
+            RoleTemplatePermission.role_template_id == role.id,
+            RoleTemplatePermission.resource_id == resources[resource_name]).first()
+        if row is None:
+            db.add(RoleTemplatePermission(role_template_id=role.id, resource_id=resources[resource_name],
+                                          tenant_id=role.tenant_id, can_view=True, can_create=False,
+                                          can_edit=False, can_delete=False))
+        elif not row.can_view:
+            row.can_view = True
+        else:
+            return 0
+        return 1
+
+    def can_view(role, resource_name):
+        return db.query(RoleTemplatePermission.id).filter(
+            RoleTemplatePermission.role_template_id == role.id,
+            RoleTemplatePermission.resource_id == resources[resource_name],
+            RoleTemplatePermission.can_view.is_(True)).first() is not None
+
+    tenant_ids = [t for (t,) in db.query(RoleTemplate.tenant_id).distinct().all() if t is not None]
+    for tenant_id in tenant_ids:
+        if db.query(SystemConfig.id).filter(SystemConfig.tenant_id == tenant_id,
+                                            SystemConfig.business_unit_id.is_(None),
+                                            SystemConfig.config_key == PIPELINE_ACCESS_SEED_KEY).first():
+            continue
+        granted = 0
+        for role in db.query(RoleTemplate).filter(RoleTemplate.tenant_id == tenant_id).all():
+            if can_view(role, "revenue"):
+                granted += grant(role, "opportunities")
+            db.flush()
+            if can_view(role, "opportunities"):
+                granted += grant(role, "pipeline-management")
+        db.add(SystemConfig(tenant_id=tenant_id, business_unit_id=None, config_category="SYSTEM",
+                            config_key=PIPELINE_ACCESS_SEED_KEY, config_value={"granted": granted}))
+        db.commit()
+        logger.info(f"[Contract] Pipeline access: {granted} permission(s) granted for tenant {tenant_id}")
 
 
 def _initialize_org_positions(db):

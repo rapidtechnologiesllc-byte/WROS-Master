@@ -2,7 +2,7 @@ from datetime import date, datetime
 import logging
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 logger = logging.getLogger(__name__)
 
@@ -16,9 +16,17 @@ class OpportunityCreateRequest(BaseModel):
     currency: str = "USD"
     revenue_value_native: Optional[int] = None
     owner_employee_id: Optional[str] = None
-    client_owner_id: Optional[str] = None
+    client_owner_id: Optional[str] = None  # a user (users.UserID); defaults to the caller
     expected_close_date: Optional[date] = None
     stage: str = "QUALIFICATION"
+    # What is being sold (stored in opportunity_profiles)
+    service: Optional[str] = None
+    guidewire_module: Optional[str] = None
+    client_type: Optional[str] = None
+    pricing_model: Optional[str] = None
+
+    # an unknown field is a screen/API mismatch: reject it instead of silently dropping data
+    model_config = ConfigDict(extra="forbid")
 
 class OpportunityItem(BaseModel):
     id: str
@@ -28,6 +36,10 @@ class OpportunityItem(BaseModel):
     owner_name: Optional[str] = None
     client_owner_id: Optional[str] = None
     client_owner_name: Optional[str] = None
+    service: Optional[str] = None
+    guidewire_module: Optional[str] = None
+    client_type: Optional[str] = None
+    pricing_model: Optional[str] = None
     stage: str
     revenue_value_usd_cents: int
     revenue_value_native: Optional[int]
