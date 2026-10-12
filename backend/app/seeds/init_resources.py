@@ -126,6 +126,14 @@ NAV_LABELS = {
 
 # Resources whose page is a tab of another page (Users & Access Control):
 # they keep their route (deep links, permissions) but are not menu items.
+# Extra screens governed by an existing resource's permission (no resource of their
+# own): shown in the menu right after that resource for every role that can view it.
+# The LinkedIn pipeline's endpoints all check "candidates", so its page does too --
+# CEO, CFO, partners and BU heads see it under Recruitment, not only recruiters.
+RESOURCE_EXTRA_PAGES = {
+    "candidates": [{"key": "linkedin-pipeline", "label": "LinkedIn Pipeline", "route": "/linkedin-pipeline"}],
+}
+
 NAV_TAB_RESOURCES = {"role-templates", "business-units", "delivery-centers", "organizational-hierarchy"}
 
 

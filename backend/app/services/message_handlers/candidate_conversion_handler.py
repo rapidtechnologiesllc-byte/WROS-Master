@@ -22,11 +22,13 @@ logger = logging.getLogger(__name__)
 class CandidateConversionHandler:
     """Handles candidate-to-employee conversion messages from queue with retry logic."""
 
+    HANDLER_NAME = "candidate_conversion"
+    TIMEOUT_SECONDS = 40
     MAX_RETRIES = 5
     RETRY_DELAY_MINUTES = 30
 
     @staticmethod
-    @time_bound(timeout_seconds=40)
+    @time_bound(timeout_seconds=TIMEOUT_SECONDS)
     def process(
         message: ChannelQueueItem,
         db: Session,
@@ -100,9 +102,6 @@ class CandidateConversionHandler:
                 logger.info(f"[CandidateConversionHandler] Employee {employee_id} already exists, reusing")
 
             db.flush()
-
-            # Track if we're actually changing the status (for idempotent event logging)
-            old_status = candidate_status.piplineStatus
 
             # Update candidate status to EMPLOYEE
             candidate_status.piplineStatus = "EMPLOYEE"
@@ -275,7 +274,7 @@ class CandidateConversionHandler:
                     f"Handler returned ID but record was not persisted."
                 )
 
-            logger.info(f"[Handler] ✅ Step 2a: Database verification passed, candidate exists")
+            logger.info("[Handler] ✅ Step 2a: Database verification passed, candidate exists")
 
             # ===== VALIDATION STEP 2b: Database verification - employee exists =====
             employee = db.query(Employee).filter(Employee.id == employee_id).first()
@@ -286,7 +285,7 @@ class CandidateConversionHandler:
                     f"Handler returned ID but employee record was not created."
                 )
 
-            logger.info(f"[Handler] ✅ Step 2b: Database verification passed, employee exists")
+            logger.info("[Handler] ✅ Step 2b: Database verification passed, employee exists")
 
             # ===== VALIDATION STEP 3: Related records consistency =====
             # Verify candidate status was updated to EMPLOYEE
@@ -306,7 +305,7 @@ class CandidateConversionHandler:
                     f"expected 'EMPLOYEE'. Conversion not properly recorded."
                 )
 
-            logger.info(f"[Handler] ✅ Step 3: Related records valid, status updated to EMPLOYEE")
+            logger.info("[Handler] ✅ Step 3: Related records valid, status updated to EMPLOYEE")
 
             # ===== VALIDATION STEP 4: Data integrity =====
             # Verify employee details match candidate
@@ -317,7 +316,7 @@ class CandidateConversionHandler:
                     f"Data corruption detected."
                 )
 
-            logger.info(f"[Handler] ✅ Step 4: Data integrity verified, email matches")
+            logger.info("[Handler] ✅ Step 4: Data integrity verified, email matches")
 
             # ===== FINAL: Mark COMPLETED after all validations pass =====
             message.status = "COMPLETED"
@@ -330,7 +329,7 @@ class CandidateConversionHandler:
                 db.rollback()
                 raise RuntimeError(f"Failed to commit success status: {str(commit_err)}") from commit_err
 
-            logger.info(f"[Handler] ✅✅✅ ALL VALIDATIONS PASSED - Message marked COMPLETED")
+            logger.info("[Handler] ✅✅✅ ALL VALIDATIONS PASSED - Message marked COMPLETED")
 
         except ValueError as e:
             # Non-retryable error (handler code bug)

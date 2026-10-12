@@ -187,7 +187,6 @@ export const apiRequest = async (path, options = {}) => {
     console.error('[API] Debugging info:');
     console.error('  URL:', url);
     console.error('  Method:', method);
-    console.error('  Headers:', withAuthHeaders(baseHeaders));
     throw new Error(`Network error: ${error.message}. Is the backend running on ${API_BASE_URL}?`);
   }
 
