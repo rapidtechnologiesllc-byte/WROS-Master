@@ -10,7 +10,7 @@
 // Hiring-Manager limitedMode single-interview review card (a different,
 // narrower context this merge doesn't touch).
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Mail, Phone, MessageCircle, MessageSquare, Video, FileText, X, Loader, Upload } from "lucide-react";
+import { Mail, Phone, MessageCircle, MessageSquare, Video, FileText, X, Loader, Upload, AlertCircle, CheckCircle } from "lucide-react";
 import { hasPermission } from "../../utils/permissionsRoleTemplate";
 import {
   createCandidateHistoryEvent,
@@ -810,33 +810,30 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
           )}
         </SectionCard>
 
-        <SectionCard title="Log Interview">
-          {(() => {
-            const pastInterviews = interviews.filter(
-              (i) => i.start_time && new Date(i.start_time) < new Date()
-            );
-
-            if (!pastInterviews.length) {
-              return (
-                <EmptyState
-                  title="No completed interviews"
-                  subtitle="Once an interview is completed, you can log it here with feedback and transcripts."
-                />
-              );
-            }
-
-            return (
-              <div className="flex justify-center">
-                <button
-                  type="button"
-                  onClick={() => setShowLogInterviewModal(true)}
-                  className="inline-flex items-center rounded-xl bg-green-600 px-6 py-2 text-sm font-medium text-white transition hover:bg-green-700"
-                >
-                  Log Completed Interview
-                </button>
-              </div>
-            );
-          })()}
+        <SectionCard title="Log Interview & Upload Transcripts">
+          <div className="space-y-4">
+            <div className="text-sm text-gray-600">
+              Log feedback and upload transcripts for completed interviews, or manually add past interview details.
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                type="button"
+                onClick={() => setShowLogInterviewModal(true)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-6 py-2 text-sm font-medium text-white transition hover:bg-green-700"
+              >
+                <FileText className="h-4 w-4" />
+                Log Interview
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowTranscriptModal(true)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+              >
+                <Upload className="h-4 w-4" />
+                Upload Transcript
+              </button>
+            </div>
+          </div>
         </SectionCard>
       </div>
 
