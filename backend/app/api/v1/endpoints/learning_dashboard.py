@@ -11,13 +11,12 @@ Endpoints:
 """
 
 import logging
-from typing import Optional
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db, get_current_user
+from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.models.user import Users
 from app.models.slm_learning_metrics import SLMMetrics
 from app.services.unified_learning_orchestrator import UnifiedLearningOrchestrator
@@ -25,7 +24,10 @@ from app.services.learning_weight_optimizer import LearningWeightOptimizer
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/learning", tags=["learning"])
+# Learning-system data is SLM administration: every route needs slm-dashboard view,
+# and anything that starts a learning cycle needs slm-dashboard edit (route-level below).
+router = APIRouter(prefix="/learning", tags=["learning"],
+                   dependencies=[Depends(require_resource_permission("slm-dashboard", "view"))])
 
 
 @router.get("/health")
@@ -221,7 +223,7 @@ def get_recent_outcomes(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/cycle")
+@router.post("/cycle", dependencies=[Depends(require_resource_permission("slm-dashboard", "edit"))])
 def trigger_learning_cycle(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_user),

@@ -8,23 +8,25 @@ Provides data visualization for autonomous learning system:
 """
 
 import logging
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from typing import Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, require_resource_permission
 from app.models.user import Users
-from app.models.genetic_weight_population import GeneticWeightPopulation, GeneticWeightChromosome
+from app.models.genetic_weight_population import GeneticWeightPopulation
 from app.models.ab_test_deployment import ABTestDeployment, ABTestDecision, ABTestStageMetrics
-from app.models.behavioral_adaptation_rules import BehavioralAdaptationRule, RuleExecution, RuleAuditLog
+from app.models.behavioral_adaptation_rules import BehavioralAdaptationRule, RuleExecution
 from app.models.cascading_signal_log import CascadingSignalLog, CascadingSignalMetrics
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/learning", tags=["learning_analytics"])
+# Learning-system data is SLM administration: every route needs slm-dashboard view,
+# and anything that starts a learning cycle needs slm-dashboard edit (route-level below).
+router = APIRouter(prefix="/learning", tags=["learning_analytics"],
+                   dependencies=[Depends(require_resource_permission("slm-dashboard", "view"))])
 
 
 # ============================================================================
