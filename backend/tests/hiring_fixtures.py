@@ -35,7 +35,8 @@ def clear_hiring(db, candidate, offer=None, joining_date=None):
 
 def finance_approver(db, tenant_id=1, level=11):
     """A Finance Director (Senior Manager+ in Finance): the only kind of user who may approve invoices.
-    The role holds the invoices permission, as Finance roles do in production."""
+    The role holds the invoices permission and org-level access (it sees every business unit's
+    invoices), as the seeded Finance role does in production (app.core.db_contract)."""
     import uuid
 
     from app.models.role_template import Module, Resource, RoleTemplate, RoleTemplatePermission
@@ -47,7 +48,7 @@ def finance_approver(db, tenant_id=1, level=11):
         db.flush()
     suffix = uuid.uuid4().hex[:8]
     role = RoleTemplate(tenant_id=tenant_id, name=f"finance-director-{suffix}", display_name="Finance Director",
-                        hierarchy_level=level, specialization="Finance", enabled=True)
+                        hierarchy_level=level, specialization="Finance", enabled=True, org_level_access=True)
     db.add(role)
     db.flush()
     resource = db.query(Resource).filter_by(tenant_id=tenant_id, name="invoices").first()

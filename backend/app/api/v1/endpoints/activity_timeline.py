@@ -32,6 +32,52 @@ from app.services.file_upload_service import get_file_access_url, list_files_for
 
 router = APIRouter(tags=["activity-timeline"])
 
+
+def _ensure_entity_visible(db: Session, user: Users, entity_type: str, entity_id: str) -> None:
+    """The timeline and files of a record are as visible as the record itself (CEO 2026-10-12:
+    the business unit decides which records a user sees -- app.core.data_scope). A record of a
+    business unit outside the caller's scope is 404, the same answer as one that does not exist.
+    Entity types with no business unit (a user, a role template, a config) are not narrowed."""
+    from app.core import data_scope
+
+    kind = (entity_type or "").lower()
+    if kind == "client":
+        data_scope.ensure_visible(db, user, data_scope.client_bu_id(db, entity_id), "Client")
+    elif kind in ("job", "demand"):
+        data_scope.ensure_visible(db, user, data_scope.job_bu_id(db, entity_id), "Job")
+    elif kind == "employee":
+        from app.models.employee import Employee
+
+        row = db.query(Employee.bu_id).filter(Employee.id == entity_id).first()
+        data_scope.ensure_visible(db, user, row[0] if row else None, "Employee")
+    elif kind in ("opportunity", "project", "invoice"):
+        from app.models.invoice import Invoice
+        from app.models.opportunity import Opportunity
+        from app.models.project import Project
+
+        model = {"opportunity": Opportunity, "project": Project, "invoice": Invoice}[kind]
+        row = db.query(model.client_id).filter(model.id == entity_id).first()
+        data_scope.ensure_visible(db, user, data_scope.client_bu_id(db, row[0]) if row else None, kind.title())
+    elif kind in ("employee_allocation", "allocation"):
+        from app.models.employee_allocation import EmployeeAllocation
+
+        exists = db.query(EmployeeAllocation.id).filter(EmployeeAllocation.id == entity_id)
+        if exists.first() and not exists.filter(data_scope.allocation_filter(db, user)).first():
+            raise HTTPException(status_code=404, detail="Allocation not found")
+    elif kind == "timesheet":
+        from app.models.timesheet import Timesheet
+
+        exists = db.query(Timesheet.id).filter(Timesheet.id == entity_id)
+        if exists.first() and not exists.filter(data_scope.timesheet_filter(db, user)).first():
+            raise HTTPException(status_code=404, detail="Timesheet not found")
+    elif kind == "candidate":
+        from app.core.bu_scope import get_candidate_by_id_with_bu_scope
+        from app.models.candidate import Candidate
+
+        exists = db.query(Candidate.candidateID).filter(Candidate.candidateID == entity_id).first()
+        if exists and get_candidate_by_id_with_bu_scope(db, entity_id, user) is None:
+            raise HTTPException(status_code=404, detail="Candidate not found")
+
 @router.get(
     "/activity-timeline/{entity_type}/{entity_id}",
     response_model=TimelineResponse,
@@ -42,6 +88,7 @@ async def get_timeline(
     current_user: Users = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
+    _ensure_entity_visible(db, current_user, entity_type, entity_id)
     return get_timeline_for_entity(
         db, entity_type, entity_id, tenant_id=current_user.tenant_id, page=page, per_page=per_page,
     )
@@ -56,6 +103,7 @@ def post_timeline_entry(
     current_user: Users = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
+    _ensure_entity_visible(db, current_user, entity_type, entity_id)
     try:
         write_timeline_entry(
             db, tenant_id=current_user.tenant_id, entity_type=entity_type, entity_id=entity_id,
@@ -79,6 +127,7 @@ def post_file_upload(
     current_user: Users = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
+    _ensure_entity_visible(db, current_user, entity_type, entity_id)
     try:
         content = file.file.read()
         if not content:
@@ -115,6 +164,13 @@ def get_access_url(
     # by specificity, so a literal segment like "access-url" must be
     # declared first or it gets silently swallowed as an entity_id by
     # the more generic route.
+    from app.models.file_upload import FileUpload
+
+    upload = db.query(FileUpload).filter(FileUpload.id == file_id).first()
+    if upload is not None:
+        if upload.tenant_id is not None and upload.tenant_id != current_user.tenant_id:
+            raise HTTPException(status_code=404, detail="File not found")
+        _ensure_entity_visible(db, current_user, upload.entity_type, upload.entity_id)
     return FileAccessUrlResponse(access_url=get_file_access_url(db, file_id))
 
 @router.get(
@@ -127,6 +183,7 @@ def get_files_for_entity(
     current_user: Users = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
+    _ensure_entity_visible(db, current_user, entity_type, entity_id)
     rows = list_files_for_entity(db, entity_type, entity_id, tenant_id=current_user.tenant_id)
     return [
         FileUploadOut(

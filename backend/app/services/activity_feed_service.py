@@ -53,7 +53,7 @@ Real architecture adaptation:
   that every other story in this codebase also writes to.
 """
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 from sqlalchemy.orm import Session
 
@@ -175,6 +175,7 @@ def _serialize(db: Session, event: ConversationEvent, candidate: Optional[Candid
 def get_activity_feed(
     db: Session, tenant_id, *, candidate_id: Optional[str] = None, severity: Optional[str] = None,
     page: int = 1, per_page: int = 25, since_days: int = DEFAULT_RETENTION_DAYS,
+    visible_candidate_ids=None,
 ) -> Dict:
     """Step 3. Never raises -- callers should still catch to satisfy
     this story's own "show 'Activity feed unavailable', do not crash"
@@ -182,7 +183,10 @@ def get_activity_feed(
 
     Scoped by the candidate's tenant (Candidate.tenant_id).
     CandidateConversation.tenant_id holds a users.UserID, not a tenant, so
-    filtering on it with a tenant id never matched anything."""
+    filtering on it with a tenant id never matched anything.
+
+    visible_candidate_ids: a selectable of the candidate ids the caller may see (business-unit
+    scope, app.core.bu_scope); None = unrestricted (org-level)."""
     since = datetime.utcnow() - timedelta(days=since_days)
 
     query = (
@@ -193,6 +197,8 @@ def get_activity_feed(
     )
     if candidate_id:
         query = query.filter(CandidateConversation.candidate_id == candidate_id)
+    if visible_candidate_ids is not None:
+        query = query.filter(CandidateConversation.candidate_id.in_(visible_candidate_ids))
     if severity:
         matching_types = [t for t, s in ACTIVITY_EVENT_SEVERITY.items() if s == severity]
         query = query.filter(ConversationEvent.event_type.in_(matching_types))
@@ -227,6 +233,8 @@ def get_activity_feed(
     )
     if candidate_id:
         unread_count = unread_count.filter(CandidateConversation.candidate_id == candidate_id)
+    if visible_candidate_ids is not None:
+        unread_count = unread_count.filter(CandidateConversation.candidate_id.in_(visible_candidate_ids))
     unread_count = unread_count.scalar()
 
     return {

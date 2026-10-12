@@ -16,6 +16,8 @@ A record is attributed to a BU directly (its own business_unit_id / bu_id), thro
 client (Client.business_unit_id) or through its job (Jobs.business_unit_id). Use:
 
 - bu_filter / client_filter / job_filter / employee_filter: WHERE clauses for list queries;
+- allocation_filter / timesheet_filter / expense_filter: the delivery and finance records whose
+  owner is derived (employee's BU OR client's BU; client's BU else the record's own BU);
 - ensure_visible: 404 for a single record outside the scope (no leaking that it exists);
 - ensure_assignable: 403 when a write would put a record into a BU outside the scope.
 """
@@ -23,7 +25,7 @@ import logging
 from typing import Optional, Set
 
 from fastapi import HTTPException
-from sqlalchemy import or_, select, true
+from sqlalchemy import and_, or_, select, true
 
 from app.core.visibility import get_user_bu_ids
 from app.models.user import Users
@@ -82,6 +84,68 @@ def employee_filter(db, user: Users, employee_id_column, *, unassigned_visible: 
         return true()
     sub = select(Employee.id).where(bu_filter(db, user, Employee.bu_id, unassigned_visible=unassigned_visible))
     return employee_id_column.in_(sub)
+
+
+def employee_or_client_filter(db, user: Users, employee_id_column, client_id_column):
+    """WHERE clause for records owned jointly by an employee's BU (the person) and a client's BU
+    (the revenue) -- an EmployeeAllocation: visible when EITHER business unit is in scope. Only a
+    record whose employee and client are both unassigned stays visible to everyone."""
+    from app.models.client import Client
+    from app.models.employee import Employee
+
+    if visible_bu_ids(db, user) is None:
+        return true()
+    both_unassigned = and_(
+        employee_id_column.in_(select(Employee.id).where(Employee.bu_id.is_(None))),
+        or_(client_id_column.is_(None),
+            client_id_column.in_(select(Client.id).where(Client.business_unit_id.is_(None)))),
+    )
+    return or_(employee_filter(db, user, employee_id_column, unassigned_visible=False),
+               client_filter(db, user, client_id_column, unassigned_visible=False),
+               both_unassigned)
+
+
+def allocation_filter(db, user: Users):
+    """WHERE clause for EmployeeAllocation (employee's BU OR client's BU)."""
+    from app.models.employee_allocation import EmployeeAllocation
+
+    return employee_or_client_filter(db, user, EmployeeAllocation.employee_id, EmployeeAllocation.client_id)
+
+
+def timesheet_filter(db, user: Users):
+    """WHERE clause for Timesheet: it follows its employee and its allocation the way an
+    allocation does -- visible when the employee's BU or the allocation's client's BU is in
+    scope. A timesheet with no allocation (internal task time) follows its employee alone."""
+    from app.models.client import Client
+    from app.models.employee import Employee
+    from app.models.employee_allocation import EmployeeAllocation
+    from app.models.timesheet import Timesheet
+
+    if visible_bu_ids(db, user) is None:
+        return true()
+    client_in_scope = select(EmployeeAllocation.id).where(
+        client_filter(db, user, EmployeeAllocation.client_id, unassigned_visible=False))
+    client_unassigned = select(EmployeeAllocation.id).join(Client, Client.id == EmployeeAllocation.client_id).where(
+        Client.business_unit_id.is_(None))
+    employee_unassigned = Timesheet.employee_id.in_(select(Employee.id).where(Employee.bu_id.is_(None)))
+    return or_(
+        employee_filter(db, user, Timesheet.employee_id, unassigned_visible=False),
+        Timesheet.allocation_id.in_(client_in_scope),
+        and_(employee_unassigned, or_(Timesheet.allocation_id.is_(None), Timesheet.allocation_id.in_(client_unassigned))),
+    )
+
+
+def expense_filter(db, user: Users):
+    """WHERE clause for ExpenseRecord: its client's BU when it has a client, else its own
+    business_unit_id (the logger's BU at the time)."""
+    from app.models.expense import ExpenseRecord
+
+    if visible_bu_ids(db, user) is None:
+        return true()
+    return or_(
+        and_(ExpenseRecord.client_id.isnot(None), client_filter(db, user, ExpenseRecord.client_id)),
+        and_(ExpenseRecord.client_id.is_(None), bu_filter(db, user, ExpenseRecord.business_unit_id)),
+    )
 
 
 def can_see_bu(db, user: Users, business_unit_id: Optional[int], *, unassigned_visible: bool = True) -> bool:
