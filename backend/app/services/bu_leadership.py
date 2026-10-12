@@ -1,9 +1,9 @@
 """Who leads which business unit, and where (CEO 2026-10-12).
 
 - Partner: one per business unit (BusinessUnit.partner_user_id), for every company the
-  BU operates in. E.g. Troy is partner of AXION in BX-US and BX-IN.
-- BU head: one per business unit per company (BusinessUnitLocationHead). E.g. Troy runs
-  AXION in BX-US, Hemant runs AXION in BX-IN. A person may head several BUs, the same BU
+  BU operates in, e.g. one partner for AXION in both BX-US and BX-IN.
+- BU head: one per business unit per company (BusinessUnitLocationHead), e.g. AXION has
+  one head in BX-US and another in BX-IN. A person may head several BUs, the same BU
   in several companies, and may also be a partner.
 
 Visibility is per business unit, never per location (CEO 2026-10-12): whoever partners a

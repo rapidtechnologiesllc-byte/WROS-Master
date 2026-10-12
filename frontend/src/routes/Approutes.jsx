@@ -123,7 +123,7 @@ import ForcePasswordReset from "../pages/ForcePasswordReset";
 import CEOExecutiveDashboardScreen from "../screens/CEOExecutiveDashboardScreen";
 import TrainingCertificationDashboard from "../screens/TrainingCertificationDashboard";
 import CertificationManagementScreen from "../screens/CertificationManagementScreen";
-import TroyPartnerDashboard from "../screens/TroyPartnerDashboard";
+import PartnerDashboard from "../screens/PartnerDashboard";
 import BIExplorerScreen from "../screens/BIExplorerScreen";
 import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
 import MyReferralsScreen from "../screens/MyReferralsScreen";
@@ -706,7 +706,7 @@ function AuthenticatedApp() {
             <Route path="admin/users-access-control/delivery-centers/:dcId/edit" element={<DeliveryCenterFormPage />} />
 
             <Route path="training-certification" element={<TrainingCertificationDashboard />} />
-            <Route path="troy-partner-dashboard" element={<TroyPartnerDashboard />} />
+            <Route path="partner-dashboard" element={<PartnerDashboard />} />
             <Route path="bi-explorer" element={<BIExplorerScreen />} />
             <Route path="bu-head-dashboard" element={<BuHeadDashboardScreen />} />
 

@@ -4,7 +4,9 @@ Partner Success Agent Service
 NOT a tracker. A COACH.
 Works FOR partners to make them successful toward their revenue targets.
 
-Troy = $3M, Curtis = $4M, Avinash = $2M
+The partner is any user the BU structure names as partner (BusinessUnit.partner_user_id);
+their annual target is what the Goals screen holds for them this fiscal year -- never a
+name or a number in code.
 
 Daily standup: "Here's what you need to do TODAY to hit $XXK"
 Weekly check-in: "You're at $XXK. Need $XXK by Friday. Here's what's stalling."
@@ -14,10 +16,10 @@ Philosophy: Partners succeed = company succeeds.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 
 from app.core.agent_logging import log_agent_execution
 from app.models.client import Client
@@ -49,39 +51,50 @@ def _partner_opportunities(db: Session, partner_user_id: str, open_only: bool):
 
 
 def _partner_ytd_revenue_cents(db: Session, partner_user_id: str, year_start) -> int:
-    """Invoiced (approved/sent/paid) revenue this year in the partner's BUs."""
+    """Invoiced (approved/sent/paid) revenue this fiscal year in the partner's BUs."""
     from app.services.finance_agent import _invoice_cents
     bu_ids = partner_bu_ids(db, partner_user_id)
     return _invoice_cents(db, bu_ids, datetime.combine(year_start, datetime.min.time())) if bu_ids else 0
 
 
+def _partner_and_target(db: Session, tenant_id: int, partner_user_id: str):
+    """(partner user, annual revenue target in USD cents, FY start date, FY end date).
+
+    The partner must partner at least one business unit. The target is the partner's FY
+    revenue target on the Goals screen (PARTNER rows, one per company), else the sum of
+    their BUs' targets there. No target set -> ValueError: coaching against an invented
+    number would be worse than none."""
+    from app.models.strategic_goal import GoalTarget
+    from app.services.fiscal_year_service import current_fy, fy_window
+
+    partner = db.query(Users).filter(Users.UserID == partner_user_id, Users.tenant_id == tenant_id).first()
+    bu_ids = partner_bu_ids(db, partner_user_id) if partner else []
+    if not partner or not bu_ids:
+        raise ValueError(f"User {partner_user_id} is not the partner of any business unit")
+
+    fy = current_fy(db, tenant_id)
+    rows = db.query(GoalTarget).filter(GoalTarget.tenant_id == tenant_id, GoalTarget.year == fy,
+                                       GoalTarget.metric == "revenue")
+    partner_rows = [r for r in rows.filter(GoalTarget.level == "PARTNER")
+                    if r.entity_id.partition(":")[2] == partner_user_id]
+    bu_rows = [r for r in rows.filter(GoalTarget.level == "BU")
+               if r.entity_id.partition(":")[2] in {str(i) for i in bu_ids}]
+    target_usd = sum(r.target for r in partner_rows) or sum(r.target for r in bu_rows)
+    if not target_usd:
+        raise ValueError(f"No FY{fy} revenue target is set for {partner.UserName} on the Goals screen")
+    start, end = fy_window(db, fy, tenant_id)
+    return partner, int(round(target_usd * 100)), start.date(), (end - timedelta(days=1)).date()
+
+
 class PartnerSuccessAgent:
     """Proactive partner coaching toward revenue targets."""
-
-    # Partner targets (gross revenue)
-    PARTNER_TARGETS = {
-        "troy": 3_000_000_00,      # $3M in USD cents
-        "curtis": 4_000_000_00,    # $4M
-        "avinash": 2_000_000_00,   # $2M
-    }
-
-    @staticmethod
-    def get_partner_key(partner_id_or_name: str) -> Optional[str]:
-        """Normalize partner name to key."""
-        name_lower = partner_id_or_name.lower()
-        if "troy" in name_lower:
-            return "troy"
-        elif "curtis" in name_lower:
-            return "curtis"
-        elif "avinash" in name_lower:
-            return "avinash"
-        return None
 
     @staticmethod
     @log_agent_execution("Partner Success Agent", "thursday_ceo_prep")
     async def thursday_ceo_prep(
-        tenant_id: str,
-        partner_key: str,  # "troy", "curtis", "avinash"
+        *,
+        tenant_id: int,
+        partner_user_id: str,
         db: Session,
         **kwargs
     ) -> Dict[str, Any]:
@@ -92,27 +105,15 @@ class PartnerSuccessAgent:
         Not daily nagging. Just once-a-week reality check before talking to boss.
         """
         try:
-            if partner_key not in PartnerSuccessAgent.PARTNER_TARGETS:
-                raise ValueError(f"Unknown partner: {partner_key}")
+            partner, annual_target, year_start, year_end = _partner_and_target(db, tenant_id, partner_user_id)
 
-            annual_target = PartnerSuccessAgent.PARTNER_TARGETS[partner_key]
-
-            # Get partner's user record
-            partner = db.query(Users).filter(
-                Users.tenant_id == tenant_id,
-                func.lower(Users.UserName).contains(partner_key)
-            ).first()
-
-            if not partner:
-                raise ValueError(f"Partner {partner_key} not found")
-
-            # Calculate progress
+            # Calculate progress through the fiscal year
             today = datetime.utcnow().date()
-            year_start = today.replace(month=1, day=1)
+            days_in_year = (year_end - year_start).days + 1
             days_into_year = (today - year_start).days + 1
-            days_remaining_in_year = 365 - days_into_year
+            days_remaining_in_year = days_in_year - days_into_year
 
-            daily_burn_rate = annual_target / 365  # Revenue per day needed
+            daily_burn_rate = annual_target / days_in_year  # Revenue per day needed
             ytd_revenue_cents = _partner_ytd_revenue_cents(db, partner.UserID, year_start)
 
             # Get partner's open opportunities
@@ -134,7 +135,7 @@ class PartnerSuccessAgent:
                 })
 
             # Calculate pace
-            ytd_target = (annual_target / 365) * days_into_year
+            ytd_target = daily_burn_rate * days_into_year
             ytd_pace_pct = (ytd_revenue_cents / ytd_target * 100) if ytd_target > 0 else 0
 
             # TODAY's action items
@@ -153,9 +154,9 @@ class PartnerSuccessAgent:
                         "action": f"Move {names.get(opp.client_id)} (${opp.revenue_value_usd_cents/100:,.0f}) to {next_stage(opp.stage)} TODAY",
                         "reason": f"Closes {(opp.expected_close_date - today).days} days from now, currently in {opp.stage}",
                         "steps": [
-                            f"Call client today (morning)",
-                            f"Confirm decision/address blockers",
-                            f"Get commitment or restart process",
+                            "Call client today (morning)",
+                            "Confirm decision/address blockers",
+                            "Get commitment or restart process",
                         ]
                     })
 
@@ -167,9 +168,9 @@ class PartnerSuccessAgent:
                     "action": f"Restart {names.get(opp.client_id)} (${opp.revenue_value_usd_cents/100:,.0f}) - stalled",
                     "reason": f"No activity for {days_since_activity(opp)} days",
                     "steps": [
-                        f"Call client today - ask for status",
-                        f"Identify blocker (budget? decision? process?)",
-                        f"Set next action (meeting? proposal revision? budget review?)",
+                        "Call client today - ask for status",
+                        "Identify blocker (budget? decision? process?)",
+                        "Set next action (meeting? proposal revision? budget review?)",
                     ]
                 })
 
@@ -181,9 +182,9 @@ class PartnerSuccessAgent:
                     "action": f"Qualify {len(prospects)} prospect(s) - each could be $XXK",
                     "reason": "Prospects need to move to qualified (10% → 25% probability)",
                     "steps": [
-                        f"Call each prospect (5-10 min each)",
-                        f"Confirm: budget approved? decision maker identified? timeline?",
-                        f"Move qualified ones to the PROSPECT stage",
+                        "Call each prospect (5-10 min each)",
+                        "Confirm: budget approved? decision maker identified? timeline?",
+                        "Move qualified ones to the PROSPECT stage",
                     ]
                 })
 
@@ -192,7 +193,8 @@ class PartnerSuccessAgent:
 
             return {
                 "status": "success",
-                "partner": partner_key.upper(),
+                "partner_user_id": partner.UserID,
+                "partner": partner.UserName,
                 "date": today.isoformat(),
 
                 # TODAY'S PACE
@@ -214,13 +216,13 @@ class PartnerSuccessAgent:
                 "action_count": len(action_items),
 
                 # COACHING MESSAGE
-                "todays_message": f"${''.join(generate_coaching_message(partner_key, ytd_pace_pct, len(action_items)))}",
+                "todays_message": generate_coaching_message(partner.UserName, ytd_pace_pct, len(action_items)),
 
                 # FORECAST
                 "forecast": {
                     "on_track": ytd_pace_pct >= 85,
                     "probability": ytd_pace_pct / 100,
-                    "projected_year_end_usd": (ytd_revenue_cents / days_into_year * 365) / 100 if days_into_year > 0 else 0,
+                    "projected_year_end_usd": (ytd_revenue_cents / days_into_year * days_in_year) / 100 if days_into_year > 0 else 0,
                     "target_usd": annual_target / 100,
                 }
             }
@@ -232,8 +234,9 @@ class PartnerSuccessAgent:
     @staticmethod
     @log_agent_execution("Partner Success Agent", "weekly_business_review")
     async def weekly_business_review(
-        tenant_id: str,
-        partner_key: str,
+        *,
+        tenant_id: int,
+        partner_user_id: str,
         db: Session,
         **kwargs
     ) -> Dict[str, Any]:
@@ -241,22 +244,10 @@ class PartnerSuccessAgent:
         Weekly: Coaching session. "Here's what's working. Here's what's not."
         """
         try:
-            if partner_key not in PartnerSuccessAgent.PARTNER_TARGETS:
-                raise ValueError(f"Unknown partner: {partner_key}")
-
-            annual_target = PartnerSuccessAgent.PARTNER_TARGETS[partner_key]
+            partner, _, _, _ = _partner_and_target(db, tenant_id, partner_user_id)
             today = datetime.utcnow().date()
             week_start = today - timedelta(days=today.weekday())
             week_ago = today - timedelta(days=7)
-
-            # Get partner
-            partner = db.query(Users).filter(
-                Users.tenant_id == tenant_id,
-                func.lower(Users.UserName).contains(partner_key)
-            ).first()
-
-            if not partner:
-                raise ValueError(f"Partner {partner_key} not found")
 
             # This week's activity
             opportunities, names = _partner_opportunities(db, partner.UserID, open_only=False)
@@ -293,7 +284,8 @@ class PartnerSuccessAgent:
 
             return {
                 "status": "success",
-                "partner": partner_key.upper(),
+                "partner_user_id": partner.UserID,
+                "partner": partner.UserName,
                 "week": f"{week_start.isoformat()} to {today.isoformat()}",
 
                 # WINS
@@ -313,11 +305,11 @@ class PartnerSuccessAgent:
                 "weekly_focus": [
                     f"Get {stalled_count} stalled deals moving again",
                     f"Qualify {len(prospects)} prospects or drop them",
-                    f"Close at least 1 deal by Friday (hit daily pace)",
+                    "Close at least 1 deal by Friday (hit daily pace)",
                 ],
 
                 # PARTNER COACHING
-                "coaching": generate_weekly_coaching(partner_key, closed_revenue_week, stalled_count),
+                "coaching": generate_weekly_coaching(closed_revenue_week, stalled_count),
             }
 
         except Exception as e:
@@ -346,18 +338,18 @@ def days_since_activity(opp: Opportunity) -> int:
         return 999
     return (datetime.utcnow() - last_activity).days
 
-def generate_coaching_message(partner_key: str, pace_pct: float, action_count: int) -> str:
+def generate_coaching_message(partner_name: str, pace_pct: float, action_count: int) -> str:
     """Generate daily coaching message."""
     if pace_pct >= 100:
-        return f"🔥 {partner_key.upper()}: You're CRUSHING IT! {pace_pct:.0f}% of pace. Keep this energy."
+        return f"🔥 {partner_name}: You're CRUSHING IT! {pace_pct:.0f}% of pace. Keep this energy."
     elif pace_pct >= 85:
-        return f"📈 {partner_key.upper()}: On track. {pace_pct:.0f}% of pace. {action_count} items to close today."
+        return f"📈 {partner_name}: On track. {pace_pct:.0f}% of pace. {action_count} items to close today."
     elif pace_pct >= 70:
-        return f"⚠️ {partner_key.upper()}: Slightly behind. {pace_pct:.0f}% of pace. {action_count} critical actions TODAY."
+        return f"⚠️ {partner_name}: Slightly behind. {pace_pct:.0f}% of pace. {action_count} critical actions TODAY."
     else:
-        return f"🚨 {partner_key.upper()}: BEHIND PACE. {pace_pct:.0f}% of target. URGENT: {action_count} actions to restart deals."
+        return f"🚨 {partner_name}: BEHIND PACE. {pace_pct:.0f}% of target. URGENT: {action_count} actions to restart deals."
 
-def generate_weekly_coaching(partner_key: str, weekly_revenue: int, stalled_count: int) -> str:
+def generate_weekly_coaching(weekly_revenue: int, stalled_count: int) -> str:
     """Generate weekly coaching message."""
     weekly_revenue_usd = weekly_revenue / 100
 
@@ -368,4 +360,4 @@ def generate_weekly_coaching(partner_key: str, weekly_revenue: int, stalled_coun
     elif stalled_count > 2:
         return f"Mixed week. ${weekly_revenue_usd:,.0f} closed but {stalled_count} deals stalled. RESTART THESE."
     else:
-        return f"Solid work. Keep your prospects moving. Get one deal to commitment by Friday."
+        return "Solid work. Keep your prospects moving. Get one deal to commitment by Friday."

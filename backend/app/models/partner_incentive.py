@@ -1,9 +1,9 @@
 """
-Partner incentive eligibility/calculation, 2026-08-05. Avinash's direct
-example: Troy earns a one-time $10K new-logo bonus per new AXION client,
-triggered by MSA signed AND first revenue invoice -- "this is not
-applicable to Curtis" (his incentive is a revenue-share on PRISM Core,
-a structurally different mechanism, not just a different amount).
+Partner incentive eligibility/calculation, 2026-08-05. Example: one partner
+earns a one-time new-logo bonus per new client in their BU, triggered by
+MSA signed AND first revenue invoice; another is paid a revenue share on
+their BU instead (a structurally different mechanism, not just a
+different amount).
 
 Deliberately data-driven, not hardcoded per-partner logic: eligibility
 is "does an active PartnerIncentiveRule exist for this partner_user_id
@@ -37,8 +37,8 @@ logger = logging.getLogger(__name__)
 class PartnerIncentiveRule(Base):
     """Config data, not code -- one row per partner per incentive type
     they're actually eligible for. No row = not eligible, structurally
-    (this is how Curtis staying ineligible for NEW_LOGO_BONUS works --
-    no special-case exclusion needed, there's simply no rule for him)."""
+    (this is how a revenue-share partner stays ineligible for NEW_LOGO_BONUS --
+    no special-case exclusion needed, there's simply no rule for them)."""
     __tablename__ = "partner_incentive_rules"
 
     id = Column(String(512), primary_key=True, default=_new_uuid)

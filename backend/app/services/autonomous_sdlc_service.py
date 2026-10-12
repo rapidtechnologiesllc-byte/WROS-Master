@@ -31,6 +31,7 @@ Architecture: PostgreSQL-based message queue (no Redis/Celery)
 Pattern: Spartan Formation - Architect leads each cycle, full orchestration
 """
 import logging
+import pathlib
 import subprocess
 import json
 import os
@@ -39,6 +40,9 @@ from typing import Dict, Any, List
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
+
+# The checkout this file lives in (backend/app/services -> repo root)
+REPO_ROOT = str(pathlib.Path(__file__).resolve().parents[3])
 
 # SAFETY: Refuse to run in production
 ENVIRONMENT = os.getenv("ENVIRONMENT", "local").lower()
@@ -360,13 +364,13 @@ def _deploy_changes(develop_result: Dict[str, Any]) -> Dict[str, Any]:
         logger.info("[DEPLOY] Committing changes to git")
 
         # Stage all changes
-        subprocess.run(["git", "add", "-A"], cwd="C:\\Users\\AvinashMukund\\Documents\\Claude\\WROS-Master", check=True, capture_output=True)
+        subprocess.run(["git", "add", "-A"], cwd=REPO_ROOT, check=True, capture_output=True)
 
         # Commit with message
         commit_message = f"chore: Autonomous SDLC fixes - {develop_result.get('fixes_applied')} issues fixed\n\nAutonomously fixed issues from SDLC audit cycle.\n\nCo-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>"
         result = subprocess.run(
             ["git", "commit", "-m", commit_message],
-            cwd="C:\\Users\\AvinashMukund\\Documents\\Claude\\WROS-Master",
+            cwd=REPO_ROOT,
             capture_output=True,
             text=True
         )

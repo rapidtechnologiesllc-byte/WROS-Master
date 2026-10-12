@@ -9,6 +9,7 @@ from typing import Callable, Optional
 
 from sqlalchemy.orm import Session
 
+from app.core.data_scope import client_bu_id
 from app.models.demand import Demand
 from app.models.demand_confirmation import DemandAlignmentCall
 from app.models.employee import Employee
@@ -56,14 +57,14 @@ def schedule_alignment_call(
     demand: Demand,
     employee: Employee,
     *,
-    curtis_user_id: Optional[str] = None,
+    partner_user_id: Optional[str] = None,
     bu_head_user_id: Optional[str] = None,
     scheduler: Optional[Callable[[Optional[str], Optional[str], str], datetime]] = None,
 ) -> DemandAlignmentCall:
     """
     Step 4: SchedulerService.book3WayAlignment() -- no calendar
     integration (HRMS-1306) exists in this codebase; `scheduler` is an
-    injectable callable(curtis_user_id, bu_head_user_id, employee_id) ->
+    injectable callable(partner_user_id, bu_head_user_id, employee_id) ->
     datetime, same "real function signature, real transport deferred"
     posture as every other unprovisioned integration here (WhatsApp,
     virus scan). Defaults to "right now" -- correct for the CONFIRMED
@@ -72,6 +73,9 @@ def schedule_alignment_call(
 
     Idempotent per demand+employee -- a second call returns the existing
     DemandAlignmentCall rather than re-booking.
+
+    The three parties are roles, resolved from the demand when not given: the partner of
+    the demand's business unit and the BU head of the client's contracting company.
     """
     existing = (
         db.query(DemandAlignmentCall)
@@ -81,12 +85,22 @@ def schedule_alignment_call(
     if existing:
         return existing
 
-    book = scheduler or (lambda curtis_id, bu_head_id, emp_id: datetime.utcnow())
-    scheduled_at = book(curtis_user_id, bu_head_user_id, employee.id)
+    from app.models.business_unit import BusinessUnit
+    from app.services.bu_leadership import head_for_client
+
+    bu_id = demand.business_unit_id or client_bu_id(db, demand.client_id)
+    if partner_user_id is None and bu_id is not None:
+        unit = db.query(BusinessUnit).filter(BusinessUnit.id == bu_id).first()
+        partner_user_id = unit.partner_user_id if unit else None
+    if bu_head_user_id is None:
+        bu_head_user_id = head_for_client(db, bu_id, demand.client_id)
+
+    book = scheduler or (lambda partner_id, bu_head_id, emp_id: datetime.utcnow())
+    scheduled_at = book(partner_user_id, bu_head_user_id, employee.id)
 
     call = DemandAlignmentCall(
         tenant_id=demand.tenant_id, demand_id=demand.id, employee_id=employee.id,
-        curtis_user_id=curtis_user_id, bu_head_user_id=bu_head_user_id, scheduled_at=scheduled_at,
+        partner_user_id=partner_user_id, bu_head_user_id=bu_head_user_id, scheduled_at=scheduled_at,
     )
     db.add(call)
     db.flush()

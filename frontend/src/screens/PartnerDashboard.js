@@ -36,7 +36,7 @@ function MetricCell({ cell, usd }) {
   );
 }
 
-export default function TroyPartnerDashboard() {
+export default function PartnerDashboard() {
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState(null);
   const [actionError, setActionError] = useState(null);
@@ -51,7 +51,7 @@ export default function TroyPartnerDashboard() {
         const qs = new URLSearchParams();
         if (partnerId) qs.set("partner_user_id", partnerId);
         if (buId) qs.set("business_unit_id", buId);
-        const { data } = await apiRequest(`/dashboards/troy-partner${qs.toString() ? `?${qs}` : ""}`, { method: "GET" });
+        const { data } = await apiRequest(`/dashboards/partner${qs.toString() ? `?${qs}` : ""}`, { method: "GET" });
         if (data?.status === "needs_partner") {
           setPartnerChoices(data.partners || []);
           setResult(null);

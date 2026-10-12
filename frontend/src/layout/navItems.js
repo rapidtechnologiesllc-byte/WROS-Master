@@ -159,8 +159,7 @@ export const NAV_ITEMS = {
   // Training & Certifications (new)
   trainingCertification: { path: ROUTES.TRAINING_CERTIFICATION, label: "Training & Certifications", icon: Award },
 
-  // Troy's Partner Dashboard (new)
-  troyPartnerDashboard: { path: ROUTES.TROY_PARTNER_DASHBOARD, label: "Partner Dashboard", icon: BarChart3 },
+  partnerDashboard: { path: ROUTES.PARTNER_DASHBOARD, label: "Partner Dashboard", icon: BarChart3 },
 
   // BI Explorer (new)
   biExplorer: { path: ROUTES.BI_EXPLORER, label: "BI Explorer", icon: BarChart3 },
