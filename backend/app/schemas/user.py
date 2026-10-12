@@ -479,7 +479,8 @@ class OfferLetterResponse(BaseModel):
     candidate_response: str | None = None
     responded_at: datetime | None = None
     created_at: datetime
-    created_by: str
+    # offer_letters.created_by is nullable (system-created offers): a None must not 500 the list
+    created_by: str | None = None
     cancelled_at: datetime | None = None
     cancelled_by: str | None = None
     # Document links (populated after offer letter is generated)

@@ -183,6 +183,18 @@ def ensure_visible(db, user: Users, business_unit_id: Optional[int], what: str =
         raise HTTPException(status_code=404, detail=f"{what} not found")
 
 
+def visible_job_or_404(db, user: Users, job_id: Optional[str], what: str = "Job"):
+    """The job (a demand is the same record), or 404 when it does not exist, belongs to another
+    tenant or to a business unit outside the user's scope -- one answer for all three."""
+    from app.models.user import Jobs
+
+    job = db.query(Jobs).filter(Jobs.jobID == job_id).first() if job_id else None
+    if job is None or (job.tenant_id is not None and job.tenant_id != user.tenant_id):
+        raise HTTPException(status_code=404, detail=f"{what} not found")
+    ensure_visible(db, user, job.business_unit_id, what)
+    return job
+
+
 def ensure_assignable(db, user: Users, business_unit_id: Optional[int], what: str = "record") -> None:
     """403 when a write would place a record in a business unit outside the user's scope
     (creating it there, or moving it there). Unassigned (None) is always allowed."""

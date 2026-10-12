@@ -95,6 +95,30 @@ def apply_bu_scope_to_candidate_query(db: Session, query: Query, current_user: U
     logger.debug(f"Applying BU scope for user {current_user.UserEmail} to BUs {sorted(user_bu_ids)}")
     return query.filter(or_(org_pool_visible, CandidateOwnership.owned_by_bu_id.in_(user_bu_ids)))
 
+def candidate_scope_filter(db: Session, current_user: Users, candidate_id_column):
+    """WHERE clause for records that belong to a candidate (interviews, panels, offers):
+    the candidate is in the caller's tenant and visible under the same rule as
+    apply_bu_scope_to_candidate_query (Org Pool + the caller's BUs; org-level: all).
+    A subquery, so it composes with any base table without loading ids into memory."""
+    visible = apply_bu_scope_to_candidate_query(
+        db, db.query(Candidate.candidateID).filter(Candidate.tenant_id == current_user.tenant_id), current_user,
+    )
+    return candidate_id_column.in_(visible.statement.correlate(None))
+
+
+def ensure_candidate_visible(db: Session, candidate_id: Optional[str], current_user: Users) -> Optional[Candidate]:
+    """The candidate, or 404 when it does not exist or is outside the caller's scope (the same
+    answer, so ids of other BUs cannot be probed). None in, None out (no candidate linked)."""
+    if not candidate_id:
+        return None
+    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, current_user)
+    if candidate is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found")
+    return candidate
+
+
 def get_bu_scoped_candidate_ids(db: Session, current_user: Users) -> Optional[Set[str]]:
     """Returns the set of candidate IDs visible to current_user under
     BU scoping, or None if the caller is global-access (no
@@ -128,6 +152,9 @@ def get_candidate_by_id_with_bu_scope(db: Session, candidate_id: str, current_us
         # Fetch the candidate without scoping first. If it doesn't exist, return None.
         candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
         if not candidate:
+            return None
+        # another tenant's candidate is never visible, Org Pool or not
+        if current_user is not None and candidate.tenant_id != current_user.tenant_id:
             return None
 
         # Check if candidate has been submitted to a job (has CandidateOwnership).

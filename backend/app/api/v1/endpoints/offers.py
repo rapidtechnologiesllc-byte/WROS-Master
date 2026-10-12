@@ -3,32 +3,27 @@ HRMS-0312: Offer Management & Approval REST Endpoints
 Complete offer lifecycle API endpoints.
 """
 from typing import Optional
-from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
-import logging
 from sqlalchemy.orm import Session
 
+from app.core.bu_scope import candidate_scope_filter
+from app.core.data_scope import job_filter
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_resource_permission
 from app.core.logging import logger
-from app.schemas.offer import (
-    OfferCreateRequest, OfferApproveRequest, OfferRejectRequest,
-    OfferSendRequest, OfferAcceptanceRequest, OfferRetractionRequest,
-    OfferResponse, OfferListResponse, OfferStatusResponse,
-    OfferApprovalResponse, OfferSendResponse, OfferAcceptanceResponse,
-    OfferSummary
-)
-from app.services.offer_management_service import OfferManagementService
-from app.services.message_queue_service import MessageQueueService
+from app.schemas.offer import OfferResponse, OfferListResponse
 from app.models.offer import Offer
-from app.models.candidate import Candidate
 
 router = APIRouter(prefix="/offers", tags=["offers"])
-offer_service = OfferManagementService()
 
-def _get_tenant_id_from_request(db: Session) -> int:
-    """Extract tenant ID from request context (middleware sets this)."""
-    return 1  # Default tenant for now; in multi-tenant, comes from middleware
+def _offers_in_scope(db: Session, user):
+    """Offers the caller may see: their own tenant (never a hardcoded one), a candidate they
+    may see and a job in their business units or not yet assigned to one (CEO 2026-10-12)."""
+    return db.query(Offer).filter(
+        Offer.tenant_id == user.tenant_id,
+        candidate_scope_filter(db, user, Offer.candidate_id),
+        job_filter(db, user, Offer.job_id),
+    )
 
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # CREATE OFFER
@@ -95,9 +90,7 @@ def list_offers(
     - `job_id`: Filter by specific job
     """
     try:
-        tenant_id = _get_tenant_id_from_request(db)
-
-        query = db.query(Offer).filter(Offer.tenant_id == tenant_id)
+        query = _offers_in_scope(db, user)
 
         if status:
             query = query.filter(Offer.status == status)

@@ -3,8 +3,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
+from app.core.bu_scope import candidate_scope_filter, ensure_candidate_visible
+from app.core.data_scope import job_filter, visible_job_or_404
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models import (
@@ -72,6 +75,69 @@ from app.services.interview_verdict_service import (
 )
 
 router = APIRouter(prefix="/interviews", tags=["interviews"])
+
+# ============================================
+# Business-unit scope (CEO 2026-10-12)
+# ============================================
+# An interview panel (and its interviews and feedback) belongs to its candidate and to the
+# job it is for: visible when the candidate is visible (Org Pool or the caller's BUs) and
+# the job is in the caller's BUs or not yet assigned to one. Org-level role templates see
+# everything in their tenant. A single record outside that scope is "not found" (404).
+
+def _panel_scope(db: Session, user):
+    """WHERE clause on InterviewPanel."""
+    return and_(candidate_scope_filter(db, user, InterviewPanel.candidate_id),
+                job_filter(db, user, InterviewPanel.job_id))
+
+
+def _interview_scope(db: Session, user):
+    """WHERE clause on Interview: its candidate and its panel are visible."""
+    visible_panels = select(InterviewPanel.id).where(_panel_scope(db, user)).correlate(None)
+    return and_(candidate_scope_filter(db, user, Interview.candidate_id),
+                or_(Interview.panel_id.is_(None), Interview.panel_id.in_(visible_panels)))
+
+
+def _feedback_scope(db: Session, user):
+    """WHERE clause on InterviewFeedback: feedback on a visible interview."""
+    visible_interviews = select(Interview.id).where(_interview_scope(db, user)).correlate(None)
+    return InterviewFeedback.interview_id.in_(visible_interviews)
+
+
+def _visible_panel_or_404(db: Session, user, panel_id: int) -> InterviewPanel:
+    panel = db.query(InterviewPanel).filter(InterviewPanel.id == panel_id, _panel_scope(db, user)).first()
+    if panel is None:
+        raise HTTPException(status_code=404, detail=f"Interview panel with ID {panel_id} not found")
+    return panel
+
+
+def _is_panel_member(db: Session, user, panel_id) -> bool:
+    return panel_id is not None and db.query(PanelMember.id).filter(
+        PanelMember.panel_id == panel_id, PanelMember.interviewer_id == user.UserID).first() is not None
+
+
+def _visible_interview_or_404(db: Session, user, interview_id: int, *, panel_member_ok: bool = False) -> Interview:
+    """The interview, or 404 when outside the caller's scope. panel_member_ok: an interviewer
+    on the interview's own panel may act on it (submit their feedback) whatever their BU."""
+    interview = db.query(Interview).filter(Interview.id == interview_id).first()
+    if interview is not None and (
+        db.query(Interview.id).filter(Interview.id == interview_id, _interview_scope(db, user)).first() is not None
+        or (panel_member_ok and _is_panel_member(db, user, interview.panel_id))
+    ):
+        return interview
+    raise HTTPException(status_code=404, detail=f"Interview with ID {interview_id} not found")
+
+
+def _visible_feedback_or_404(db: Session, user, feedback_id: int) -> InterviewFeedback:
+    """Feedback on a visible interview -- or the caller's own feedback."""
+    feedback = db.query(InterviewFeedback).filter(InterviewFeedback.id == feedback_id).first()
+    if feedback is not None and (
+        feedback.interviewer_id == user.UserID
+        or db.query(InterviewFeedback.id).filter(InterviewFeedback.id == feedback_id,
+                                                 _feedback_scope(db, user)).first() is not None
+    ):
+        return feedback
+    raise HTTPException(status_code=404, detail=f"Feedback with ID {feedback_id} not found")
+
 
 # ============================================
 # Internal Helpers
@@ -786,23 +852,13 @@ def create_interview_panel(
     Raises:
         HTTPException: If candidate or job not found
     """
-    # Verify candidate exists
-    candidate = db.query(Candidate).filter(Candidate.candidateID == request.candidate_id).first()
-    if not candidate:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Candidate with ID {request.candidate_id} not found"
-        )
+    # Verify candidate exists and is in the caller's business-unit scope
+    candidate = ensure_candidate_visible(db, request.candidate_id, user)
 
-    # Validate job if provided
+    # Validate job if provided -- another BU's job is "not found"
     job = None
     if request.job_id:
-        job = db.query(Jobs).filter(Jobs.jobID == request.job_id).first()
-        if not job:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Job with ID {request.job_id} not found"
-            )
+        job = visible_job_or_404(db, user, request.job_id, f"Job with ID {request.job_id}")
 
     # R-05: this candidate's next round cannot be created until their
     # most recent prior round has actually passed. First round is
@@ -914,12 +970,7 @@ def get_interview_panel(
     Raises:
         HTTPException: If panel not found
     """
-    panel = db.query(InterviewPanel).filter(InterviewPanel.id == panel_id).first()
-    if not panel:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Interview panel with ID {panel_id} not found"
-        )
+    panel = _visible_panel_or_404(db, user, panel_id)
 
     # Get candidate details
     candidate = db.query(Candidate).filter(Candidate.candidateID == panel.candidate_id).first()
@@ -979,7 +1030,7 @@ def get_all_interview_panels(
     Returns:
         List of InterviewPanelWithDetails
     """
-    query = db.query(InterviewPanel)
+    query = db.query(InterviewPanel).filter(_panel_scope(db, user))
 
     if candidate_id:
         query = query.filter(InterviewPanel.candidate_id == candidate_id)
@@ -1051,13 +1102,8 @@ def delete_interview_panel(
     Raises:
         HTTPException: If panel not found
     """
-    panel = db.query(InterviewPanel).filter(InterviewPanel.id == panel_id).first()
-    if not panel:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Interview panel with ID {panel_id} not found"
-        )
-    
+    panel = _visible_panel_or_404(db, user, panel_id)
+
     # Delete associated interviews and their feedback
     interviews = db.query(Interview).filter(Interview.panel_id == panel_id).all()
     for interview in interviews:
@@ -1093,20 +1139,20 @@ def _verdict_response(panel: InterviewPanel, row) -> RoundVerdictResponse:
         decided_at=row.decided_at, rationale=row.rationale)
 
 
-def _panel_or_404(db: Session, panel_id: int) -> InterviewPanel:
-    panel = db.query(InterviewPanel).filter(InterviewPanel.id == panel_id).first()
-    if panel is None:
-        raise HTTPException(status_code=404, detail=f"Interview panel {panel_id} not found")
-    return panel
-
-
 @router.get(
     "/candidates/{candidate_id}/verdicts",
     response_model=List[RoundVerdictResponse],
     dependencies=[Depends(require_resource_permission("interviews", "view"))],
 )
-def list_round_verdicts(candidate_id: str, job_id: Optional[str] = None, db: Session = Depends(get_db)):
-    rows = [_verdict_response(panel, row) for panel, row in candidate_verdicts(db, candidate_id, job_id)]
+def list_round_verdicts(candidate_id: str, job_id: Optional[str] = None, db: Session = Depends(get_db),
+                        user=Depends(get_current_internal_user)):
+    ensure_candidate_visible(db, candidate_id, user)
+    if job_id:
+        visible_job_or_404(db, user, job_id)
+    visible = {pid for (pid,) in db.query(InterviewPanel.id).filter(
+        InterviewPanel.candidate_id == candidate_id, _panel_scope(db, user))}
+    rows = [_verdict_response(panel, row) for panel, row in candidate_verdicts(db, candidate_id, job_id)
+            if panel.id in visible]
     db.commit()  # verdicts computed for older panels on first read are kept
     return rows
 
@@ -1116,8 +1162,9 @@ def list_round_verdicts(candidate_id: str, job_id: Optional[str] = None, db: Ses
     response_model=RoundVerdictResponse,
     dependencies=[Depends(require_resource_permission("interviews", "edit"))],
 )
-def set_round_level(panel_id: int, request: RoundLevelRequest, db: Session = Depends(get_db)):
-    panel = _panel_or_404(db, panel_id)
+def set_round_level(panel_id: int, request: RoundLevelRequest, db: Session = Depends(get_db),
+                    user=Depends(get_current_internal_user)):
+    panel = _visible_panel_or_404(db, user, panel_id)
     try:
         row = set_level(db, panel, request.level.upper())
     except VerdictError as exc:
@@ -1134,7 +1181,7 @@ def set_round_level(panel_id: int, request: RoundLevelRequest, db: Session = Dep
 def decide_round_verdict(panel_id: int, request: RoundVerdictRequest, db: Session = Depends(get_db),
                          user=Depends(get_current_internal_user)):
     """The hiring manager's decision when feedback was mixed (or an override, with a reason)."""
-    panel = _panel_or_404(db, panel_id)
+    panel = _visible_panel_or_404(db, user, panel_id)
     try:
         row = record_manual_verdict(db, panel, request.verdict.upper(), user.UserID, request.rationale)
     except VerdictError as exc:
@@ -1192,6 +1239,13 @@ def list_rehire_reviews(
     No InterviewPanel exists for any of these yet.
     """
     reviews = get_pending_rehire_reviews(db)
+    if reviews:
+        visible = {rid for (rid,) in db.query(InterviewRehireReview.id).filter(
+            InterviewRehireReview.id.in_([r.id for r in reviews]),
+            candidate_scope_filter(db, user, InterviewRehireReview.candidate_id),
+            job_filter(db, user, InterviewRehireReview.job_id),
+        )}
+        reviews = [r for r in reviews if r.id in visible]
     return RehireReviewListResponse(
         total=len(reviews),
         reviews=[_rehire_review_to_response(db, r) for r in reviews],
@@ -1216,6 +1270,14 @@ def decide_rehire_review_endpoint(
     decision = (request.decision or "").strip().lower()
     if decision not in ("approve", "reject"):
         raise HTTPException(status_code=400, detail="decision must be 'approve' or 'reject'")
+    # a missing review and another business unit's review get the same answer
+    in_scope = db.query(InterviewRehireReview.id).filter(
+        InterviewRehireReview.id == review_id,
+        candidate_scope_filter(db, user, InterviewRehireReview.candidate_id),
+        job_filter(db, user, InterviewRehireReview.job_id),
+    ).first()
+    if in_scope is None:
+        raise HTTPException(status_code=404, detail=f"Rehire review {review_id} not found")
 
     try:
         review = decide_rehire_review(db, review_id, decision, user.UserID, request.note)
@@ -1303,14 +1365,9 @@ def assign_panel_member(
     Raises:
         HTTPException: If panel or interviewer not found, or already assigned
     """
-    # Verify panel exists
-    panel = db.query(InterviewPanel).filter(InterviewPanel.id == request.panel_id).first()
-    if not panel:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Interview panel with ID {request.panel_id} not found"
-        )
-    
+    # Verify panel exists and is in the caller's business-unit scope
+    panel = _visible_panel_or_404(db, user, request.panel_id)
+
     # Verify interviewer exists
     interviewer = db.query(Users).filter(Users.UserID == request.interviewer_id).first()
     if not interviewer:
@@ -1399,12 +1456,7 @@ def get_panel_members(
     Raises:
         HTTPException: If panel not found
     """
-    panel = db.query(InterviewPanel).filter(InterviewPanel.id == panel_id).first()
-    if not panel:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Interview panel with ID {panel_id} not found"
-        )
+    _visible_panel_or_404(db, user, panel_id)
 
     members = db.query(PanelMember).filter(PanelMember.panel_id == panel_id).all()
 
@@ -1457,7 +1509,11 @@ def remove_panel_member(
             status_code=404,
             detail=f"Panel member with ID {member_id} not found"
         )
-    
+    try:
+        _visible_panel_or_404(db, user, member.panel_id)
+    except HTTPException as exc:
+        raise HTTPException(status_code=404, detail=f"Panel member with ID {member_id} not found") from exc
+
     db.delete(member)
     db.commit()
     
@@ -1496,21 +1552,9 @@ def create_interview(
     Raises:
         HTTPException: If panel or candidate not found, or time validation fails
     """
-    # Verify panel exists
-    panel = db.query(InterviewPanel).filter(InterviewPanel.id == request.panel_id).first()
-    if not panel:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Interview panel with ID {request.panel_id} not found"
-        )
-
-    # Verify candidate exists
-    candidate = db.query(Candidate).filter(Candidate.candidateID == request.candidate_id).first()
-    if not candidate:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Candidate with ID {request.candidate_id} not found"
-        )
+    # Verify panel and candidate exist and are in the caller's business-unit scope
+    _visible_panel_or_404(db, user, request.panel_id)
+    candidate = ensure_candidate_visible(db, request.candidate_id, user)
 
     _require_experience(candidate)
 
@@ -1746,6 +1790,49 @@ def get_my_interviews(
     )
 
 @router.get(
+    "/statistics",
+    response_model=InterviewStatistics,
+    dependencies=[Depends(require_resource_permission("interviews", "view"))]
+)
+def get_interview_statistics(
+    db: Session = Depends(get_db),
+    user = Depends(get_current_internal_user)
+):
+    """
+    Interview statistics over the interviews the caller may see (their business units plus
+    the Org Pool; org-level: all). Declared before GET /{interview_id} -- it used to come
+    after it, so "/statistics" was parsed as an interview id and always answered 422.
+    """
+    interviews = db.query(Interview).filter(_interview_scope(db, user))
+    total_interviews = interviews.count()
+    scheduled = interviews.filter(Interview.status == "Scheduled").count()
+    completed = interviews.filter(Interview.status == "Completed").count()
+    cancelled = interviews.filter(Interview.status == "Cancelled").count()
+    total_panels = db.query(InterviewPanel).filter(_panel_scope(db, user)).count()
+    feedbacks = db.query(InterviewFeedback).filter(_feedback_scope(db, user)).all()
+    total_feedback = len(feedbacks)
+
+    # Calculate average feedback score
+    avg_score = None
+    if total_feedback > 0:
+        total_score = sum(
+            (f.technical_score + f.communication_score +
+             f.problem_solving_score + f.culture_fit_score) / 4.0
+            for f in feedbacks
+        )
+        avg_score = round(total_score / total_feedback, 2)
+
+    return InterviewStatistics(
+        total_interviews=total_interviews,
+        scheduled=scheduled,
+        completed=completed,
+        cancelled=cancelled,
+        total_panels=total_panels,
+        total_feedback=total_feedback,
+        average_feedback_score=avg_score
+    )
+
+@router.get(
     "/{interview_id}",
     response_model=InterviewDetailedResponse,
     dependencies=[Depends(require_resource_permission("interviews", "view"))],
@@ -1769,17 +1856,12 @@ def get_interview(
     Raises:
         HTTPException: If interview not found
     """
-    interview = db.query(Interview).filter(Interview.id == interview_id).first()
-    if not interview:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Interview with ID {interview_id} not found"
-        )
-    
+    interview = _visible_interview_or_404(db, user, interview_id)
+
     # Get panel details
     panel = db.query(InterviewPanel).filter(InterviewPanel.id == interview.panel_id).first()
     panel_round_name = panel.round_name if panel else "N/A"
-    
+
     # Get candidate details
     candidate = db.query(Candidate).filter(Candidate.candidateID == interview.candidate_id).first()
     candidate_name = "N/A"
@@ -1839,8 +1921,9 @@ def get_all_interviews(
     Returns:
         List of InterviewDetailedResponse
     """
-    query = db.query(Interview)
-    
+    # tenant + business-unit scope (this list used to return every tenant's interviews)
+    query = db.query(Interview).filter(_interview_scope(db, user))
+
     if candidate_id:
         query = query.filter(Interview.candidate_id == candidate_id)
     if panel_id:
@@ -1930,12 +2013,7 @@ def update_interview(
     Raises:
         HTTPException: If interview not found or validation fails
     """
-    interview = db.query(Interview).filter(Interview.id == interview_id).first()
-    if not interview:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Interview with ID {interview_id} not found"
-        )
+    interview = _visible_interview_or_404(db, user, interview_id)
 
     previous_status = interview.status
 
@@ -2027,13 +2105,8 @@ def delete_interview(
     Raises:
         HTTPException: If interview not found
     """
-    interview = db.query(Interview).filter(Interview.id == interview_id).first()
-    if not interview:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Interview with ID {interview_id} not found"
-        )
-    
+    interview = _visible_interview_or_404(db, user, interview_id)
+
     # Fix 3: cancel all scheduler jobs BEFORE removing DB records so the
     # helper functions can still read panel membership from the database.
     try:
@@ -2088,14 +2161,9 @@ def submit_interview_feedback(
     Raises:
         HTTPException: If interview or interviewer not found, or validation fails
     """
-    # Verify interview exists
-    interview = db.query(Interview).filter(Interview.id == request.interview_id).first()
-    if not interview:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Interview with ID {request.interview_id} not found"
-        )
-    
+    # Verify interview exists and is in scope (an interviewer on its panel may always submit)
+    interview = _visible_interview_or_404(db, user, request.interview_id, panel_member_ok=True)
+
     # Verify interviewer exists
     interviewer = db.query(Users).filter(Users.UserID == request.interviewer_id).first()
     if not interviewer:
@@ -2252,13 +2320,8 @@ def get_feedback_by_interview(
     Raises:
         HTTPException: If interview not found
     """
-    interview = db.query(Interview).filter(Interview.id == interview_id).first()
-    if not interview:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Interview with ID {interview_id} not found"
-        )
-    
+    _visible_interview_or_404(db, user, interview_id)
+
     feedbacks = db.query(InterviewFeedback).filter(
         InterviewFeedback.interview_id == interview_id
     ).all()
@@ -2317,13 +2380,8 @@ def get_feedback_by_id(
     Raises:
         HTTPException: If feedback not found
     """
-    feedback = db.query(InterviewFeedback).filter(InterviewFeedback.id == feedback_id).first()
-    if not feedback:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Feedback with ID {feedback_id} not found"
-        )
-    
+    feedback = _visible_feedback_or_404(db, user, feedback_id)
+
     interviewer = db.query(Users).filter(Users.UserID == feedback.interviewer_id).first()
     
     # Calculate average score
@@ -2376,13 +2434,8 @@ def update_interview_feedback(
     Raises:
         HTTPException: If feedback not found or validation fails
     """
-    feedback = db.query(InterviewFeedback).filter(InterviewFeedback.id == feedback_id).first()
-    if not feedback:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Feedback with ID {feedback_id} not found"
-        )
-    
+    feedback = _visible_feedback_or_404(db, user, feedback_id)
+
     # Update only provided fields
     if request.technical_score is not None:
         feedback.technical_score = request.technical_score
@@ -2446,13 +2499,8 @@ def delete_interview_feedback(
     Raises:
         HTTPException: If feedback not found
     """
-    feedback = db.query(InterviewFeedback).filter(InterviewFeedback.id == feedback_id).first()
-    if not feedback:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Feedback with ID {feedback_id} not found"
-        )
-    
+    feedback = _visible_feedback_or_404(db, user, feedback_id)
+
     db.delete(feedback)
     db.commit()
     
@@ -2464,53 +2512,6 @@ def delete_interview_feedback(
 # ============================================
 # Statistics and Analytics Endpoints
 # ============================================
-
-@router.get(
-    "/statistics",
-    response_model=InterviewStatistics,
-    dependencies=[Depends(require_resource_permission("interviews", "view"))]
-)
-def get_interview_statistics(
-    db: Session = Depends(get_db),
-    user = Depends(get_current_internal_user)
-):
-    """
-    Get overall interview statistics.
-    
-    Args:
-        db: Database session
-        user: Authenticated HR/Admin user
-        
-    Returns:
-        InterviewStatistics with counts and averages
-    """
-    total_interviews = db.query(Interview).count()
-    scheduled = db.query(Interview).filter(Interview.status == "Scheduled").count()
-    completed = db.query(Interview).filter(Interview.status == "Completed").count()
-    cancelled = db.query(Interview).filter(Interview.status == "Cancelled").count()
-    total_panels = db.query(InterviewPanel).count()
-    total_feedback = db.query(InterviewFeedback).count()
-    
-    # Calculate average feedback score
-    avg_score = None
-    if total_feedback > 0:
-        feedbacks = db.query(InterviewFeedback).all()
-        total_score = sum(
-            (f.technical_score + f.communication_score + 
-             f.problem_solving_score + f.culture_fit_score) / 4.0
-            for f in feedbacks
-        )
-        avg_score = round(total_score / total_feedback, 2)
-    
-    return InterviewStatistics(
-        total_interviews=total_interviews,
-        scheduled=scheduled,
-        completed=completed,
-        cancelled=cancelled,
-        total_panels=total_panels,
-        total_feedback=total_feedback,
-        average_feedback_score=avg_score
-    )
 
 @router.get("/candidate-history/{candidate_id}", response_model=CandidateInterviewHistory, dependencies=[Depends(require_resource_permission("candidates", "view"))],
  )
@@ -2533,13 +2534,8 @@ def get_candidate_interview_history(
     Raises:
         HTTPException: If candidate not found
     """
-    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
-    if not candidate:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Candidate with ID {candidate_id} not found"
-        )
-    
+    candidate = ensure_candidate_visible(db, candidate_id, user)
+
     # Get candidate name
     name_parts = [
         candidate.candidateFirstName or "",
@@ -2548,8 +2544,9 @@ def get_candidate_interview_history(
     ]
     candidate_name = " ".join(filter(None, name_parts)).strip() or "N/A"
     
-    # Get all interviews
-    interviews = db.query(Interview).filter(Interview.candidate_id == candidate_id).all()
+    # Get all interviews (only rounds for jobs in the caller's business-unit scope)
+    interviews = db.query(Interview).filter(Interview.candidate_id == candidate_id,
+                                            _interview_scope(db, user)).all()
     
     total_interviews = len(interviews)
     scheduled_interviews = sum(1 for i in interviews if i.status == "Scheduled")
@@ -2633,24 +2630,27 @@ def get_interviewer_workload(
             detail=f"Interviewer with ID {interviewer_id} not found"
         )
     
-    # Get panel memberships
-    panel_memberships = db.query(PanelMember).filter(
-        PanelMember.interviewer_id == interviewer_id
+    # Get panel memberships -- only panels in the caller's business-unit scope
+    panel_memberships = db.query(PanelMember).join(InterviewPanel, InterviewPanel.id == PanelMember.panel_id).filter(
+        PanelMember.interviewer_id == interviewer_id,
+        _panel_scope(db, user),
     ).all()
-    
+
     total_panels = len(panel_memberships)
     panel_ids = [m.panel_id for m in panel_memberships]
-    
+
     # Get all interviews for these panels
-    interviews = db.query(Interview).filter(Interview.panel_id.in_(panel_ids)).all() if panel_ids else []
-    
+    interviews = db.query(Interview).filter(Interview.panel_id.in_(panel_ids),
+                                            _interview_scope(db, user)).all() if panel_ids else []
+
     total_interviews = len(interviews)
     scheduled_interviews = sum(1 for i in interviews if i.status == "Scheduled")
     completed_interviews = sum(1 for i in interviews if i.status == "Completed")
     
-    # Get feedback submitted by this interviewer
+    # Get feedback submitted by this interviewer (on interviews the caller may see)
     feedback_submitted = db.query(InterviewFeedback).filter(
-        InterviewFeedback.interviewer_id == interviewer_id
+        InterviewFeedback.interviewer_id == interviewer_id,
+        _feedback_scope(db, user),
     ).count()
     
     # Get upcoming interviews (scheduled, future)
