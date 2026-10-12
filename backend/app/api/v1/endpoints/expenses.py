@@ -20,8 +20,10 @@ field, same ownership boundary as the existing self-service timesheet.
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from app.core.data_scope import client_bu_id, ensure_visible, expense_filter
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.expense import ExpenseRecord
@@ -88,7 +90,9 @@ def list_all_expenses(
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
-    query = db.query(ExpenseRecord)
+    query = db.query(ExpenseRecord).filter(
+        ExpenseRecord.tenant_id == current_user.tenant_id, expense_filter(db, current_user),
+    )
     if client_id:
         query = query.filter(ExpenseRecord.client_id == client_id)
     if purpose:
@@ -97,8 +101,16 @@ def list_all_expenses(
     return ExpenseListResponse(expenses=expenses)
 
 def _expense_or_404(db: Session, expense_id: str, user: Users) -> ExpenseRecord:
+    """One expense of the caller's tenant inside their business units (its client's BU, else its
+    own BU -- app.core.data_scope), or one whose approval task is assigned to the caller (the
+    logger's manager reviews it wherever it is attributed). Any other id is 404."""
+    from app.models.task import Task
+
+    assigned_to_me = ExpenseRecord.id.in_(select(Task.expense_id).where(
+        Task.assigned_to_user_id == user.UserID, Task.expense_id.isnot(None)))
     expense = db.query(ExpenseRecord).filter(ExpenseRecord.id == expense_id,
-                                             ExpenseRecord.tenant_id == user.tenant_id).first()
+                                             ExpenseRecord.tenant_id == user.tenant_id,
+                                             or_(expense_filter(db, user), assigned_to_me)).first()
     if not expense:
         raise HTTPException(status_code=404, detail=f"Expense {expense_id!r} not found.")
     return expense
@@ -186,6 +198,11 @@ def get_investment_position(
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
+    from app.models.client import Client
+
+    if db.query(Client.id).filter(Client.id == client_id, Client.tenant_id == current_user.tenant_id).first() is None:
+        raise HTTPException(status_code=404, detail=f"Client {client_id!r} not found.")
+    ensure_visible(db, current_user, client_bu_id(db, client_id), f"Client {client_id!r}")
     try:
         return get_client_investment_position(db, client_id)
     except ExpenseValidationError as exc:

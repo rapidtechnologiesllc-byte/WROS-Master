@@ -16,11 +16,10 @@ service.py's own docstring (no automatic sending/reconciliation exists
 in this codebase) -- separate endpoints for each transition, not
 folded into approve.
 
-Auth: get_current_internal_user, same posture as every endpoint this
-program. No dedicated "Finance" role exists in this codebase's RBAC
-(app/services/rbac_service.py) despite HRMS-0907 BR-0907-02 saying
-approval is "always a Finance-role action" -- flagged, not guessed at,
-same posture as every other RM/Finance role gap this session.
+Auth: the role template's invoices permission decides the actions (approval
+additionally needs Finance at Senior Manager+, enforced in approve_invoice);
+the business unit decides the records (CEO 2026-10-12, app.core.data_scope):
+an invoice belongs to its client's BU.
 
 Routes:
   POST   /invoices/generate         Generate a DRAFT invoice for a project+period.
@@ -41,6 +40,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.data_scope import client_filter
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.invoice import Invoice, InvoiceLineItem
@@ -95,8 +95,13 @@ def _to_item(db: Session, invoice: Invoice) -> InvoiceItem:
         ],
     )
 
-def _get_invoice_or_404(db: Session, invoice_id: str, tenant_id: Optional[int]) -> Invoice:
-    invoice = db.query(Invoice).filter(Invoice.id == invoice_id, Invoice.tenant_id == tenant_id).first()
+def _get_invoice_or_404(db: Session, invoice_id: str, user: Users) -> Invoice:
+    """One invoice of the caller's tenant whose client's business unit is in the caller's scope
+    (app.core.data_scope); any other id is 404. Every /invoices/{id} route goes through here."""
+    invoice = db.query(Invoice).filter(
+        Invoice.id == invoice_id, Invoice.tenant_id == user.tenant_id,
+        client_filter(db, user, Invoice.client_id),
+    ).first()
     if invoice is None:
         raise HTTPException(status_code=404, detail="Invoice not found.")
     return invoice
@@ -113,7 +118,8 @@ def generate_invoice_endpoint(
     current_user: Users = Depends(get_current_internal_user),
 ):
     project = db.query(Project).filter(Project.id == body.project_id,
-                                       Project.tenant_id == current_user.tenant_id).first()
+                                       Project.tenant_id == current_user.tenant_id,
+                                       client_filter(db, current_user, Project.client_id)).first()
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found.")
 
@@ -161,7 +167,7 @@ def approve_invoice_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    invoice = _get_invoice_or_404(db, invoice_id, current_user.tenant_id)
+    invoice = _get_invoice_or_404(db, invoice_id, current_user)
     try:
         invoice = approve_invoice(db, invoice, approved_by=current_user.UserID)
     except InvoiceApproverNotAllowed as exc:
@@ -204,7 +210,7 @@ def send_invoice_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    invoice = _get_invoice_or_404(db, invoice_id, current_user.tenant_id)
+    invoice = _get_invoice_or_404(db, invoice_id, current_user)
     try:
         request_invoice_email(db, invoice, requested_by=current_user.UserID)
     except InvalidInvoiceTransition as exc:
@@ -230,7 +236,7 @@ def record_external_delivery_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    invoice = _get_invoice_or_404(db, invoice_id, current_user.tenant_id)
+    invoice = _get_invoice_or_404(db, invoice_id, current_user)
     try:
         record_external_delivery(db, invoice, recorded_by=current_user.UserID, note=body.note)
     except InvalidInvoiceTransition as exc:
@@ -251,7 +257,7 @@ def mark_invoice_paid_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    invoice = _get_invoice_or_404(db, invoice_id, current_user.tenant_id)
+    invoice = _get_invoice_or_404(db, invoice_id, current_user)
     paid_on = body.paid_on if body else None
     if paid_on and paid_on > datetime.utcnow().date():
         raise HTTPException(status_code=422, detail="paid_on cannot be in the future.")
@@ -277,7 +283,7 @@ def record_payment_endpoint(
 ):
     from app.services.bank_reconciliation_service import BankReconciliationError, record_invoice_payment
 
-    invoice = _get_invoice_or_404(db, invoice_id, current_user.tenant_id)
+    invoice = _get_invoice_or_404(db, invoice_id, current_user)
     if body.paid_on > datetime.utcnow().date():
         raise HTTPException(status_code=422, detail="paid_on cannot be in the future.")
     try:
@@ -302,7 +308,9 @@ def list_invoices(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    query = db.query(Invoice).filter(Invoice.tenant_id == current_user.tenant_id)
+    query = db.query(Invoice).filter(
+        Invoice.tenant_id == current_user.tenant_id, client_filter(db, current_user, Invoice.client_id),
+    )
     if project_id:
         query = query.filter(Invoice.project_id == project_id)
     if client_id:
@@ -323,6 +331,6 @@ def get_invoice(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    invoice = _get_invoice_or_404(db, invoice_id, current_user.tenant_id)
+    invoice = _get_invoice_or_404(db, invoice_id, current_user)
     return _to_item(db, invoice)
 

@@ -12,14 +12,11 @@ Avinash's stated MVP chain (candidate -> ... -> assign project -> time
 tracking -> resource management) -- without this, an allocated employee
 had no way to log hours through the app.
 
-Auth: get_current_internal_user, same posture as every endpoint this
-program. Role-gating note, carried over honestly from timesheet_
-service.py's own module docstring rather than silently invented: HRMS-
-0902 BR-01 says "only RM/Admin may approve" a timesheet, but no "RM"
-role exists in this codebase's RBAC (app/services/rbac_service.py's
-role list has BU Head, HR Manager, Recruitment Manager, etc. -- no
-clean match), so approve/reject/bulk-approve are NOT restricted beyond
-"any internal user" here. Flagged, not guessed at.
+Auth: the role template's timesheets permission (view / edit) decides
+the actions; the business unit decides the records (CEO 2026-10-12,
+app.core.data_scope): a timesheet is visible when its employee's BU or
+its allocation's client's BU is in the caller's scope, and a user always
+sees their own. Org-level role templates see every timesheet.
 
 Also wires two closely-related domains into the same file, since both
 operate on a Timesheet and have no REST layer of their own yet:
@@ -42,7 +39,6 @@ Routes:
   POST   /timesheets/{id}/approve             SUBMITTED -> APPROVED.
   POST   /timesheets/{id}/reject              SUBMITTED -> REJECTED (20+ char reason).
   POST   /timesheets/{id}/reopen              REJECTED -> DRAFT.
-  POST   /timesheets/bulk-approve             Approve many at once.
   GET    /timesheets                          List (optional employee_id/status filter).
   GET    /timesheets/{id}                     One timesheet with entries.
   POST   /timesheets/{id}/scan-anomalies       Run anomaly detection (idempotent).
@@ -54,8 +50,10 @@ Routes:
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from app.core.data_scope import allocation_filter, timesheet_filter
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_role_template_permission
 from app.core.permission_registry import Permissions
@@ -71,9 +69,6 @@ from app.models.user import Users
 from app.schemas.timesheet import (
     AnomalyFlagItem,
     AnomalyFlagsResponse,
-    BulkApproveFailure,
-    BulkApproveRequest,
-    BulkApproveResponse,
     CreateWeeklyDraftRequest,
     DisputeItem,
     DisputeListResponse,
@@ -96,7 +91,6 @@ from app.services.timesheet_dispute_service import (
     raise_dispute,
     resolve_dispute,
 )
-from app.services.timesheet_nag_service import scan_missing_timesheets, trigger_timesheet_nag
 from app.services.timesheet_service import (
     AllocationNotActive,
     InvalidTimesheetEntry,
@@ -104,7 +98,6 @@ from app.services.timesheet_service import (
     StaleTimesheetSubmission,
     TimesheetNotEditable,
     approve_timesheet,
-    bulk_approve,
     create_weekly_draft,
     reject_timesheet,
     reopen_for_editing,
@@ -148,8 +141,24 @@ def _to_item(db: Session, timesheet: Timesheet) -> TimesheetItem:
         ],
     )
 
-def _get_timesheet_or_404(db: Session, timesheet_id: str) -> Timesheet:
-    timesheet = db.query(Timesheet).filter(Timesheet.id == timesheet_id).first()
+def _own_employee_ids(user: Users):
+    """The caller's own employee record(s): a user always sees their own timesheets."""
+    return select(Employee.id).where(Employee.wros_user_id == user.UserID)
+
+
+def _visible_timesheets(db: Session, user: Users):
+    """This tenant's timesheets the caller may see: inside their business units (the employee's
+    BU or the allocation's client's BU -- app.core.data_scope), or their own."""
+    return db.query(Timesheet).filter(
+        Timesheet.tenant_id == user.tenant_id,
+        or_(timesheet_filter(db, user), Timesheet.employee_id.in_(_own_employee_ids(user))),
+    )
+
+
+def _get_timesheet_or_404(db: Session, timesheet_id: str, user: Users) -> Timesheet:
+    """Every /timesheets/{id} route goes through here: another tenant's or another business
+    unit's timesheet is 404, the same answer as one that does not exist."""
+    timesheet = _visible_timesheets(db, user).filter(Timesheet.id == timesheet_id).first()
     if timesheet is None:
         raise HTTPException(status_code=404, detail="Timesheet not found.")
     return timesheet
@@ -165,7 +174,10 @@ def create_draft(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    allocation = db.query(EmployeeAllocation).filter(EmployeeAllocation.id == body.allocation_id).first()
+    allocation = db.query(EmployeeAllocation).filter(
+        EmployeeAllocation.id == body.allocation_id, EmployeeAllocation.tenant_id == current_user.tenant_id,
+        or_(allocation_filter(db, current_user), EmployeeAllocation.employee_id.in_(_own_employee_ids(current_user))),
+    ).first()
     if allocation is None:
         raise HTTPException(status_code=404, detail="Allocation not found.")
 
@@ -209,7 +221,7 @@ def upsert_timesheet_entries(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    timesheet = _get_timesheet_or_404(db, timesheet_id)
+    timesheet = _get_timesheet_or_404(db, timesheet_id, current_user)
     entries = [e.model_dump() for e in body.entries]
     try:
         timesheet = upsert_entries(db, timesheet, entries)
@@ -248,7 +260,7 @@ def submit(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    timesheet = _get_timesheet_or_404(db, timesheet_id)
+    timesheet = _get_timesheet_or_404(db, timesheet_id, current_user)
     try:
         timesheet = submit_timesheet(db, timesheet)
     except InvalidTimesheetTransition as exc:
@@ -290,7 +302,7 @@ def approve(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    timesheet = _get_timesheet_or_404(db, timesheet_id)
+    timesheet = _get_timesheet_or_404(db, timesheet_id, current_user)
     try:
         timesheet = approve_timesheet(db, timesheet, approved_by=current_user.UserID)
     except InvalidTimesheetTransition as exc:
@@ -326,7 +338,7 @@ def reject(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    timesheet = _get_timesheet_or_404(db, timesheet_id)
+    timesheet = _get_timesheet_or_404(db, timesheet_id, current_user)
     try:
         timesheet = reject_timesheet(db, timesheet, body.reason)
     except InvalidTimesheetTransition as exc:
@@ -364,7 +376,7 @@ def reopen(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    timesheet = _get_timesheet_or_404(db, timesheet_id)
+    timesheet = _get_timesheet_or_404(db, timesheet_id, current_user)
     try:
         timesheet = reopen_for_editing(db, timesheet)
     except InvalidTimesheetTransition as exc:
@@ -401,7 +413,7 @@ def list_timesheets(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    query = db.query(Timesheet).filter(Timesheet.tenant_id == current_user.tenant_id)
+    query = _visible_timesheets(db, current_user)
     if employee_id:
         query = query.filter(Timesheet.employee_id == employee_id)
     if status:
@@ -420,7 +432,7 @@ def get_timesheet(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    timesheet = _get_timesheet_or_404(db, timesheet_id)
+    timesheet = _get_timesheet_or_404(db, timesheet_id, current_user)
     return _to_item(db, timesheet)
 
 # ---------------------------------------------------------------------------
@@ -444,7 +456,7 @@ def scan_anomalies(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    timesheet = _get_timesheet_or_404(db, timesheet_id)
+    timesheet = _get_timesheet_or_404(db, timesheet_id, current_user)
     flags = scan_timesheet_anomalies(db, timesheet)
 
     # Persist the change first; the queued event refers to saved rows
@@ -475,7 +487,7 @@ def get_anomalies(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    timesheet = _get_timesheet_or_404(db, timesheet_id)
+    timesheet = _get_timesheet_or_404(db, timesheet_id, current_user)
     flags = get_anomaly_flags_for_timesheet(db, timesheet)
     return AnomalyFlagsResponse(flags=[_flag_to_item(f) for f in flags])
 
@@ -506,7 +518,7 @@ def create_dispute(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    timesheet = _get_timesheet_or_404(db, timesheet_id)
+    timesheet = _get_timesheet_or_404(db, timesheet_id, current_user)
     try:
         dispute = raise_dispute(
             db, timesheet, raised_by=body.raised_by, reason=body.reason,
@@ -547,7 +559,7 @@ def list_disputes(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    _get_timesheet_or_404(db, timesheet_id)
+    _get_timesheet_or_404(db, timesheet_id, current_user)
     disputes = (
         db.query(TimesheetDispute)
         .filter(TimesheetDispute.timesheet_id == timesheet_id)
@@ -569,7 +581,8 @@ def resolve_dispute_endpoint(
     current_user: Users = Depends(get_current_internal_user),
 ):
     dispute = db.query(TimesheetDispute).filter(TimesheetDispute.id == dispute_id).first()
-    if dispute is None:
+    # a dispute on a timesheet outside the caller's tenant/business units does not exist for them
+    if dispute is None or _visible_timesheets(db, current_user).filter(Timesheet.id == dispute.timesheet_id).first() is None:
         raise HTTPException(status_code=404, detail="Dispute not found.")
     try:
         dispute = resolve_dispute(

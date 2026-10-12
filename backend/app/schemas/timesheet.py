@@ -36,7 +36,7 @@ class TimesheetItem(BaseModel):
     id: str
     employee_id: str
     employee_name: str
-    allocation_id: str
+    allocation_id: Optional[str] = None  # None for internal task time (timesheet.task_id set)
     week_starting_date: date
     total_hours: float
     billable_hours: float

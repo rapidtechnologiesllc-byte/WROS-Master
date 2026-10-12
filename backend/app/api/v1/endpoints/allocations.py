@@ -13,7 +13,10 @@ by allocate_employee_to_project() itself when allow_concurrent=True and
 the sum of utilization would exceed 100%; this endpoint surfaces that
 as a 409, not a second implementation.
 
-Auth: get_current_internal_user.
+Auth: the role template's allocations permission decides the actions; the
+business unit decides the records (CEO 2026-10-12, app.core.data_scope):
+an allocation is visible when its employee's BU (who owns the person) OR its
+client's BU (who owns the revenue) is in the caller's scope.
 
 Routes:
   POST   /allocations               Allocate an employee to a demand.
@@ -26,6 +29,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.data_scope import allocation_filter, bu_filter, client_filter, job_filter
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.business_unit import BusinessUnit
@@ -99,6 +103,36 @@ def _to_item(db: Session, allocation: EmployeeAllocation) -> AllocationItem:
         created_at=allocation.created_at,
     )
 
+def _visible_employee_or_404(db: Session, employee_id: str, user: Users) -> Employee:
+    employee = db.query(Employee).filter(
+        Employee.id == employee_id, Employee.tenant_id == user.tenant_id, bu_filter(db, user, Employee.bu_id),
+    ).first()
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Employee not found.")
+    return employee
+
+
+def _visible_demands(db: Session, user: Users):
+    """Live client jobs of the caller's tenant inside their business units (the job's own BU,
+    and its client's BU)."""
+    return db.query(Demand).filter(
+        Demand.tenant_id == user.tenant_id, Demand.client_id.isnot(None),
+        Demand.is_deleted.is_(False), Demand.status != "CANCELLED",
+        job_filter(db, user, Demand.jobID), client_filter(db, user, Demand.client_id),
+    )
+
+
+def _get_allocation_or_404(db: Session, allocation_id: str, user: Users) -> EmployeeAllocation:
+    """One allocation of the caller's tenant whose employee's BU or client's BU is in scope."""
+    allocation = db.query(EmployeeAllocation).filter(
+        EmployeeAllocation.id == allocation_id, EmployeeAllocation.tenant_id == user.tenant_id,
+        allocation_filter(db, user),
+    ).first()
+    if allocation is None:
+        raise HTTPException(status_code=404, detail="Allocation not found.")
+    return allocation
+
+
 @router.post(
     "",
     response_model=AllocationItem,
@@ -110,15 +144,19 @@ def create_allocation(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    employee = db.query(Employee).filter(Employee.id == body.employee_id).first()
-    if employee is None:
-        raise HTTPException(status_code=404, detail="Employee not found.")
-    demand = db.query(Demand).filter(Demand.id == body.demand_id).first()
+    employee = _visible_employee_or_404(db, body.employee_id, current_user)
+    demand = db.query(Demand).filter(
+        Demand.id == body.demand_id, Demand.tenant_id == current_user.tenant_id,
+        job_filter(db, current_user, Demand.jobID), client_filter(db, current_user, Demand.client_id),
+    ).first()
     if demand is None:
         raise HTTPException(status_code=404, detail="Demand not found.")
     project = None
     if body.project_id:
-        project = db.query(Project).filter(Project.id == body.project_id).first()
+        project = db.query(Project).filter(
+            Project.id == body.project_id, Project.tenant_id == current_user.tenant_id,
+            client_filter(db, current_user, Project.client_id),
+        ).first()
         if project is None:
             raise HTTPException(status_code=404, detail="Project not found.")
 
@@ -152,16 +190,13 @@ def get_allocation_dropdowns(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    from app.models.client import Client
-
     employees = db.query(Employee).filter(
         Employee.tenant_id == current_user.tenant_id, Employee.status != "EXITED",
+        bu_filter(db, current_user, Employee.bu_id),
     ).order_by(Employee.created_at.desc()).all()
-    # Allocations bill a client, so only client jobs that are still live
-    demands = db.query(Demand).filter(
-        Demand.tenant_id == current_user.tenant_id, Demand.client_id.isnot(None),
-        Demand.is_deleted.is_(False), Demand.status != "CANCELLED",
-    ).order_by(Demand.created_at.desc()).all()
+    # Allocations bill a client, so only client jobs that are still live -- and only the
+    # caller's business units' jobs (CEO 2026-10-12)
+    demands = _visible_demands(db, current_user).order_by(Demand.created_at.desc()).all()
     clients = {c.id: c.company_name for c in db.query(Client).filter(Client.id.in_({d.client_id for d in demands}))}
     projects = {p.id: p.name for p in db.query(Project).filter(Project.id.in_({d.project_id for d in demands if d.project_id}))}
 
@@ -195,7 +230,9 @@ def list_allocations(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    query = db.query(EmployeeAllocation).filter(EmployeeAllocation.tenant_id == current_user.tenant_id)
+    query = db.query(EmployeeAllocation).filter(
+        EmployeeAllocation.tenant_id == current_user.tenant_id, allocation_filter(db, current_user),
+    )
     if employee_id:
         query = query.filter(EmployeeAllocation.employee_id == employee_id)
     if demand_id:
@@ -215,9 +252,7 @@ def end_allocation_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    allocation = db.query(EmployeeAllocation).filter(EmployeeAllocation.id == allocation_id).first()
-    if allocation is None:
-        raise HTTPException(status_code=404, detail="Allocation not found.")
+    allocation = _get_allocation_or_404(db, allocation_id, current_user)
     employee = db.query(Employee).filter(Employee.id == allocation.employee_id).first()
     if employee is None:
         raise HTTPException(status_code=404, detail="Employee not found.")

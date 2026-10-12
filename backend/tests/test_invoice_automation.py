@@ -192,8 +192,9 @@ def test_approve_endpoint_refuses_anyone_but_finance_senior_manager_plus(db, que
     project = _project(db, weeks=[(date(2026, 9, 7), 40, "APPROVED")])
     run_auto_invoicing(db, today=TODAY)
     invoice = db.get(Invoice, _decision(db, project).invoice_id)
+    # org-level like the seeded Admin role, so it sees the invoice and only the Finance rule refuses it
     admin_role = RoleTemplate(tenant_id=1, name=f"admin-{_uid()}", display_name="Admin", enabled=True,
-                              hierarchy_level=17)
+                              hierarchy_level=17, org_level_access=True)
     db.add(admin_role)
     db.flush()
     admin = Users(UserID=f"A-{_uid()}", UserName="Admin", UserEmail=f"a{_uid()}@blitzenx.com", UserPassword="x",
