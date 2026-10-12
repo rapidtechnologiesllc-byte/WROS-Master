@@ -92,7 +92,9 @@ jobs:
           tests/test_hiring_pipeline.py \
           tests/test_interview_verdicts.py \
           tests/test_job_lifecycle.py \
-          tests/test_navigation_menu.py
+          tests/test_navigation_menu.py \
+          tests/test_bu_location_heads.py \
+          tests/test_scope_*.py
 
 
   required-status-check:
