@@ -5,6 +5,8 @@ from typing import Optional, List
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Header, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from app.core.bu_scope import candidate_scope_filter, ensure_candidate_visible
+from app.core.data_scope import bu_filter, ensure_assignable, job_filter, visible_job_or_404
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.logging import logger
@@ -13,7 +15,6 @@ from app.services.candidate_service import find_duplicate_candidate
 from app.services.message_queue_service import MessageQueueService
 from app.models.user import Jobs
 from app.models.candidate import (
-    Candidate,
     CandidateEducationForm,
     CandidateExperienceForm,
     CandidateStatus,
@@ -41,6 +42,17 @@ from app.services.recruitment_job_creation_service import get_recruitment_job_ag
 from app.models.agent_execution_log import AgentExecutionLog
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+
+
+def _jobs_in_scope(db: Session, user):
+    """Jobs the caller may see: their own tenant, and -- unless their role template is
+    org-level -- only their business units' jobs plus jobs not yet assigned to a BU
+    (CEO 2026-10-12, app.core.data_scope)."""
+    return db.query(Jobs).filter(
+        (Jobs.tenant_id == user.tenant_id) | Jobs.tenant_id.is_(None),
+        bu_filter(db, user, Jobs.business_unit_id),
+    )
+
 
 @router.post(
     "/generate_job_description",
@@ -228,10 +240,10 @@ def get_all_jobs(
     Returns:
         AllJobsResponse with list of all jobs and total count
     """
-    # HRMS-0109 -- scoped to the caller's own tenant, never all tenants' jobs.
+    # HRMS-0109 -- scoped to the caller's own tenant and business units, never all jobs.
     # Filter out soft-deleted jobs
-    jobs = db.query(Jobs).filter(
-        (Jobs.is_deleted == False) | (Jobs.is_deleted.is_(None)),
+    jobs = _jobs_in_scope(db, user).filter(
+        (Jobs.is_deleted == False) | (Jobs.is_deleted.is_(None)),  # noqa: E712
         (Jobs.deleted_at.is_(None))
     ).all()
     
@@ -275,6 +287,7 @@ def get_all_jobs(
 )
 def get_active_jobs(
     db: Session = Depends(get_db),
+    user = Depends(get_current_internal_user),
 ):
     """
     Get all jobs with status 'active' or 'public'.
@@ -286,7 +299,7 @@ def get_active_jobs(
     Returns:
         AllJobsResponse with list of active/public jobs and total count
     """
-    jobs = db.query(Jobs).filter(
+    jobs = _jobs_in_scope(db, user).filter(
         Jobs.jobStatus.in_(["active", "public"])
     ).all()
 
@@ -351,9 +364,9 @@ def filter_jobs(
     - **company_name**: partial / exact match on company name
     - **job_location**: partial / exact match on job location
     """
-    # HRMS-0109 -- scope to the caller's tenant before any of the
-    # optional filters below narrow it further.
-    query = db.query(Jobs)
+    # HRMS-0109 -- scope to the caller's tenant and business units before any of the
+    # optional filters below narrow it further: picking another BU yields nothing.
+    query = _jobs_in_scope(db, user)
 
     if business_unit is not None:
         query = query.filter(Jobs.business_unit_id == business_unit)
@@ -424,10 +437,10 @@ def get_my_jobs(
 
     my_id = user.UserID
     
-    # BU leaders (role template hierarchy level) see every job in their business unit
+    # BU leaders (role template hierarchy level) see every job in the business units they
+    # partner, head (in any company) or belong to -- by business unit, never by location
     from app.core import authority
-
-    is_bu_head = authority.is_bu_leader(db, user)
+    from app.services.bu_leadership import led_business_units
 
     # Build the OR conditions
     filters = [
@@ -435,16 +448,16 @@ def get_my_jobs(
         Jobs.hiringManagerID == my_id,
         Jobs.contactPerson == my_id,
     ]
-    
-    # If the user is a BU Head, they should see all jobs belonging to their Business Unit
-    if is_bu_head and user.business_unit_id:
-        filters.append(Jobs.business_unit_id == user.business_unit_id)
 
-    jobs = (
-        db.query(Jobs)
-        .filter(or_(*filters))
-        .all()
-    )
+    if authority.is_bu_leader(db, user):
+        my_bu_ids = led_business_units(db, user)
+        if user.business_unit_id is not None:
+            my_bu_ids.add(user.business_unit_id)
+        if my_bu_ids:
+            filters.append(Jobs.business_unit_id.in_(my_bu_ids))
+
+    # still only jobs the caller may see at all (a job-details link for any of them works)
+    jobs = _jobs_in_scope(db, user).filter(or_(*filters)).all()
 
     jobs_data = [
         JobResponse(
@@ -501,12 +514,7 @@ def get_job_by_id(
         HTTPException: If job not found
     """
 
-    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
-    if not job:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Job with ID {job_id} not found"
-        )
+    job = visible_job_or_404(db, user, job_id, f"Job with ID {job_id}")
 
     contact_person_name = None
     if job.contactPerson:
@@ -646,6 +654,11 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
     client = resolve_job_client(db, user.tenant_id, request.client_id, request.company_name)
     business_unit_id = request.business_unit or (client.business_unit_id if client else None)
     company_name = request.company_name or (client.company_name if client else None)
+    # Business-unit scope (CEO 2026-10-12): never create a job in, or for a client of, a BU
+    # outside the caller's scope
+    ensure_assignable(db, user, business_unit_id, "job")
+    if client is not None:
+        ensure_assignable(db, user, client.business_unit_id, "job")
     if request.project_id:
         validate_job_project(db, request.project_id, client)
 
@@ -745,12 +758,7 @@ def approve_job(
     if not x_csrf_token or not validate_csrf_token(x_csrf_token):
         raise HTTPException(status_code=403, detail="Invalid or missing CSRF token")
 
-    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
-    if not job:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Job '{job_id}' not found"
-        )
+    job = visible_job_or_404(db, user, job_id, f"Job '{job_id}'")
 
     if job.jobStatus != "pending_approval":
         raise HTTPException(
@@ -813,13 +821,20 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
     Raises:
         HTTPException: If job not found
     """
-    # Find the job
-    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
-    if not job:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Job with ID {job_id} not found"
-        )
+    # Find the job -- another business unit's job is "not found" (CEO 2026-10-12)
+    job = visible_job_or_404(db, user, job_id, f"Job with ID {job_id}")
+
+    # ...and it cannot be moved into a BU, or onto a client of a BU, outside the caller's
+    # scope. Checked before any field changes.
+    if request.business_unit is not None:
+        ensure_assignable(db, user, request.business_unit, "job")
+    new_client = None
+    if request.client_id:
+        new_client = resolve_job_client(db, user.tenant_id, request.client_id, None)
+    elif request.client_id is None and request.company_name is not None:
+        new_client = resolve_job_client(db, user.tenant_id, None, request.company_name)
+    if new_client is not None:
+        ensure_assignable(db, user, new_client.business_unit_id, "job")
 
     # Status is never edited directly: it is set at creation (approval flow
     # is currently disabled, so new jobs are active) and by POST /approve_job.
@@ -849,11 +864,10 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
     if request.company_name is not None:
         job.companyName = request.company_name
     if request.client_id is None and request.company_name is not None:
-        # Renamed without an explicit client pick: re-match the name
-        matched = resolve_job_client(db, user.tenant_id, None, request.company_name)
-        job.client_id = matched.id if matched else None
+        # Renamed without an explicit client pick: re-match the name (resolved above)
+        job.client_id = new_client.id if new_client else None
     if request.client_id is not None:
-        client = resolve_job_client(db, user.tenant_id, request.client_id, None) if request.client_id else None
+        client = new_client if request.client_id else None
         job.client_id = client.id if client else None
         if client:
             job.companyName = client.company_name
@@ -953,13 +967,8 @@ def delete_job(job_id: str, db: Session = Depends(get_db), user = Depends(get_cu
     Raises:
         HTTPException: If job not found
     """
-    # Find the job
-    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
-    if not job:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Job with ID {job_id} not found"
-        )
+    # Find the job -- another business unit's job is "not found" (CEO 2026-10-12)
+    job = visible_job_or_404(db, user, job_id, f"Job with ID {job_id}")
 
     from app.services.job_lifecycle_service import JobHasHistory, assert_deletable
 
@@ -1014,14 +1023,9 @@ def post_job_on_linkedin(
     Raises:
         HTTPException: If job not found
     """
-    # Validate that the job exists
-    job = db.query(Jobs).filter(Jobs.jobID == request.job_id).first()
-    if not job:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Job with ID {request.job_id} not found"
-        )
-    
+    # Validate that the job exists and is in the caller's business-unit scope
+    job = visible_job_or_404(db, user, request.job_id, f"Job with ID {request.job_id}")
+
     # Generate a mock LinkedIn post ID (simulating LinkedIn's response)
     import random
     import string
@@ -1253,8 +1257,9 @@ async def apply_for_job(
     try:
         from app.api.v1.endpoints.ats import run_ats_scoring_in_background
         background_tasks.add_task(run_ats_scoring_in_background, candidate_id, job.jobID)
-    except Exception:
-        pass  # ATS failure must never block an application submission
+    except Exception as exc:
+        # ATS failure must never block an application submission -- but it is logged
+        logger.error(f"[JOB_APPLY] Could not schedule ATS scoring for {candidate_id}: {exc}", exc_info=True)
 
     return JobApplicationResponse(
         status="Success",
@@ -1294,13 +1299,9 @@ def create_job_application(
     - Returns **409** if the candidate is already assigned to this job.
     - Returns **404** if the job or candidate does not exist.
     """
-    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
-    if not job:
-        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
-
-    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
-    if not candidate:
-        raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found")
+    # both records must be in the caller's business-unit scope (404 otherwise)
+    job = visible_job_or_404(db, user, job_id, f"Job '{job_id}'")
+    ensure_candidate_visible(db, candidate_id, user)
 
     # Duplicate check
     existing = db.query(CandidateJobApplication).filter(
@@ -1356,8 +1357,9 @@ def remove_job_application(
 ):
     """
     Remove the assignment between a candidate and a job (many-to-many).
-    Returns **404** if the assignment does not exist.
+    Returns **404** if the assignment does not exist (or the job is another BU's).
     """
+    visible_job_or_404(db, user, job_id, f"Job '{job_id}'")
     application = db.query(CandidateJobApplication).filter(
         CandidateJobApplication.candidate_id == candidate_id,
         CandidateJobApplication.job_id == job_id,
@@ -1402,12 +1404,11 @@ def get_job_applications(
     Return all candidates linked to this job via the many-to-many table.
     Optionally filter by ``application_status``.
     """
-    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
-    if not job:
-        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+    job = visible_job_or_404(db, user, job_id, f"Job '{job_id}'")
 
     query = db.query(CandidateJobApplication).filter(
-        CandidateJobApplication.job_id == job_id
+        CandidateJobApplication.job_id == job_id,
+        candidate_scope_filter(db, user, CandidateJobApplication.candidate_id),
     )
     if application_status:
         query = query.filter(CandidateJobApplication.application_status == application_status)
@@ -1447,13 +1448,12 @@ def get_candidate_applications(
     """
     Return every job a candidate is linked to via the many-to-many table.
     """
-    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
-    if not candidate:
-        raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found")
+    candidate = ensure_candidate_visible(db, candidate_id, user)
 
     applications = (
         db.query(CandidateJobApplication)
-        .filter(CandidateJobApplication.candidate_id == candidate_id)
+        .filter(CandidateJobApplication.candidate_id == candidate_id,
+                job_filter(db, user, CandidateJobApplication.job_id))
         .order_by(CandidateJobApplication.applied_at.desc())
         .all()
     )

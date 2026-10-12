@@ -43,6 +43,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.bu_scope import candidate_scope_filter, ensure_candidate_visible
+from app.core.data_scope import job_filter, visible_job_or_404
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.candidate import Candidate
@@ -67,6 +69,17 @@ from app.services.submission_service import (
 )
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
+
+
+def _submissions_in_scope(db: Session, user: Users):
+    """Submissions the caller may see: their tenant, a job (demand) in their business units
+    or not yet assigned to one, and a candidate they may see (CEO 2026-10-12)."""
+    return db.query(Submission).filter(
+        Submission.tenant_id == user.tenant_id,
+        job_filter(db, user, Submission.demand_id),
+        candidate_scope_filter(db, user, Submission.candidate_id),
+    )
+
 
 def _to_item(db: Session, submission: Submission) -> SubmissionItem:
     demand = db.query(Demand).filter(Demand.id == submission.demand_id).first()
@@ -113,13 +126,10 @@ def submit_candidate(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    # A demand and a job are the same record (jobs table)
-    demand = db.query(Demand).filter(Demand.id == body.demand_id).first()
-    if demand is None:
-        raise HTTPException(status_code=404, detail="Job not found.")
-    candidate = db.query(Candidate).filter(Candidate.candidateID == body.candidate_id).first()
-    if candidate is None:
-        raise HTTPException(status_code=404, detail="Candidate not found.")
+    # A demand and a job are the same record (jobs table). Both must be in the caller's
+    # business-unit scope: another BU's job or candidate is "not found".
+    demand = visible_job_or_404(db, current_user, body.demand_id, "Job")
+    candidate = ensure_candidate_visible(db, body.candidate_id, current_user)
 
     try:
         submission = create_submission(
@@ -158,7 +168,7 @@ def list_submissions(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    query = db.query(Submission).filter(Submission.tenant_id == current_user.tenant_id)
+    query = _submissions_in_scope(db, current_user)
     if demand_id:
         query = query.filter(Submission.demand_id == demand_id)
     submissions = query.order_by(Submission.submitted_at.desc()).all()
@@ -179,7 +189,8 @@ def list_violations(
 ):
     violations = (
         db.query(SubmissionViolation)
-        .filter(SubmissionViolation.tenant_id == current_user.tenant_id)
+        .filter(SubmissionViolation.tenant_id == current_user.tenant_id,
+                candidate_scope_filter(db, current_user, SubmissionViolation.candidate_id))
         .order_by(SubmissionViolation.attempted_at.desc())
         .all()
     )
@@ -209,7 +220,7 @@ def client_response(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    submission = db.query(Submission).filter(Submission.id == submission_id).first()
+    submission = _submissions_in_scope(db, current_user).filter(Submission.id == submission_id).first()
     if submission is None:
         raise HTTPException(status_code=404, detail="Submission not found.")
     try:
