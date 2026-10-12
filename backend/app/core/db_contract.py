@@ -401,6 +401,7 @@ def _initialize_leadership_roles():
         _move_converted_employees_off_user_role(db)
         _initialize_role_authority(db)
         _initialize_bu_location_heads(db)
+        _initialize_org_positions(db)
         _initialize_org_roles(db)
     except Exception:
         db.rollback()
@@ -437,6 +438,21 @@ def _initialize_role_authority(db):
                             config_key=ROLE_AUTHORITY_SEED_KEY, config_value={"org_level_access": list(ORG_LEVEL_SEED_ROLES)}))
         db.commit()
         logger.info(f"[Contract] Set org_level_access on {updated} seeded role template(s) for tenant {tenant_id}")
+
+
+def _initialize_org_positions(db):
+    """The fixed position ladder every org seat points at (CEO, Partner, BU Head ...). Without
+    it no seat can be created on a fresh database. Creates missing positions only, never
+    rewrites existing ones."""
+    from app.models.org_structure import OrgPosition
+    from app.services.org_structure_service import DEFAULT_POSITIONS
+
+    existing = {name for (name,) in db.query(OrgPosition.name)}
+    missing = [OrgPosition(**spec) for spec in DEFAULT_POSITIONS if spec["name"] not in existing]
+    if missing:
+        db.add_all(missing)
+        db.commit()
+        logger.info(f"[Contract] Seeded {len(missing)} org positions")
 
 
 def _initialize_org_roles(db):
