@@ -26,8 +26,10 @@ class BusinessUnit(Base):
     description = Column(Text, nullable=True)
     bu_code = Column(String(20), nullable=True, unique=True)  # e.g., "NA", "EU", "APAC"
 
-    # Leadership: the BU Head runs the BU; the Partner owns it (one partner
-    # can own several BUs, in every company the BU operates in).
+    # Leadership: the Partner owns the BU in every company it operates in (one partner
+    # can own several BUs). BU heads are per company: BusinessUnitLocationHead.
+    # manager_id is the old single head -- copied once into a head for each of the BU's
+    # companies by db_contract and never read again (production has no migrations).
     manager_id = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     partner_user_id = Column(String(512), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True, index=True)
     # Superseded by business_unit_companies (a BU can operate in several
@@ -56,3 +58,22 @@ class BusinessUnitCompany(Base):
     business_unit_id = Column(Integer, ForeignKey("business_units.id", ondelete="CASCADE"), nullable=False, index=True)
     company_id = Column(String(512), ForeignKey("locations.id", ondelete="CASCADE"), nullable=False, index=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class BusinessUnitLocationHead(Base):
+    """Who runs a business unit in one company (CEO 2026-10-12): AXION has one partner
+    but a head per company -- e.g. AXION/BX-US and AXION/BX-IN have different heads.
+    One person may head the same BU in several companies, several BUs, and may also be
+    a partner. A head sees and approves for their BU in that company only."""
+    __tablename__ = "business_unit_location_heads"
+    __table_args__ = (UniqueConstraint("business_unit_id", "company_id", name="uq_bu_location_head"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, server_default="1", default=1, index=True)
+    business_unit_id = Column(Integer, ForeignKey("business_units.id", ondelete="CASCADE"), nullable=False, index=True)
+    company_id = Column(String(512), ForeignKey("locations.id", ondelete="CASCADE"), nullable=False, index=True)
+    head_user_id = Column(String(512), ForeignKey("users.UserID", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    head = relationship("Users", foreign_keys=[head_user_id], lazy="select")

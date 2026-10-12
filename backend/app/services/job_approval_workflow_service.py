@@ -4,10 +4,11 @@ Job Approval Workflow Service
 Handles job approval routing and recruiter assignment after approval.
 
 Approval routing (data-driven, no role names):
-- Super users need no approval.
-- Otherwise the job's BU manager (BusinessUnit.manager_id) approves, unless
-  they created the job themselves.
-- Fallback: any super user in the tenant.
+- A creator whose role may publish jobs (jobs.edit) needs no approval.
+- Otherwise the BU head for the job's BU in the client's contracting company
+  approves (BU heads are per company -- app.services.bu_leadership), unless they
+  created the job themselves.
+- Fallback: an org-level user who may publish jobs.
 
 The approval flow itself is currently disabled in create_job (every job is
 published immediately); POST /approve_job still uses handle_job_approval().
@@ -19,7 +20,7 @@ from typing import Optional, Tuple
 
 from sqlalchemy.orm import Session
 
-from app.models.business_unit import BusinessUnit
+from app.services.bu_leadership import head_for_client
 from app.models.user import Jobs, Users
 from app.services.recruiter_assignment_service import assign_to_recruiter_roundrobin
 
@@ -52,16 +53,15 @@ def get_approval_routing(db: Session, job: Jobs, creator: Optional[Users]) -> Tu
         return None, "Creator's role may publish jobs - no approval needed"
 
     bu_id = job.business_unit_id or (creator.business_unit_id if creator else None)
-    if bu_id:
-        bu = db.query(BusinessUnit).filter(BusinessUnit.id == bu_id).first()
-        if bu and bu.manager_id and bu.manager_id != creator_id:
-            manager = db.query(Users).filter(Users.UserID == bu.manager_id, Users.terminated_at.is_(None)).first()
-            if manager:
-                return manager, f"Route to BU manager {manager.UserName or manager.UserEmail}"
+    head_id = head_for_client(db, bu_id, job.client_id)
+    if head_id and head_id != creator_id:
+        head = db.query(Users).filter(Users.UserID == head_id, Users.terminated_at.is_(None)).first()
+        if head:
+            return head, f"Route to BU head {head.UserName or head.UserEmail}"
 
     admin = _first_org_level_approver(db, tenant_id, exclude_user_id=creator_id)
     if admin:
-        return admin, "Route to an org-level approver (no BU manager available)"
+        return admin, "Route to an org-level approver (no BU head for this BU and company)"
     return None, "No approver found"
 
 

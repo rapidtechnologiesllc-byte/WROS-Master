@@ -6,7 +6,9 @@ Structure comes from real records:
   rows, so one BU (e.g. AxION) appears under every company it runs in,
   with its own target in each.
 - Partner: BusinessUnit.partner_user_id, a user with the Partner role. One
-  partner owns many BUs, in any company.
+  partner owns many BUs, in every company each BU operates in.
+- BU head: per company (BusinessUnitLocationHead) -- AXION has one partner but its
+  own head in BX-US and in BX-IN; shown on each company's BU row.
 
 Targets live in goal_targets (one row per level/entity/metric/year):
 - ORG      entity "org"                    every FY metric (CEO Dashboard)
@@ -33,7 +35,7 @@ from typing import Dict, List, Optional, Tuple
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.models.business_unit import BusinessUnit, BusinessUnitCompany
+from app.models.business_unit import BusinessUnit, BusinessUnitCompany, BusinessUnitLocationHead
 from app.models.client import Client
 from app.models.employee import Employee
 from app.models.intercompany_ledger import IntercompanySettlement
@@ -156,6 +158,13 @@ def build_company_tree(db: Session, tenant_id: int, year: int, partner_user_id: 
     grouped: Dict[str, Dict[str, List[int]]] = defaultdict(lambda: defaultdict(list))
     for company_id, bu_id in cells:
         grouped[company_id][bus[bu_id].partner_user_id or UNASSIGNED].append(bu_id)
+    # BU heads are per company (BusinessUnitLocationHead): (company_id, bu_id) -> name
+    heads = {
+        (row.company_id, row.business_unit_id): (user.UserName or user.UserEmail)
+        for row, user in db.query(BusinessUnitLocationHead, Users)
+        .join(Users, Users.UserID == BusinessUnitLocationHead.head_user_id)
+        .filter(BusinessUnitLocationHead.tenant_id == tenant_id)
+    }
     partner_users = {u.UserID: u for u in db.query(Users).filter(
         Users.UserID.in_({b.partner_user_id for b in bus.values() if b.partner_user_id})).all()}
 
@@ -174,7 +183,7 @@ def build_company_tree(db: Session, tenant_id: int, year: int, partner_user_id: 
                 bu_list.append({
                     "level": "BU", "entity_id": entity, "bu_id": bu_id, "company_id": company_id,
                     "name": bus[bu_id].display_name or bus[bu_id].name,
-                    "head": (bus[bu_id].manager.UserName or bus[bu_id].manager.UserEmail) if bus[bu_id].manager else None,
+                    "head": heads.get((company_id, bu_id)),
                     "editable": company_id != UNASSIGNED,
                     "metrics": _metric_cells("BU", entity, TREE_METRICS, targets, actuals.get((company_id, bu_id), {})),
                 })

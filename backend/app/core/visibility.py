@@ -50,23 +50,33 @@ def get_user_bu_id(user: Users) -> int | None:
     return user.business_unit_id
 
 
-def get_user_bu_ids(db, user: Users) -> set[int] | None:
+def get_user_data_scope(db, user: Users):
+    """What a BU-scoped user may see, as {business_unit_id: None (every company) | company
+    ids} -- app.services.bu_leadership. None = org-level (no filter).
+
+    - Partner of a BU: the whole BU.
+    - BU head in some companies: the BU in those companies only (CEO 2026-10-12: a head is
+      head of a location, e.g. AXION/BX-IN, and must not see AXION/BX-US).
+    - Their own BU (Users.business_unit_id) when they lead nothing in it: the whole BU,
+      as before -- membership never widens a head's location scope.
     """
-    Every BU a BU-scoped user may see: their own BU, the BUs they own as
-    Partner, and the BUs they run as BU Head. None = org-level (no filter).
-    """
-    from app.models.business_unit import BusinessUnit
+    from app.services.bu_leadership import leadership_scope
 
     if should_bypass_bu_filter(user):
         return None
-    ids = {
-        bu_id for (bu_id,) in db.query(BusinessUnit.id).filter(
-            (BusinessUnit.partner_user_id == user.UserID) | (BusinessUnit.manager_id == user.UserID)
-        )
-    }
-    if user.business_unit_id is not None:
-        ids.add(user.business_unit_id)
-    return ids
+    scope = dict(leadership_scope(db, user))
+    if user.business_unit_id is not None and user.business_unit_id not in scope:
+        scope[user.business_unit_id] = None
+    return scope
+
+
+def get_user_bu_ids(db, user: Users) -> set[int] | None:
+    """
+    Every BU a BU-scoped user may see any part of (see get_user_data_scope). Candidate
+    ownership is per BU, not per company, so candidate lists use this set. None = org-level.
+    """
+    scope = get_user_data_scope(db, user)
+    return None if scope is None else set(scope)
 
 
 def resolve_dashboard_partner(db, user: Users, requested_partner_id: str | None) -> str | None:
@@ -113,8 +123,7 @@ def resolve_dashboard_head_bu(db, user: Users, requested_bu_id: int | None) -> t
     else:
         rows = db.query(BusinessUnit).filter(
             BusinessUnit.active == True,  # noqa: E712
-            (BusinessUnit.manager_id == user.UserID) | (BusinessUnit.partner_user_id == user.UserID)
-            | (BusinessUnit.id == user.business_unit_id),
+            BusinessUnit.id.in_(get_user_bu_ids(db, user) or set()),
         ).order_by(BusinessUnit.name).all()
         allowed = [{"id": bu.id, "name": bu.display_name or bu.name} for bu in rows]
     allowed_ids = {b["id"] for b in allowed}
@@ -125,6 +134,17 @@ def resolve_dashboard_head_bu(db, user: Users, requested_bu_id: int | None) -> t
     if len(allowed) == 1 or (allowed and not should_bypass_bu_filter(user)):
         return allowed[0]["id"], allowed
     return None, allowed
+
+
+def companies_in_scope(db, user: Users, bu_id: int):
+    """The companies of one BU this user may see: None = the whole BU (org-level, partner,
+    or a plain member of the BU), else a frozenset of company ids (a BU head's)."""
+    scope = get_user_data_scope(db, user)
+    if scope is None:
+        return None
+    if bu_id not in scope:
+        return frozenset()
+    return scope[bu_id]
 
 
 def business_unit_choices(db) -> list:
