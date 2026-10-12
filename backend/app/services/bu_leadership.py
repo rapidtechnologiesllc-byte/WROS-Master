@@ -6,12 +6,12 @@
   AXION in BX-US, Hemant runs AXION in BX-IN. A person may head several BUs, the same BU
   in several companies, and may also be a partner.
 
-Scope is the single answer to "what may this leader see": a mapping
-business_unit_id -> None (the whole BU, every company) or a set of company ids. Org-level
-roles (role template) are not scoped at all and get None from leadership_scope.
+Visibility is per business unit, never per location (CEO 2026-10-12): whoever partners a
+BU, or heads it in any company, sees all of that BU. Per-company heads decide approval
+routing (head_for_client) and who is shown as running each location.
 """
 import logging
-from typing import Dict, FrozenSet, Iterable, Optional
+from typing import Dict, Iterable, Optional, Set
 
 from sqlalchemy.orm import Session
 
@@ -19,9 +19,6 @@ from app.models.business_unit import BusinessUnit, BusinessUnitCompany, Business
 from app.models.user import Users
 
 logger = logging.getLogger(__name__)
-
-Scope = Dict[int, Optional[FrozenSet[str]]]  # bu_id -> None (whole BU) | company ids
-
 
 def location_heads(db: Session, business_unit_id: int) -> Dict[str, BusinessUnitLocationHead]:
     """company_id -> head row, for one business unit."""
@@ -40,27 +37,12 @@ def head_user_id(db: Session, business_unit_id: Optional[int], company_id: Optio
     return row[0] if row else None
 
 
-def leadership_scope(db: Session, user: Users) -> Scope:
-    """What this user leads: BUs they partner (whole BU) and BU x company they head."""
-    scope: Dict[int, Optional[set]] = {}
-    for (bu_id,) in db.query(BusinessUnit.id).filter(BusinessUnit.partner_user_id == user.UserID):
-        scope[bu_id] = None
-    for bu_id, company_id in db.query(BusinessUnitLocationHead.business_unit_id, BusinessUnitLocationHead.company_id) \
-            .filter(BusinessUnitLocationHead.head_user_id == user.UserID):
-        if bu_id in scope and scope[bu_id] is None:
-            continue  # already sees the whole BU as its partner
-        scope.setdefault(bu_id, set()).add(company_id)
-    return {bu_id: (None if companies is None else frozenset(companies)) for bu_id, companies in scope.items()}
-
-
-def in_scope(scope: Optional[Scope], business_unit_id: Optional[int], company_id: Optional[str]) -> bool:
-    """Whether a record attributed to (BU, company) is inside the scope. None = unscoped (org)."""
-    if scope is None:
-        return True
-    if business_unit_id not in scope:
-        return False
-    companies = scope[business_unit_id]
-    return companies is None or company_id in companies
+def led_business_units(db: Session, user: Users) -> Set[int]:
+    """BUs this user leads: those they partner, and those they head in any company."""
+    partnered = {bu_id for (bu_id,) in db.query(BusinessUnit.id).filter(BusinessUnit.partner_user_id == user.UserID)}
+    headed = {bu_id for (bu_id,) in db.query(BusinessUnitLocationHead.business_unit_id)
+              .filter(BusinessUnitLocationHead.head_user_id == user.UserID)}
+    return partnered | headed
 
 
 def set_location_heads(db: Session, bu: BusinessUnit, tenant_id: int, heads: Dict[str, str],

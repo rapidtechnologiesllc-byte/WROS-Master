@@ -5,6 +5,7 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { apiRequest } from '../services/api/client';
+import { listBusinessUnits } from '../services/api/rbac';
 import { toast } from 'react-toastify';
 import { hasPermission } from '../utils/permissionsRoleTemplate';
 
@@ -67,7 +68,7 @@ export default function UserFormPage() {
     try {
       const [rolesRes, busRes, posRes, dcRes, refRes] = await Promise.all([
         apiRequest('/admin/role-templates'),
-        apiRequest('/business-units'),
+        listBusinessUnits(),
         apiRequest('/org/positions'),
         apiRequest('/api/v1/api/admin/users-access-control/delivery-centers'),
         apiRequest('/org/hierarchy-reference')
@@ -76,7 +77,7 @@ export default function UserFormPage() {
       // Filter to only enabled templates - disabled templates shouldn't be selectable
       const enabledTemplates = rolesRes.data?.role_templates?.filter(t => t.enabled !== false) || [];
       setRoleTemplates(enabledTemplates);
-      setBusinessUnits(busRes.data || []);
+      setBusinessUnits(busRes);
 
       // positions from /org/positions is an array of OrgPosition objects
       const positionArray = Array.isArray(posRes.data) ? posRes.data : posRes.data?.positions || [];

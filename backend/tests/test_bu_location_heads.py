@@ -1,12 +1,12 @@
-"""Partner per BU, BU head per BU per company (CEO 2026-10-12):
+"""Partner per BU, BU head per BU per company (CEO 2026-10-12). Test personas are roles,
+not people:
 
-  Avinash  CEO, heads NEXUS in BX-US and BX-IN
-  Troy     partner of AXION (both companies) and head of AXION in BX-US
-  Hemant   head of AXION in BX-IN only
-  Curtis   partner of PRISM; AGS Manian heads PRISM in BX-IN
+  ceo           heads NEXUS in BX-US and BX-IN
+  partner       partner of AXION (every company) and head of AXION in BX-US
+  india_head    heads AXION in BX-IN only
 
-A head sees and approves for their BU in their company only; a partner sees the BU
-everywhere; a person's own-BU membership never widens a head's location scope."""
+Visibility is by business unit, never by location: anyone who partners a BU or heads it
+in any company sees all of it. Per-company heads route approvals (head_for_client)."""
 import uuid
 from datetime import date
 from types import SimpleNamespace
@@ -15,14 +15,14 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.revenue_visibility_scope import apply_revenue_bu_scope_to_client_query
-from app.core.visibility import companies_in_scope, get_user_data_scope
+from app.core.visibility import get_user_bu_ids
 from app.models.bank_reconciliation import BankTransaction
 from app.models.business_unit import BusinessUnit, BusinessUnitCompany, BusinessUnitLocationHead
 from app.models.client import Client
 from app.models.cost_rate_config import CostRateConfig
-from app.models.employee import Employee
 from app.models.invoice import Invoice
 from app.models.location import Location
+from app.models.project import Project
 from app.models.role_template import RoleTemplate
 from app.models.tenant import Tenant
 from app.models.user import Users
@@ -80,24 +80,22 @@ def firm(db):
         for company in (us, india):
             db.add(BusinessUnitCompany(tenant_id=1, business_unit_id=bu.id, company_id=company.id))
         db.add(CostRateConfig(business_unit_id=bu.id, statutory_pct=0, overhead_pct=0))
-    troy = _person(db, "Troy", partner_role, axion)
-    hemant = _person(db, "Hemant", head_role, axion)   # member of AXION, heads it in BX-IN only
-    avinash = _person(db, "Avinash", ceo_role)
-    axion.partner_user_id = troy.UserID
+    partner = _person(db, "Partner", partner_role, axion)
+    india_head = _person(db, "India head", head_role, axion)
+    ceo = _person(db, "CEO", ceo_role)
+    axion.partner_user_id = partner.UserID
     db.flush()
     pick = lambda user_id: db.query(Users).filter_by(UserID=user_id).one()  # noqa: E731
-    bu_leadership.set_location_heads(db, axion, 1, {us.id: troy.UserID, india.id: hemant.UserID}, pick)
-    bu_leadership.set_location_heads(db, nexus, 1, {us.id: avinash.UserID, india.id: avinash.UserID}, pick)
+    bu_leadership.set_location_heads(db, axion, 1, {us.id: partner.UserID, india.id: india_head.UserID}, pick)
+    bu_leadership.set_location_heads(db, nexus, 1, {us.id: ceo.UserID, india.id: ceo.UserID}, pick)
     db.commit()
-    return SimpleNamespace(us=us, india=india, axion=axion, nexus=nexus, troy=troy, hemant=hemant, avinash=avinash)
+    return SimpleNamespace(us=us, india=india, axion=axion, nexus=nexus, partner=partner, india_head=india_head, ceo=ceo)
 
 
-def test_scope_partner_sees_whole_bu_head_sees_their_company_only(db, firm):
-    assert get_user_data_scope(db, firm.troy) == {firm.axion.id: None}  # partner + US head = whole BU
-    assert get_user_data_scope(db, firm.hemant) == {firm.axion.id: frozenset({firm.india.id})}
-    assert companies_in_scope(db, firm.hemant, firm.axion.id) == frozenset({firm.india.id})
-    assert companies_in_scope(db, firm.hemant, firm.nexus.id) == frozenset()
-    assert get_user_data_scope(db, firm.avinash) == {firm.nexus.id: frozenset({firm.us.id, firm.india.id})}
+def test_scope_is_by_business_unit_not_location(db, firm):
+    assert get_user_bu_ids(db, firm.partner) == {firm.axion.id}
+    assert get_user_bu_ids(db, firm.india_head) == {firm.axion.id}  # heads AXION in one company: sees all AXION
+    assert get_user_bu_ids(db, firm.ceo) == {firm.nexus.id}         # the CEO role here is not org-level
 
 
 def test_head_can_only_be_set_where_the_bu_operates(db, firm):
@@ -105,7 +103,7 @@ def test_head_can_only_be_set_where_the_bu_operates(db, firm):
     db.add(other)
     db.flush()
     with pytest.raises(ValueError, match="does not operate in"):
-        bu_leadership.set_location_heads(db, firm.axion, 1, {other.id: firm.hemant.UserID}, lambda u: firm.hemant)
+        bu_leadership.set_location_heads(db, firm.axion, 1, {other.id: firm.india_head.UserID}, lambda u: firm.india_head)
     bu_leadership.set_location_heads(db, firm.axion, 1, {firm.india.id: ""}, lambda u: None)  # "" clears
     assert bu_leadership.head_user_id(db, firm.axion.id, firm.india.id) is None
 
@@ -117,52 +115,44 @@ def test_job_routing_follows_the_clients_company(db, firm):
                        contracting_company_id=firm.india.id)
     db.add_all([us_client, in_client])
     db.flush()
-    assert bu_leadership.head_for_client(db, firm.axion.id, us_client.id) == firm.troy.UserID
-    assert bu_leadership.head_for_client(db, firm.axion.id, in_client.id) == firm.hemant.UserID
+    assert bu_leadership.head_for_client(db, firm.axion.id, us_client.id) == firm.partner.UserID
+    assert bu_leadership.head_for_client(db, firm.axion.id, in_client.id) == firm.india_head.UserID
     assert bu_leadership.head_for_client(db, firm.axion.id, None) is None  # two companies: never a guess
 
 
-def test_revenue_and_payroll_are_cut_by_company_for_a_head(db, firm):
-    for company, amount in ((firm.us, 500_000), (firm.india, 200_000)):
-        client = Client(tenant_id=1, company_name=f"C {_uid()}", business_unit_id=firm.axion.id,
-                        contracting_company_id=company.id)
+def test_revenue_and_clients_follow_the_business_unit(db, firm):
+    other = BusinessUnit(name=f"OTHER-{_uid()}", display_name="OTHER")
+    db.add(other)
+    db.flush()
+    clients = {}
+    for key, bu, company, amount in (("us", firm.axion, firm.us, 500_000), ("in", firm.axion, firm.india, 200_000),
+                                     ("other", other, firm.us, 900_000)):
+        client = Client(tenant_id=1, company_name=f"C {_uid()}", business_unit_id=bu.id, contracting_company_id=company.id)
         db.add(client)
         db.flush()
-        invoice = Invoice(tenant_id=1, client_id=client.id, billing_period_start=SEPT[0], billing_period_end=SEPT[1],
+        clients[key] = client
+        project = Project(tenant_id=1, client_id=client.id, name=f"P {_uid()}", delivery_engine="CORE")
+        db.add(project)
+        db.flush()
+        invoice = Invoice(tenant_id=1, client_id=client.id, project_id=project.id,
+                          billing_period_start=SEPT[0], billing_period_end=SEPT[1],
                           currency="USD", total_usd_cents=amount, status="PAID")
         db.add(invoice)
         db.flush()
         db.add(BankTransaction(tenant_id=1, transaction_date=date(2026, 9, 20), amount_usd_cents=amount,
                                description="UTR", matched_invoice_id=invoice.id, reconciled=True))
-        db.add(Employee(tenant_id=1, first_name="E", last_name=_uid(), email=f"{_uid()}@x.com",
-                        joining_date=date(2025, 1, 1), status="BENCH", bu_id=firm.axion.id, company_id=company.id,
-                        base_salary_usd_cents=amount))
     db.commit()
-
-    def axion(user):
-        report = outlook(db, start=SEPT[0], end=SEPT[1], today=date(2026, 9, 30),
-                         scope=get_user_data_scope(db, user))
-        return next(r for r in report["by_business_unit"] if r["key"] == firm.axion.id)
-
-    assert axion(firm.troy)["actual_revenue"] == 700_000
-    assert axion(firm.hemant)["actual_revenue"] == 200_000
-    assert axion(firm.hemant)["anticipated_bench_cost"] == 200_000
-
-
-def test_revenue_client_list_is_cut_by_company_for_a_head(db, firm):
-    us_client = Client(tenant_id=1, company_name=f"US {_uid()}", business_unit_id=firm.axion.id,
-                       contracting_company_id=firm.us.id)
-    in_client = Client(tenant_id=1, company_name=f"IN {_uid()}", business_unit_id=firm.axion.id,
-                       contracting_company_id=firm.india.id)
-    db.add_all([us_client, in_client])
-    db.flush()
-    visible = {c.id for c in apply_revenue_bu_scope_to_client_query(db, db.query(Client), firm.hemant)}
-    assert in_client.id in visible and us_client.id not in visible
+    report = outlook(db, start=SEPT[0], end=SEPT[1], today=date(2026, 9, 30),
+                     business_unit_ids=get_user_bu_ids(db, firm.india_head))
+    assert {r["key"] for r in report["by_business_unit"]} == {firm.axion.id}
+    assert report["actual_revenue"] == 700_000  # all of AXION, both companies; never OTHER
+    visible = {c.id for c in apply_revenue_bu_scope_to_client_query(db, db.query(Client), firm.india_head)}
+    assert clients["us"].id in visible and clients["in"].id in visible and clients["other"].id not in visible
 
 
 def test_old_single_head_is_carried_into_each_company_once(db, firm):
-    prism = BusinessUnit(name=f"PRISM-{_uid()}", display_name="PRISM", manager_id=firm.hemant.UserID)
-    lonely = BusinessUnit(name=f"SOLO-{_uid()}", display_name="SOLO", manager_id=firm.hemant.UserID)
+    prism = BusinessUnit(name=f"PRISM-{_uid()}", display_name="PRISM", manager_id=firm.india_head.UserID)
+    lonely = BusinessUnit(name=f"SOLO-{_uid()}", display_name="SOLO", manager_id=firm.india_head.UserID)
     db.add_all([prism, lonely])
     db.flush()
     db.add(BusinessUnitCompany(tenant_id=1, business_unit_id=prism.id, company_id=firm.india.id))
@@ -170,7 +160,7 @@ def test_old_single_head_is_carried_into_each_company_once(db, firm):
     bu_leadership.carry_over_single_heads(db)
     db.refresh(prism)
     db.refresh(lonely)
-    assert bu_leadership.head_user_id(db, prism.id, firm.india.id) == firm.hemant.UserID
+    assert bu_leadership.head_user_id(db, prism.id, firm.india.id) == firm.india_head.UserID
     assert prism.manager_id is None
-    assert lonely.manager_id == firm.hemant.UserID  # no company to put the head in: kept, logged
+    assert lonely.manager_id == firm.india_head.UserID  # no company to put the head in: kept, logged
     assert db.query(BusinessUnitLocationHead).filter_by(business_unit_id=lonely.id).count() == 0

@@ -20,15 +20,15 @@ Expense:
 Every figure is attributed to a business unit in a company (clients by contracting
 company, employees by employer company), rolled up to BU, partner
 (BusinessUnit.partner_user_id) and org from the same rows, so the four dashboards can never
-disagree. A scope (app.services.bu_leadership) keeps only what the viewer leads: a partner
-their whole BU, a BU head their BU in their own company (CEO 2026-10-12). Unknown inputs (an
+disagree. business_unit_ids keeps only the BUs the viewer may see (visibility by business
+unit, never by location -- CEO 2026-10-12). Unknown inputs (an
 allocation without a bill rate, an employee without salary or cost-rate config) are listed,
 never counted as zero.
 """
 import logging
 from collections import defaultdict
 from datetime import date, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -39,7 +39,6 @@ from app.models.client import Client
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.invoice import Invoice
-from app.services.bu_leadership import Scope, in_scope
 from app.services.revenue_chain_service import UNASSIGNED, CostBook, chain_lines
 
 logger = logging.getLogger(__name__)
@@ -74,8 +73,13 @@ Cell = Tuple[Optional[int], Optional[str]]  # (business_unit_id, company_id)
 
 
 def outlook(db: Session, *, start: date, end: date, today: Optional[date] = None,
-            scope: Optional[Scope] = None, tenant_id: Optional[int] = None) -> Dict:
-    """Projected vs actual for [start, end]. scope=None means the whole org."""
+            business_unit_ids: Optional[Iterable[int]] = None, tenant_id: Optional[int] = None) -> Dict:
+    """Projected vs actual for [start, end]. business_unit_ids=None means the whole org."""
+    scope = set(business_unit_ids) if business_unit_ids is not None else None
+
+    def in_scope(bu_id, _company_id=None) -> bool:
+        return scope is None or bu_id in scope
+
     if end < start:
         raise ValueError("end must be on or after start")
     today = today or date.today()
@@ -105,7 +109,7 @@ def outlook(db: Session, *, start: date, end: date, today: Optional[date] = None
             continue
         deployed_days[allocation.employee_id].append(span)
         if not allocation.billing_rate_usd_cents:
-            if in_scope(scope, *client_cell(allocation.client_id)):
+            if in_scope(*client_cell(allocation.client_id)):
                 gaps["allocations_without_bill_rate"].append(allocation.id)
             continue
         hours = business_days(*span) * settings.STANDARD_DAILY_HOURS * float(allocation.utilization_pct or 100) / 100
@@ -137,7 +141,7 @@ def outlook(db: Session, *, start: date, end: date, today: Optional[date] = None
             continue
         period_cost = costs.period(employee, start, end)
         if period_cost is None:
-            if in_scope(scope, employee.bu_id, employee.company_id):
+            if in_scope(employee.bu_id):
                 gaps["employees_without_cost"].append(employee.id)
             continue
         row = rows[(employee.bu_id, employee.company_id)]
@@ -176,7 +180,7 @@ def outlook(db: Session, *, start: date, end: date, today: Optional[date] = None
 
     by_unit: Dict[Optional[int], Dict[str, int]] = defaultdict(_empty)
     for (bu_id, company_id), figures in rows.items():
-        if not in_scope(scope, bu_id, company_id):
+        if not in_scope(bu_id):
             continue
         for k in FIGURES:
             by_unit[bu_id][k] += figures[k]

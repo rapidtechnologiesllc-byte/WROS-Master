@@ -41,26 +41,18 @@ def can_view_pnl(db: Session, user: Users) -> bool:
     return authority.has_permission(db, user, "revenue.view")
 
 def apply_revenue_bu_scope_to_client_query(db: Session, query: Query, current_user: Users) -> Query:
-    """Narrows a Client query to clients with no BU assigned yet (visible to everyone,
-    same Org-Pool-until-claimed posture as CandidateOwnership) plus the clients the caller
-    leads (app.core.visibility.get_user_data_scope): every client of a BU they partner,
-    and, for a BU head, that BU's clients contracted through the companies they head it
-    in. A no-op for org-level roles and for anyone who is not revenue-BU-scoped."""
-    from sqlalchemy import and_, false, or_
-
-    from app.core.visibility import get_user_data_scope
+    """Narrows a Client query to clients with no BU assigned yet (visible to everyone, same
+    Org-Pool-until-claimed posture as CandidateOwnership) plus every client of the BUs the
+    caller may see (app.core.visibility.get_user_bu_ids: partnered, headed in any company,
+    own). A no-op for org-level roles and for anyone who is not revenue-BU-scoped."""
+    from app.core.visibility import get_user_bu_ids
 
     if not is_revenue_bu_scoped(db, current_user):
         return query
-    scope = get_user_data_scope(db, current_user)
-    if scope is None:
+    bu_ids = get_user_bu_ids(db, current_user)
+    if bu_ids is None:
         return query
-    led = [
-        Client.business_unit_id == bu_id if companies is None
-        else and_(Client.business_unit_id == bu_id, Client.contracting_company_id.in_(companies))
-        for bu_id, companies in scope.items()
-    ]
-    return query.filter(or_(Client.business_unit_id.is_(None), *(led or [false()])))
+    return query.filter(Client.business_unit_id.is_(None) | Client.business_unit_id.in_(bu_ids or [-1]))
 
 def get_revenue_scoped_client_ids(db: Session, current_user: Users) -> Optional[set]:
     """Returns the set of client IDs visible to current_user under

@@ -1,6 +1,5 @@
-"""BU Head dashboard: real figures for one business unit, optionally limited to some of
-the companies it operates in (a BU head runs the BU in their company only -- CEO
-2026-10-12; see app.services.bu_leadership).
+"""BU Head dashboard: real figures for one business unit, across every company it operates
+in (visibility is by business unit, never by location -- CEO 2026-10-12).
 
 Definitions match the goal tree and plan-vs-actual views so the screens never disagree:
 - team: employees of the BU who are working (not PRE_JOINING / EXITED), by their
@@ -12,7 +11,7 @@ Definitions match the goal tree and plan-vs-actual views so the screens never di
 """
 import logging
 from datetime import date
-from typing import FrozenSet, Optional
+from typing import Optional
 
 from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
@@ -31,27 +30,19 @@ REVENUE_STATUSES = ("APPROVED", "SENT", "PAID")
 LIVE_PROJECT_STATUSES = ("ACTIVE",)
 
 
-def _working(bu_id: int, companies: Optional[FrozenSet[str]]):
-    conditions = [Employee.bu_id == bu_id, Employee.status.notin_(WORKING_STATUSES_EXCLUDED)]
-    if companies is not None:
-        conditions.append(Employee.company_id.in_(companies))
-    return and_(*conditions)
+def _working(bu_id: int):
+    return and_(Employee.bu_id == bu_id, Employee.status.notin_(WORKING_STATUSES_EXCLUDED))
 
 
-def _clients(bu_id: int, companies: Optional[FrozenSet[str]]):
-    conditions = [Client.business_unit_id == bu_id]
-    if companies is not None:
-        conditions.append(Client.contracting_company_id.in_(companies))
-    return and_(*conditions)
+def _clients(bu_id: int):
+    return Client.business_unit_id == bu_id
 
 
 class BUHeadDashboardService:
     """Aggregates real data for the BU Head dashboard."""
 
     @staticmethod
-    def get_bu_dashboard_data(db: Session, bu_id: int, companies: Optional[FrozenSet[str]] = None,
-                              today: Optional[date] = None) -> dict:
-        """companies=None: the whole BU; otherwise only those companies."""
+    def get_bu_dashboard_data(db: Session, bu_id: int, today: Optional[date] = None) -> dict:
         from app.services.revenue_chain_service import CostBook
 
         bu = db.query(BusinessUnit).filter(BusinessUnit.id == bu_id).first()
@@ -59,7 +50,7 @@ class BUHeadDashboardService:
             return {}
         today = today or date.today()
 
-        team = db.query(Employee).filter(_working(bu_id, companies)).all()
+        team = db.query(Employee).filter(_working(bu_id)).all()
         allocated_ids = {
             employee_id for (employee_id,) in db.query(EmployeeAllocation.employee_id).filter(
                 EmployeeAllocation.status == "ACTIVE",
@@ -76,13 +67,13 @@ class BUHeadDashboardService:
         revenue_mtd = db.query(func.sum(InvoiceLineItem.amount_usd_cents)).join(
             Invoice, Invoice.id == InvoiceLineItem.invoice_id
         ).join(Client, Client.id == Invoice.client_id).filter(
-            _clients(bu_id, companies),
+            _clients(bu_id),
             Invoice.status.in_(REVENUE_STATUSES),
             Invoice.billing_period_start >= today.replace(day=1),
         ).scalar() or 0
 
         active_projects = db.query(func.count(Project.id)).join(Client, Project.client_id == Client.id).filter(
-            _clients(bu_id, companies), Project.status.in_(LIVE_PROJECT_STATUSES),
+            _clients(bu_id), Project.status.in_(LIVE_PROJECT_STATUSES),
         ).scalar() or 0
 
         allocations_by_project = db.query(
@@ -92,7 +83,7 @@ class BUHeadDashboardService:
         ).join(EmployeeAllocation, Project.id == EmployeeAllocation.project_id).join(
             Client, Project.client_id == Client.id
         ).filter(
-            _clients(bu_id, companies), EmployeeAllocation.status == "ACTIVE",
+            _clients(bu_id), EmployeeAllocation.status == "ACTIVE",
         ).group_by(Project.id, Project.name).all()
 
         team_count, utilized = len(team), len(team) - len(bench)
@@ -121,8 +112,8 @@ class BUHeadDashboardService:
         }
 
     @staticmethod
-    def get_team_details(db: Session, bu_id: int, companies: Optional[FrozenSet[str]] = None) -> list:
-        """Working team members of the BU (in those companies) with their current allocation."""
+    def get_team_details(db: Session, bu_id: int) -> list:
+        """Working team members of the BU with their current allocation."""
         rows = db.query(
             Employee.id,
             Employee.first_name,
@@ -135,7 +126,7 @@ class BUHeadDashboardService:
             EmployeeAllocation,
             and_(EmployeeAllocation.employee_id == Employee.id, EmployeeAllocation.status == "ACTIVE"),
         ).outerjoin(Project, Project.id == EmployeeAllocation.project_id).filter(
-            _working(bu_id, companies)
+            _working(bu_id)
         ).all()
 
         return [

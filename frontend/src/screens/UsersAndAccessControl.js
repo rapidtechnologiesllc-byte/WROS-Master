@@ -18,6 +18,7 @@ import {
   listModulesAndResources
 } from "../services/api/role_templates";
 import { apiRequest } from "../services/api/client";
+import { listBusinessUnits } from "../services/api/rbac";
 import { getHrMe } from "../services/api/users";
 import RoleTemplateEditor from "../components/RoleTemplateEditor";
 
@@ -848,14 +849,14 @@ function OrganizationalHierarchySection() {
       const [nodesRes, deptRes, buRes, refRes, companyRes] = await Promise.all([
         apiRequest("/org/nodes"),
         apiRequest("/org/departments"),
-        apiRequest("/api/v1/business-units"),
+        listBusinessUnits(),
         apiRequest("/org/hierarchy-reference"),
         apiRequest(DELIVERY_CENTERS_PATH),
       ]);
       setCompanies(companyRes.data?.delivery_centers || []);
       setOrgNodes(Array.isArray(nodesRes.data) ? nodesRes.data : []);
       setDepartments(Array.isArray(deptRes.data) ? deptRes.data : []);
-      setBusinessUnits(Array.isArray(buRes.data) ? buRes.data : []);
+      setBusinessUnits(buRes);
       setReference(refRes.data || { levels: [], specializations: [] });
     } catch (err) {
       setActionError(err?.message || "Failed to load organizational hierarchy");

@@ -24,7 +24,7 @@ from datetime import datetime
 
 from app.core.dependencies import get_current_user, require_resource_permission
 from app.models.user import Users
-from app.core.visibility import get_user_data_scope
+from app.core.visibility import get_user_bu_ids
 from app.services.finance_agent import FinanceAgent
 from app.core.database import get_db
 
@@ -75,8 +75,8 @@ def financial_outlook(
 ) -> Dict[str, Any]:
     """Projected vs actual revenue and anticipated vs actual expense (CEO, CFO, partner and
     BU dashboards). period: month (default: this month), quarter (fiscal quarter holding the
-    month) or year (fiscal year). Org-level roles see the whole org; a partner their whole BUs;
-    a BU head their BU in the companies they head it in; a member their own BU."""
+    month) or year (fiscal year). Org-level roles see the whole org; everyone else the BUs
+    they partner, head (in any company) or belong to."""
     from datetime import date
 
     from app.services.financial_outlook_service import outlook
@@ -102,13 +102,13 @@ def financial_outlook(
     else:
         raise HTTPException(status_code=422, detail="period must be month, quarter or year")
 
-    # org-level: everything; partner: their BUs; BU head: their BU in their company (visibility)
-    scope = get_user_data_scope(db, current_user)
+    # org-level: everything; otherwise the BUs the user partners, heads or belongs to
+    scope = get_user_bu_ids(db, current_user)
     if business_unit_id:
         if scope is not None and business_unit_id not in scope:
             raise HTTPException(status_code=403, detail="That business unit is outside your scope")
-        scope = {business_unit_id: None if scope is None else scope[business_unit_id]}
-    report = outlook(db, start=start, end=end, today=today, scope=scope, tenant_id=current_user.tenant_id)
+        scope = {business_unit_id}
+    report = outlook(db, start=start, end=end, today=today, business_unit_ids=scope, tenant_id=current_user.tenant_id)
     report["period"] = period
     report["scope"] = "org" if scope is None else "business_units"
     return report
