@@ -94,22 +94,50 @@ def requires_email_otp(db: Session, user: Optional[Users]) -> bool:
     return role_of(db, user) is not None
 
 
-# Home dashboard by position (CEO 2026-10-12): which one is decided by the role template's
-# level and specialization, never by holding a permission (an admin role holds every
-# permission and must not land on the CEO dashboard). Each still needs its view permission;
-# without it the next one down applies. "default" is the general dashboard.
-HOME_DASHBOARDS = (
-    ("ceo", "ceo-dashboard", lambda db, u: is_ceo(db, u)),
-    ("cfo", "cfo-dashboard", lambda db, u: is_partner(db, u) and in_finance(db, u)),  # C-level finance
-    ("partner", "partner-dashboard", lambda db, u: is_partner(db, u)),
-    ("bu_head", "bu-head-dashboard", lambda db, u: is_bu_leader(db, u)),
-)
+# Home dashboard by ROLE (CEO 2026-10-12): the user's position in the firm -- the org
+# position their Job Title names (OrgPosition: CEO, Partner, BU Head, ...), else the position
+# of their org-chart node. Authority (what they may see and do) stays with the role template:
+# a home dashboard also needs its *-dashboard view permission, else the general dashboard.
+# Holding a permission never makes a dashboard home (an admin template holds them all).
+# position code (OrgPosition.rbac_role_name) -> (home key, dashboard resource); a C-level
+# (partner-rank) position in Finance is the CFO.
+HOME_BY_POSITION = {
+    "ceo": ("ceo", "ceo-dashboard"),
+    "partner": ("partner", "partner-dashboard"),
+    "bu_head": ("bu_head", "bu-head-dashboard"),
+}
+CFO_HOME = ("cfo", "cfo-dashboard")
+
+
+def position(db: Session, user: Optional[Users]):
+    """(position code, specialization) of the user's role in the firm, or (None, None).
+    The Job Title is what the Users screen shows and edits, so it wins; the org-chart
+    node is the fallback for a title that is not an org position."""
+    from app.models.org_structure import OrgNode, OrgPosition
+
+    if user is None:
+        return None, None
+    node = db.query(OrgNode).filter(OrgNode.id == user.org_node_id).first() if user.org_node_id else None
+    specialization = node.specialization if node else None
+    title = (user.job_title or "").strip()
+    if title:
+        match = db.query(OrgPosition).filter(OrgPosition.name.ilike(title)).first()
+        if match:
+            return match.rbac_role_name, specialization
+    if node is not None:
+        pos = db.query(OrgPosition).filter(OrgPosition.id == node.position_id).first()
+        if pos:
+            return pos.rbac_role_name, specialization
+    return None, specialization
 
 
 def home_dashboard(db: Session, user: Optional[Users]) -> str:
-    for key, resource, holds_position in HOME_DASHBOARDS:
-        if holds_position(db, user) and has_permission(db, user, f"{resource}.view"):
-            return key
+    code, specialization = position(db, user)
+    home = HOME_BY_POSITION.get(code)
+    if code == "partner" and any(w in (specialization or "").lower() for w in FINANCE_SPECIALIZATIONS):
+        home = CFO_HOME
+    if home and has_permission(db, user, f"{home[1]}.view"):
+        return home[0]
     return "default"
 
 
@@ -121,6 +149,7 @@ def summary(db: Session, user: Optional[Users]) -> dict:
             "specialization": role.specialization if role else None,
             "is_bu_leader": is_bu_leader(db, user),
             "is_finance_leader": is_finance_leader(db, user),
+            "position": position(db, user)[0],
             "home_dashboard": home_dashboard(db, user)}
 
 
