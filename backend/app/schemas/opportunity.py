@@ -2,7 +2,7 @@ from datetime import date, datetime
 import logging
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +83,18 @@ class RoleDemandFromOpportunityRequest(BaseModel):
     quantity: int
     duration_hours: int
     billing_rate_usd_cents: int
+
+    @field_validator("work_location")
+    @classmethod
+    def _work_location(cls, value: str) -> str:
+        """Remote / onsite / hybrid (the jobs table only stores these); refused here with a
+        clear message instead of failing in the database."""
+        from app.models.user import JOB_WORK_LOCATIONS
+
+        normalised = (value or "").strip().upper()
+        if normalised not in JOB_WORK_LOCATIONS:
+            raise ValueError(f"work_location must be one of {', '.join(JOB_WORK_LOCATIONS)}")
+        return normalised
 
 class RoleDemandFromOpportunityResponse(BaseModel):
     id: str

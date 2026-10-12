@@ -623,7 +623,7 @@ function OpportunityDetailPanel({ opportunity, onClose, onRoleDemandCreated }) {
                 <Input label="Min Experience (yrs)" value={form.min_experience_years} onChange={set("min_experience_years")} placeholder="5" />
                 <Input label="Quantity" value={form.quantity} onChange={set("quantity")} placeholder="1" />
               </div>
-              <Input label="Work Location" value={form.work_location} onChange={set("work_location")} placeholder="Remote / Hyderabad" />
+              <Input label="Work Location" value={form.work_location} onChange={set("work_location")} placeholder="REMOTE, ONSITE or HYBRID" />
               <div className="grid grid-cols-2 gap-2">
                 <Input label="Duration (hours)" value={form.duration_hours} onChange={set("duration_hours")} placeholder="2080" />
                 <Input label="Billing Rate (USD/hr)" value={form.billing_rate_usd_cents} onChange={set("billing_rate_usd_cents")} placeholder="85" />
