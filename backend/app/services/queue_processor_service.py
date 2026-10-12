@@ -374,24 +374,6 @@ class QueueProcessorService:
                             # Message already COMPLETED, don't rollback
                             # SLM training is supplementary to core queue processing
 
-                        # PHASE 4: Trigger autonomous learning cycle if threshold reached
-                        try:
-                            from app.services.queue_processor_learning_integration import QueueProcessorLearningIntegration
-
-                            orchestrator = message.type.split('_')[0] if '_' in message.type else 'flash'
-                            learning_result = QueueProcessorLearningIntegration.trigger_learning_cycle_if_needed(
-                                db=db,
-                                tenant_id=message.payload.get('tenant_id', '1') if isinstance(message.payload, dict) else '1',
-                                orchestrator=orchestrator,
-                                handler_result=result,
-                            )
-                            if learning_result:
-                                stats["learning_cycles"] = stats.get("learning_cycles", 0) + 1
-                                logger.info(f"[QueueProcessor] Learning cycle executed: {learning_result}")
-                        except Exception as learning_err:
-                            # Don't fail message processing if learning fails
-                            logger.warning(f"[QueueProcessor] Learning cycle failed (non-blocking): {learning_err}", exc_info=True)
-
                 except Exception as msg_err:
                     logger.error(f"[QueueProcessor] Message {message.id} failed: {msg_err}", exc_info=True)
                     stats["errors"].append(str(msg_err))

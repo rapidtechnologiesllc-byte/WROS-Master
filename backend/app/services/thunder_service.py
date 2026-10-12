@@ -61,7 +61,6 @@ from app.services.whatsapp_routing_service import (  # noqa: F401 -- re-exported
 )
 from app.services.delivery_factory import get_delivery_service
 from app.models.message_delivery import MessageDeliveryLog
-from app.services.thunder_learning_integration import ThunderLearningIntegration
 
 WHATSAPP_OUTREACH_CONSENT_TYPE = "whatsapp_outreach"
 # 2026-07-23 -- public web chat (see app.services.public_chat_service) is a
@@ -235,41 +234,16 @@ def send_thunder_message(
             f"within the last {DEBOUNCE_SECONDS}s -- suppressed."
         )
 
-    # Get confidence score for learning system before sending
-    confidence_score = ThunderLearningIntegration.get_outreach_confidence(
-        db=db,
-        candidate=candidate,
-        channel=channel,
-    )
-
     if channel == "whatsapp":
-        event = send_whatsapp_message(
+        return send_whatsapp_message(
             db, conversation, candidate, message_body,
             sender_type=sender_type, sender_id=sender_id,
             whatsapp_client=whatsapp_client, auto_generated=auto_generated,
         )
-    else:
-        event = send_web_chat_message(
-            db, conversation, candidate, message_body,
-            sender_type=sender_type, sender_id=sender_id,
-        )
-
-    # Record prediction in learning system (async/best-effort)
-    try:
-        ThunderLearningIntegration.record_outreach_prediction(
-            db=db,
-            tenant_id=candidate.tenant_id,
-            candidate=candidate,
-            conversation=conversation,
-            channel=channel,
-            message_body=message_body,
-            confidence_score=confidence_score,
-        )
-    except Exception as e:
-        logger.error(f"[Thunder] Failed to record learning prediction: {e}", exc_info=True)
-        # Don't fail the send - learning is non-blocking
-
-    return event
+    return send_web_chat_message(
+        db, conversation, candidate, message_body,
+        sender_type=sender_type, sender_id=sender_id,
+    )
 
 def send_outbound_campaign_message(db: Session, conversation: CandidateConversation, candidate: Candidate, message_body: str, channel: str, *, email_subject: str = "Following up on your application") -> None:
     """Shared whatsapp/email send dispatch for the automated outreach
@@ -296,13 +270,6 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
     if not has_active_consent(db, candidate.candidateID, consent_type=EMAIL_OUTREACH_CONSENT_TYPE):
         logger.warning(f"[Thunder] Email consent not given for candidate {candidate.candidateID!r}, skipping outreach")
         return
-
-    # Get confidence score for learning system before sending
-    confidence_score = ThunderLearningIntegration.get_outreach_confidence(
-        db=db,
-        candidate=candidate,
-        channel="email",
-    )
 
     try:
         # Use delivery service for email sending (instead of EmailService.send_email)
@@ -356,21 +323,6 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
             triggered_by="ai_agent",
         ))
         db.flush()
-
-        # Record prediction in learning system (async/best-effort)
-        try:
-            ThunderLearningIntegration.record_outreach_prediction(
-                db=db,
-                tenant_id=candidate.tenant_id,
-                candidate=candidate,
-                conversation=conversation,
-                channel="email",
-                message_body=message_body,
-                confidence_score=confidence_score,
-            )
-        except Exception as e:
-            logger.error(f"[Thunder] Failed to record learning prediction: {e}", exc_info=True)
-            # Don't fail the send - learning is non-blocking
     except Exception as exc:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[Thunder] Email send failed for candidate {candidate.candidateID!r}: {exc}")

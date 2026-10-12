@@ -99,7 +99,6 @@ from app.api.v1.endpoints.spartan_forecasting import router as spartan_forecasti
 from app.api.v1.endpoints.system_health import router as system_health_router
 from app.api.v1.endpoints.users_access_control import router as users_access_control_router
 from app.api.v1.endpoints.learning import router as learning_router
-from app.api.v1.endpoints.learning_transcript import router as learning_transcript_router
 from app.api.v1.endpoints.health_check import router as health_check_router
 from app.api.v1.endpoints.slm_exports import router as slm_exports_router
 from app.api.v1.endpoints.flash_queue_metrics import router as flash_queue_metrics_router
@@ -116,9 +115,6 @@ from app.api.v1.endpoints.intervention_queue import router as intervention_queue
 from app.api.v1.endpoints.agent_config import router as agent_config_router
 from app.api.v1.endpoints.tenant_ai_config import router as tenant_ai_config_router
 from app.api.v1.endpoints.email_templates import router as email_templates_router
-from app.api.v1.endpoints.webhooks import router as webhooks_router
-from app.api.v1.endpoints.cascade_prediction import router as cascade_prediction_router
-from app.api.v1.endpoints.learning_analytics import router as learning_analytics_router
 
 try:
     router = fastapi.APIRouter(prefix="/api/v1")
@@ -134,8 +130,6 @@ router.include_router(router=org_structure_router)
 router.include_router(router=business_units_router)
 router.include_router(router=users_access_control_router)
 router.include_router(router=learning_router)
-router.include_router(router=learning_analytics_router)
-router.include_router(router=learning_transcript_router)
 router.include_router(router=health_check_router)
 router.include_router(router=slm_exports_router)
 router.include_router(router=flash_queue_metrics_router)
@@ -190,8 +184,6 @@ router.include_router(router=revenue_chain_router)
 router.include_router(router=public_chat_router)
 router.include_router(router=flash_router)
 router.include_router(router=whatsapp_webhook_router)
-router.include_router(router=webhooks_router)
-router.include_router(router=cascade_prediction_router)
 router.include_router(router=portal_messages_router)
 router.include_router(router=ai_recruiter_assignment_router)
 router.include_router(router=message_templates_router)

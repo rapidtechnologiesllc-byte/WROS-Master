@@ -251,7 +251,6 @@ const NAV_PERMISSIONS = {
   // Dashboard/Agent Screens
   ceoFyProgress: "reports.view",
   cfoDashboard: "reports.view",
-  learningAnalytics: "learning.view",
 
   // AI & Automation Module
   askThunder: "ask-thunder",
