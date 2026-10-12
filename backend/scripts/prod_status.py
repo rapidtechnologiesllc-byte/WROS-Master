@@ -43,7 +43,47 @@ def check(label: str, fn):
         return False
 
 
+def sh(label: str, cmd: str, timeout: int = 15):
+    """Run a read-only shell command and print its (masked) output -- never fails the report."""
+    try:
+        out = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True, timeout=timeout)
+        text = (out.stdout + out.stderr).strip() or f"(no output, exit {out.returncode})"
+    except Exception as exc:
+        text = f"{type(exc).__name__}: {exc}"
+    print(f"--- {label}")
+    for line in text.splitlines()[:25]:
+        print(mask(line))
+
+
+def web_status():
+    """Is the site reachable, and if not, where does it break: DNS, listener, certificate,
+    nginx, backend, disk, firewall. Read-only."""
+    host = "hrms.blitzenx.com"
+    section("Web / network")
+    sh("DNS for the site", f"getent hosts {host}")
+    sh("This server's public IP", "curl -s --max-time 5 https://api.ipify.org; echo")
+    sh("nginx running", "systemctl is-active nginx 2>&1; pgrep -c nginx")
+    sh("Listening on 80/443", "ss -ltn | awk 'NR==1 || /:80 |:443 /'")
+    sh("HTTPS certificate (served for the site)",
+       f"echo | timeout 10 openssl s_client -connect 127.0.0.1:443 -servername {host} 2>/dev/null"
+       " | openssl x509 -noout -subject -issuer -dates")
+    sh("Site through this server's nginx (cert checked)",
+       f"curl -s -o /dev/null -w 'HTTP %{{http_code}} ssl_verify=%{{ssl_verify_result}}\n' --max-time 10 "
+       f"--resolve {host}:443:127.0.0.1 https://{host}/ 2>&1 || echo 'curl failed: '$?")
+    sh("Site through the public address (from the server)",
+       f"curl -sS -o /dev/null -w 'HTTP %{{http_code}}\n' --max-time 10 https://{host}/ 2>&1")
+    sh("API health through nginx", f"curl -sk -o /dev/null -w 'HTTP %{{http_code}}\n' --max-time 10 "
+       f"--resolve {host}:443:127.0.0.1 https://{host}/api/v1/health 2>&1")
+    sh("Backend processes", "pgrep -af 'uvicorn|gunicorn' | cut -c1-150")
+    sh("Disk and memory", "df -h / /home 2>/dev/null; free -m")
+    sh("Load", "uptime")
+    sh("Firewall (if readable without a password)", "sudo -n ufw status 2>&1 | head -15")
+    sh("nginx error log (last lines)", "tail -n 15 /var/log/nginx/error.log 2>&1")
+    sh("certbot certificates (if readable)", "sudo -n certbot certificates 2>&1 | head -20")
+
+
 def main() -> int:
+    web_status()
     from app.core.config import settings  # also loads backend/.env
 
     section("Code")
