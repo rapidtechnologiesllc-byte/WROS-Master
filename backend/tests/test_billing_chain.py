@@ -4,7 +4,7 @@ time logged where it cannot be billed, weeks straddling two months, double billi
 the wrong currency label, cross-tenant access, revenue nobody is credited for, and
 billable time that silently never reaches an invoice."""
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -334,7 +334,8 @@ def test_self_service_submit_twice_is_a_409_not_a_500(db, api):
     w = _world(db)
     w.worker.wros_user_id = user.UserID
     allocation = _allocate(db, w)
-    ts = _week(db, allocation, date(2026, 9, 7), {date(2026, 9, 7): 8}, status="DRAFT")
+    monday = date.today() - timedelta(days=date.today().weekday())  # submit refuses weeks > 4 weeks old
+    ts = _week(db, allocation, monday, {monday: 8}, status="DRAFT")
     first = client.post(f"/api/v1/my/timesheet/{ts.id}/submit", headers=headers)
     assert first.status_code == 200, first.text
     again = client.post(f"/api/v1/my/timesheet/{ts.id}/submit", headers=headers)
