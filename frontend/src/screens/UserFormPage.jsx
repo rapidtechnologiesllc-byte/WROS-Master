@@ -53,6 +53,8 @@ export default function UserFormPage() {
   const [saving, setSaving] = useState(false);
   const [selectedTemplatePermissions, setSelectedTemplatePermissions] = useState([]);
   const [actionError, setActionError] = useState(null);
+  // Edit mode: whether the user already has a seat in the org chart
+  const [hasSeat, setHasSeat] = useState(true);
 
   useEffect(() => {
     loadInitialData();
@@ -89,14 +91,12 @@ export default function UserFormPage() {
   const loadUserData = useCallback(async () => {
     try {
       setLoading(true);
-      const usersRes = await apiRequest('/hr/users/all');
-      const user = usersRes.data?.users?.find(u => u.user_id === userId);
+      const { data: user } = await apiRequest(`/hr/users/${userId}`);
       if (!user) {
         setActionError('User not found');
         navigate('/admin/users-access-control/users');
         return;
       }
-      // Merge into the form: fields this list doesn't carry (org seat, level ...) keep their state
       setFormData(prev => ({
         ...prev,
         user_name: user.user_name || '',
@@ -106,8 +106,13 @@ export default function UserFormPage() {
         business_unit_id: user.business_unit_id || '',
         department_id: user.department_id || '',
         role_template_id: user.role_template_id || '',
-        whatsapp_number: user.whatsapp_number || ''
+        location_id: user.location_id || '',
+        // The org-chart seat (empty when the user is not in the org chart yet)
+        hierarchy_level: user.hierarchy_level || '',
+        specialization: user.specialization || '',
+        parent_node_id: user.parent_node_id || '',
       }));
+      setHasSeat(Boolean(user.org_node_id));
     } catch (err) {
       console.error('[UserFormPage] Failed to load user:', err);
       setActionError(`Failed to load user details: ${err.message}`);
@@ -250,7 +255,7 @@ export default function UserFormPage() {
       setActionError('Selected role template is missing a hierarchy level/specialization - pick a different role template');
       return;
     }
-    if (mode === 'create' && Number(seatLevel) < 17 && !formData.parent_node_id) {
+    if (seatLevel && Number(seatLevel) < 17 && !formData.parent_node_id) {
       setActionError('Reports To is required for this hierarchy level');
       return;
     }
@@ -288,8 +293,18 @@ export default function UserFormPage() {
           user_email: formData.user_email.trim(),
           job_title: formData.job_title.trim(),
           business_unit_id: parseInt(formData.business_unit_id, 10),
-          role_template_id: parseInt(formData.role_template_id, 10)
+          role_template_id: parseInt(formData.role_template_id, 10),
+          department_id: formData.department_id || '',
         };
+        // Org-chart seat: places the user in the organization (or moves their seat)
+        if (seatLevel) {
+          Object.assign(payload, {
+            hierarchy_level: parseInt(seatLevel, 10),
+            specialization: seatSpecialization,
+            parent_node_id: isCeo ? null : (formData.parent_node_id || null),
+            location_id: formData.location_id || null,
+          });
+        }
         await apiRequest(`/hr/users/${userId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -473,7 +488,6 @@ export default function UserFormPage() {
             </select>
           </div>
 
-          {mode === 'create' && (
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
@@ -507,7 +521,6 @@ export default function UserFormPage() {
                 </select>
               </div>
             </div>
-          )}
 
           {/* Role Template */}
           <div>
@@ -532,8 +545,13 @@ export default function UserFormPage() {
             </select>
           </div>
 
+          {mode === 'edit' && !hasSeat && (
+            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              Not in the org chart yet. Choose a level, specialization and who they report to, then save to connect them to the organization.
+            </p>
+          )}
+
           {/* Org-chart seat: level suggested by the job title, specialization by the role template */}
-          {mode === 'create' && (
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -567,10 +585,9 @@ export default function UserFormPage() {
                 </select>
               </div>
             </div>
-          )}
 
           {/* Reports To - required for anyone below CEO level */}
-          {mode === 'create' && seatLevel && Number(seatLevel) < 17 && (
+          {seatLevel && Number(seatLevel) < 17 && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Reports To *

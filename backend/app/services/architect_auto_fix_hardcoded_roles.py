@@ -398,6 +398,10 @@ class ArchitectAutoFixOrchestrator:
         """Create commit with SLM decision metadata"""
         import subprocess
 
+        from app.services.autonomous_sdlc_service import require_code_commit_opt_in
+
+        require_code_commit_opt_in()
+
         try:
             for file_path in self.files_modified:
                 subprocess.run(["git", "add", file_path], check=True)

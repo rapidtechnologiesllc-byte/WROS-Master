@@ -111,7 +111,9 @@ jobs:
             tests/test_navigation_menu.py \
             tests/test_bu_location_heads.py \
             tests/test_scope_*.py \
-            tests/test_roles_not_names.py
+            tests/test_roles_not_names.py \
+            tests/test_user_org_seat.py \
+            tests/test_code_commit_guard.py
 
   test-frontend:
     name: Frontend - Build

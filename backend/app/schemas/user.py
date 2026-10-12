@@ -114,6 +114,8 @@ class UserResponse(BaseModel):
     department_name: Optional[str] = None
     business_unit_id: Optional[int] = None
     business_unit_name: Optional[str] = None
+    # Set when the user has a seat in the org chart; None = not connected to the organization
+    org_node_id: Optional[str] = None
     created_at: datetime
 
 class AllUsersResponse(BaseModel):
@@ -615,6 +617,11 @@ class UpdateUserWithRolesRequest(BaseModel):
     department_id: Optional[str] = Field(None, description="Department ID within the business unit")
     role_template_id: Optional[int] = Field(None, gt=0, description="RBAC role template ID (must be > 0, e.g., 1=SuperUser, 3=Recruiter)")
     assigned_at: Optional[str] = Field(None, description="ISO 8601 timestamp for role assignment")
+    # Org-chart seat: sending any of these creates the user's seat if they have none, or moves it
+    hierarchy_level: Optional[int] = Field(None, ge=1, le=17, description="Org level 1-17 (17 = CEO)")
+    specialization: Optional[str] = Field(None, description="Org specialization (Recruitment, Development, ...)")
+    parent_node_id: Optional[str] = Field(None, description="Org seat this person reports to (none only for the CEO)")
+    location_id: Optional[str] = Field(None, description="Company (BX-US, BX-IN, ...) the person's seat belongs to")
 
     class Config:
         extra = 'forbid'  # CRITICAL: Reject ANY unknown fields (catches typos, deprecated fields)
@@ -692,6 +699,11 @@ class SingleUserResponse(BaseModel):
     department_id: Optional[str] = None
     location_id: Optional[str] = None
     org_node_id: Optional[str] = None
+    # The user's org-chart seat (None when they are not in the org chart yet)
+    hierarchy_level: Optional[int] = None
+    specialization: Optional[str] = None
+    parent_node_id: Optional[str] = None
+    reports_to: Optional[str] = None
     created_at: datetime
 
 # ── Hiring Manager Section ────────────────────────────────────────────────────

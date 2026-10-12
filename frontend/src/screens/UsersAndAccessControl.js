@@ -181,6 +181,13 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
           { header: "Job Title", accessor: "job_title", key: "job_title" },
           { header: "Role Template", accessor: "permission_role", key: "role_template" },
           {
+            header: "Org Chart",
+            key: "org_chart",
+            cell: (row) => (row.org_node_id
+              ? <span className="text-xs text-green-700">Connected</span>
+              : <span className="text-xs font-medium text-amber-700" title="Edit the user to choose who they report to">Not in org chart</span>),
+          },
+          {
             header: "Actions",
             key: "actions",
             cell: (row) => (

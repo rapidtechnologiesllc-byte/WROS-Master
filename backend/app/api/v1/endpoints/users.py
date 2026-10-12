@@ -113,6 +113,7 @@ def get_all_users(
             department_name=u.department.name if u.department else None,
             business_unit_id=u.business_unit_id,
             business_unit_name=u.business_unit.name if u.business_unit else None,
+            org_node_id=u.org_node_id,
         )
         for u in users
     ]
@@ -865,19 +866,54 @@ def update_user(
             raise ValueError("tenant_id is REQUIRED - cannot proceed without it")
         target.tenant_id = current_user.tenant_id
 
+    from app.core.data_scope import ensure_assignable
+    from app.models.business_unit import BusinessUnit
+    from app.models.org_structure import OrgNode
+    from app.services.org_structure_service import place_user_in_org
+
     if request.user_name is not None:
         target.UserName = request.user_name
     if request.job_title is not None:
         target.job_title = request.job_title
-    # role_template_id is MANDATORY - if updating, must provide valid value
     if request.role_template_id is not None:
-        if not request.role_template_id:
-            raise ValueError("role_template_id is REQUIRED - cannot be null")
+        if not db.query(RoleTemplate).filter(RoleTemplate.id == request.role_template_id).first():
+            raise HTTPException(status_code=422, detail="Role template not found")
         target.role_template_id = request.role_template_id
     if request.business_unit_id is not None:
+        if not db.query(BusinessUnit).filter(BusinessUnit.id == request.business_unit_id,
+                                             BusinessUnit.tenant_id == current_user.tenant_id).first():
+            raise HTTPException(status_code=422, detail="Business unit not found")
+        ensure_assignable(db, current_user, request.business_unit_id, "user")
         target.business_unit_id = request.business_unit_id
     if request.department_id is not None:
-        target.department_id = request.department_id
+        target.department_id = request.department_id or None
+
+    # Org-chart seat: created when the user has none, moved when they do. Fields not sent
+    # keep the seat's current value (or the role template's for a new seat).
+    seat_fields = {"hierarchy_level", "specialization", "parent_node_id", "location_id", "department_id"}
+    if seat_fields & request.model_fields_set:
+        seat = db.query(OrgNode).filter(OrgNode.id == target.org_node_id).first() if target.org_node_id else None
+        role = db.query(RoleTemplate).filter(RoleTemplate.id == target.role_template_id).first()
+        sent = request.model_fields_set
+
+        def pick(field, current, default=None):
+            return getattr(request, field) if field in sent else (current if seat else default)
+
+        level = pick("hierarchy_level", seat.hierarchy_level if seat else None, role.hierarchy_level if role else None)
+        specialization = pick("specialization", seat.specialization if seat else None,
+                              (role.specialization if role else None) or "General")
+        if not level:
+            raise HTTPException(status_code=422, detail="An org level is required to place this user in the org chart")
+        try:
+            place_user_in_org(
+                db, target, hierarchy_level=int(level), specialization=specialization,
+                parent_id=pick("parent_node_id", seat.parent_id if seat else None) or None,
+                company_id=pick("location_id", seat.company_id if seat else None) or None,
+                department_id=target.department_id,
+            )
+        except ValueError as exc:
+            db.rollback()
+            raise HTTPException(status_code=422, detail=str(exc))
 
     try:
         db.commit()
@@ -912,6 +948,7 @@ def update_user(
         department_name=(target.department.name if (target.department and hasattr(target.department, 'name')) else None),
         business_unit_id=target.business_unit_id,
         business_unit_name=(target.business_unit.name if (target.business_unit and hasattr(target.business_unit, 'name')) else None),
+        org_node_id=target.org_node_id,
         created_at=target.CreatedAt
     )
 
@@ -1244,7 +1281,11 @@ def get_user_by_id(
             detail=f"User with ID '{user_id}' not found",
         )
 
+    from app.models.org_structure import OrgNode
+
     role = db.query(RoleTemplate).filter(RoleTemplate.id == target.role_template_id).first()
+    seat = db.query(OrgNode).filter(OrgNode.id == target.org_node_id).first() if target.org_node_id else None
+    boss = db.query(OrgNode).filter(OrgNode.id == seat.parent_id).first() if seat and seat.parent_id else None
 
     return SingleUserResponse(
         user_id=target.UserID,
@@ -1258,6 +1299,10 @@ def get_user_by_id(
         department_id=target.department_id,
         location_id=target.location_id,
         org_node_id=target.org_node_id,
+        hierarchy_level=seat.hierarchy_level if seat else None,
+        specialization=seat.specialization if seat else None,
+        parent_node_id=seat.parent_id if seat else None,
+        reports_to=boss.name if boss else None,
         created_at=target.CreatedAt,
     )
 
