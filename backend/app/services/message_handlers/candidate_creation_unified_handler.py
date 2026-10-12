@@ -56,6 +56,7 @@ def _optional_candidate_fields(payload: Dict[str, Any]) -> Dict[str, Any]:
         "candidateCurrentSalaryType": payload.get("candidate_current_salary_type"),
         "candidate_notice_period": payload.get("candidate_notice_period"),
         "created_by_user_id": payload.get("created_by_user_id"),
+        "assigned_recruiter_id": payload.get("assigned_hr_manager_id"),  # CRITICAL FIX: Store recruiter assignment
     }
     return {k: v for k, v in fields.items() if v not in (None, "")}
 
@@ -175,10 +176,27 @@ class CandidateCreationUnifiedHandler:
         db.flush()
         candidate_id = candidate.candidateID
 
+        # CRITICAL FIX: Update recruiter assignment metadata if set
+        if payload.get('assigned_hr_manager_id'):
+            candidate.assigned_recruiter_changed_at = datetime.utcnow()
+            candidate.assigned_recruiter_changed_by = f"import_from_{source}"
+            db.add(candidate)
+
         # A duplicate can match on phone alone (possibly a different person),
         # so records are only attached to a candidate created by this message.
         # No commit here: queue_processor_service commits candidate + records together.
         if is_new:
+            # CRITICAL FIX: Create CandidateStatus record (was missing, causing all status bugs)
+            from app.models.candidate import CandidateStatus
+            candidate_status = CandidateStatus(
+                candidateID=candidate_id,
+                piplineStatus="Applied",  # Initial status from application
+                status="Active",  # Initial internal status
+                thunder_assigned_at=None,  # Will be set when Thunder engages
+            )
+            db.add(candidate_status)
+            db.flush()
+
             _add_education_and_experience(db, candidate_id, payload)
             # First entry on the candidate's History tab (the replaced
             # per-source handlers logged this; the unified one did not)

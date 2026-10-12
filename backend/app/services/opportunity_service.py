@@ -13,9 +13,10 @@ entity this session -- no REST endpoints/UI yet for anything), but this
 underlying calculation is real and tested so whichever screen gets
 built later has one correct source to call.
 
-Stage transition to WON auto-creates a Project (HRMS-0801 BR-0801-01,
+Stage transition to CONTRACT auto-creates a Project (HRMS-0801 BR-0801-01,
 completing the hook this module's own docstring used to defer -- Project
-now exists as of the Projects build round).
+now exists as of the Projects build round). PROJECT creation requires
+client.business_unit_id to be set.
 """
 import logging
 from datetime import datetime
@@ -123,20 +124,34 @@ def transition_stage(
     continent: Optional[str] = None, changed_by: Optional[str] = None,
 ):
     """
-    Returns the Opportunity, unless new_stage='WON', in which case
-    returns (opportunity, project) -- HRMS-0801 BR-0801-01: winning an
-    opportunity auto-creates a Project inheriting client_id/currency,
-    no manual re-entry.
+    HRMS-0801 BR-0801-01: CONTRACT stage auto-creates a Project inheriting
+    client_id/currency, no manual re-entry. Returns (opportunity, project) tuple.
+
+    WON stage is invalid (pipeline uses CONTRACT + ACTIVE instead).
+    ACTIVE is only reachable from CONTRACT.
 
     Also auto-syncs parent Client.status to match the most-advanced
-    opportunity stage (WON > NEGOTIATION > PROPOSAL > QUALIFICATION > LOST).
+    opportunity stage (ACTIVE > CONTRACT > NEGOTIATION > PROPOSAL > QUALIFICATION > LOST).
     """
     if opportunity.stage in CLOSED_STAGES:
         raise InvalidStageTransition(
             f"Opportunity {opportunity.id} is already closed ({opportunity.stage}) -- cannot change stage."
         )
+
+    # WON is not a valid stage (removed from pipeline)
+    if new_stage == "WON":
+        raise InvalidStageTransition(
+            f"WON is not a valid opportunity stage. Use CONTRACT followed by ACTIVE instead."
+        )
+
     if new_stage not in OPPORTUNITY_STAGES:
         raise InvalidStageTransition(f"'{new_stage}' is not a valid opportunity stage.")
+
+    # ACTIVE is only reachable from CONTRACT
+    if new_stage == "ACTIVE" and opportunity.stage != "CONTRACT":
+        raise InvalidStageTransition(
+            f"ACTIVE stage is only reachable from CONTRACT. Current stage: {opportunity.stage}"
+        )
 
     opportunity.stage = new_stage
     opportunity.probability_pct = default_probability_for_stage(new_stage)
@@ -146,12 +161,29 @@ def transition_stage(
     # Auto-sync parent Client status to match opportunity progression
     _update_client_status_from_opportunities(db, opportunity.client_id)
 
-    if new_stage == "WON":
-        project = create_project_from_won_opportunity(
-            db, opportunity,
-            name=project_name or f"Project for Opportunity {opportunity.id}",
-            billing_type=billing_type, continent=continent, created_by=changed_by,
-        )
+    # CONTRACT creates a project exactly once
+    if new_stage == "CONTRACT":
+        # Check if client has business_unit_id required for project creation
+        client = db.query(Client).filter(Client.id == opportunity.client_id).first()
+        if not client or not client.business_unit_id:
+            raise InvalidStageTransition(
+                f"Cannot transition to CONTRACT: client {opportunity.client_id} must have business_unit_id set."
+            )
+
+        # Check if project already exists (idempotency)
+        existing_project = db.query(Project).filter(
+            Project.opportunity_id == opportunity.id
+        ).first()
+
+        if existing_project:
+            project = existing_project
+        else:
+            project = create_project_from_won_opportunity(
+                db, opportunity,
+                name=project_name or f"Project for Opportunity {opportunity.id}",
+                billing_type=billing_type, continent=continent, created_by=changed_by,
+            )
+
         return opportunity, project
 
     return opportunity
