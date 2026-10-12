@@ -693,8 +693,6 @@ def create_user_with_roles(
         raise HTTPException(status_code=400, detail="Role template is required")
     if not request.hierarchy_level:
         raise HTTPException(status_code=400, detail="Hierarchy level is required")
-    if not request.specialization:
-        raise HTTPException(status_code=400, detail="Specialization is required")
 
     # Check if user email already exists
     try:

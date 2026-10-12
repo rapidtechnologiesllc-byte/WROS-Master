@@ -255,7 +255,7 @@ def create_org_node(
     tenant_id: int,
     name: str,
     hierarchy_level: int,
-    specialization: str,
+    specialization: Optional[str] = None,
     parent_id: Optional[str] = None,
     department_id: Optional[str] = None,
     company_id: Optional[str] = None,
@@ -267,9 +267,14 @@ def create_org_node(
     """
     from app.services.org_hierarchy_validator import OrgHierarchyValidator, position_id_for_level
 
+    from app.services.org_hierarchy_validator import specialization_for_department
+
     if not name or not name.strip():
         raise ValueError("Name is required")
     _validate_company(db, tenant_id, company_id)
+    if department_id:
+        specialization = specialization_for_department(db, department_id)
+    specialization = specialization or "General"
 
     business_unit_id = None
     if department_id:
@@ -307,7 +312,7 @@ def place_user_in_org(
     user,
     *,
     hierarchy_level: int,
-    specialization: str,
+    specialization: Optional[str],
     parent_id: Optional[str],
     company_id: Optional[str] = None,
     department_id: Optional[str] = None,
@@ -319,7 +324,9 @@ def place_user_in_org(
     to itself or to anyone below it. Reporting across companies is allowed -- a BX-IN
     BU head may report to a partner in BX-US; the seat keeps its own company. Adds
     without committing; raises ValueError with a caller-safe message."""
-    from app.services.org_hierarchy_validator import OrgHierarchyValidator, position_id_for_level
+    from app.services.org_hierarchy_validator import (
+        OrgHierarchyValidator, position_id_for_level, specialization_for_department,
+    )
 
     tenant_id = user.tenant_id
     node = db.query(OrgNode).filter(OrgNode.id == user.org_node_id, OrgNode.tenant_id == tenant_id).first() \
@@ -349,7 +356,8 @@ def place_user_in_org(
         if not is_valid:
             raise ValueError(error)
         node.hierarchy_level = hierarchy_level
-        node.specialization = specialization
+        node.specialization = specialization_for_department(db, department_id) if department_id \
+            else (specialization or "General")
         node.position_id = position_id_for_level(db, hierarchy_level)
         node.parent_id = parent_id or None
         node.company_id = company_id or None

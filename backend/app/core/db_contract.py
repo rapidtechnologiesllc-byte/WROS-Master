@@ -391,6 +391,7 @@ def _initialize_leadership_roles():
         _move_converted_employees_off_user_role(db)
         _initialize_role_authority(db)
         _initialize_bu_location_heads(db)
+        _initialize_org_roles(db)
     except Exception:
         db.rollback()
         raise
@@ -428,6 +429,22 @@ def _initialize_role_authority(db):
                             config_key=ROLE_AUTHORITY_SEED_KEY, config_value={"org_level_access": list(ORG_LEVEL_SEED_ROLES)}))
         db.commit()
         logger.info(f"[Contract] Set org_level_access on {updated} seeded role template(s) for tenant {tenant_id}")
+
+
+def _initialize_org_roles(db):
+    """Seed the role list once per tenant from the org levels (idempotent: only when the
+    tenant has no roles yet, so roles renamed or retired on the screen stay that way)."""
+    from app.models.org_structure import OrgRole
+    from app.models.tenant import Tenant
+    from app.services.org_roles_service import DEFAULT_DESIGNATIONS, DEFAULT_ROLE_TITLES
+
+    for (tenant_id,) in db.query(Tenant.id).all():
+        if db.query(OrgRole.id).filter(OrgRole.tenant_id == tenant_id).first():
+            continue
+        db.add_all(OrgRole(tenant_id=tenant_id, name=name, hierarchy_level=level,
+                           designation=DEFAULT_DESIGNATIONS.get(name)) for name, level in DEFAULT_ROLE_TITLES)
+        db.commit()
+        logger.info(f"[Contract] Seeded {len(DEFAULT_ROLE_TITLES)} org roles for tenant {tenant_id}")
 
 
 def _initialize_bu_location_heads(db):
