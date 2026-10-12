@@ -10,6 +10,7 @@ Reads entire codebase:
 6. Purges stale findings
 """
 import os
+import pathlib
 import logging
 import json
 from typing import Dict, Any, List, Optional, Tuple
@@ -57,7 +58,9 @@ class CodebaseAuditScanner:
     - EVERYTHING
     """
 
-    def __init__(self, repo_root: str = "C:\\Users\\AvinashMukund\\Documents\\Claude\\WROS-Master"):
+    def __init__(self, repo_root: str = None):
+        # Default: the checkout this file lives in (backend/app/services -> repo root)
+        repo_root = repo_root or str(pathlib.Path(__file__).resolve().parents[3])
         self.repo_root = repo_root
         self.backend_root = os.path.join(repo_root, "backend")
         self.findings: List[AuditFinding] = []

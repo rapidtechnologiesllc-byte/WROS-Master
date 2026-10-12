@@ -22,7 +22,7 @@ class ConfirmSOWResponse(BaseModel):
     sow_received_date: Optional[date] = None
 
 class ScheduleCallRequest(BaseModel):
-    curtis_user_id: Optional[str] = None
+    partner_user_id: Optional[str] = None
     bu_head_user_id: Optional[str] = None
 
 class AlignmentCallItem(BaseModel):
@@ -31,7 +31,7 @@ class AlignmentCallItem(BaseModel):
     demand_job_title: str
     employee_id: str
     employee_name: str
-    curtis_user_id: Optional[str] = None
+    partner_user_id: Optional[str] = None
     bu_head_user_id: Optional[str] = None
     scheduled_at: Optional[datetime] = None
 

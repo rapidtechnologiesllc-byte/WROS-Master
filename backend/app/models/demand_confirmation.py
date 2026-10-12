@@ -19,7 +19,7 @@ import logging
 import uuid
 
 from sqlalchemy import (
-    Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Text, func,
+    Boolean, Column, DateTime, ForeignKey, Integer, String, Text, func,
 )
 
 from app.models.base import Base
@@ -40,7 +40,9 @@ class DemandAlignmentCall(Base):
     demand_id = Column(String(512), ForeignKey("jobs.jobID"), nullable=False, index=True)
     employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
 
-    curtis_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True)
+    # The demand's BU partner. The column keeps its original name (production tables are
+    # never altered); the attribute is the role, never a person.
+    partner_user_id = Column("curtis_user_id", String(512), ForeignKey("users.UserID"), nullable=True)
     bu_head_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     scheduled_at = Column(DateTime, nullable=True)  # SchedulerService.book3WayAlignment() result
 

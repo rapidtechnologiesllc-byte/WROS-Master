@@ -83,7 +83,7 @@ def _to_item(db: Session, call: DemandAlignmentCall) -> AlignmentCallItem:
         demand_job_title=demand.job_title if demand else "(unknown demand)",
         employee_id=call.employee_id,
         employee_name=employee_name,
-        curtis_user_id=call.curtis_user_id,
+        partner_user_id=call.partner_user_id,
         bu_head_user_id=call.bu_head_user_id,
         scheduled_at=call.scheduled_at,
         employee_fit_confirmed=call.employee_fit_confirmed,
@@ -167,7 +167,7 @@ def schedule_call(
 
     call = schedule_alignment_call(
         db, demand, employee,
-        curtis_user_id=body.curtis_user_id, bu_head_user_id=body.bu_head_user_id,
+        partner_user_id=body.partner_user_id, bu_head_user_id=body.bu_head_user_id,
     )
     db.commit()
     db.refresh(call)

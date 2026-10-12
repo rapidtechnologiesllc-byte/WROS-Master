@@ -78,7 +78,7 @@ def test_full_sequence_reaches_completed(db_session, employee):
         ("INDUCTION", "HR", "U-HR"),
         ("SHADOW_DELIVERY", "TECHNICAL_MANAGER", "U-TM"),
         ("CONTROLLED_OWNERSHIP", "PRACTICE_HEAD", "U-PH"),
-        ("CORE_ELIGIBILITY_REVIEW", "HEMANT_BU_HEAD", "U-HEMANT"),
+        ("CORE_ELIGIBILITY_REVIEW", "BU_HEAD", "U-BUHEAD"),
     ]
     for phase, role, owner in steps:
         record_phase_gate_decision(

@@ -4,8 +4,9 @@ Agent Daily Standup Service
 8:00 AM EST: Sequential standup where each sub-agent reports their metrics
 with validation questions to ensure legitimacy.
 
-8:30 AM EST: Scrum of Scrums with Flash, CEO Agent, Feedback Agent, and
-Partner Agents (Troy, Curtis) to ensure direction toward $100M/2000 employee target.
+8:30 AM EST: Scrum of Scrums with Flash, CEO Agent, Feedback Agent, and the
+Partner Success Agent (coaching every partner the BU structure names) to ensure
+direction toward $100M/2000 employee target.
 
 This is an aggressive execution system where Flash drives the build.
 Every update is questioned and validated.
@@ -217,7 +218,7 @@ class AgentDailyStandup:
         - Flash (execution engine, drives toward $100M/2000 employees)
         - CEO Agent (strategic oversight)
         - Feedback Agent (weekly feedback synthesis)
-        - Partner Agents (Troy, Curtis - partner-specific goals)
+        - Partner Success Agent (every partner the BU structure names)
 
         Output: Decisions, escalations, strategic direction.
         """
@@ -243,12 +244,6 @@ class AgentDailyStandup:
             thunder_executions = len(thunder_logs)
             thunder_success = sum(1 for log in thunder_logs if log.success)
             thunder_success_rate = (thunder_success / thunder_executions * 100) if thunder_executions > 0 else 0
-
-            # Get CEO insights
-            standup = AgentDailyStandup.generate_standup_report(
-                db=db,
-                tenant_id=tenant_id
-            )
 
             # Flash's responsibilities
             flash_status = {
@@ -279,26 +274,33 @@ class AgentDailyStandup:
                     "deadline": "24 hours"
                 })
 
-            # Partner agent performance
-            partner_status = {}
-            for partner in ["Troy", "Curtis"]:
-                partner_logs = db.query(AgentExecutionLog).filter(
-                    AgentExecutionLog.agent_name == partner,
-                    AgentExecutionLog.execution_at >= datetime.combine(yesterday, datetime.min.time()),
-                ).all()
-                partner_executions = len(partner_logs)
-                partner_success = sum(1 for log in partner_logs if log.success)
-                partner_rate = (partner_success / partner_executions * 100) if partner_executions > 0 else 0
-                partner_status[partner] = {
-                    "executions": partner_executions,
-                    "success_rate": round(partner_rate, 1)
-                }
+            # Partner Success Agent performance; the partners are whoever the BU structure
+            # names (BusinessUnit.partner_user_id), never a list of names in code
+            from app.models.business_unit import BusinessUnit
+            from app.models.user import Users
+
+            partner_query = db.query(Users.UserName).join(
+                BusinessUnit, BusinessUnit.partner_user_id == Users.UserID).distinct()
+            if tenant_id is not None:
+                partner_query = partner_query.filter(BusinessUnit.tenant_id == int(tenant_id))
+            partners = sorted(row[0] for row in partner_query.all() if row[0])
+            partner_logs = db.query(AgentExecutionLog).filter(
+                AgentExecutionLog.agent_name == "Partner Success Agent",
+                AgentExecutionLog.execution_at >= datetime.combine(yesterday, datetime.min.time()),
+            ).all()
+            partner_executions = len(partner_logs)
+            partner_success = sum(1 for log in partner_logs if log.success)
+            partner_status = {
+                "partners": partners,
+                "executions": partner_executions,
+                "success_rate": round(partner_success / partner_executions * 100, 1) if partner_executions else 0,
+            }
 
             return {
                 "status": "success",
                 "scrum_time": "8:30 AM EST",
                 "date": yesterday.isoformat(),
-                "participants": ["Flash", "CEO Agent", "Feedback Agent", "Troy", "Curtis"],
+                "participants": ["Flash", "CEO Agent", "Feedback Agent", "Partner Success Agent", *partners],
                 "flash_status": flash_status,
                 "thunder_recruitment": {
                     "executions": thunder_executions,

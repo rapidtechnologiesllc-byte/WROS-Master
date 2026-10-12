@@ -23,11 +23,11 @@ router = APIRouter(prefix="/dashboards", tags=["Dashboards"])
 
 
 # ============================================================================
-# Troy's Partner Dashboard (Current Demand, Pipeline, Certifications, Buddy, Core Certified)
+# Partner Dashboard (Current Demand, Pipeline, Certifications, Buddy, Core Certified)
 # ============================================================================
 
 def _heads_label(db, business_unit_id: int):
-    """'Troy (BX-US), Hemant (BX-IN)' -- the BU's head in each company, or None."""
+    """'<head> (BX-US), <head> (BX-IN)' -- the BU's head in each company, or None."""
     from app.models.location import Location
     from app.services.bu_leadership import location_heads
 
@@ -39,10 +39,10 @@ def _heads_label(db, business_unit_id: int):
 
 
 @router.get(
-    "/troy-partner",
+    "/partner",
     dependencies=[Depends(require_resource_permission("partner-dashboard", "view"))]
 )
-def get_troy_partner_dashboard(
+def get_partner_dashboard(
     partner_user_id: Optional[str] = Query(default=None, description="Org-level users choose a partner"),
     business_unit_id: Optional[int] = Query(default=None, description="Narrow the operational sections to one of the partner's BUs"),
     year: Optional[int] = Query(default=None, description="Fiscal year (default: current)"),

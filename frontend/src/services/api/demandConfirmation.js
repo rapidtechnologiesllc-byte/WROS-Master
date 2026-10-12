@@ -12,13 +12,13 @@ export const confirmDemandWithSOW = async (demandId, { sowReference, sowReceived
   return data;
 };
 
-export const scheduleAlignmentCall = async (demandId, employeeId, { curtisUserId, buHeadUserId } = {}) => {
+export const scheduleAlignmentCall = async (demandId, employeeId, { partnerUserId, buHeadUserId } = {}) => {
   const { data } = await apiRequest(
     `/demand-confirmation/demands/${demandId}/employees/${employeeId}/schedule-call`,
     {
       method: "POST",
       body: JSON.stringify({
-        curtis_user_id: curtisUserId || undefined,
+        partner_user_id: partnerUserId || undefined,
         bu_head_user_id: buHeadUserId || undefined,
       }),
     },

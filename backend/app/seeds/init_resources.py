@@ -85,7 +85,7 @@ RESOURCE_ROUTES = {
     # FY goal tree (Org > Location > Partner > BU) + executive revenue; listed once, under Executive
     "goals": "/executive-revenue-dashboard",
     "cfo-dashboard": "/cfo-dashboard",
-    "partner-dashboard": "/troy-partner-dashboard",
+    "partner-dashboard": "/partner-dashboard",
     "executive-signal": "/executive-signal",
     "admin-agent-state": "/admin/agent-state-dashboard",
     "admin-weekly-recap": "/admin/weekly-recap",
@@ -100,7 +100,7 @@ RESOURCE_ROUTES = {
     # Executive Dashboards
     "ceo-dashboard-view": "/ceo-fy-progress",
     "cfo-dashboard-view": "/cfo-dashboard",
-    "partner-dashboard-view": "/troy-partner-dashboard",
+    "partner-dashboard-view": "/partner-dashboard",
     "bu-head-dashboard-view": "/bu-head-dashboard",
     # AI & Automation
     "ask-thunder": "/thunder",
