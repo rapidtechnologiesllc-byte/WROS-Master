@@ -121,3 +121,88 @@ def test_seat_moves_without_creating_a_second_one(db, api, firm):
     api.put(firm.org_user, f"/api/v1/hr/users/{head.UserID}", json={"location_id": firm.us.id})
     seat = seat_of(db, head)
     assert seat.id == first and seat.company_id == firm.us.id and seat.parent_id == firm.partner_seat.id
+
+
+# ── Backward compatibility with today's screens and production data (impact review) ──────
+
+def test_editing_a_legacy_user_without_a_seat_does_not_force_placement(db, api, firm):
+    """Production admins have free-text titles and no seat; the form always sends
+    department_id. A name or department edit must just save."""
+    admin = person(db, firm.org_role, "Legacy admin")
+    admin.job_title = "Head of Everything"
+    db.commit()
+    response = api.put(firm.org_user, f"/api/v1/hr/users/{admin.UserID}",
+                       json={"user_name": "Renamed admin", "department_id": "", "job_title": "Head of Everything"})
+    assert response.status_code == 200, response.text
+    assert seat_of(db, admin) is None
+
+
+def test_unchanged_seat_is_not_revalidated_on_a_name_edit(db, api, firm):
+    """A seat that predates today's rules (here: a two-level gap) survives a plain edit."""
+    avp = person(db, firm.partner_role, "Legacy AVP")
+    seat = create_org_node(db, tenant_id=1, name="Legacy AVP", hierarchy_level=15, specialization="General",
+                           parent_id=firm.partner_seat.id)
+    seat.hierarchy_level = 13  # set directly, as old data was
+    avp.org_node_id = seat.id
+    db.commit()
+    response = api.put(firm.org_user, f"/api/v1/hr/users/{avp.UserID}", json={
+        "user_name": "Legacy AVP (renamed)", "hierarchy_level": 13,
+        "parent_node_id": firm.partner_seat.id, "location_id": None})
+    assert response.status_code == 200, response.text
+    assert seat_of(db, avp).hierarchy_level == 13
+
+
+def test_department_change_follows_onto_the_seat_without_moving_it(db, api, firm):
+    from app.models.org_structure import Department
+
+    head = person(db, firm.partner_role, "India head")
+    db.commit()
+    api.put(firm.org_user, f"/api/v1/hr/users/{head.UserID}", json={
+        "hierarchy_level": 15, "parent_node_id": firm.partner_seat.id, "location_id": firm.india.id})
+    finance = Department(id=f"D-{uid()}", tenant_id=1, name=f"Accounts Payable {uid()}")
+    db.add(finance)
+    db.commit()
+    response = api.put(firm.org_user, f"/api/v1/hr/users/{head.UserID}", json={"department_id": finance.id})
+    assert response.status_code == 200, response.text
+    seat = seat_of(db, head)
+    assert seat.department_id == finance.id and seat.specialization == "Finance"
+    assert seat.parent_id == firm.partner_seat.id
+
+
+def test_an_empty_boss_seat_keeps_a_hand_set_manager(db, firm):
+    from datetime import date
+
+    from app.models.employee import Employee
+    from app.services.org_structure_service import place_user_in_org
+
+    worker = person(db, firm.partner_role, "Worker")
+    boss_seat = create_org_node(db, tenant_id=1, name="Vacant", hierarchy_level=15, specialization="General",
+                                parent_id=firm.partner_seat.id)
+    employee = Employee(tenant_id=1, first_name="W", last_name=uid(), email=f"{uid()}@x.com",
+                        joining_date=date(2025, 1, 1), wros_user_id=worker.UserID,
+                        reporting_manager_user_id=firm.partner_a.UserID)
+    db.add(employee)
+    db.flush()
+    place_user_in_org(db, worker, hierarchy_level=14, specialization=None, parent_id=boss_seat.id)
+    db.flush()
+    assert employee.reporting_manager_user_id == firm.partner_a.UserID
+
+
+def test_role_rename_carries_only_exact_holders(db, api, firm):
+    from app.models.org_structure import OrgRole
+
+    role = OrgRole(tenant_id=1, name=f"Lead_{uid()}", hierarchy_level=6)
+    db.add(role)
+    holder, other = person(db, firm.partner_role, "Holder"), person(db, firm.partner_role, "Other")
+    holder.job_title = role.name
+    other.job_title = role.name.replace("_", "X")  # ilike would treat "_" as a wildcard
+    db.commit()
+    response = api.put(firm.org_user, f"/api/v1/org/roles/{role.id}", json={"name": f"Team Lead {uid()}"})
+    assert response.status_code == 200, response.text
+    db.expire_all()
+    assert holder.job_title == response.json()["name"] and other.job_title != response.json()["name"]
+
+
+def test_role_names_fit_the_job_title_column(db, api, firm):
+    response = api.post(firm.org_user, "/api/v1/org/roles", json={"name": "x" * 151, "hierarchy_level": 5})
+    assert response.status_code == 422

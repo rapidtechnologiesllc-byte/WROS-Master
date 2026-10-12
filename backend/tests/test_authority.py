@@ -115,6 +115,23 @@ def _literal_strings(node):
     return []
 
 
+def test_every_permission_the_screens_check_exists():
+    """The same guard for the screens: hasPermission("x", ...) on a resource that isn't
+    seeded is false for everyone but a super user, so the button or page silently vanishes."""
+    import re
+
+    pattern = re.compile(r"hasPermission\(\s*['\"]([^'\"]+)['\"]\s*,\s*['\"]([^'\"]+)['\"]")
+    problems = []
+    for path in (APP.parent.parent / "frontend" / "src").rglob("*"):
+        if path.suffix not in {".js", ".jsx"} or "node_modules" in path.parts:
+            continue
+        for number, line in enumerate(path.read_text(errors="ignore").splitlines(), 1):
+            for resource, action in pattern.findall(line):
+                if resource not in RESOURCES or action not in ACTIONS:
+                    problems.append(f"{path.name}:{number} hasPermission({resource!r}, {action!r})")
+    assert not problems, "\n".join(problems)
+
+
 def test_every_permission_the_code_checks_exists():
     """Static guard: a permission naming no seeded resource (or no real action) matches
     nobody, so the check silently denies -- or, worse, an `or` around it silently allows."""

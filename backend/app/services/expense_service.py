@@ -156,7 +156,8 @@ def _create_manager_approval_task(db: Session, expense: ExpenseRecord, employee_
 def _finance_assignee(db: Session, tenant_id: Optional[int]) -> Optional[Users]:
     """The Finance person the "mark as paid" Task goes to: the most junior invoice approver
     (Finance at Senior Manager level or above, by role template -- app.core.authority), the
-    same people who approve invoices. None when the firm has no one in that seat yet."""
+    same people who approve invoices. None when the firm has no one in that seat yet: the
+    task is then visible org-wide (never an administrator bypass -- paying is Finance's call)."""
     from app.services.invoice_service import invoice_approvers
 
     approvers = invoice_approvers(db, tenant_id)
@@ -285,6 +286,7 @@ def _create_mark_paid_task(db: Session, expense: ExpenseRecord) -> None:
         priority="MEDIUM",
         tenant_id=expense.tenant_id,
         assigned_to_user_id=assignee.UserID if assignee else None,
+        visibility_scope="ASSIGNEE_MANAGER_DEPARTMENT" if assignee else "ORG_WIDE",
         expense_id=expense.id,
     )
 

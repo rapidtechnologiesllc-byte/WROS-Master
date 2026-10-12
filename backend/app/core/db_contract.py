@@ -148,6 +148,13 @@ def _initialize_tenant():
     finally:
         db.close()
 
+ROLE_AUTHORITY_SEED_KEY = "role_authority_seeded"
+ORG_LEVEL_SEED_ROLES = ("Super Admin", "Admin")
+# Resources only the seeded admin roles start with: who may define the firm's job titles
+# and levels (org-roles) is an administrator decision, not every system role's.
+ADMIN_ONLY_RESOURCES = frozenset({"org-roles"})
+
+
 def _initialize_rbac():
     """Ensure all modules, resources, and admin role exist.
 
@@ -268,14 +275,17 @@ def _initialize_rbac():
             for resource in resources:
                 if resource.id in existing_resource_ids:
                     continue
+                # Admin-only resources start closed on the other system roles; the Role
+                # Templates editor can open them later (the row exists, so it is never re-seeded)
+                granted = resource.name not in ADMIN_ONLY_RESOURCES or role_template.name in ORG_LEVEL_SEED_ROLES
                 db.add(RoleTemplatePermission(
                     role_template_id=role_template.id,
                     resource_id=resource.id,
                     tenant_id=role_template.tenant_id,
-                    can_view=True,
-                    can_create=True,
-                    can_edit=True,
-                    can_delete=True
+                    can_view=granted,
+                    can_create=granted,
+                    can_edit=granted,
+                    can_delete=granted
                 ))
                 permissions_granted += 1
 
@@ -399,8 +409,6 @@ def _initialize_leadership_roles():
         db.close()
 
 
-ROLE_AUTHORITY_SEED_KEY = "role_authority_seeded"
-ORG_LEVEL_SEED_ROLES = ("Super Admin", "Admin")
 
 
 def _initialize_role_authority(db):

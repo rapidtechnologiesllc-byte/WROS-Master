@@ -77,7 +77,7 @@ SPECIALIZATIONS = [
 # Words in a department name that name a function (whole words only: "Key Accounts" is a
 # sales team, not Finance; "Three Rivers" is not HR)
 FUNCTION_WORDS = {
-    "Finance": ("finance", "accounting"),
+    "Finance": ("finance", "accounting", "accounts"),
     "HR": ("hr", "human resources", "people"),
     "Recruitment": ("recruitment", "recruiting", "talent acquisition"),
     "Development": ("development", "engineering"),
@@ -86,12 +86,17 @@ FUNCTION_WORDS = {
     "Business Analysis": ("business analysis",),
 }
 
+# "Accounts" is Finance (Accounts Payable, Accounts & Tax) except where it names clients
+CLIENT_ACCOUNT_PHRASES = ("key accounts", "strategic accounts", "global accounts", "named accounts")
+
 
 def function_of_department_name(name: Optional[str]) -> str:
     """The function (specialization) a department name stands for, else General."""
     import re
 
     text = " ".join(re.findall(r"[a-z0-9]+", (name or "").lower()))
+    for phrase in CLIENT_ACCOUNT_PHRASES:  # sales teams named after client accounts
+        text = re.sub(rf"\b{phrase}\b", " ", text)
     for function, words in FUNCTION_WORDS.items():
         if any(re.search(rf"\b{re.escape(w)}\b", text) for w in words):
             return function

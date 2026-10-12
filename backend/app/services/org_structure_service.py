@@ -380,14 +380,17 @@ def _sync_employee_reporting(db: Session, user, node: OrgNode) -> None:
     if employee is None:
         return
     employee.org_node_id = node.id
-    manager = None
-    if node.parent_id:
-        boss = db.query(Users).filter(Users.org_node_id == node.parent_id, Users.tenant_id == user.tenant_id).first()
-        if boss is not None:
-            manager = db.query(Employee).filter(Employee.wros_user_id == boss.UserID).first()
-    employee.manager_id = manager.id if manager else None
-    employee.reporting_manager_user_id = None if node.parent_id is None else \
-        (db.query(Users.UserID).filter(Users.org_node_id == node.parent_id).scalar())
+    # An empty boss seat (or a boss with no employee record) leaves a hand-set manager in
+    # place: only a person actually sitting in the parent seat replaces it.
+    if not node.parent_id:
+        return
+    boss = db.query(Users).filter(Users.org_node_id == node.parent_id, Users.tenant_id == user.tenant_id).first()
+    if boss is None:
+        return
+    employee.reporting_manager_user_id = boss.UserID
+    manager = db.query(Employee).filter(Employee.wros_user_id == boss.UserID).first()
+    if manager is not None:
+        employee.manager_id = manager.id
 
 
 def _validate_company(db: Session, tenant_id: int, company_id: Optional[str]) -> None:

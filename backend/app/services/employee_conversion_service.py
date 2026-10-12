@@ -118,7 +118,8 @@ def _place_new_hire(db, user, role, parent_node_id, bu_id, company_id, require_s
                 description=(f"{user.UserName} joined as an employee but is not connected to the organization: "
                              f"{problem}. Edit the user to give them a role and who they report to."),
                 priority="HIGH", tenant_id=user.tenant_id, assigned_to_user_id=head_user_id,
-                category="ORG_PLACEMENT")
+                category="ORG_PLACEMENT",
+                visibility_scope="ASSIGNEE_MANAGER_DEPARTMENT" if head_user_id else "ORG_WIDE")
     logger.warning(f"[Conversion] {user.UserID} not placed in the org chart: {problem}")
 
 
@@ -169,7 +170,8 @@ class EmployeeConversionService:
         from app.services.org_roles_service import require_role, role_for_title
 
         role = require_role(db, tid, org_role) if (org_role or require_seat) else role_for_title(db, tid, posting_title)
-        user.job_title = role.name if role else None
+        # no matching role: keep the posting title rather than a blank one (placement task follows)
+        user.job_title = role.name if role else posting_title
         if final_company_id:
             user.location_id = final_company_id
         fields.pop("delivery_engine", None)

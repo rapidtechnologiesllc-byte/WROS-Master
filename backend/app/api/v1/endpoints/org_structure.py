@@ -13,6 +13,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.core.database import get_db
 from app.core.logging import logger
@@ -21,29 +22,14 @@ from app.schemas.org_structure import (
     OrgPositionResponse,
     OrgNodeResponse,
     DepartmentResponse,
-    ApprovalChainResponse,
-    OrgInitializeRequest,
-    OrgInitializeResponse,
 )
-from app.services.org_structure_service import (
-    init_default_positions,
-    get_position_by_rank,
-    get_position_by_name,
-    create_root_ceo_node,
-    create_partner_node,
-    create_bu_head_node,
-    create_department,
-    create_org_node,
-    assign_partner_to_bu,
-    setup_approval_chains,
-    get_employee_approvers,
-)
+from app.services.org_structure_service import create_org_node
 from app.services.org_hierarchy_validator import (
     HIERARCHY_LEVELS,
     SPECIALIZATIONS,
     OrgHierarchyValidator,
 )
-from app.models.org_structure import OrgPosition, OrgNode, Department, ApprovalChain
+from app.models.org_structure import OrgPosition, OrgNode, Department
 from app.models.business_unit import BusinessUnit
 from app.models.tenant import Tenant
 from app.models.user import Users
@@ -81,7 +67,7 @@ def list_org_positions(
 )
 def list_valid_supervisors(
     hierarchy_level: int,
-    specialization: str,
+    specialization: Optional[str] = None,  # accepted from older screens; function no longer limits reporting
     business_unit_id: Optional[int] = None,
     current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
@@ -482,8 +468,9 @@ def _audit_role(action: str, role, user) -> None:
                 f"designation={role.designation} active={role.active} by={user.UserID} tenant={role.tenant_id}")
 
 
+# Reading the list is part of editing users (the Job Title picker); changing it is org-roles
 @router.get("/roles", summary="Roles (job titles) and their org level",
-            dependencies=[Depends(require_resource_permission("org-roles", "view"))])
+            dependencies=[Depends(require_resource_permission("users-access-control", "view"))])
 def list_org_roles(include_inactive: bool = False, current_user=Depends(get_current_internal_user),
                    db: Session = Depends(get_db)) -> List[dict]:
     from app.models.org_structure import OrgRole
@@ -549,7 +536,9 @@ def update_org_role(role_id: int, request: OrgRoleUpdateRequest, current_user=De
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     if name != role.name:
-        db.query(Users).filter(Users.tenant_id == role.tenant_id, Users.job_title.ilike(role.name)) \
+        # exact (case/space-insensitive) match: ilike would treat % and _ in a name as wildcards
+        db.query(Users).filter(Users.tenant_id == role.tenant_id,
+                               func.lower(func.trim(Users.job_title)) == role.name.strip().lower()) \
             .update({Users.job_title: name}, synchronize_session=False)
     role.name, role.hierarchy_level, role.designation = name, level, designation
     if request.description is not None:

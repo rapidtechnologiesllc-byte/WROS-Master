@@ -901,32 +901,44 @@ def update_user(
     if request.department_id is not None:
         target.department_id = request.department_id or None
 
-    # Org-chart seat: created when the user has none, moved when they do. The level comes
-    # from the Job Title's role (a legacy title keeps the seat's level); function comes from
-    # the department. Fields not sent keep the seat's current value.
-    seat_fields = {"hierarchy_level", "parent_node_id", "location_id", "department_id"}
+    # Org-chart seat: created when the user has none, moved when they do. Only the seat
+    # fields (level, boss, company) or a new Job Title place the seat; a department change
+    # alone just follows onto an existing seat. An existing seat is re-leveled only by a new
+    # Job Title. Fields not sent keep the seat's current value; an unchanged seat is not
+    # re-validated, so editing a name never trips over legacy org data.
     seat = db.query(OrgNode).filter(OrgNode.id == target.org_node_id).first() if target.org_node_id else None
-    if seat_fields & request.model_fields_set or (title_changed and seat is not None):
-        sent = request.model_fields_set
+    sent = request.model_fields_set
 
-        def pick(field, current):
-            return getattr(request, field) if field in sent else current
+    def pick(field, current):
+        return getattr(request, field) if field in sent else current
 
+    if {"hierarchy_level", "parent_node_id", "location_id"} & sent or (title_changed and seat is not None):
         title_role = role_for_title(db, current_user.tenant_id, target.job_title)
-        level = title_role.hierarchy_level if title_role else \
-            pick("hierarchy_level", seat.hierarchy_level if seat else None)
+        if seat is not None and not title_changed:
+            level = seat.hierarchy_level
+        elif title_role:
+            level = title_role.hierarchy_level
+        else:
+            level = pick("hierarchy_level", seat.hierarchy_level if seat else None)
         if not level:
             raise HTTPException(status_code=422, detail="Give the user a Job Title (role) to place them in the org chart")
-        try:
-            place_user_in_org(
-                db, target, hierarchy_level=int(level), specialization=None,
-                parent_id=pick("parent_node_id", seat.parent_id if seat else None) or None,
-                company_id=pick("location_id", seat.company_id if seat else None) or None,
-                department_id=target.department_id,
-            )
-        except ValueError as exc:
-            db.rollback()
-            raise HTTPException(status_code=422, detail=str(exc))
+        parent_id = pick("parent_node_id", seat.parent_id if seat else None) or None
+        company_id = pick("location_id", seat.company_id if seat else None) or None
+        unchanged = seat is not None and (seat.hierarchy_level, seat.parent_id, seat.company_id,
+                                          seat.department_id) == (int(level), parent_id, company_id,
+                                                                  target.department_id)
+        if not unchanged:
+            try:
+                place_user_in_org(db, target, hierarchy_level=int(level), specialization=None,
+                                  parent_id=parent_id, company_id=company_id,
+                                  department_id=target.department_id)
+            except ValueError as exc:
+                db.rollback()
+                raise HTTPException(status_code=422, detail=str(exc))
+    elif seat is not None and "department_id" in sent and seat.department_id != target.department_id:
+        from app.services.org_hierarchy_validator import specialization_for_department
+        seat.department_id = target.department_id
+        seat.specialization = specialization_for_department(db, target.department_id)
 
     try:
         db.commit()

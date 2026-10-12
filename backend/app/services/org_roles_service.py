@@ -38,6 +38,10 @@ def role_for_title(db: Session, tenant_id: int, title: Optional[str]) -> Optiona
 DEFAULT_DESIGNATIONS = {"CEO": "ceo", "CFO": "cfo"}
 
 
+# A person's Job Title holds the role name (Users.job_title is String(150))
+ROLE_NAME_MAX = 150
+
+
 def validate_role(db: Session, tenant_id: int, name: str, hierarchy_level: int,
                   role_id: Optional[int] = None, designation: Optional[str] = None) -> str:
     """Raise ValueError unless the name is unique for the tenant, the level is 1-17, and a
@@ -45,6 +49,8 @@ def validate_role(db: Session, tenant_id: int, name: str, hierarchy_level: int,
     name = (name or "").strip()
     if not name:
         raise ValueError("Role name is required")
+    if len(name) > ROLE_NAME_MAX:
+        raise ValueError(f"Role name is limited to {ROLE_NAME_MAX} characters")
     if not isinstance(hierarchy_level, int) or not 1 <= hierarchy_level <= 17:
         raise ValueError("Level must be 1-17")
     clash = db.query(OrgRole).filter(OrgRole.tenant_id == tenant_id, func.lower(OrgRole.name) == name.lower())
@@ -69,7 +75,7 @@ def validate_role(db: Session, tenant_id: int, name: str, hierarchy_level: int,
 def holders_count(db: Session, role: OrgRole) -> int:
     from app.models.user import Users
 
-    return db.query(Users).filter(Users.tenant_id == role.tenant_id, func.lower(Users.job_title) == role.name.lower()).count()
+    return db.query(Users).filter(Users.tenant_id == role.tenant_id, func.lower(func.trim(Users.job_title)) == role.name.strip().lower()).count()
 
 
 def require_role(db: Session, tenant_id: int, title: Optional[str]) -> OrgRole:

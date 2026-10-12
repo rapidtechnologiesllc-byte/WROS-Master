@@ -16,11 +16,11 @@ export default function UserFormPage() {
 
   // Check permissions for create/edit
   useEffect(() => {
-    if (mode === 'create' && !hasPermission('users', 'edit')) {
+    if (mode === 'create' && !hasPermission('users-access-control', 'edit')) {
       toast.error('You do not have permission to create users');
       navigate('/admin/users-access-control/users');
     }
-    if (mode === 'edit' && !hasPermission('users', 'edit')) {
+    if (mode === 'edit' && !hasPermission('users-access-control', 'edit')) {
       toast.error('You do not have permission to edit users');
       navigate('/admin/users-access-control/users');
     }
@@ -35,7 +35,6 @@ export default function UserFormPage() {
     role_template_id: '',
     whatsapp_number: '',
     hierarchy_level: '',
-    specialization: '',
     parent_node_id: '',
     department_id: '',
     location_id: ''
@@ -43,9 +42,8 @@ export default function UserFormPage() {
 
   const [roleTemplates, setRoleTemplates] = useState([]);
   const [businessUnits, setBusinessUnits] = useState([]);
-  const [positions, setPositions] = useState([]);
-  // Org levels (1-17, each with the position/job title it holds) and specializations
-  const [reference, setReference] = useState({ levels: [], specializations: [] });
+  // Roles: each Job Title and the org level it sits at (managed under Organizational Hierarchy)
+  const [roles, setRoles] = useState([]);
   const [validSupervisors, setValidSupervisors] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [deliveryCenters, setDeliveryCenters] = useState([]);
@@ -55,6 +53,8 @@ export default function UserFormPage() {
   const [actionError, setActionError] = useState(null);
   // Edit mode: whether the user already has a seat in the org chart
   const [hasSeat, setHasSeat] = useState(true);
+  // Edit mode: the Job Title the user had when the form opened
+  const [originalTitle, setOriginalTitle] = useState('');
 
   useEffect(() => {
     loadInitialData();
@@ -63,22 +63,17 @@ export default function UserFormPage() {
 
   const loadInitialData = async () => {
     try {
-      const [rolesRes, busRes, posRes, dcRes, refRes] = await Promise.all([
+      const [rolesRes, busRes, orgRolesRes, dcRes] = await Promise.all([
         apiRequest('/admin/role-templates'),
         listBusinessUnits(),
-        apiRequest('/org/positions'),
+        apiRequest('/org/roles'),
         apiRequest('/api/v1/api/admin/users-access-control/delivery-centers'),
-        apiRequest('/org/hierarchy-reference')
       ]);
-      setReference(refRes.data || { levels: [], specializations: [] });
       // Filter to only enabled templates - disabled templates shouldn't be selectable
       const enabledTemplates = rolesRes.data?.role_templates?.filter(t => t.enabled !== false) || [];
       setRoleTemplates(enabledTemplates);
       setBusinessUnits(busRes);
-
-      // positions from /org/positions is an array of OrgPosition objects
-      const positionArray = Array.isArray(posRes.data) ? posRes.data : posRes.data?.positions || [];
-      setPositions(positionArray);
+      setRoles(Array.isArray(orgRolesRes.data) ? orgRolesRes.data : []);
       setDeliveryCenters(dcRes.data?.delivery_centers || []);
     } catch (err) {
       console.error('Failed to load form data:', err);
@@ -109,10 +104,10 @@ export default function UserFormPage() {
         location_id: user.location_id || '',
         // The org-chart seat (empty when the user is not in the org chart yet)
         hierarchy_level: user.hierarchy_level || '',
-        specialization: user.specialization || '',
         parent_node_id: user.parent_node_id || '',
       }));
       setHasSeat(Boolean(user.org_node_id));
+      setOriginalTitle(user.job_title || '');
     } catch (err) {
       console.error('[UserFormPage] Failed to load user:', err);
       setActionError(`Failed to load user details: ${err.message}`);
@@ -173,37 +168,37 @@ export default function UserFormPage() {
         const response = await apiRequest(`/admin/role-templates/${templateId}`);
         const permissions = response.data?.permissions || [];
         setSelectedTemplatePermissions(permissions);
-        // The role template suggests a specialization (and a level when the
-        // job title doesn't imply one); both stay editable on the form.
-        setFormData(prev => ({
-          ...prev,
-          hierarchy_level: prev.hierarchy_level || (response.data?.hierarchy_level ?? ''),
-          specialization: response.data?.specialization ?? prev.specialization,
-          parent_node_id: '' // reset - valid supervisors depend on hierarchy_level/specialization
-        }));
       } catch (error) {
         console.error('Failed to fetch template permissions:', error);
         setSelectedTemplatePermissions([]);
       }
     } else {
       setSelectedTemplatePermissions([]);
-      setFormData(prev => ({ ...prev, parent_node_id: '' }));
     }
   };
 
-  // Fetch valid supervisors whenever hierarchy_level/specialization/business_unit_id
-  // (all needed by OrgHierarchyValidator) are known.
-  const { hierarchy_level, specialization, business_unit_id } = formData;
+  // The org-chart seat. The level comes from the Job Title's role; a person already in the
+  // org chart keeps their seat's level until their Job Title changes. Level 17 is the top
+  // of the organization and reports to no one.
+  const normalise = (title) => (title || '').trim().toLowerCase();
+  const roleFor = (title) => roles.find((r) => normalise(r.name) === normalise(title));
+  const selectedRole = roleFor(formData.job_title);
+  const titleChanged = normalise(formData.job_title) !== normalise(originalTitle);
+  const seatLevel = (mode === 'edit' && hasSeat && !titleChanged)
+    ? formData.hierarchy_level
+    : (selectedRole?.hierarchy_level || '');
+  const isCeo = Number(seatLevel) === 17;
+  const legacyTitle = formData.job_title && !selectedRole;
+
+  // Valid supervisors follow the level and the business unit (OrgHierarchyValidator)
+  const { business_unit_id } = formData;
   useEffect(() => {
-    if (!hierarchy_level || !specialization) {
+    if (!seatLevel) {
       setValidSupervisors([]);
       return;
     }
     // The top of the organization reports to nobody: the backend answers [] for it
-    const params = new URLSearchParams({
-      hierarchy_level: String(hierarchy_level),
-      specialization,
-    });
+    const params = new URLSearchParams({ hierarchy_level: String(seatLevel) });
     if (business_unit_id) params.set('business_unit_id', String(business_unit_id));
 
     apiRequest(`/org/valid-supervisors?${params.toString()}`)
@@ -213,20 +208,7 @@ export default function UserFormPage() {
         setValidSupervisors([]);
         setActionError(`Could not load eligible supervisors: ${err.message}`);
       });
-  }, [hierarchy_level, specialization, business_unit_id]);
-
-  // The org-chart seat. Level 17 is the CEO: top of the organization,
-  // reports to no one. The job title suggests the level; the admin can change it.
-  const isCeo = Number(formData.hierarchy_level) === 17;
-  const seatLevel = formData.hierarchy_level;
-  const seatSpecialization = formData.specialization || (isCeo ? 'General' : '');
-
-  // Highest level whose position matches the picked job title (CEO -> 17, Partner -> 16, ...)
-  const levelForJobTitle = (title) => {
-    const position = positions.find((p) => (p.name || p.PositionName || p.position_name) === title);
-    const code = position?.rbac_role_name;
-    return reference.levels.find((l) => code && l.position_code === code)?.level || '';
-  };
+  }, [seatLevel, business_unit_id]);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -251,8 +233,8 @@ export default function UserFormPage() {
       setActionError('Role Template is required');
       return;
     }
-    if (mode === 'create' && (!seatLevel || !seatSpecialization)) {
-      setActionError('Selected role template is missing a hierarchy level/specialization - pick a different role template');
+    if (mode === 'create' && !selectedRole) {
+      setActionError('Pick a Job Title from the roles list (add new ones under Organizational Hierarchy → Manage Roles)');
       return;
     }
     if (seatLevel && Number(seatLevel) < 17 && !formData.parent_node_id) {
@@ -270,7 +252,6 @@ export default function UserFormPage() {
           business_unit_id: parseInt(formData.business_unit_id, 10),
           role_template_id: parseInt(formData.role_template_id, 10),
           hierarchy_level: parseInt(seatLevel, 10),
-          specialization: seatSpecialization,
           parent_node_id: isCeo ? null : (formData.parent_node_id || null),
           department_id: formData.department_id || null,
           location_id: formData.location_id || null,
@@ -296,11 +277,11 @@ export default function UserFormPage() {
           role_template_id: parseInt(formData.role_template_id, 10),
           department_id: formData.department_id || '',
         };
-        // Org-chart seat: places the user in the organization (or moves their seat)
+        // Org-chart seat: places the user in the organization (or moves their seat). The
+        // server keeps an unchanged seat as it is.
         if (seatLevel) {
           Object.assign(payload, {
             hierarchy_level: parseInt(seatLevel, 10),
-            specialization: seatSpecialization,
             parent_node_id: isCeo ? null : (formData.parent_node_id || null),
             location_id: formData.location_id || null,
           });
@@ -422,29 +403,32 @@ export default function UserFormPage() {
               value={formData.job_title}
               onChange={(e) => {
                 const title = e.target.value;
-                const level = levelForJobTitle(title);
-                setFormData(prev => ({
-                  ...prev,
-                  job_title: title,
-                  hierarchy_level: level || prev.hierarchy_level,
-                  specialization: level === 17 ? 'General' : prev.specialization,
-                  parent_node_id: '',
-                }));
+                // a new level means a new set of eligible supervisors
+                setFormData(prev => ({ ...prev, job_title: title, parent_node_id: '' }));
               }}
               disabled={saving}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
             >
               <option value="">Select Job Title</option>
-              {positions && positions.length > 0 ? positions.map(position => {
-                const posId = position.id || position.PositionID;
-                const posName = position.name || position.PositionName || position.position_name;
-                return (
-                  <option key={posId} value={posName}>{posName}</option>
-                );
-              }) : (
-                <option disabled>Loading job titles...</option>
+              {legacyTitle && formData.job_title === originalTitle && (
+                <option value={originalTitle}>{originalTitle} (not a role yet)</option>
               )}
+              {roles.map(role => (
+                <option key={role.id} value={role.name}>{role.name} · L{role.hierarchy_level}</option>
+              ))}
             </select>
+            {seatLevel ? (
+              <p className="text-xs text-gray-500 mt-1">
+                Org level L{seatLevel}{selectedRole?.level_name ? ` · ${selectedRole.level_name}` : ''}
+                {mode === 'edit' && hasSeat && !titleChanged ? ' (their current seat)' : ' (from the role)'}
+                {isCeo ? ' - top of the organization, reports to no one.' : ''}
+              </p>
+            ) : legacyTitle ? (
+              <p className="text-xs text-amber-600 mt-1">"{formData.job_title}" is not a role. Pick a role to set their org level.</p>
+            ) : null}
+            {roles.length === 0 && (
+              <p className="text-xs text-gray-500 mt-1">No roles yet - add them under Organizational Hierarchy → Manage Roles.</p>
+            )}
           </div>
 
           {/* WhatsApp Number */}
@@ -547,44 +531,9 @@ export default function UserFormPage() {
 
           {mode === 'edit' && !hasSeat && (
             <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
-              Not in the org chart yet. Choose a level, specialization and who they report to, then save to connect them to the organization.
+              Not in the org chart yet. Pick their Job Title (role) and who they report to, then save to connect them to the organization.
             </p>
           )}
-
-          {/* Org-chart seat: level suggested by the job title, specialization by the role template */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Hierarchy Level
-                </label>
-                <select
-                  value={formData.hierarchy_level || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, hierarchy_level: e.target.value ? Number(e.target.value) : '', parent_node_id: '' }))}
-                  disabled={saving}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
-                >
-                  <option value="">Select level</option>
-                  {reference.levels.map((l) => (
-                    <option key={l.level} value={l.level}>L{l.level} · {l.name}</option>
-                  ))}
-                </select>
-                {isCeo && <p className="mt-1 text-xs text-gray-500">Top of the organization - reports to no one.</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Specialization
-                </label>
-                <select
-                  value={formData.specialization || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, specialization: e.target.value, parent_node_id: '' }))}
-                  disabled={saving}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
-                >
-                  <option value="">Select specialization</option>
-                  {reference.specializations.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-            </div>
 
           {/* Reports To - required for anyone below CEO level */}
           {seatLevel && Number(seatLevel) < 17 && (
@@ -601,12 +550,12 @@ export default function UserFormPage() {
               >
                 <option value="">Select Supervisor</option>
                 {validSupervisors.map(node => (
-                  <option key={node.id} value={node.id}>{node.name} (Level {node.hierarchy_level}, {node.specialization})</option>
+                  <option key={node.id} value={node.id}>{node.name} (Level {node.hierarchy_level})</option>
                 ))}
               </select>
-              {formData.specialization && validSupervisors.length === 0 && (
+              {validSupervisors.length === 0 && (
                 <p className="text-xs text-amber-600 mt-1">
-                  No eligible supervisors yet. This role must report to a Level {Number(formData.hierarchy_level) + 1}-{Math.min(Number(formData.hierarchy_level) + 2, 17)} node in this business unit (same specialization unless the supervisor is Level 13+) - add one under Organizational Hierarchy.
+                  No eligible supervisors yet. Level {Number(seatLevel)} reports to a Level {Number(seatLevel) + 1}-{Math.min(Number(seatLevel) + 2, 17)} seat in this business unit (or a Level 16+ leader) - add one under Organizational Hierarchy.
                 </p>
               )}
             </div>
@@ -659,7 +608,7 @@ export default function UserFormPage() {
       {mode === 'create' && (
         <Card className="p-4 bg-blue-50 border-blue-200">
           <p className="text-sm text-blue-800">
-            Creating a user also places them in the org chart under the selected supervisor, in the chosen department. Their hierarchy level and specialization come from the role template.
+            Creating a user also places them in the org chart under the selected supervisor, in the chosen department. Their org level comes from their Job Title's role; their function (Finance, HR ...) from the department.
           </p>
         </Card>
       )}
