@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, AlertCircle, X, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, X } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -58,11 +58,6 @@ export default function UserFormPage() {
     loadInitialData();
   }, []);
 
-  useEffect(() => {
-    if (mode === 'edit' && userId) {
-      loadUserData();
-    }
-  }, [userId, mode]);
 
   const loadInitialData = async () => {
     try {
@@ -91,49 +86,42 @@ export default function UserFormPage() {
     }
   };
 
-  const loadUserData = async () => {
+  const loadUserData = useCallback(async () => {
     try {
       setLoading(true);
       const usersRes = await apiRequest('/hr/users/all');
-
-      const user = usersRes.data?.users?.find(u => {
-        return u.user_id === userId;
-      });
-      if (user) {
-
-        // If role_template_id is not returned, try to find it by matching permission_role
-        let roleTemplateId = user.role_template_id || '';
-        if (!roleTemplateId && user.permission_role) {
-          const matchingTemplate = roleTemplates.find(t =>
-            (t.name || t.TemplateName || t.template_name) === user.permission_role
-          );
-          if (matchingTemplate) {
-            roleTemplateId = matchingTemplate.id || matchingTemplate.TemplateID;
-          }
-        }
-
-        setFormData({
-          user_name: user.user_name || '',
-          user_email: user.user_email || '',
-          user_password: '',
-          job_title: user.job_title || '',
-          business_unit_id: user.business_unit_id || '',
-          role_template_id: roleTemplateId,
-          whatsapp_number: user.whatsapp_number || ''
-        });
-      } else {
+      const user = usersRes.data?.users?.find(u => u.user_id === userId);
+      if (!user) {
         setActionError('User not found');
         navigate('/admin/users-access-control/users');
+        return;
       }
+      // Merge into the form: fields this list doesn't carry (org seat, level ...) keep their state
+      setFormData(prev => ({
+        ...prev,
+        user_name: user.user_name || '',
+        user_email: user.user_email || '',
+        user_password: '',
+        job_title: user.job_title || '',
+        business_unit_id: user.business_unit_id || '',
+        department_id: user.department_id || '',
+        role_template_id: user.role_template_id || '',
+        whatsapp_number: user.whatsapp_number || ''
+      }));
     } catch (err) {
-      console.error('[DEBUG] loadUserData: ERROR:', err);
-      console.error('[DEBUG] loadUserData: Error details:', err.message, err.response?.status, err.response?.data);
-      setActionError('Failed to load user details');
+      console.error('[UserFormPage] Failed to load user:', err);
+      setActionError(`Failed to load user details: ${err.message}`);
       navigate('/admin/users-access-control/users');
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, navigate]);
+
+  useEffect(() => {
+    if (mode === 'edit' && userId) {
+      loadUserData();
+    }
+  }, [userId, mode, loadUserData]);
 
   const handleUserNameChange = (value) => {
     setFormData(prev => ({ ...prev, user_name: value }));
@@ -145,10 +133,6 @@ export default function UserFormPage() {
 
   const handlePasswordChange = (value) => {
     setFormData(prev => ({ ...prev, user_password: value }));
-  };
-
-  const handleJobTitleChange = (value) => {
-    setFormData(prev => ({ ...prev, job_title: value }));
   };
 
   const handleWhatsappChange = (value) => {
@@ -204,17 +188,13 @@ export default function UserFormPage() {
 
   // Fetch valid supervisors whenever hierarchy_level/specialization/business_unit_id
   // (all needed by OrgHierarchyValidator) are known.
+  const { hierarchy_level, specialization, business_unit_id } = formData;
   useEffect(() => {
-    const { hierarchy_level, specialization, business_unit_id } = formData;
     if (!hierarchy_level || !specialization) {
       setValidSupervisors([]);
       return;
     }
-    if (Number(hierarchy_level) >= 17) {
-      // CEO reports to nobody.
-      setValidSupervisors([]);
-      return;
-    }
+    // The top of the organization reports to nobody: the backend answers [] for it
     const params = new URLSearchParams({
       hierarchy_level: String(hierarchy_level),
       specialization,
@@ -224,10 +204,11 @@ export default function UserFormPage() {
     apiRequest(`/org/valid-supervisors?${params.toString()}`)
       .then(res => setValidSupervisors(Array.isArray(res.data) ? res.data : []))
       .catch(err => {
-        console.error('Failed to fetch valid supervisors:', err);
+        console.error('[UserFormPage] Failed to fetch valid supervisors:', err);
         setValidSupervisors([]);
+        setActionError(`Could not load eligible supervisors: ${err.message}`);
       });
-  }, [formData.hierarchy_level, formData.specialization, formData.business_unit_id]);
+  }, [hierarchy_level, specialization, business_unit_id]);
 
   // The org-chart seat. Level 17 is the CEO: top of the organization,
   // reports to no one. The job title suggests the level; the admin can change it.
