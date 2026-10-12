@@ -22,7 +22,6 @@ from app.models.user import Users
 logger = logging.getLogger(__name__)
 
 ACTIONS = ("view", "create", "edit", "delete")
-FINANCE_SPECIALIZATIONS = ("finance", "accounts", "accounting")
 
 
 def role_of(db: Session, user: Optional[Users]) -> Optional[RoleTemplate]:
@@ -64,15 +63,17 @@ def is_director(db: Session, user: Optional[Users]) -> bool:
 
 
 def in_finance(db: Session, user: Optional[Users]) -> bool:
-    """The role's specialization (or the user's department) is Finance."""
+    """The role template's specialization is Finance, or the user's department is a Finance
+    department (whole-word match: app.services.org_hierarchy_validator)."""
+    from app.services.org_hierarchy_validator import function_of_department_name
+
     role = role_of(db, user)
     if role is None:
         return False
-    texts = [role.specialization]
+    if function_of_department_name(role.specialization) == "Finance":
+        return True
     department = getattr(user, "department", None)
-    if department is not None:
-        texts.append(department.name)
-    return any(word in (t or "").lower() for t in texts for word in FINANCE_SPECIALIZATIONS)
+    return department is not None and function_of_department_name(department.name) == "Finance"
 
 
 def is_finance_leader(db: Session, user: Optional[Users]) -> bool:

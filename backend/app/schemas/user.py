@@ -511,7 +511,7 @@ class CreateUserWithRolesRequest(BaseModel):
     - user_email: User's email address (required, unique within tenant)
     - user_password: Initial password (required, min 8 chars)
     - role_template_id: RBAC role template ID (required)
-    - hierarchy_level: Org hierarchy level 1-17 (required) - see ORG_HIERARCHY_LEVELS.md
+    - hierarchy_level: not used -- the Job Title's role (org_roles) sets the level
     - specialization: not used -- a person's function comes from their department
 
     Optional Fields:
@@ -527,7 +527,6 @@ class CreateUserWithRolesRequest(BaseModel):
     Schema Validation:
     - extra='forbid': Rejects unknown/deprecated fields with 422 error
     - validate_default: Validates defaults on assignment
-    - hierarchy_level must be 1-17
 
     Example:
         {
@@ -546,7 +545,7 @@ class CreateUserWithRolesRequest(BaseModel):
     user_email: str = Field(..., max_length=255, description="User's unique email within tenant")
     user_password: str = Field(..., min_length=8, max_length=255, description="Initial password (min 8 chars)")
     role_template_id: int = Field(..., gt=0, description="RBAC role template ID (e.g., 1=SuperUser, 3=Recruiter)")
-    hierarchy_level: int = Field(..., ge=1, le=17, description="Org hierarchy level: 1 (Intern) to 17 (CEO) - MANDATORY")
+    hierarchy_level: Optional[int] = Field(None, ge=1, le=17, description="Ignored: the org level comes from the Job Title's role")
     specialization: Optional[str] = Field(None, max_length=100, description="Ignored: a person's function comes from their department")
     job_title: Optional[str] = Field(None, max_length=255, description="User's job position")
     partner_id: Optional[int] = Field(None, gt=0, description="Optional partner ID")

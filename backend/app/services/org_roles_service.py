@@ -70,3 +70,27 @@ def holders_count(db: Session, role: OrgRole) -> int:
     from app.models.user import Users
 
     return db.query(Users).filter(Users.tenant_id == role.tenant_id, func.lower(Users.job_title) == role.name.lower()).count()
+
+
+def require_role(db: Session, tenant_id: int, title: Optional[str]) -> OrgRole:
+    """The active role a Job Title must name (ValueError otherwise)."""
+    role = role_for_title(db, tenant_id, title)
+    if role is None:
+        raise ValueError(f"Job title {title!r} is not a role - pick one from the list "
+                         "(roles are managed under Organizational Hierarchy > Manage Roles)")
+    return role
+
+
+def ensure_single_holder(db: Session, role: OrgRole, user_id: Optional[str] = None) -> None:
+    """A CEO-designated role is held by one person."""
+    from app.models.user import Users
+
+    if role.designation != "ceo":
+        return
+    other = db.query(Users).filter(Users.tenant_id == role.tenant_id,
+                                   func.lower(Users.job_title) == role.name.lower())
+    if user_id is not None:
+        other = other.filter(Users.UserID != user_id)
+    holder = other.first()
+    if holder:
+        raise ValueError(f"{holder.UserName or holder.UserEmail} already holds the {role.name} role")

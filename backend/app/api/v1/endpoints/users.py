@@ -190,9 +190,6 @@ def search_users(
 
     # role-template authority (app.core.authority thresholds), never a role name
     if authority:
-        from sqlalchemy import or_ as any_of
-
-        from app.core.authority import FINANCE_SPECIALIZATIONS
         from app.core.config import settings
 
         levels = {"partner": settings.PARTNER_MIN_LEVEL, "bu_leader": settings.BU_LEADER_MIN_LEVEL,
@@ -207,8 +204,12 @@ def search_users(
         else:
             query = query.filter(RoleTemplate.hierarchy_level >= levels[authority])
         if authority == "finance_leader":
-            query = query.filter(any_of(*[sql_func.lower(RoleTemplate.specialization).like(f"%{w}%")
-                                          for w in FINANCE_SPECIALIZATIONS]))
+            # The same rule invoice approval uses (role template level + Finance function from
+            # the template or the department): the picker and the check can't disagree
+            from app.core import authority as auth
+
+            leaders = {u.UserID for u in query.all() if auth.is_finance_leader(db, u)}
+            query = query.filter(Users.UserID.in_(leaders or {""}))
 
     # â"€â"€ Department filter â€" join through Department â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     if department:
@@ -691,8 +692,14 @@ def create_user_with_roles(
         raise HTTPException(status_code=400, detail="Password is required")
     if not request.role_template_id:
         raise HTTPException(status_code=400, detail="Role template is required")
-    if not request.hierarchy_level:
-        raise HTTPException(status_code=400, detail="Hierarchy level is required")
+    # The Job Title names a managed role, and the role sets the org level
+    from app.services.org_roles_service import ensure_single_holder, require_role
+    try:
+        org_role = require_role(db, current_user.tenant_id, request.job_title)
+        ensure_single_holder(db, org_role)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    seat_level = org_role.hierarchy_level
 
     # Check if user email already exists
     try:
@@ -726,7 +733,7 @@ def create_user_with_roles(
     # specialization, reporting line) is chosen on the form and checked by
     # the reporting rules below. Level 17 is the CEO: one per organization,
     # reports to no one.
-    if request.hierarchy_level == 17:
+    if seat_level == 17:
         from app.models.org_structure import OrgNode
         existing_ceo = db.query(OrgNode).filter(
             OrgNode.tenant_id == current_user.tenant_id, OrgNode.hierarchy_level == 17, OrgNode.active.is_(True),
@@ -761,8 +768,8 @@ def create_user_with_roles(
     try:
         is_valid, error_msg = validate_before_employee_creation(
             db,
-            hierarchy_level=request.hierarchy_level,
-            specialization=request.specialization,
+            hierarchy_level=seat_level,
+            specialization=None,
             parent_node_id=request.parent_node_id,
             business_unit_id=request.business_unit_id,
             tenant_id=current_user.tenant_id,
@@ -796,10 +803,9 @@ def create_user_with_roles(
                 'department_id': request.department_id,
                 'location_id': request.location_id,
                 'role_ids': [request.role_template_id],
-                'job_title': request.job_title,
                 'partner_id': request.partner_id,
-                'hierarchy_level': request.hierarchy_level,
-                'specialization': request.specialization,
+                'job_title': org_role.name,
+                'hierarchy_level': seat_level,
                 'parent_node_id': request.parent_node_id,
                 'created_by_user_id': current_user.UserID,
                 'tenant_id': tenant_id
@@ -867,12 +873,21 @@ def update_user(
     from app.core.data_scope import ensure_assignable
     from app.models.business_unit import BusinessUnit
     from app.models.org_structure import OrgNode
+    from app.services.org_roles_service import ensure_single_holder, require_role, role_for_title
     from app.services.org_structure_service import place_user_in_org
 
     if request.user_name is not None:
         target.UserName = request.user_name
-    if request.job_title is not None:
-        target.job_title = request.job_title
+    title_changed = request.job_title is not None and \
+        (request.job_title or "").strip().lower() != (target.job_title or "").strip().lower()
+    if title_changed:
+        # A new Job Title must be a managed role (it sets the person's org level)
+        try:
+            new_role = require_role(db, current_user.tenant_id, request.job_title)
+            ensure_single_holder(db, new_role, target.UserID)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        target.job_title = new_role.name
     if request.role_template_id is not None:
         if not db.query(RoleTemplate).filter(RoleTemplate.id == request.role_template_id).first():
             raise HTTPException(status_code=422, detail="Role template not found")
@@ -886,25 +901,25 @@ def update_user(
     if request.department_id is not None:
         target.department_id = request.department_id or None
 
-    # Org-chart seat: created when the user has none, moved when they do. Fields not sent
-    # keep the seat's current value (or the role template's for a new seat).
-    seat_fields = {"hierarchy_level", "specialization", "parent_node_id", "location_id", "department_id"}
-    if seat_fields & request.model_fields_set:
-        seat = db.query(OrgNode).filter(OrgNode.id == target.org_node_id).first() if target.org_node_id else None
-        role = db.query(RoleTemplate).filter(RoleTemplate.id == target.role_template_id).first()
+    # Org-chart seat: created when the user has none, moved when they do. The level comes
+    # from the Job Title's role (a legacy title keeps the seat's level); function comes from
+    # the department. Fields not sent keep the seat's current value.
+    seat_fields = {"hierarchy_level", "parent_node_id", "location_id", "department_id"}
+    seat = db.query(OrgNode).filter(OrgNode.id == target.org_node_id).first() if target.org_node_id else None
+    if seat_fields & request.model_fields_set or (title_changed and seat is not None):
         sent = request.model_fields_set
 
-        def pick(field, current, default=None):
-            return getattr(request, field) if field in sent else (current if seat else default)
+        def pick(field, current):
+            return getattr(request, field) if field in sent else current
 
-        level = pick("hierarchy_level", seat.hierarchy_level if seat else None, role.hierarchy_level if role else None)
-        specialization = pick("specialization", seat.specialization if seat else None,
-                              (role.specialization if role else None) or "General")
+        title_role = role_for_title(db, current_user.tenant_id, target.job_title)
+        level = title_role.hierarchy_level if title_role else \
+            pick("hierarchy_level", seat.hierarchy_level if seat else None)
         if not level:
-            raise HTTPException(status_code=422, detail="An org level is required to place this user in the org chart")
+            raise HTTPException(status_code=422, detail="Give the user a Job Title (role) to place them in the org chart")
         try:
             place_user_in_org(
-                db, target, hierarchy_level=int(level), specialization=specialization,
+                db, target, hierarchy_level=int(level), specialization=None,
                 parent_id=pick("parent_node_id", seat.parent_id if seat else None) or None,
                 company_id=pick("location_id", seat.company_id if seat else None) or None,
                 department_id=target.department_id,

@@ -74,14 +74,36 @@ SPECIALIZATIONS = [
 
 # Define which levels can report to which levels (no more than 2 level gap)
 # Example: Level 1 can report to 2, 3; Level 4 can report to 6, 7, 8
+# Words in a department name that name a function (whole words only: "Key Accounts" is a
+# sales team, not Finance; "Three Rivers" is not HR)
+FUNCTION_WORDS = {
+    "Finance": ("finance", "accounting"),
+    "HR": ("hr", "human resources", "people"),
+    "Recruitment": ("recruitment", "recruiting", "talent acquisition"),
+    "Development": ("development", "engineering"),
+    "Project Management": ("project management", "pmo"),
+    "QA": ("qa", "quality assurance", "testing"),
+    "Business Analysis": ("business analysis",),
+}
+
+
+def function_of_department_name(name: Optional[str]) -> str:
+    """The function (specialization) a department name stands for, else General."""
+    import re
+
+    text = " ".join(re.findall(r"[a-z0-9]+", (name or "").lower()))
+    for function, words in FUNCTION_WORDS.items():
+        if any(re.search(rf"\b{re.escape(w)}\b", text) for w in words):
+            return function
+    return "General"
+
+
 def specialization_for_department(session: Session, department_id: Optional[str]) -> str:
-    """A seat's function comes from its department (Finance, HR, Recruitment ...), never a
-    separate pick: the department's name when it is a known specialization, else General."""
+    """A seat's function comes from its department, never a separate pick."""
     if not department_id:
         return "General"
     department = session.query(Department).filter(Department.id == department_id).first()
-    name = (department.name or "").strip().lower() if department else ""
-    return next((s for s in SPECIALIZATIONS if s.lower() == name or (name and s.lower() in name)), "General")
+    return function_of_department_name(department.name if department else None)
 
 
 def get_valid_parent_levels(employee_level: int) -> list:

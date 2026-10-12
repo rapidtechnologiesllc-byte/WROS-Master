@@ -116,13 +116,10 @@ def _get_employee_manager(db: Session, employee_user: Users) -> Optional[Users]:
     if not org_node or not org_node.parent_id:
         return None
 
-    # Get the parent node (manager's org node)
-    manager_node = db.query(OrgNode).filter(OrgNode.id == org_node.parent_id).first()
-    if not manager_node or not manager_node.user_id:
-        return None
-
-    # Return the manager user
-    return db.query(Users).filter(Users.UserID == manager_node.user_id).first()
+    # The manager is the person sitting in the parent seat (Users.org_node_id); OrgNode
+    # itself has no user column
+    return db.query(Users).filter(Users.org_node_id == org_node.parent_id,
+                                  Users.tenant_id == employee_user.tenant_id).first()
 
 def _create_manager_approval_task(db: Session, expense: ExpenseRecord, employee_user: Users) -> None:
     """PRIORITY-3: Create a Task for the manager to approve the expense.
@@ -157,23 +154,13 @@ def _create_manager_approval_task(db: Session, expense: ExpenseRecord, employee_
     )
 
 def _finance_assignee(db: Session, tenant_id: Optional[int]) -> Optional[Users]:
-    """Picks a Finance-role user to assign the "mark as paid" Task to.
-    Deterministic (lowest UserID) rather than round-robin -- this is a
-    single low-volume approval queue, not a high-throughput ticket
-    system that needs load balancing.
+    """The Finance person the "mark as paid" Task goes to: the most junior invoice approver
+    (Finance at Senior Manager level or above, by role template -- app.core.authority), the
+    same people who approve invoices. None when the firm has no one in that seat yet."""
+    from app.services.invoice_service import invoice_approvers
 
-    Zero-hardcoding: Finance users identified by 'payroll_access' attribute,
-    not by hardcoded 'Finance' role name."""
-
-    # Find all users with finance-level permissions (payroll access)
-    all_users = db.query(Users)
-    if tenant_id is not None:
-        all_users = all_users.filter(Users.tenant_id == tenant_id)
-    all_users = all_users.order_by(Users.UserID).all()
-
-    # Filter to only users with payroll_access or revenue.view_pnl permission
-    finance_users = [u for u in all_users if u]
-    return finance_users[0] if finance_users else None
+    approvers = invoice_approvers(db, tenant_id)
+    return approvers[0] if approvers else None
 
 def can_review_as_manager(db: Session, expense: ExpenseRecord, user: Users) -> bool:
     """The manager the approval task was assigned to, or anyone with finance

@@ -55,6 +55,9 @@ def convert_candidate(request: EmployeeConversionRequest, db: Session = Depends(
             employment_type=request.employment_type,
             job_title=request.job_title,
             company_id=request.company_id,
+            org_role=request.org_role,
+            parent_node_id=request.parent_node_id,
+            require_seat=True,
             changed_by=current_user.UserID if current_user else None
         )
         allocation = employee.conversion_allocation

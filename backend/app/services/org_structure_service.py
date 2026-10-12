@@ -364,8 +364,30 @@ def place_user_in_org(
         node.department_id = department_id or None
         node.name = user.UserName or node.name
     user.location_id = company_id or None
+    _sync_employee_reporting(db, user, node)
     db.flush()
     return node
+
+
+def _sync_employee_reporting(db: Session, user, node: OrgNode) -> None:
+    """One reporting line: the person's employee record takes their org seat, and its manager
+    is the employee record of whoever sits in the parent seat (timesheet approval and the
+    expense manager both follow the org chart)."""
+    from app.models.employee import Employee
+    from app.models.user import Users
+
+    employee = db.query(Employee).filter(Employee.wros_user_id == user.UserID).first()
+    if employee is None:
+        return
+    employee.org_node_id = node.id
+    manager = None
+    if node.parent_id:
+        boss = db.query(Users).filter(Users.org_node_id == node.parent_id, Users.tenant_id == user.tenant_id).first()
+        if boss is not None:
+            manager = db.query(Employee).filter(Employee.wros_user_id == boss.UserID).first()
+    employee.manager_id = manager.id if manager else None
+    employee.reporting_manager_user_id = None if node.parent_id is None else \
+        (db.query(Users.UserID).filter(Users.org_node_id == node.parent_id).scalar())
 
 
 def _validate_company(db: Session, tenant_id: int, company_id: Optional[str]) -> None:
