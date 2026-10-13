@@ -117,6 +117,8 @@ from app.api.v1.endpoints.email_templates import router as email_templates_route
 from app.api.v1.endpoints.webhooks import router as webhooks_router
 from app.api.v1.endpoints.cascade_prediction import router as cascade_prediction_router
 from app.api.v1.endpoints.learning_analytics import router as learning_analytics_router
+from app.api.v1.endpoints.config import router as config_router
+from app.api.v1.endpoints.monitoring import router as monitoring_router
 # from app.api.v1.endpoints.learning_dashboard import router as learning_dashboard_router  # DISABLED: missing service dependencies
 
 try:
@@ -247,3 +249,5 @@ router.include_router(router=intervention_queue_router)
 router.include_router(router=agent_config_router)
 router.include_router(router=tenant_ai_config_router)
 router.include_router(router=email_templates_router)
+router.include_router(router=config_router)
+router.include_router(router=monitoring_router)
