@@ -1,6 +1,5 @@
 """
 Flash (app.services.flash_service) -- renamed 2026-08-06 from "Ask
-import logging
 Thunder"/internal_ask_thunder_service.py.
 
 2026-08-06: classify_internal_query() no longer calls an external LLM
@@ -14,40 +13,27 @@ candidate's status is -- comes from a real DB query, and an
 unrecognized/unclassifiable question gets the honest
 UNSUPPORTED_QUERY_MESSAGE rather than an invented answer.
 
-Throwaway SQLite -- never the real database.
+Runs on the shared PostgreSQL test fixture (tests/conftest.py `db`), rolled back per test.
 """
 import json
-import os
-import tempfile
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 from datetime import date
 
-from app.models.base import Base
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.employee import Employee
 from app.models.resource_management import BenchPoolEntry
+from app.models.tenant import Tenant
 
 import app.services.flash_service as svc
 
 @pytest.fixture()
-def db_session():
-    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
-    os.close(fd)
-    engine = create_engine(f"sqlite:///{db_path}")
-    Base.metadata.create_all(engine, tables=[
-        Candidate.__table__, CandidateStatus.__table__, Employee.__table__, BenchPoolEntry.__table__,
-    ])
-    session = sessionmaker(bind=engine)()
-    try:
-        yield session
-    finally:
-        session.close()
-        engine.dispose()
-        os.remove(db_path)
+def db_session(db):
+    if db.get(Tenant, 1) is None:
+        db.add(Tenant(id=1, name="test-tenant"))
+        db.flush()
+    return db
 
 @pytest.fixture()
 def candidates(db_session):

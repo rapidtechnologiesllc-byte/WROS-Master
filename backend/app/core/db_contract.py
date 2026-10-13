@@ -308,7 +308,7 @@ LEADERSHIP_ROLES = {
         "permissions": {
             "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
                     "activity-feed", "ask-flash", "candidates", "jobs", "submissions", "interviews", "clients",
-                    "opportunities", "proposals", "pipeline-management", "demand-confirmation", "goals", "linkedin-pipeline"],
+                    "opportunities", "proposals", "pipeline-management", "demand-confirmation", "goals"],
             "v": ["offer-letters", "employees", "allocations", "utilization-dashboard", "resource-forecast",
                   "employee-in-bench", "projects", "resources", "invoices", "forecasts", "revenue",
                   "executive-revenue-dashboard", "kpi-dashboard", "analytics", "partner-dashboard",
@@ -325,7 +325,7 @@ LEADERSHIP_ROLES = {
             "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
                     "activity-feed", "ask-flash", "candidates", "jobs", "submissions", "interviews",
                     "allocations", "timesheets", "projects", "resources", "opportunities", "demand-confirmation",
-                    "pipeline-management", "clients", "linkedin-pipeline"],
+                    "pipeline-management", "clients"],
             "v": ["offer-letters", "employees", "onboarding", "utilization-dashboard", "resource-forecast",
                   "employee-in-bench", "invoices", "forecasts", "revenue", "goals", "kpi-dashboard",
                   "bu-head-dashboard", "bu-head-dashboard-view", "business-units", "delivery-centers",
