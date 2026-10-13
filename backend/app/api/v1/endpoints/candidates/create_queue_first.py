@@ -68,7 +68,7 @@ class CreateCandidateRequest(BaseModel):
     candidate_expected_salary_type: Optional[str] = None
     candidate_current_salary: Optional[str] = None
     candidate_current_salary_type: Optional[str] = None
-    assigned_hr_manager_id: Optional[str] = None
+    assigned_recruiter_id: Optional[str] = None  # Recruiter assigned to this candidate (not HR Manager - different role)
     assigned_report_manager_id: Optional[str] = None
     candidate_notice_period: Optional[int] = None
     education_records: Optional[List[EducationRecord]] = None
@@ -205,7 +205,7 @@ async def create_candidate(
             "candidate_expected_salary_type": request.candidate_expected_salary_type,
             "candidate_current_salary": request.candidate_current_salary,
             "candidate_current_salary_type": request.candidate_current_salary_type,
-            "assigned_hr_manager_id": request.assigned_hr_manager_id,
+            "assigned_recruiter_id": request.assigned_recruiter_id,
             "assigned_report_manager_id": request.assigned_report_manager_id,
             "candidate_notice_period": request.candidate_notice_period,
             "education_records": [r.model_dump(mode="json") for r in request.education_records or []],

@@ -42,7 +42,7 @@ class CandidateCreateRequest(BaseModel):
     # Format: "City, State, Country" (e.g., "San Francisco, CA, USA")
     candidate_current_location: str = Field(..., description="Required: City, State, Country format")
 
-    assigned_hr_manager_id: Optional[str] = None
+    assigned_recruiter_id: Optional[str] = None  # Recruiter assigned to candidate (not HR Manager - different role)
     assigned_report_manager_id: Optional[str] = None
 
     # Optional pre-filled education and experience details
@@ -70,9 +70,8 @@ class CandidateUpdateRequest(BaseModel):
     candidate_employee_type: Optional[str] = None
     candidate_expected_salary_type: Optional[str] = None
     candidate_current_salary_type: Optional[str] = None
-    assigned_hr_manager_id: Optional[str] = None
+    assigned_recruiter_id: Optional[str] = None  # Recruiter assigned to candidate (not HR Manager - different role)
     assigned_report_manager_id: Optional[str] = None
-    assigned_recruiter_id: Optional[str] = None
 
 class CandidateCreateResponse(BaseModel):
     candidate_id: str

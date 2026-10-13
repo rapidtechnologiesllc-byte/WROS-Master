@@ -56,7 +56,7 @@ def _optional_candidate_fields(payload: Dict[str, Any]) -> Dict[str, Any]:
         "candidateCurrentSalaryType": payload.get("candidate_current_salary_type"),
         "candidate_notice_period": payload.get("candidate_notice_period"),
         "created_by_user_id": payload.get("created_by_user_id"),
-        "assigned_recruiter_id": payload.get("assigned_hr_manager_id"),  # CRITICAL FIX: Store recruiter assignment
+        "assigned_recruiter_id": payload.get("assigned_recruiter_id"),  # LinkedIn pipeline should pass assigned_recruiter_id, not assigned_hr_manager_id
     }
     return {k: v for k, v in fields.items() if v not in (None, "")}
 
@@ -177,7 +177,7 @@ class CandidateCreationUnifiedHandler:
         candidate_id = candidate.candidateID
 
         # CRITICAL FIX: Update recruiter assignment metadata if set
-        if payload.get('assigned_hr_manager_id'):
+        if payload.get('assigned_recruiter_id'):
             candidate.assigned_recruiter_changed_at = datetime.utcnow()
             candidate.assigned_recruiter_changed_by = f"import_from_{source}"
             db.add(candidate)

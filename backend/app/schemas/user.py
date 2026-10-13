@@ -368,7 +368,7 @@ class CandidateUpdateRequest(BaseModel):
     candidate_job_title: Optional[str] = None
     # Employee type: "Intern" | "Full Time Employee" | "Guidewire"
     candidate_employee_type: Optional[str] = None
-    assigned_hr_manager_id: Optional[str] = None
+    assigned_recruiter_id: Optional[str] = None  # Recruiter assigned to candidate (not HR Manager - different role)
     assigned_report_manager_id: Optional[str] = None
 
 class InterviewUpdateRequest(BaseModel):
