@@ -1,9 +1,14 @@
-"""Who may do what -- decided ONLY by the user's role template (CEO rule, 2026-10-10):
+"""Who may do what -- decided ONLY by role templates and Manage Roles (CEO rules 2026-10-10,
+2026-10-13), never by a name string:
 
-  RoleTemplatePermission           what the role may do: resource x view/create/edit/delete
-  RoleTemplate.org_level_access    sees every business unit, not just their own
-  RoleTemplate.hierarchy_level     1 (Intern) .. 17 (CEO), see org_hierarchy_validator.HIERARCHY_LEVELS
-  RoleTemplate.specialization      e.g. Finance, Recruitment
+  permissions                      the Manage Role's permission set U the function add-on
+                                   (users.role_template_id) U personal overrides --
+                                   app.services.role_template_permission_service
+  level                            1 (Intern) .. 17 (CEO): the Manage Role the Job Title names
+                                   (org_roles.hierarchy_level); the add-on template's level for
+                                   people without one
+  RoleTemplate.org_level_access    sees every business unit: either template carries it
+  RoleTemplate.specialization      e.g. Finance, Recruitment: either template, or the department
 
 Never by a role's name or the legacy Users.UserRole string: renaming a role must not
 change what its holders can do. The level thresholds are configuration (settings), so a
@@ -34,15 +39,46 @@ def role_of(db: Session, user: Optional[Users]) -> Optional[RoleTemplate]:
     return role
 
 
+def manage_role(db: Session, user: Optional[Users]):
+    """The active Manage Role (org_roles) the user's Job Title names, or None."""
+    from app.services.org_roles_service import role_for_title
+
+    if user is None or user.tenant_id is None:
+        return None
+    return role_for_title(db, user.tenant_id, user.job_title)
+
+
+def templates_of(db: Session, user: Optional[Users]) -> list:
+    """[Manage Role permission set, function add-on] -- the enabled ones in the user's tenant."""
+    from app.services.role_template_permission_service import RoleTemplatePermissionService
+
+    if user is None:
+        return []
+    out = []
+    if user.tenant_id is not None:
+        role_set = RoleTemplatePermissionService.get_manage_role_template(db, user, user.tenant_id)
+        if role_set is not None:
+            out.append(role_set)
+    addon = role_of(db, user)
+    if addon is not None and all(t.id != addon.id for t in out):
+        out.append(addon)
+    return out
+
+
 def level(db: Session, user: Optional[Users]) -> int:
-    role = role_of(db, user)
-    return int(role.hierarchy_level or 0) if role else 0
+    """The Manage Role's level; the add-on template's for people without a Manage Role.
+    No role and no template (or a disabled template) is 0."""
+    if role_of(db, user) is None:
+        return 0
+    role = manage_role(db, user)
+    if role is not None:
+        return int(role.hierarchy_level)
+    return int(role_of(db, user).hierarchy_level or 0)
 
 
 def is_org_level(db: Session, user: Optional[Users]) -> bool:
     """Sees every business unit."""
-    role = role_of(db, user)
-    return bool(role and role.org_level_access)
+    return any(t.org_level_access for t in templates_of(db, user))
 
 
 def is_bu_leader(db: Session, user: Optional[Users]) -> bool:
@@ -68,10 +104,10 @@ def in_function(db: Session, user: Optional[Users], function: str) -> bool:
     app.services.org_hierarchy_validator). Never by job title or legacy role text."""
     from app.services.org_hierarchy_validator import function_of_department_name
 
-    role = role_of(db, user)
-    if role is None:
+    templates = templates_of(db, user)
+    if not templates:
         return False
-    if function_of_department_name(role.specialization) == function:
+    if any(function_of_department_name(t.specialization) == function for t in templates):
         return True
     department = getattr(user, "department", None)
     return department is not None and function_of_department_name(department.name) == function
@@ -93,7 +129,11 @@ def is_revenue_bu_scoped(db: Session, user: Optional[Users]) -> bool:
 
 
 def requires_totp(db: Session, user: Optional[Users]) -> bool:
-    return level(db, user) >= settings.MFA_TOTP_MIN_LEVEL
+    """By the higher of the Manage Role level and the add-on template's level, so moving a
+    person onto a Manage Role never drops a second factor they needed before."""
+    addon = role_of(db, user)
+    template_level = int(addon.hierarchy_level or 0) if addon else 0
+    return max(level(db, user), template_level) >= settings.MFA_TOTP_MIN_LEVEL
 
 
 def requires_email_otp(db: Session, user: Optional[Users]) -> bool:
@@ -165,10 +205,11 @@ def home_dashboard(db: Session, user: Optional[Users]) -> str:
 
 def summary(db: Session, user: Optional[Users]) -> dict:
     """What the client needs to shape its UI -- the same flags the server enforces with."""
-    role = role_of(db, user)
+    specializations = [t.specialization for t in templates_of(db, user)
+                       if t.specialization and t.specialization != "General"]
     return {"org_level_access": is_org_level(db, user),
-            "hierarchy_level": int(role.hierarchy_level or 0) if role else 0,
-            "specialization": role.specialization if role else None,
+            "hierarchy_level": level(db, user),
+            "specialization": specializations[0] if specializations else ("General" if role_of(db, user) else None),
             "is_bu_leader": is_bu_leader(db, user),
             "is_finance_leader": is_finance_leader(db, user),
             "position": position(db, user)[0],

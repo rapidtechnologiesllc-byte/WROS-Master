@@ -17,6 +17,7 @@ const loadOrgOptions = () => Promise.all([apiRequest(COMPANIES_PATH), apiRequest
   .then(([c, b]) => ({ companies: c.data?.delivery_centers || [], businessUnits: b.data?.business_units || [] }));
 import { getAllocations, endAllocation } from "../services/api/allocations";
 import AllocationForm from "../components/AllocationForm";
+import { confirmDialog } from "../utils/dialogs";
 
 const EMPLOYMENT_TYPES = [
   { value: "INTERN", label: "Intern" },
@@ -415,7 +416,7 @@ function AllocationsTab() {
   );
 
   async function handleEndAllocation(allocationId) {
-    if (!window.confirm("End this allocation?")) return;
+    if (!(await confirmDialog("End this allocation?"))) return;
     try {
       await endAllocation(allocationId);
       loadAllocations();

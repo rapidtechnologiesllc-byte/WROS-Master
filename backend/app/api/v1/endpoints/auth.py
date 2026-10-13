@@ -7,7 +7,6 @@ from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 from app.core.database import (
-    check_candidate,
     check_user,
     get_db,
     authenticate_user,
@@ -470,8 +469,11 @@ def refresh_token_endpoint(
     user = None
     candidate = None
     try:
-        user = check_user(db, user_id)
-        candidate = check_candidate(db, user_id) if not user else None
+        # The refresh token's subject is the UserID (or candidateID), never an email; a
+        # deactivated user can't refresh
+        from app.models.candidate import Candidate
+        user = db.query(Users).filter(Users.UserID == user_id, Users.terminated_at.is_(None)).first()
+        candidate = db.query(Candidate).filter(Candidate.candidateID == user_id).first() if not user else None
     except Exception as e:
         logger.error(f"Failed to lookup user/candidate: {e}", exc_info=True)
         raise HTTPException(status_code=401, detail="User not found")

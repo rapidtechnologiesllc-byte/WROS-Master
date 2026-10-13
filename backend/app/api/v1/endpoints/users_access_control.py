@@ -18,29 +18,16 @@ Permission Model:
 
 Same pattern applied to all other resources (business_units, role_templates, etc.).
 """
-import uuid
-
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
-from typing import List, Optional
+from typing import Optional
 
 from app.core.database import get_db
-from app.core.dependencies import (
-    require_resource_permission,
-    get_current_internal_user,
-    require_role_template_permission,
-    require_resource_permission,
-)
-from app.core.permission_registry import Permissions
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
-from app.models.business_unit import BusinessUnit
 from app.models.location import Location
-from app.models.org_structure import OrgNode
 from app.models.role_template import RoleTemplate
-from app.schemas.user import AllUsersResponse, UserResponse
-from app.services.role_template_permission_service import RoleTemplatePermissionService
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/admin/users-access-control", tags=["Users Access Control"])
@@ -266,12 +253,12 @@ def delete_delivery_center(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Delete delivery center (Super User only)."""
-    dc = db.query(Location).filter(Location.id == dc_id).first()
+    from app.core.references import ensure_deletable
+
+    dc = db.query(Location).filter(Location.id == dc_id, Location.tenant_id == current_user.tenant_id).first()
     if not dc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Delivery Center not found")
-    if db.query(Location).filter(Location.parent_company_id == dc.id).first():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail="This parent company has subsidiaries; delete or move them first")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
+    ensure_deletable(db, dc, f"Company '{dc.name}'")  # subsidiaries, users, seats, BU links ...
 
     db.delete(dc)
     db.commit()
@@ -300,12 +287,6 @@ class OrgNodeUpdateRequest(BaseModel):
 # ============================================================================
 # ROLE TEMPLATES ENDPOINTS
 # ============================================================================
-
-class RoleTemplateCreateRequest(BaseModel):
-    name: str
-    display_name: Optional[str] = None
-    description: Optional[str] = None
-    permissions: Optional[list] = []
 
 @router.get(
     "/role-templates",
@@ -343,37 +324,4 @@ def list_role_templates(
         "limit": limit
     }
 
-
-@router.post(
-    "/role-templates",
-    dependencies=[Depends(require_resource_permission("role-templates", "create"))]
-)
-def create_role_template(
-    req: RoleTemplateCreateRequest,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user)
-):
-    """Create a new role template (Admin and Super User only)."""
-    # Validate input
-    if not req.name:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role template name is required")
-
-    new_template = RoleTemplate(
-        name=req.name,
-        display_name=req.display_name or req.name,
-        description=req.description,
-        is_active=True,
-        tenant_id=current_user.tenant_id if hasattr(current_user, 'tenant_id') else 1
-    )
-
-    db.add(new_template)
-    db.commit()
-    db.refresh(new_template)
-
-    return {
-        "id": new_template.id,
-        "name": new_template.name,
-        "display_name": new_template.display_name,
-        "status": "created"
-    }
 

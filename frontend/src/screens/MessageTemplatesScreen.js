@@ -9,6 +9,7 @@ import {
   previewTemplate,
 } from "../services/api/messageTemplates";
 import { getAllCandidates } from "../services/api/candidates";
+import { confirmDialog } from "../utils/dialogs";
 
 const TEMPLATE_KEYS = ["GREETING_WHATSAPP", "GREETING_EMAIL"];
 const CHANNELS = ["WHATSAPP", "EMAIL", "PORTAL", "ANY"];
@@ -73,7 +74,7 @@ export default function MessageTemplatesScreen() {
   };
 
   const handleActivate = async (templateId) => {
-    if (!window.confirm("Activate this version? The current active version will be deactivated.")) return;
+    if (!(await confirmDialog("Activate this version? The current active version will be deactivated."))) return;
     setError("");
     try {
       await activateTemplate(templateId);

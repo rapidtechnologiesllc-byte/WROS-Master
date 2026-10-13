@@ -69,8 +69,9 @@ export default function UserFormPage() {
         apiRequest('/org/roles'),
         apiRequest('/api/v1/api/admin/users-access-control/delivery-centers'),
       ]);
-      // Filter to only enabled templates - disabled templates shouldn't be selectable
-      const enabledTemplates = rolesRes.data?.role_templates?.filter(t => t.enabled !== false) || [];
+      // Add-on choices: enabled templates that are not a role's own permission set (that comes
+      // with the Job Title)
+      const enabledTemplates = rolesRes.data?.role_templates?.filter(t => t.enabled !== false && !t.owner_role) || [];
       setRoleTemplates(enabledTemplates);
       setBusinessUnits(busRes);
       setRoles(Array.isArray(orgRolesRes.data) ? orgRolesRes.data : []);
@@ -157,6 +158,16 @@ export default function UserFormPage() {
         setActionError(`Could not load departments: ${err.message}`);
       });
   }, [formData.business_unit_id]);
+
+  // The add-on for a department's function (Recruitment department -> the Recruitment add-on),
+  // when exactly one enabled add-on is for that function
+  const suggestedAddon = (departmentId) => {
+    const fn = departments.find(d => String(d.id) === String(departmentId))?.function;
+    if (!fn || fn === 'General') return null;
+    const matches = roleTemplates.filter(t => t.specialization === fn);
+    return matches.length === 1 ? { fn, template: matches[0] } : null;
+  };
+  const suggestion = suggestedAddon(formData.department_id);
 
   const handleRoleTemplateChange = async (e) => {
     const templateId = e.target.value;
@@ -397,7 +408,7 @@ export default function UserFormPage() {
           {/* Job Title */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Job Title
+              Role (Job Title)
             </label>
             <select
               value={formData.job_title}
@@ -477,7 +488,13 @@ export default function UserFormPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
                 <select
                   value={formData.department_id || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, department_id: e.target.value }))}
+                  onChange={(e) => {
+                    const departmentId = e.target.value;
+                    const next = suggestedAddon(departmentId);
+                    // New users: pre-fill the add-on from the department's function (still changeable)
+                    setFormData(prev => ({ ...prev, department_id: departmentId,
+                      ...(mode === 'create' && next ? { role_template_id: next.template.id } : {}) }));
+                  }}
                   disabled={saving}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
                 >
@@ -509,7 +526,7 @@ export default function UserFormPage() {
           {/* Role Template */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Role Template *
+              Function access (add-on) *
             </label>
             <select
               value={String(formData.role_template_id || '')}
@@ -518,7 +535,7 @@ export default function UserFormPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
               required
             >
-              <option value="">Select Role Template</option>
+              <option value="">Select function access</option>
               {roleTemplates.map(template => {
                 const templateId = String(template.id || template.TemplateID);
                 const templateName = template.name || template.TemplateName || template.template_name;
@@ -527,6 +544,14 @@ export default function UserFormPage() {
                 );
               })}
             </select>
+            <p className="text-xs text-gray-500 mt-1">
+              What they may do = their role's permissions + this add-on + any personal overrides.
+            </p>
+            {suggestion && String(suggestion.template.id) !== String(formData.role_template_id) && (
+              <p className="text-xs text-amber-700 mt-1">
+                Their department is {suggestion.fn}; the {suggestion.fn} add-on is "{suggestion.template.name}".
+              </p>
+            )}
           </div>
 
           {mode === 'edit' && !hasSeat && (

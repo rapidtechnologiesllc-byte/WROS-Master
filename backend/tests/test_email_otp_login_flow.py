@@ -128,10 +128,10 @@ def test_correct_code_completes_login(client):
 
     # The full token now works on a normal protected route.
     from fastapi import Depends
-    from app.core.dependencies import get_current_hr_or_admin
+    from app.core.dependencies import get_current_internal_user
 
     @client.app.get("/some-protected-thing")
-    def protected(user=Depends(get_current_hr_or_admin)):
+    def protected(user=Depends(get_current_internal_user)):
         return {"ok": True, "email": user.UserEmail}
 
     real_resp = client.get(

@@ -70,16 +70,13 @@ def _to_item(db: Session, opportunity: Opportunity) -> OpportunityItem:
     )
 
 def _sellers(db: Session, tenant_id, action: str):
-    """Users of the tenant whose role template may work opportunities (`action`): who may
-    own an opportunity, by permission -- never by title or role name."""
-    from app.models.role_template import Resource, RoleTemplatePermission
+    """Users of the tenant who may work opportunities (`action`): who may own an opportunity,
+    by permission (Manage Role set U add-on U overrides) -- never by title or role name."""
+    from app.core import authority
 
-    flag = getattr(RoleTemplatePermission, f"can_{action}")
-    allowed = db.query(RoleTemplatePermission.role_template_id).join(
-        Resource, Resource.id == RoleTemplatePermission.resource_id).filter(
-        Resource.name == "opportunities", flag.is_(True))
-    return db.query(Users).filter(Users.tenant_id == tenant_id, Users.terminated_at.is_(None),
-                                  Users.role_template_id.in_(allowed))
+    people = db.query(Users).filter(Users.tenant_id == tenant_id, Users.terminated_at.is_(None)).all()
+    allowed = {u.UserID for u in people if authority.has_permission(db, u, f"opportunities.{action}")}
+    return db.query(Users).filter(Users.UserID.in_(allowed or {""}))
 
 
 def _scoped_query(db: Session, current_user: Users):
@@ -157,18 +154,11 @@ def list_eligible_owners(
 ):
     """Opportunity Owner options (employees): "anyone with access to opportunity should be
     in the dropdown" (2026-08-12) -- employees whose login may view opportunities."""
-    from app.models.role_template import Resource, RoleTemplatePermission
+    from app.core import authority
 
-    rows = (
-        db.query(Employee)
-        .join(Users, Users.UserID == Employee.wros_user_id)
-        .join(RoleTemplatePermission, RoleTemplatePermission.role_template_id == Users.role_template_id)
-        .join(Resource, Resource.id == RoleTemplatePermission.resource_id)
-        .filter(Resource.name == "opportunities", RoleTemplatePermission.can_view.is_(True),
-                Users.tenant_id == current_user.tenant_id)
-        .distinct()
-        .all()
-    )
+    rows = [e for e, u in db.query(Employee, Users).join(Users, Users.UserID == Employee.wros_user_id)
+            .filter(Users.tenant_id == current_user.tenant_id).all()
+            if authority.has_permission(db, u, "opportunities.view")]
     return {"employees": [{"id": e.id, "first_name": e.first_name, "last_name": e.last_name,
                            "is_current_user": e.wros_user_id == current_user.UserID} for e in rows]}
 

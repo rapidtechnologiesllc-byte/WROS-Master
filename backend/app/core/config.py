@@ -31,6 +31,11 @@ load_dotenv(os.path.join(_REPO_ROOT, ".env"))
 # just fills in what .env left blank.
 load_dotenv(os.path.join(_REPO_ROOT, ".env.local"), override=True)
 
+# A test run names its own throwaway database (TEST_DATABASE_URL, set by tests/conftest.py).
+# It must beat .env.local, or app code under test reads and writes the dev database.
+if os.getenv("TEST_DATABASE_URL"):
+    os.environ["DATABASE_URL"] = os.environ["TEST_DATABASE_URL"]
+
 # Import secrets manager for production secret retrieval
 try:
     from app.core.secrets_manager import get_secret
@@ -102,6 +107,8 @@ class Settings:
     # For production: Set via ADMIN_PASSWORD environment variable
     # For development: Falls back to temporary random password (forces reset on first login)
     ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "")
+    # Candidate rejection email: off until the rejection-email UX is decided (OPEN_ITEMS decision 5)
+    REJECTION_EMAIL_ENABLED: bool = os.getenv("REJECTION_EMAIL_ENABLED", "false").lower() == "true"
 
     # S-017/HRMS-0417 -- base URL used to build the candidate portal
     # link Thunder sends via WhatsApp/Email (/candidate/{token}).

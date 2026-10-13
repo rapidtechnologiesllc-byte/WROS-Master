@@ -10,19 +10,49 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import OperationalError
 
+from app.core.config import settings
 from app.services.message_handlers.base_message_handler import time_bound
 
 logger = logging.getLogger(__name__)
 
 
+def _send_rejection_email(db: Session, candidate: Any, rejection: Any):
+    """Neutral status-update email; marks the rejection email_sent so it goes out once."""
+    from app.services.email_service import EmailService
+
+    candidate_email = getattr(candidate, 'candidateEmail', None)
+    if not candidate_email:
+        return None
+    from app.services.linkedin_pipeline_task_service import is_placeholder_email
+    if is_placeholder_email(candidate_email):
+        return None
+    name = getattr(candidate, 'candidateFirstName', None) or 'there'
+    result = EmailService.send_email(
+        to_email=candidate_email,
+        subject="Your application",
+        body_content=(f"<p>Dear {name},</p><p>Thank you for your interest and for the time you gave us. "
+                      "We have decided not to move forward with your application at this time.</p>"
+                      "<p>We wish you every success.</p><p>Recruiting Team</p>"),
+        is_html=True,
+    )
+    if result.get('status') != 'success':
+        logger.warning(f"[CandidateRejection] Rejection email not sent to {candidate_email}: {result}")
+        return None
+    rejection.email_sent = True
+    rejection.email_sent_at = datetime.utcnow()
+    db.commit()
+    return f"msgraph:{rejection.id}"
+
+
 class CandidateRejectionHandler:
     """Record candidate rejection and archive engagement."""
 
+    TIMEOUT_SECONDS = 15
     MAX_RETRIES = 3
     RETRY_DELAY_MINUTES = 15
 
     @staticmethod
-    @time_bound(timeout_seconds=15)
+    @time_bound(timeout_seconds=TIMEOUT_SECONDS)
     def process(message: Any, db: Session) -> Dict[str, Any]:
         """
         Record candidate rejection.
@@ -65,29 +95,17 @@ class CandidateRejectionHandler:
             if not candidate:
                 raise ValueError(f"Candidate {candidate_id} not found")
 
-            # PHASE 2: Archive candidate (disable Thunder)
-            candidate.thunder_enabled = False
+            # PHASE 2: Record the rejection through the one shared path (idempotent):
+            # candidate_rejections row (starts the 90-day no-contact period), Thunder off,
+            # candidate_rejection EventLog entry.
+            from app.services.candidate_contact_policy import NO_CONTACT_DAYS_AFTER_REJECTION, record_rejection
 
-            # PHASE 3: Calculate 90-day no-contact expiry
-            no_contact_until = datetime.utcnow() + timedelta(days=90)
-
-            logger.info(
-                f"[CandidateRejection] No-contact period: {no_contact_until.isoformat()}"
+            rejection = record_rejection(
+                db, candidate, reason,
+                rejected_by_user_id=payload.get('rejected_by_user_id'),
+                job_id=payload.get('job_id'),
             )
-
-            # PHASE 4: Record rejection event
-            from app.models.event_log import EventLog
-
-            rejection_event = EventLog(
-                event_type="candidate_rejection",
-                entity_id=str(candidate_id),
-                entity_type="candidate",
-                data={"reason": reason, "no_contact_until": no_contact_until.isoformat()},
-                created_at=datetime.utcnow()
-            )
-            db.add(rejection_event)
-
-            # PHASE 5: Commit transaction
+            no_contact_until = rejection.rejected_at + timedelta(days=NO_CONTACT_DAYS_AFTER_REJECTION)
             try:
                 db.commit()
             except Exception as commit_err:
@@ -95,52 +113,14 @@ class CandidateRejectionHandler:
                 logger.error(f"[CandidateRejection] Commit failed: {commit_err}", exc_info=True)
                 raise RuntimeError(f"Failed to record rejection: {str(commit_err)}") from commit_err
 
-            # PHASE 6: Send rejection notification via EMAIL (Microsoft Graph only)
+            # PHASE 3: Candidate notification. Off until the CEO decides the rejection-email UX
+            # (OPEN_ITEMS decision 5): REJECTION_EMAIL_ENABLED=true turns it on. The internal
+            # reason (e.g. an interview verdict) is never sent to the candidate.
             email_delivery_id = None
-            try:
-                from app.services.email_service import EmailService
+            if settings.REJECTION_EMAIL_ENABLED and not rejection.email_sent:
+                email_delivery_id = _send_rejection_email(db, candidate, rejection)
 
-                candidate_name = getattr(candidate, 'candidateFirstName', 'Candidate')
-                candidate_email = getattr(candidate, 'candidateEmail', None)
-
-                # Send Email via Microsoft Graph
-                if candidate_email:
-                    try:
-                        email_subject = "Application Status Update"
-                        email_body = f"""
-Dear {candidate_name},
-
-Thank you for your interest in our company. After careful consideration, we've decided to move forward with other candidates at this time.
-
-Reason: {reason}
-
-We appreciate your time and wish you all the best in your job search!
-
-Best regards,
-Recruiting Team
-"""
-
-                        email_result = EmailService.send_email(
-                            to_email=candidate_email,
-                            subject=email_subject,
-                            body_content=email_body,
-                            is_html=True
-                        )
-
-                        if email_result.get('status') == 'skipped':
-                            logger.warning(f"[CandidateRejection] Email skipped to {candidate_email}: {email_result.get('reason')}")
-                        elif email_result.get('status') != 'success':
-                            logger.warning(f"[CandidateRejection] Email delivery failed: {email_result}")
-                        else:
-                            email_delivery_id = "msgraph_" + str(hash(candidate_email))
-                            logger.info(f"[CandidateRejection] Rejection email sent to {candidate_email}, delivery_id={email_delivery_id}")
-                    except Exception as email_err:
-                        logger.warning(f"[CandidateRejection] Email send error: {email_err}")
-
-            except Exception as delivery_err:
-                logger.warning(f"[CandidateRejection] Delivery service error (non-blocking): {delivery_err}")
-
-            logger.info(f"[CandidateRejection] ✅ Rejection recorded")
+            logger.info(f"[CandidateRejection] ✅ Rejection recorded for {candidate_id}")
 
             return {
                 'candidate_id': str(candidate_id),
@@ -207,7 +187,7 @@ Recruiting Team
             except Exception as commit_err:
                 db.rollback()
                 raise RuntimeError(f"Failed to commit: {str(commit_err)}") from commit_err
-            logger.info(f"[CandidateRejection] ✅ Message marked COMPLETED")
+            logger.info("[CandidateRejection] ✅ Message marked COMPLETED")
         except ValueError:
             db.rollback()
             raise

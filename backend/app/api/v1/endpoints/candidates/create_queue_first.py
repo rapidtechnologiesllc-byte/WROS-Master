@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.tenant_context import tenant_id_of
 from app.core.dependencies import get_current_user, require_resource_permission
 from app.schemas.candidate import EducationRecord, ExperienceRecord, HrCertificationItem, HrSkillItem
 from app.services.message_queue_service import MessageQueueService
@@ -213,7 +214,7 @@ async def create_candidate(
             "skill_records": [r.model_dump(mode="json") for r in request.skill_records or []],
             "certification_records": [r.model_dump(mode="json") for r in request.certification_records or []],
             "created_by_user_id": getattr(current_user, 'UserID', None),
-            "tenant_id": (current_user.tenant_id or (_ for _ in ()).throw(ValueError("Missing tenant_id"))),
+            "tenant_id": tenant_id_of(current_user),
         }
 
         enqueue_result = MessageQueueService.enqueue(

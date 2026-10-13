@@ -17,8 +17,6 @@ from app.services.message_handlers.base_message_handler import time_bound, Timeo
 from app.services.message_handlers.candidate_creation_handler import CandidateCreationHandler
 from app.services.message_handlers.candidate_conversion_handler import CandidateConversionHandler
 from app.services.message_handlers.job_creation_flash_handler import JobCreationFlashHandler
-from app.services.message_handlers.job_update_flash_handler import JobUpdateFlashHandler
-from app.services.message_handlers.job_delete_flash_handler import JobDeleteFlashHandler
 from app.services.message_handlers.interview_scheduled_handler import InterviewScheduledHandler
 from app.models.channel_queue import ChannelQueueItem
 
@@ -197,60 +195,6 @@ class TestJobCreationValidation:
 
         with pytest.raises(RuntimeError, match="not found in database"):
             JobCreationFlashHandler.on_success(message, result, db)
-
-
-class TestJobUpdateValidation:
-    """Test job_update_flash_handler validation before COMPLETED."""
-
-    def test_on_success_validates_updates_persisted(self):
-        """on_success should verify updates actually persisted."""
-        from app.models.user import Jobs
-
-        message = Mock(spec=ChannelQueueItem)
-        message.id = "msg-update-1"
-
-        result = {
-            "status": "success",
-            "job_id": "job-111",
-            "updated_fields": ["jobTitle"],
-            "new_values": {"jobTitle": "Senior Engineer"},
-            "previous_values": {"jobTitle": "Engineer"}
-        }
-
-        # Mock job with wrong title (not persisted)
-        job_mock = Mock(spec=Jobs)
-        job_mock.jobTitle = "Engineer"  # Not updated!
-
-        db = Mock(spec=Session)
-        db.query.return_value.filter.return_value.first.return_value = job_mock
-
-        with pytest.raises(RuntimeError, match="Update validation failed"):
-            JobUpdateFlashHandler.on_success(message, result, db)
-
-
-class TestJobDeleteValidation:
-    """Test job_delete_flash_handler validation before COMPLETED."""
-
-    def test_on_success_validates_deletion(self):
-        """on_success should verify job is actually deleted."""
-        message = Mock(spec=ChannelQueueItem)
-        message.id = "msg-delete-1"
-
-        result = {
-            "status": "success",
-            "job_id": "job-delete-123",
-            "deleted_at": datetime.utcnow().isoformat(),
-            "cascade_tables_cleaned": []
-        }
-
-        # Mock job still exists (deletion failed)
-        job_mock = Mock()
-
-        db = Mock(spec=Session)
-        db.query.return_value.filter.return_value.first.return_value = job_mock
-
-        with pytest.raises(RuntimeError, match="still exists in database after deletion"):
-            JobDeleteFlashHandler.on_success(message, result, db)
 
 
 class TestInterviewScheduledValidation:

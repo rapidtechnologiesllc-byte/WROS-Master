@@ -117,6 +117,8 @@ class UserResponse(BaseModel):
     # Set when the user has a seat in the org chart; None = not connected to the organization
     org_node_id: Optional[str] = None
     created_at: datetime
+    # False once deactivated (terminated_at set): can't sign in, history kept
+    active: bool = True
 
 class AllUsersResponse(BaseModel):
     total_users: int

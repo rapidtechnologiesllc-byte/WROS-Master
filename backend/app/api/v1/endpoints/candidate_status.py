@@ -352,7 +352,7 @@ def update_candidate_status(
                 candidate_id=candidate_id,
                 old_status=old_pipeline_status,
                 new_status=request.pipeline_status,
-                reason=f"Pipeline status updated via API",
+                reason="Pipeline status updated via API",
                 changed_by_user_id=getattr(user, "UserID", None),
                 changed_by_name=getattr(user, "UserName", None) or "System"
             )
@@ -374,6 +374,12 @@ def update_candidate_status(
             logger.warning(f"Failed to emit status_changed event for {candidate_id}: {e}")
 
     # ── Pool ownership transition: Rejected → Org Pool ────────────────────────
+    if request.pipeline_status == "Rejected" and old_pipeline_status != "Rejected":
+        # Starts the 90-day no-contact period and switches Thunder off (one shared rule).
+        from app.services.candidate_contact_policy import record_rejection
+        record_rejection(db, candidate, getattr(request, "reason", None) or "Rejected by recruiter",
+                         rejected_by_user_id=getattr(user, "UserID", None),
+                         job_id=getattr(candidate, "job_id", None))
     if request.pipeline_status == "Rejected":
         # pyrefly: ignore [missing-import]
         from app.services.candidate_pool_service import set_org_pool

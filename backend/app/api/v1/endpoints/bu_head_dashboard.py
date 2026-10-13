@@ -10,19 +10,17 @@ from app.core.dependencies import get_current_user, require_resource_permission
 from app.core.visibility import resolve_dashboard_head_bu
 from app.models.user import Users
 from app.services.bu_head_dashboard_service import BUHeadDashboardService
+from app.core.tenant_context import tenant_id_of
 
 router = APIRouter(prefix="/dashboards/bu-head", tags=["BU Head Dashboard"])
 
 
-def _bu_targets_by_company(db: Session, user: Users, bu_id: int, companies) -> list:
-    """This BU's FY revenue / headcount / new-logo targets vs actuals in each company it operates
-    in -- only the viewer's companies when they head the BU in some of them."""
+def _bu_targets_by_company(db: Session, user: Users, bu_id: int) -> list:
+    """This BU's FY revenue / headcount / new-logo targets vs actuals in each company it operates in."""
     from app.services.fiscal_year_service import current_fy
     from app.services.goal_tree_service import build_company_tree
 
-    if not user.tenant_id:
-        raise HTTPException(status_code=500, detail="User configuration error: missing tenant_id")
-    tenant_id = user.tenant_id
+    tenant_id = tenant_id_of(user)
     tree, _ = build_company_tree(db, tenant_id, current_fy(db, tenant_id), bu_ids={bu_id})
     return [
         {"company_id": c["entity_id"], "company": c["name"], "metrics": bu["metrics"]}
@@ -52,8 +50,7 @@ async def get_bu_dashboard_summary(
     if bu_id is None:
         return {"status": "needs_business_unit", "data": None, "business_units": allowed}
 
-    companies = companies_in_scope(db, current_user, bu_id)
-    data = BUHeadDashboardService.get_bu_dashboard_data(db, bu_id, companies)
+    data = BUHeadDashboardService.get_bu_dashboard_data(db, bu_id)
     if not data:
         raise HTTPException(status_code=404, detail=f"Business unit {bu_id} not found")
 
@@ -62,9 +59,7 @@ async def get_bu_dashboard_summary(
         "business_unit_id": bu_id,
         # The BUs this viewer may switch between (more than one for a partner or admin)
         "business_units": allowed,
-        # None = the whole BU; otherwise the companies this BU head runs it in
-        "company_ids": None if companies is None else sorted(companies),
-        "targets_by_company": _bu_targets_by_company(db, current_user, bu_id, companies),
+        "targets_by_company": _bu_targets_by_company(db, current_user, bu_id),
         "data": data
     }
 
@@ -84,7 +79,7 @@ async def get_team_details(
     if bu_id is None:
         return {"status": "needs_business_unit", "data": None, "business_units": allowed}
 
-    team = BUHeadDashboardService.get_team_details(db, bu_id, companies_in_scope(db, current_user, bu_id))
+    team = BUHeadDashboardService.get_team_details(db, bu_id)
 
     return {
         "status": "success",

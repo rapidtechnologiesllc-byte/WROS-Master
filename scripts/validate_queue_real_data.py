@@ -27,7 +27,7 @@ YELLOW = '\033[93m'
 RESET = '\033[0m'
 
 API_BASE_URL = "http://localhost:8080/api/v1"
-DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://app_user:P7kQmR9xL2wJnV5sT8pM@localhost:5432/wros_dev')
+DATABASE_URL = os.environ['DATABASE_URL']  # required: local wros_dev URL
 
 print(f"{YELLOW}{'='*70}{RESET}")
 print(f"{YELLOW}REAL DATA MESSAGE QUEUE VALIDATION{RESET}")

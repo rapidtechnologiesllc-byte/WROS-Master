@@ -106,6 +106,17 @@ def get_tenant_scoped_query(db: Session, model, current_user: Users) -> Query:
         )
     return db.query(model).filter(model.tenant_id == current_user.tenant_id)
 
+def tenant_id_of(user) -> int:
+    """The authenticated user's tenant_id. Fails closed (403) for an account with no
+    tenant -- never a default tenant, so data can't land in or leak from tenant 1."""
+    tenant_id = getattr(user, "tenant_id", None)
+    if tenant_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User is not assigned to a tenant",
+        )
+    return tenant_id
+
 async def require_tenant_id(
     current_user: Users = Depends(get_current_internal_user),
 ) -> int:
@@ -114,9 +125,4 @@ async def require_tenant_id(
     authenticated session. Use this in route signatures instead of ever
     reading a tenant id from request input.
     """
-    if current_user.tenant_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User is not assigned to a tenant",
-        )
-    return current_user.tenant_id
+    return tenant_id_of(current_user)

@@ -12,6 +12,7 @@ import {
   completeTask, confirmUrgentTask, createTask, getMyDayTasks, getScheduledTasks, getUpcomingUrgentTasks,
 } from "../services/api/tasks";
 import TaskUpdateModal from "../components/TaskUpdateModal";
+import { ROUTES } from "../utils/Routes";
 import { connectOutlook, disconnectOutlook, getOutlookStatus } from "../services/api/msgraph";
 import { createTicket, getTicketCategories } from "../services/api/tickets";
 
@@ -223,20 +224,21 @@ export default function MyTasksScreen() {
   };
 
   const handleNavigateTask = (task) => {
+    // Open the record the task is linked to; the title is only a fallback hint.
     const title = task.title || "";
-    if (title.includes("Submit feedback")) {
-      navigate("/interviews");
+    const isInterviewTask = Boolean(task.interview_id) || title.includes("Submit feedback") || title.includes("Interview");
+    if (isInterviewTask && task.candidate_id) {
+      // Interviews (schedule, panel, feedback) live on the candidate's Interview tab
+      navigate(`/candidates/${task.candidate_id}?tab=interview`);
     } else if (title.includes("Submit Offer")) {
-      navigate("/offer-letters");
-    } else if (title.includes("Review candidate")) {
-      navigate("/candidates");
+      navigate(ROUTES.OFFERS_LISTING);
     } else if (title.includes("Timesheet")) {
       navigate("/my-timesheet");
-    } else if (title.includes("Interview")) {
-      navigate("/interviews");
     } else if (task.candidate_id) {
       // Profile has the notes, history trail and stage bar for this candidate
       navigate(`/candidates/${task.candidate_id}`);
+    } else if (title.includes("Review candidate") || isInterviewTask) {
+      navigate("/candidates");
     } else if (title.startsWith("LinkedIn:")) {
       // Candidate record not created yet: work the item in the pipeline
       navigate("/linkedin-pipeline");

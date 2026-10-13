@@ -46,7 +46,7 @@ cp .env.local.template .env.local
 Edit `.env.local` to customize:
 ```bash
 # Database
-DATABASE_URL=postgresql://app_user:P7kQmR9xL2wJnV5sT8pM@localhost:5432/wros_dev
+DATABASE_URL=postgresql://app_user:<local-db-password>@localhost:5432/wros_dev
 
 # Environment
 ENVIRONMENT=development

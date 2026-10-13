@@ -308,7 +308,8 @@ LEADERSHIP_ROLES = {
         "permissions": {
             "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
                     "activity-feed", "ask-flash", "candidates", "jobs", "submissions", "interviews", "clients",
-                    "opportunities", "proposals", "pipeline-management", "demand-confirmation", "goals", "linkedin-pipeline"],
+                    "opportunities", "proposals", "pipeline-management", "demand-confirmation", "goals"],
+            # LinkedIn Pipeline is a sub-page of the candidates resource (init_resources), not a resource
             "v": ["offer-letters", "employees", "allocations", "utilization-dashboard", "resource-forecast",
                   "employee-in-bench", "projects", "resources", "invoices", "forecasts", "revenue",
                   "executive-revenue-dashboard", "kpi-dashboard", "analytics", "partner-dashboard",
@@ -325,7 +326,7 @@ LEADERSHIP_ROLES = {
             "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
                     "activity-feed", "ask-flash", "candidates", "jobs", "submissions", "interviews",
                     "allocations", "timesheets", "projects", "resources", "opportunities", "demand-confirmation",
-                    "pipeline-management", "clients", "linkedin-pipeline"],
+                    "pipeline-management", "clients"],
             "v": ["offer-letters", "employees", "onboarding", "utilization-dashboard", "resource-forecast",
                   "employee-in-bench", "invoices", "forecasts", "revenue", "goals", "kpi-dashboard",
                   "bu-head-dashboard", "bu-head-dashboard-view", "business-units", "delivery-centers",
@@ -384,7 +385,13 @@ def ensure_role(db, name: str, spec: dict) -> bool:
     Existing roles are never touched (the Role Templates editor owns them)."""
     if db.query(RoleTemplate).filter(RoleTemplate.name == name).first():
         return False
-    resources = {r.name: r for r in db.query(Resource).all()}
+    from app.services.role_template_permission_service import canonical_resource
+
+    module_names = dict(db.query(Module.id, Module.name))
+    by_name = {}
+    for r in db.query(Resource).all():
+        by_name.setdefault(r.name, []).append(r)
+    resources = {name: canonical_resource(group, module_names) for name, group in by_name.items()}
     role = RoleTemplate(
         name=name, display_name=spec["display_name"], description=spec["description"],
         hierarchy_level=spec["hierarchy_level"], org_level_access=spec["org_level_access"],
@@ -419,6 +426,8 @@ def _initialize_leadership_roles():
         _initialize_bu_location_heads(db)
         _initialize_org_positions(db)
         _initialize_org_roles(db)
+        _initialize_manage_role_permission_sets(db)
+        _initialize_canonical_resources(db)
         _initialize_pipeline_access(db)
     except Exception:
         db.rollback()
@@ -542,6 +551,74 @@ def _initialize_org_roles(db):
                            designation=DEFAULT_DESIGNATIONS.get(name)) for name, level in DEFAULT_ROLE_TITLES)
         db.commit()
         logger.info(f"[Contract] Seeded {len(DEFAULT_ROLE_TITLES)} org roles for tenant {tenant_id}")
+
+
+def _initialize_manage_role_permission_sets(db):
+    """Every Manage Role owns a permission set (org_roles.role_template_id), created empty
+    (org_roles_service.ensure_permission_set) so nobody's access changes when it appears."""
+    from app.models.org_structure import OrgRole
+    from app.services.org_roles_service import ensure_permission_set
+
+    created = 0
+    for role in db.query(OrgRole).all():
+        created += role.role_template_id is None
+        ensure_permission_set(db, role)
+    db.commit()
+    if created:
+        from app.services.role_template_permission_service import invalidate_permissions
+        invalidate_permissions()
+        logger.info(f"[Contract] Created {created} empty Manage Role permission set(s)")
+
+
+def _initialize_canonical_resources(db):
+    """One resource per name. Legacy seeds left duplicates (e.g. 'candidates' in module
+    Recruitment and again in recruitment_management); checks resolve a name to the canonical
+    row (role_template_permission_service.canonical_resource), so grants and personal
+    overrides sitting on a duplicate were never honoured. Copy each onto the canonical row
+    where that template / user has none there yet (an existing canonical row is what is
+    enforced today and is kept), then disable the duplicate (reversible; nothing deleted).
+    Idempotent."""
+    from app.models.user import UserCustomPermission
+    from app.services.role_template_permission_service import FLAGS, canonical_resource, invalidate_permissions
+
+    module_names = dict(db.query(Module.id, Module.name))
+    groups = {}
+    for resource in db.query(Resource).order_by(Resource.id):
+        groups.setdefault((resource.tenant_id, resource.name.lower()), []).append(resource)
+    moved = disabled = 0
+    for group in groups.values():
+        if len(group) < 2:
+            continue
+        canonical = canonical_resource(group, module_names)
+        canonical.enabled = True
+        for dup in group:
+            if dup.id == canonical.id:
+                continue
+            for row in db.query(RoleTemplatePermission).filter(RoleTemplatePermission.resource_id == dup.id).all():
+                exists = db.query(RoleTemplatePermission.id).filter(
+                    RoleTemplatePermission.role_template_id == row.role_template_id,
+                    RoleTemplatePermission.resource_id == canonical.id,
+                    RoleTemplatePermission.tenant_id == row.tenant_id).first()
+                if not exists:
+                    db.add(RoleTemplatePermission(role_template_id=row.role_template_id, resource_id=canonical.id,
+                                                  tenant_id=row.tenant_id, **{f: bool(getattr(row, f)) for f in FLAGS}))
+                    db.flush()
+                    moved += 1
+            for row in db.query(UserCustomPermission).filter(UserCustomPermission.resource_id == dup.id).all():
+                exists = db.query(UserCustomPermission.id).filter(
+                    UserCustomPermission.user_id == row.user_id,
+                    UserCustomPermission.resource_id == canonical.id).first()
+                if not exists:
+                    row.resource_id = canonical.id  # one override per user and resource: move it
+                    db.flush()
+                    moved += 1
+            if dup.enabled:
+                dup.enabled = False
+                disabled += 1
+    db.commit()
+    if moved or disabled:
+        invalidate_permissions()
+        logger.info(f"[Contract] Canonical resources: moved {moved} grant(s)/override(s), disabled {disabled} duplicate(s)")
 
 
 def _initialize_bu_location_heads(db):
@@ -1017,6 +1094,10 @@ def _run_schema_migrations():
         # the live table lacks (same create_all()-never-alters-existing-tables
         # gap as Migration 3). Discovered via a full model-vs-DB column scan.
         drifted_tables = {
+            # A Manage Role's permission set (CEO 2026-10-13)
+            "org_roles": [
+                ("role_template_id", "INTEGER NULL REFERENCES app_schema.role_templates(id)"),
+            ],
             "jobs": [
                 ("is_deleted", "BOOLEAN NOT NULL DEFAULT false"),
                 ("deleted_at", "TIMESTAMP NULL"),

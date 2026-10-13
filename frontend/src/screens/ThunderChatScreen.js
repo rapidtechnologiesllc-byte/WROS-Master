@@ -11,6 +11,7 @@ import {
   getTestChatHistory,
   resetTestChat,
 } from "../services/api/thunder";
+import { confirmDialog } from "../utils/dialogs";
 
 export default function ThunderChatScreen() {
   const [messages, setMessages] = useState([]);
@@ -71,7 +72,7 @@ export default function ThunderChatScreen() {
   };
 
   const handleReset = async () => {
-    if (!window.confirm("Start a fresh Test Thunder conversation?")) return;
+    if (!(await confirmDialog("Start a fresh Test Thunder conversation?"))) return;
     setError("");
     try {
       await resetTestChat();

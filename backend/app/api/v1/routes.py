@@ -98,10 +98,10 @@ from app.api.v1.endpoints.spartan_forecasting import router as spartan_forecasti
 from app.api.v1.endpoints.system_health import router as system_health_router
 from app.api.v1.endpoints.users_access_control import router as users_access_control_router
 from app.api.v1.endpoints.learning import router as learning_router
+from app.api.v1.endpoints.learning_transcript import router as learning_transcript_router
 from app.api.v1.endpoints.health_check import router as health_check_router
 from app.api.v1.endpoints.slm_exports import router as slm_exports_router
 from app.api.v1.endpoints.flash_queue_metrics import router as flash_queue_metrics_router
-from app.api.v1.endpoints.csrf_token import router as csrf_token_router
 from app.api.v1.endpoints.system_diagnostics import router as system_diagnostics_router
 from app.api.v1.endpoints.api_keys import router as api_keys_router
 from app.api.v1.endpoints.role_templates import rbac_router
@@ -117,9 +117,7 @@ from app.api.v1.endpoints.email_templates import router as email_templates_route
 from app.api.v1.endpoints.webhooks import router as webhooks_router
 from app.api.v1.endpoints.cascade_prediction import router as cascade_prediction_router
 from app.api.v1.endpoints.learning_analytics import router as learning_analytics_router
-from app.api.v1.endpoints.config import router as config_router
-from app.api.v1.endpoints.monitoring import router as monitoring_router
-# from app.api.v1.endpoints.learning_dashboard import router as learning_dashboard_router  # DISABLED: missing service dependencies
+from app.api.v1.endpoints.learning_dashboard import router as learning_dashboard_router
 
 try:
     router = fastapi.APIRouter(prefix="/api/v1")
@@ -135,14 +133,11 @@ router.include_router(router=org_structure_router)
 router.include_router(router=users_access_control_router)
 router.include_router(router=learning_router)
 router.include_router(router=learning_analytics_router)
-# router.include_router(router=learning_dashboard_router)  # DISABLED: missing service dependencies
-# router.include_router(router=learning_transcript_router)  # DISABLED: endpoint file deleted
+router.include_router(router=learning_dashboard_router)
+router.include_router(router=learning_transcript_router)
 router.include_router(router=health_check_router)
-router.include_router(router=webhooks_router)
-router.include_router(router=cascade_prediction_router)
 router.include_router(router=slm_exports_router)
 router.include_router(router=flash_queue_metrics_router)
-router.include_router(router=csrf_token_router)
 router.include_router(router=system_diagnostics_router)
 router.include_router(router=api_keys_router)
 router.include_router(router=users_router)
@@ -193,6 +188,8 @@ router.include_router(router=revenue_chain_router)
 router.include_router(router=public_chat_router)
 router.include_router(router=flash_router)
 router.include_router(router=whatsapp_webhook_router)
+router.include_router(router=webhooks_router)
+router.include_router(router=cascade_prediction_router)
 router.include_router(router=portal_messages_router)
 router.include_router(router=ai_recruiter_assignment_router)
 router.include_router(router=message_templates_router)
@@ -249,5 +246,3 @@ router.include_router(router=intervention_queue_router)
 router.include_router(router=agent_config_router)
 router.include_router(router=tenant_ai_config_router)
 router.include_router(router=email_templates_router)
-router.include_router(router=config_router)
-router.include_router(router=monitoring_router)

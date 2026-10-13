@@ -65,8 +65,8 @@ async def get_current_user(
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
         if user_type == "user":
-            # "sub" contains UserID
-            user = db.query(Users).filter(Users.UserID == user_id).first()
+            # "sub" contains UserID; a deactivated user's tokens stop working at once
+            user = db.query(Users).filter(Users.UserID == user_id, Users.terminated_at.is_(None)).first()
         else:
             user = db.query(Candidate).filter(Candidate.candidateID == user_id).first()
 
@@ -166,7 +166,7 @@ async def get_current_internal_user(
         if not user_id or user_type == "candidate":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
-        user = db.query(Users).filter(Users.UserID == user_id).first()
+        user = db.query(Users).filter(Users.UserID == user_id, Users.terminated_at.is_(None)).first()
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
@@ -201,7 +201,7 @@ async def get_current_mfa_pending_user(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not an MFA-pending session")
 
     user_id: str = payload.get("sub", "")
-    user = db.query(Users).filter(Users.UserID == user_id).first()
+    user = db.query(Users).filter(Users.UserID == user_id, Users.terminated_at.is_(None)).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
@@ -246,7 +246,7 @@ def require_permission(permission: str):
         _reject_if_mfa_pending(payload)
         user_id: str = payload.get("sub", "")
 
-        user = db.query(Users).filter(Users.UserID == user_id).first()
+        user = db.query(Users).filter(Users.UserID == user_id, Users.terminated_at.is_(None)).first()
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
@@ -299,7 +299,7 @@ def require_role_template_permission(resource_name: str, field_name: str = "can_
         _reject_if_mfa_pending(payload)
         user_id: str = payload.get("sub", "")
 
-        user = db.query(Users).filter(Users.UserID == user_id).first()
+        user = db.query(Users).filter(Users.UserID == user_id, Users.terminated_at.is_(None)).first()
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 

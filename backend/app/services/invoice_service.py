@@ -53,17 +53,14 @@ def is_invoice_approver(db: Session, user) -> bool:
 
 def invoice_approvers(db: Session, tenant_id: Optional[int]) -> list:
     """Everyone who may approve invoices, most junior first (they get the review task)."""
-    from app.models.role_template import RoleTemplate
+    from app.core import authority
     from app.models.user import Users
 
-    from app.core.config import settings
-
-    query = db.query(Users).join(RoleTemplate, RoleTemplate.id == Users.role_template_id).filter(
-        RoleTemplate.hierarchy_level >= settings.SENIOR_MANAGER_MIN_LEVEL)
+    query = db.query(Users).filter(Users.terminated_at.is_(None))
     if tenant_id is not None:
         query = query.filter(Users.tenant_id == tenant_id)
-    users = [u for u in query.order_by(RoleTemplate.hierarchy_level).all() if is_invoice_approver(db, u)]
-    return users
+    users = [u for u in query.order_by(Users.CreatedAt).all() if is_invoice_approver(db, u)]
+    return sorted(users, key=lambda u: authority.level(db, u))
 
 class AlreadyInvoiced(Exception):
     """A timesheet already sits on another invoice: billing it again would charge the client twice."""

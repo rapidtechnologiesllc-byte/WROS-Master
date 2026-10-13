@@ -10,13 +10,14 @@ logger = logging.getLogger(__name__)
 class InvalidCandidateState(Exception):
     pass
 
-def _default_employee_role_id(db) -> int:
-    """The self-service Employee role (seeded at startup). Never the system "User" role,
-    which carries every permission."""
+def _default_employee_role_id(db, tenant_id) -> int:
+    """The tenant's self-service Employee role (seeded at startup). Never the system "User"
+    role, which carries every permission."""
     from app.models.role_template import RoleTemplate
-    role = db.query(RoleTemplate).filter(RoleTemplate.name == "Employee", RoleTemplate.enabled.is_(True)).first()
+    role = db.query(RoleTemplate).filter(RoleTemplate.name == "Employee", RoleTemplate.tenant_id == tenant_id,
+                                         RoleTemplate.enabled.is_(True)).first()
     if role is None:
-        raise ValueError("The Employee role template does not exist; it is created at startup (db_contract)")
+        raise ValueError(f"Tenant {tenant_id} has no Employee role template; pick a function add-on for the employee")
     return role.id
 
 
@@ -131,8 +132,10 @@ class EmployeeConversionService:
             raise ValueError(f"Email {employee_email} already in use")
         from app.services.account_activation_service import prepare_new_account
 
-        # One role per user: the first one picked, else the standard "User" role
-        role_template_id = role_ids[0] if role_ids else _default_employee_role_id(db)
+        # One function add-on per user: the one picked, else the tenant's self-service Employee role
+        from app.services.role_template_permission_service import validate_addon_template
+        role_template_id = (validate_addon_template(db, role_ids[0], tenant_id).id if role_ids
+                            else _default_employee_role_id(db, tenant_id))
         user = Users(UserID=user_id_generator(), UserName=employee_name, UserEmail=employee_email, UserPassword="!",
                      business_unit_id=business_unit_id, tenant_id=tenant_id, UserRole="Employee",
                      role_template_id=role_template_id)

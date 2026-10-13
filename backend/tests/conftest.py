@@ -16,11 +16,30 @@ from fastapi.testclient import TestClient
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# PostgreSQL ONLY configuration
-DATABASE_URL = os.getenv(
+# PostgreSQL ONLY configuration. TEST_DATABASE_URL wins over DATABASE_URL so a
+# developer's .env (which points at wros_dev) can never be the test target.
+DATABASE_URL = os.getenv("TEST_DATABASE_URL") or os.getenv(
     "DATABASE_URL",
     "postgresql+psycopg2://postgres:123@localhost:5432/wros_test"
 )
+# Pin the psycopg2 driver: SQLAlchemy 2.1 maps a bare postgresql:// URL to psycopg 3,
+# which is not installed.
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = "postgresql+psycopg2://" + DATABASE_URL[len("postgresql://"):]
+
+# These fixtures DROP and recreate the schema. Refuse anything that is not a
+# throwaway test database (name must end in _test), whatever the env says.
+_TEST_DB_NAME = urlparse(DATABASE_URL).path.lstrip("/")
+if not _TEST_DB_NAME.endswith("_test"):
+    raise RuntimeError(
+        f"Refusing to run tests against database '{_TEST_DB_NAME}': the test fixtures drop the "
+        "schema. Set TEST_DATABASE_URL to a database whose name ends in _test (e.g. wros_test)."
+    )
+# App code under test builds its own engine from DATABASE_URL (app.core.database, and
+# initialize_database() during the app lifespan). Point it at the same test database
+# before any app module is imported, or tests silently read and write the dev database.
+os.environ["DATABASE_URL"] = DATABASE_URL
+os.environ["TEST_DATABASE_URL"] = DATABASE_URL  # app.core.config: wins over backend/.env.local
 
 # Enforce PostgreSQL
 if "postgresql" not in DATABASE_URL:
@@ -50,20 +69,20 @@ def create_test_database():
                 conn.execute(text("""
                     SELECT pg_terminate_backend(pg_stat_activity.pid)
                     FROM pg_stat_activity
-                    WHERE pg_stat_activity.datname = 'wros_test'
+                    WHERE pg_stat_activity.datname = :name
                     AND pid <> pg_backend_pid()
-                """))
+                """), {"name": _TEST_DB_NAME})
             except Exception:
                 pass
 
             # Drop existing database
             try:
-                conn.execute(text("DROP DATABASE IF EXISTS wros_test"))
+                conn.execute(text(f'DROP DATABASE IF EXISTS "{_TEST_DB_NAME}"'))
             except Exception:
                 pass
 
             # Create fresh database
-            conn.execute(text("CREATE DATABASE wros_test"))
+            conn.execute(text(f'CREATE DATABASE "{_TEST_DB_NAME}"'))
             print("✓ PostgreSQL: Created fresh wros_test database")
 
         admin_engine.dispose()
@@ -71,10 +90,10 @@ def create_test_database():
 
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
-        print(f"✗ FATAL: Cannot create PostgreSQL test database")
+        print("✗ FATAL: Cannot create PostgreSQL test database")
         print(f"  Error: {e}")
-        print(f"  Ensure PostgreSQL is running on localhost:5432")
-        print(f"  Set POSTGRES_PASSWORD environment variable if needed")
+        print("  Ensure PostgreSQL is running on localhost:5432")
+        print("  Set POSTGRES_PASSWORD environment variable if needed")
         raise
 
 
@@ -115,6 +134,8 @@ engine = create_engine(
     echo=False,
     connect_args={
         "application_name": "wros_test_suite",
+        # Naive timestamps vs datetime.utcnow(): run the session in UTC (as app.core.database does)
+        "options": "-c timezone=UTC",
     }
 )
 
@@ -155,7 +176,7 @@ def setup_database():
         logger.error(f"Error: {str(e)}", exc_info=True)
         # If schema creation still fails, try forcing a complete cleanup
         print(f"  Warning: create_all failed: {type(e).__name__}")
-        print(f"  Attempting forced cleanup and retry...")
+        print("  Attempting forced cleanup and retry...")
         try:
             # Drop all tables with CASCADE - app_schema is where the models
             # actually live, not public.
@@ -186,8 +207,10 @@ def setup_database():
     # Cleanup after all tests
     print("\nCleaning up test database...")
     try:
-        Base.metadata.drop_all(bind=engine)
-        print("✓ PostgreSQL: Test tables dropped")
+        # drop_all cannot order tables with circular foreign keys; the schema drop can.
+        with engine.begin() as conn:
+            conn.execute(text("DROP SCHEMA IF EXISTS app_schema CASCADE"))
+        print("✓ PostgreSQL: Test schema dropped")
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         print(f"⚠ Warning during cleanup: {e}")

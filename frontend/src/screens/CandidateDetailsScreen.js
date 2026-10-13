@@ -52,6 +52,7 @@ import { getEmailBodyHTML } from "../utils/preboardingEmailTemplate";
 import ScreenErrorDisplay from "../components/ScreenErrorDisplay";
 import { getAllOffers } from "../services/api/offerLetters";
 import PreviousOfferModal from "./PreviousOfferModal";
+import { alertDialog } from "../utils/dialogs";
 
 const initialScheduleForm = {
   roundName: "",
@@ -138,7 +139,7 @@ function UsersBUDetailsPanel({ candidate, onUpdate }) {
 
   const handleSave = async () => {
     if (!selectedRecruiter) {
-      alert("Please select a recruiter");
+      alertDialog("Please select a recruiter");
       return;
     }
 
@@ -160,7 +161,7 @@ function UsersBUDetailsPanel({ candidate, onUpdate }) {
       setIsEditing(false);
     } catch (error) {
       console.error("Failed to update:", error);
-      alert("Failed to save changes");
+      alertDialog("Failed to save changes");
     } finally {
       setSaving(false);
     }

@@ -25,7 +25,8 @@ from sqlalchemy.orm import Session
 
 from app.models.client import Client
 from app.models.demand import Demand
-from app.models.opportunity import OPPORTUNITY_STAGES, Opportunity
+from app.models.opportunity import OPPORTUNITY_STAGES, STAGE_TRANSITIONS, Opportunity
+from app.models.project import Project
 from app.services.demand_service import create_demand
 from app.services.project_service import create_project_from_won_opportunity
 
@@ -144,19 +145,12 @@ def transition_stage(
     Also auto-syncs parent Client.status to match the most-advanced
     opportunity stage (ACTIVE > CONTRACT > NEGOTIATION > PROPOSAL > QUALIFICATION > LOST).
     """
-    if opportunity.stage in CLOSED_STAGES:
-        raise InvalidStageTransition(
-            f"Opportunity {opportunity.id} is already closed ({opportunity.stage}) -- cannot change stage."
-        )
-
-    # WON is not a valid stage (removed from pipeline)
+    # WON is not a stage: the pipeline records the win as CONTRACT, then ACTIVE.
     if new_stage == "WON":
-        raise InvalidStageTransition(
-            f"WON is not a valid opportunity stage. Use CONTRACT followed by ACTIVE instead."
-        )
-
+        raise InvalidStageTransition("WON is not an opportunity stage. Use CONTRACT, then ACTIVE.")
     if new_stage not in OPPORTUNITY_STAGES:
         raise InvalidStageTransition(f"'{new_stage}' is not a valid opportunity stage.")
+    # STAGE_TRANSITIONS is the single rule: ACTIVE only from CONTRACT, ACTIVE/LOST terminal.
     allowed = STAGE_TRANSITIONS.get(opportunity.stage, set())
     if new_stage not in allowed:
         raise InvalidStageTransition(
@@ -169,41 +163,21 @@ def transition_stage(
                 "Assign the client to a business unit before signing the contract: the project, "
                 "its people and its revenue belong to that business unit.")
 
-    # ACTIVE is only reachable from CONTRACT
-    if new_stage == "ACTIVE" and opportunity.stage != "CONTRACT":
-        raise InvalidStageTransition(
-            f"ACTIVE stage is only reachable from CONTRACT. Current stage: {opportunity.stage}"
-        )
-
     opportunity.stage = new_stage
     opportunity.probability_pct = default_probability_for_stage(new_stage)
     opportunity.updated_at = datetime.utcnow()
     db.add(opportunity)
     _update_client_status_from_opportunities(db, opportunity.client_id)
 
-    # CONTRACT creates a project exactly once
+    # Signing the contract creates the project exactly once.
     if new_stage == "CONTRACT":
-        # Check if client has business_unit_id required for project creation
-        client = db.query(Client).filter(Client.id == opportunity.client_id).first()
-        if not client or not client.business_unit_id:
-            raise InvalidStageTransition(
-                f"Cannot transition to CONTRACT: client {opportunity.client_id} must have business_unit_id set."
-            )
-
-        # Check if project already exists (idempotency)
-        existing_project = db.query(Project).filter(
-            Project.opportunity_id == opportunity.id
-        ).first()
-
-        if existing_project:
-            project = existing_project
-        else:
+        project = db.query(Project).filter(Project.opportunity_id == opportunity.id).first()
+        if project is None:
             project = create_project_from_won_opportunity(
                 db, opportunity,
                 name=project_name or f"Project for Opportunity {opportunity.id}",
                 billing_type=billing_type, continent=continent, created_by=changed_by,
             )
-
         return opportunity, project
     return opportunity
 

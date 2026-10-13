@@ -1,6 +1,7 @@
 import { apiFetch } from "../../services/api/client";
 import React, { useState, useEffect } from 'react'
 import styles from './EmailTemplatesScreen.module.css'
+import { alertDialog } from "../../utils/dialogs";
 
 const STAGES = [
   { key: 'screening', label: 'Screening', icon: '📋' },
@@ -82,13 +83,13 @@ export default function EmailTemplatesScreen() {
       })
 
       if (response.ok) {
-        alert('Template saved successfully!')
+        alertDialog('Template saved successfully!')
         setEditing(false)
         await fetchTemplates()
       }
     } catch (error) {
       console.error('Failed to save template:', error)
-      alert('Failed to save template')
+      alertDialog('Failed to save template')
     } finally {
       setLoading(false)
     }
@@ -96,7 +97,7 @@ export default function EmailTemplatesScreen() {
 
   const handlePreview = async () => {
     if (!selectedCandidate) {
-      alert('Please select a candidate to preview')
+      alertDialog('Please select a candidate to preview')
       return
     }
 
@@ -117,7 +118,7 @@ export default function EmailTemplatesScreen() {
       setPreview(true)
     } catch (error) {
       console.error('Failed to preview template:', error)
-      alert('Failed to preview template')
+      alertDialog('Failed to preview template')
     }
   }
 

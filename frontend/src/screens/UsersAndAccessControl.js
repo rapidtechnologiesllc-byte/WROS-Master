@@ -21,6 +21,7 @@ import { apiRequest } from "../services/api/client";
 import { listBusinessUnits } from "../services/api/rbac";
 import { getHrMe } from "../services/api/users";
 import RoleTemplateEditor from "../components/RoleTemplateEditor";
+import { alertDialog, confirmDialog } from "../utils/dialogs";
 
 function SimpleModal({ isOpen, onClose, title, children }) {
   if (!isOpen) return null;
@@ -75,13 +76,14 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
   // previous render's value and could delete a different user.
   const handleDelete = async (userId) => {
     if (!userId) return;
-    if (!window.confirm("Are you sure? This action cannot be undone.")) return;
+    const name = users.find(u => u.user_id === userId)?.user_name || "this user";
+    if (!(await confirmDialog(`Delete ${name}?\n\nSomeone with history (jobs, interviews, offers ...) is deactivated instead: they can no longer sign in and their records are kept.`, { danger: true }))) return;
 
     setActionError(null);
     setBusy(true);
     try {
-      await deleteHrUser(userId);
-      setActionSuccess("User deleted successfully.");
+      const result = await deleteHrUser(userId);
+      await alertDialog(result?.message || "User deleted.");
       window.location.reload();
     } catch (err) {
       setActionError(err.message || "Failed to delete user.");
@@ -176,7 +178,16 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
       <Table
         columns={[
-          { header: "Name", accessor: "user_name", key: "name" },
+          {
+            header: "Name",
+            key: "name",
+            cell: (row) => (
+              <span className={row.active === false ? "text-gray-400" : ""}>
+                {row.user_name}
+                {row.active === false && <span className="ml-2 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">Deactivated</span>}
+              </span>
+            ),
+          },
           { header: "Email", accessor: "user_email", key: "email" },
           { header: "Job Title", accessor: "job_title", key: "job_title" },
           { header: "Role Template", accessor: "permission_role", key: "role_template" },
@@ -211,7 +222,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                 >
                   <Lock className="h-4 w-4" />
                 </button>
-                {hasPermission("users-access-control", "delete") && (
+                {hasPermission("users-access-control", "delete") && row.active !== false && (
                   <button
                     onClick={() => handleDelete(row.user_id)}
                     className="text-red-600 hover:text-red-700"
@@ -280,16 +291,26 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
   const [actionSuccess, setActionSuccess] = useState(null);
 
   const filteredRoles = useMemo(() => {
-    if (!searchTerm) return roles;
+    // Function add-ons first, then the roles' permission sets from the top level down
+    const ordered = [...roles].sort((a, b) =>
+      (a.owner_role ? 1 : 0) - (b.owner_role ? 1 : 0)
+      || (b.owner_role?.hierarchy_level || 0) - (a.owner_role?.hierarchy_level || 0));
+    if (!searchTerm) return ordered;
     const term = searchTerm.toLowerCase();
-    return roles.filter(r =>
+    return ordered.filter(r =>
       (r.name || "").toLowerCase().includes(term) ||
       (r.description || "").toLowerCase().includes(term)
     );
   }, [roles, searchTerm]);
 
-  // Count users per template by the template id they hold (names can be renamed)
-  const getUserCount = (templateId) => users.filter((u) => u.role_template_id === templateId).length;
+  // Count users per template: holders of it as their add-on, and -- for a role's permission
+  // set -- everyone whose Job Title is that role (renames carry the title along)
+  const getUserCount = (templateId) => {
+    const owner = roles.find((r) => r.id === templateId)?.owner_role;
+    const roleName = owner ? owner.name.trim().toLowerCase() : null;
+    return users.filter((u) => u.role_template_id === templateId
+      || (roleName && (u.job_title || "").trim().toLowerCase() === roleName)).length;
+  };
 
   // Fetch users for a specific role template
   const handleShowUsers = async (roleId, roleName) => {
@@ -339,6 +360,19 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
       setActionError(err.message || "Failed to toggle template status");
     } finally {
       setTogglingTemplate({ ...togglingTemplate, [templateId]: false });
+    }
+  };
+
+  const handleDeleteTemplate = async (template) => {
+    if (!(await confirmDialog(`Delete the "${template.name}" function add-on?`, { danger: true }))) return;
+    setActionError(null);
+    try {
+      await apiRequest(`/admin/role-templates/${template.id}`, { method: "DELETE" });
+      setRoles(roles.filter(r => r.id !== template.id));
+      setActionSuccess(`Deleted ${template.name}`);
+    } catch (err) {
+      console.error("[RoleTemplates] Failed to delete template:", err);
+      setActionError(err.message || "Failed to delete template");
     }
   };
 
@@ -436,9 +470,12 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
                     <h3 className={`font-semibold ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>
                       {role.name}
                     </h3>
+                    <span className={`inline-block mt-1 px-2 py-0.5 text-xs rounded ${role.owner_role ? 'bg-purple-100 text-purple-800' : 'bg-blue-50 text-blue-700'}`}>
+                      {role.owner_role ? `Role permissions · ${role.owner_role.name} (L${role.owner_role.hierarchy_level})` : 'Function add-on'}
+                    </span>
                   </div>
                   <div className="flex gap-1">
-                    <button
+                    {!role.owner_role && <button
                       onClick={() => handleToggleTemplateStatus(role.id, isActive)}
                       disabled={togglingTemplate[role.id]}
                       className={`px-2 py-1 rounded text-xs font-semibold transition ${
@@ -449,7 +486,17 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
                       title={isActive ? 'Click to disable' : 'Click to enable'}
                     >
                       {togglingTemplate[role.id] ? '...' : (isActive ? 'ON' : 'OFF')}
-                    </button>
+                    </button>}
+                    {!role.owner_role && !role.is_system && userCount === 0 && hasPermission("role-templates", "edit") && (
+                      <button
+                        onClick={() => handleDeleteTemplate(role)}
+                        className="ml-1 text-red-600 hover:text-red-700"
+                        title="Delete this function add-on"
+                        aria-label={`Delete ${role.name}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -726,14 +773,15 @@ function BusinessUnitsSection() {
 
 
   const handleDeleteBusinessUnit = async (buId) => {
-    if (!window.confirm("Are you sure you want to delete this business unit?")) return;
+    if (!(await confirmDialog("Delete this business unit?", { danger: true }))) return;
     setActionError(null);
     try {
       await apiRequest(`/rbac/business-units/${buId}`, { method: "DELETE" });
       loadBusinessUnits();
       setActionSuccess("Business Unit deleted successfully");
     } catch (err) {
-      setActionError("Failed to delete business unit");
+      console.error("[BusinessUnits] Failed to delete business unit:", err);
+      setActionError(err.message || "Failed to delete business unit");
     }
   };
 
@@ -856,7 +904,21 @@ function OrganizationalHierarchySection() {
   const [showRoles, setShowRoles] = useState(false);
   const [roleForm, setRoleForm] = useState(EMPTY_ROLE_FORM);
   const [editingRole, setEditingRole] = useState(null);
+  // A role's permission set, edited in the same editor as any role template
+  const [permissionsRole, setPermissionsRole] = useState(null);
+  const [permissionModules, setPermissionModules] = useState([]);
   const canManageRoles = hasPermission("org-roles", "edit");
+
+  const openRolePermissions = async (role) => {
+    setActionError(null);
+    try {
+      setPermissionModules(await listModulesAndResources());
+      setPermissionsRole(role);
+    } catch (err) {
+      console.error("[ManageRoles] Failed to load modules for the permissions editor:", err);
+      setActionError(`Failed to open ${role.name} permissions: ${err.message}`);
+    }
+  };
 
   const loadAll = async () => {
     setLoading(true);
@@ -951,7 +1013,7 @@ function OrganizationalHierarchySection() {
   };
 
   const handleDeleteNode = async (node) => {
-    if (!window.confirm(`Remove ${node.name} from the org chart?`)) return;
+    if (!(await confirmDialog(`Remove ${node.name} from the org chart?`, { danger: true, confirmLabel: "Remove" }))) return;
     setActionError(null);
     try {
       await apiRequest(`/org/nodes/${node.id}`, { method: "DELETE" });
@@ -1015,7 +1077,7 @@ function OrganizationalHierarchySection() {
   };
 
   const handleDeleteDepartment = async (dept) => {
-    if (!window.confirm(`Delete department ${dept.name}?`)) return;
+    if (!(await confirmDialog(`Delete department ${dept.name}?`, { danger: true }))) return;
     setActionError(null);
     try {
       await apiRequest(`/org/departments/${dept.id}`, { method: "DELETE" });
@@ -1255,7 +1317,7 @@ function OrganizationalHierarchySection() {
       {showRoles && (
         <SimpleModal isOpen={true} onClose={() => { setShowRoles(false); setEditingRole(null); setRoleForm(EMPTY_ROLE_FORM); }} title="Manage Roles">
           <p className="text-xs text-gray-500 mb-3">
-            A role is a Job Title and the org level it sits at. A role people hold can't change level or be retired - give them another role first.
+            A role is a Job Title, the org level it sits at, and the permissions everyone holding it gets (on top of their function add-on). A role people hold can't change level or be retired - give them another role first.
           </p>
           <div className="space-y-2 max-h-80 overflow-y-auto">
             {roles.map(role => (
@@ -1267,6 +1329,11 @@ function OrganizationalHierarchySection() {
                   <span className="ml-2 text-xs text-gray-500">{role.users} {role.users === 1 ? "person" : "people"}</span>
                 </div>
                 <div className="flex gap-2">
+                  {role.role_template_id && (
+                    <button onClick={() => openRolePermissions(role)} className="text-xs text-purple-700 hover:underline">
+                      Permissions
+                    </button>
+                  )}
                   <button
                     onClick={() => setEditingRole({ id: role.id, name: role.name, hierarchy_level: role.hierarchy_level, designation: role.designation || "" })}
                     className="text-xs text-blue-600 hover:underline"
@@ -1325,6 +1392,19 @@ function OrganizationalHierarchySection() {
             </div>
           </form>
         </SimpleModal>
+      )}
+
+      {permissionsRole && (
+        <RoleTemplateEditor
+          mode="edit"
+          templateId={permissionsRole.role_template_id}
+          onClose={() => setPermissionsRole(null)}
+          onSuccess={() => {
+            setActionSuccess(`${permissionsRole.name} permissions saved`);
+            setPermissionsRole(null);
+          }}
+          modules={permissionModules}
+        />
       )}
 
       {showDepartments && (
@@ -1442,7 +1522,7 @@ function LocationsSection() {
   };
 
   const handleDelete = async (dcId) => {
-    if (!window.confirm("Are you sure you want to delete this company?")) return;
+    if (!(await confirmDialog("Delete this company?", { danger: true }))) return;
     try {
       await apiRequest(`${DELIVERY_CENTERS_PATH}/${dcId}`, { method: "DELETE" });
       setActionSuccess("Company deleted");

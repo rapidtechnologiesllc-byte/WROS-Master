@@ -951,7 +951,7 @@ def _create_job_from_details(db: Session, user: Users, details: Dict) -> Dict:
         db.flush()  # Flush to get the job ID
 
         # Assign to recruiter via round-robin
-        recruiter = assign_to_recruiter_roundrobin(db)
+        recruiter = assign_to_recruiter_roundrobin(db, user.tenant_id)
 
         if recruiter:
             job.recuriterID = recruiter.UserID  # the jobs table's recruiter column

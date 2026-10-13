@@ -1,6 +1,7 @@
 import { BrowserRouter } from "react-router-dom";
 import { ConfigProvider } from "antd";
 import AppRoutes from "./routes/Approutes";
+import ConfirmHost from "./components/ConfirmHost";
 import { ThemeProvider } from "./context/ThemeContext";
 import { HealthCheckProvider } from "./components/HealthCheck";
 
@@ -33,6 +34,7 @@ export default function App() {
         <ConfigProvider theme={BLITZENX_ANTD_THEME}>
           <BrowserRouter>
             <AppRoutes />
+            <ConfirmHost />
           </BrowserRouter>
         </ConfigProvider>
       </ThemeProvider>

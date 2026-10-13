@@ -82,6 +82,9 @@ class OrgRole(Base):
     designation = Column(String(16), nullable=True)
     description = Column(Text, nullable=True)
     active = Column(Boolean, nullable=False, default=True)
+    # The role's permission set (CEO 2026-10-13): what every holder may see and do, on top
+    # of their function add-on (users.role_template_id). Edited in the Role Templates editor.
+    role_template_id = Column(Integer, ForeignKey("role_templates.id"), nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     __table_args__ = (

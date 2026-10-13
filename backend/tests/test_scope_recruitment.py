@@ -93,15 +93,12 @@ def test_other_bus_job_is_not_found(w, api):
 
 
 def test_cannot_edit_delete_or_approve_another_bus_job(db, w, api):
-    from app.core.csrf_protection import generate_csrf_token
-
     assert api.put(w.partner_a, f"/api/v1/jobs/update_job/{w.job_b.jobID}",
                    json={"job_title": "taken"}).status_code == 404
     assert api.delete(w.partner_a, f"/api/v1/jobs/delete_job/{w.job_b.jobID}").status_code == 404
     w.job_b.jobStatus = "pending_approval"
     db.commit()
-    approve = api.client.post(f"/api/v1/jobs/{w.job_b.jobID}/approve",
-                              headers={**api.headers(w.partner_a), "X-CSRF-Token": generate_csrf_token()})
+    approve = api.client.post(f"/api/v1/jobs/{w.job_b.jobID}/approve", headers=api.headers(w.partner_a))
     assert approve.status_code == 404
     db.refresh(w.job_b)
     assert w.job_b.jobTitle == "Job B" and w.job_b.jobStatus == "pending_approval"

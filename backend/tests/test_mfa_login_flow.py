@@ -120,12 +120,12 @@ def test_pending_token_cannot_reach_a_normal_protected_endpoint(client):
 
     from app.api.v1.endpoints.mfa import router as mfa_router  # noqa
     from fastapi import Depends
-    from app.core.dependencies import get_current_hr_or_admin
+    from app.core.dependencies import get_current_internal_user
 
     # Build a tiny protected route on the same app to prove the point
     # generically, without depending on any specific business route.
     @client.app.get("/some-protected-thing")
-    def protected(user=Depends(get_current_hr_or_admin)):
+    def protected(user=Depends(get_current_internal_user)):
         return {"ok": True}
 
     resp = client.get("/some-protected-thing", headers={"Authorization": f"Bearer {pending_token}"})
@@ -151,7 +151,7 @@ def test_full_enrollment_flow_setup_then_confirm_then_full_token(client):
     # The confirmed full token now works on a normal protected route.
 
     @client.app.get("/some-other-protected-thing")
-    def protected(user=Depends(get_current_hr_or_admin)):
+    def protected(user=Depends(get_current_internal_user)):
         return {"ok": True, "email": user.UserEmail}
 
     real_resp = client.get(

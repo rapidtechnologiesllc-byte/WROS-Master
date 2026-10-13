@@ -123,8 +123,16 @@ def upsert_entries(db: Session, timesheet: Timesheet, entries: List[dict]) -> Ti
     BR-01 (60h weekly cap) and "no future dates" at this layer too, not
     just at submit -- matching the doc's own PUT /entries validation.
     """
+    # S-221 lock after submission: only a DRAFT is editable. A REJECTED timesheet goes back to
+    # DRAFT on the employee's first correction (reason kept); SUBMITTED waits for its approver.
+    if timesheet.status == "REJECTED":
+        reopen_for_editing(db, timesheet)
+    if timesheet.status == "SUBMITTED":
+        raise TimesheetNotEditable("Submitted timesheets are locked until the approver approves or rejects them.")
     if timesheet.status == "APPROVED":
         raise TimesheetNotEditable("Approved timesheets are immutable -- use the dispute process instead.")
+    if timesheet.status != "DRAFT":
+        raise TimesheetNotEditable(f"A {timesheet.status} timesheet cannot be edited.")
 
     today = date.today()
     week_end = timesheet.week_starting_date + timedelta(days=6)

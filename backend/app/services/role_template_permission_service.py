@@ -1,356 +1,243 @@
 """
-Role Template Permission Service - Simplified single-role with custom overrides.
+Role Template Permission Service -- the one place that decides what a person may do.
 
-Architecture (Option C):
-1. Each user has ONE role_template (via users.role_id)
-2. User can have custom permission overrides (user_custom_permissions table)
-3. Permission = role_template permission + custom override (if exists)
+Access model (CEO 2026-10-13):
+    their Manage Role's permission set   (org_roles.role_template_id; the role is the one their
+                                          Job Title names -- app.services.org_roles_service)
+  U their function add-on                 (users.role_template_id)
+  then personal overrides                 (user_custom_permissions: grant OR restrict, per resource)
 
-NO UNION logic. NO multi-role complexity. Just database + overrides.
+Every layer reads this service: API permission checks (has_permission), the menu and
+/hr/me (get_user_permissions). Both use the same templates and the same canonical
+resource per name, so a screen the menu shows is a screen the API allows.
+
+Resources: a name can exist more than once (legacy seeds). The canonical one is the row
+in a module of the API contract (app.contracts.api_contract) that lists that name; else
+the lowest id. Grants on legacy duplicates are moved onto the canonical row at startup
+(db_contract._initialize_canonical_resources).
 """
 import logging
+from typing import Dict, List, Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
-from app.models.role_template import RoleTemplate, RoleTemplatePermission, Resource
-from app.models.user import Users, UserCustomPermission
+
+from app.models.role_template import Module, Resource, RoleTemplate, RoleTemplatePermission
+from app.models.user import UserCustomPermission, Users
 
 logger = logging.getLogger(__name__)
 
-class RoleTemplatePermissionService:
-    """
-    Check user permissions based on their assigned role + custom overrides.
+ACTION_FIELDS = {"view": "can_view", "create": "can_create", "edit": "can_edit", "delete": "can_delete"}
+FLAGS = tuple(ACTION_FIELDS.values())
 
-    Simple model:
-    - User has ONE role_template (not multiple)
-    - Custom permissions can override the role template
-    - No UNION logic needed
-    """
+
+def canonical_resource(candidates: List[Resource], module_names: Dict[int, str]) -> Optional[Resource]:
+    """Pick the canonical row among resources that share a name (see module docstring)."""
+    from app.contracts.api_contract import MODULES_AND_RESOURCES
+
+    if not candidates:
+        return None
+
+    def in_contract(r: Resource) -> bool:
+        return r.name in MODULES_AND_RESOURCES.get(module_names.get(r.module_id), ())
+
+    return sorted(candidates, key=lambda r: (not in_contract(r), r.id))[0]
+
+
+def validate_addon_template(db: Session, template_id, tenant_id) -> RoleTemplate:
+    """A person's function add-on (users.role_template_id) must be an enabled template of their
+    tenant, and not a Manage Role's permission set (that comes with the Job Title).
+    Raises ValueError otherwise."""
+    from app.services.org_roles_service import owning_role
+
+    template = db.query(RoleTemplate).filter(RoleTemplate.id == template_id).first() if template_id else None
+    if template is None or template.tenant_id != tenant_id:
+        raise ValueError("Role template not found")
+    if not template.enabled:
+        raise ValueError(f"Role template {template.display_name or template.name!r} is disabled")
+    role = owning_role(db, template.id)
+    if role is not None:
+        raise ValueError(f"{template.display_name or template.name!r} is the {role.name} role's permission set; "
+                         "give the person that Job Title instead and pick a function add-on here")
+    return template
+
+
+def invalidate_permissions() -> None:
+    """Call after any change to templates, grants, Manage Roles, titles or overrides."""
+    from app.services.permission_cache import get_permission_cache
+
+    get_permission_cache().invalidate()
+
+
+class RoleTemplatePermissionService:
 
     @staticmethod
     def get_user_role(db: Session, user_id: str, tenant_id: int = 1) -> RoleTemplate | None:
-        """Get the user's assigned role template (single role, not multiple)."""
-        logger.debug(f"get_user_role: user_id={user_id}, tenant_id={tenant_id}")
-        try:
-            user = db.query(Users).filter(Users.UserID == user_id).first()
-            if not user:
-                logger.debug(f"User {user_id} not found in database")
-                logger.warning(f"User not found: {user_id}")
-                return None
+        """The user's function add-on template (users.role_template_id), enabled, in the tenant."""
+        user = db.query(Users).filter(Users.UserID == user_id).first()
+        if not user or not user.role_template_id:
+            return None
+        return db.query(RoleTemplate).filter(
+            RoleTemplate.id == user.role_template_id,
+            RoleTemplate.tenant_id == tenant_id,
+            RoleTemplate.enabled.is_(True),
+        ).first()
 
-            logger.debug(f"User found: {user_id}, role_template_id={user.role_template_id}")
-            if not user.role_template_id:
-                logger.debug(f"User {user_id} has no role_template_id assigned")
-                logger.warning(f"User {user_id} has no role_template_id assigned")
-                return None
+    @staticmethod
+    def get_manage_role_template(db: Session, user: Users, tenant_id: int) -> RoleTemplate | None:
+        """The permission set of the Manage Role the user's Job Title names, enabled, in the tenant."""
+        from app.services.org_roles_service import role_for_title
 
-            role = db.query(RoleTemplate).filter(
-                RoleTemplate.id == user.role_template_id,
-                RoleTemplate.tenant_id == tenant_id,
-                RoleTemplate.enabled == True
-            ).first()
+        role = role_for_title(db, tenant_id, user.job_title)
+        if role is None or not role.role_template_id:
+            return None
+        return db.query(RoleTemplate).filter(
+            RoleTemplate.id == role.role_template_id,
+            RoleTemplate.tenant_id == tenant_id,
+            RoleTemplate.enabled.is_(True),
+        ).first()
 
-            if not role:
-                logger.debug(f"Role template {user.role_template_id} not found for user {user_id} with tenant {tenant_id}")
-                logger.warning(f"Role template {user.role_template_id} not found for user {user_id}")
-                return None
-
-            logger.debug(f"Role found: id={role.id}, name={role.name}")
-            return role
-
-        except (AttributeError, ValueError, TypeError) as e:
-            logger.error(f"get_user_role({user_id}, tenant={tenant_id}): {e}", exc_info=True)
-            raise ValueError("Operation failed")
+    @staticmethod
+    def templates_for(db: Session, user_id: str, tenant_id: int = 1) -> List[RoleTemplate]:
+        """[Manage Role permission set, function add-on] -- whichever exist."""
+        user = db.query(Users).filter(Users.UserID == user_id).first()
+        if user is None:
+            return []
+        out = []
+        role_template = RoleTemplatePermissionService.get_manage_role_template(db, user, tenant_id)
+        if role_template is not None:
+            out.append(role_template)
+        addon = RoleTemplatePermissionService.get_user_role(db, user_id, tenant_id)
+        if addon is not None and all(t.id != addon.id for t in out):
+            out.append(addon)
+        return out
 
     @staticmethod
     def get_resource_by_name(db: Session, resource_name: str, tenant_id: int = 1) -> Resource | None:
-        """Get a resource by name (case-insensitive)."""
-        logger.debug(f"get_resource_by_name: resource={resource_name}, tenant_id={tenant_id}")
+        """The canonical enabled resource with this name (case-insensitive) in the tenant."""
         if not resource_name:
-            logger.debug("Resource name is empty")
             return None
-
-        try:
-            from sqlalchemy import func
-            # Case-insensitive lookup: lower(name) = lower(resource_name)
-            resource = db.query(Resource).filter(
-                func.lower(Resource.name) == resource_name.lower(),
-                Resource.tenant_id == tenant_id,
-                Resource.enabled == True
-            ).first()
-            if resource:
-                logger.debug(f"Found resource: id={resource.id}, name={resource.name}, tenant={resource.tenant_id}")
-            else:
-                logger.debug(f"Resource '{resource_name}' not found in database for tenant {tenant_id}")
-            return resource
-        except (AttributeError, ValueError) as e:
-            logger.debug(f"Exception in get_resource_by_name: {e}")
-            logger.error(f"get_resource_by_name({resource_name}, tenant={tenant_id}): {e}", exc_info=True)
-            raise ValueError("Operation failed")
+        candidates = db.query(Resource).filter(
+            func.lower(Resource.name) == resource_name.lower(),
+            Resource.tenant_id == tenant_id,
+            Resource.enabled.is_(True),
+        ).all()
+        module_names = dict(db.query(Module.id, Module.name).filter(
+            Module.id.in_({r.module_id for r in candidates}))) if candidates else {}
+        return canonical_resource(candidates, module_names)
 
     @staticmethod
-    def has_permission(
-        db: Session,
-        user_id: str,
-        resource_name: str,
-        action: str,  # 'view', 'create', 'edit', 'delete'
-        tenant_id: int = 1
-    ) -> bool:
-        """
-        Check if user has permission to perform an action on a resource.
+    def has_permission(db: Session, user_id: str, resource_name: str, action: str, tenant_id: int = 1) -> bool:
+        """May the user perform action ('view' | 'create' | 'edit' | 'delete') on the resource?
 
-        Process:
-        1. Get user's role_template (single role)
-        2. Check role_template_permissions for this resource
-        3. Check user_custom_permissions for override
-        4. Return: role permission OR custom override
-
-        CRITICAL FIX (2026-09-21): If database unavailable, default to ALLOW
-        (graceful degradation - user can submit form even if permission check fails).
-        This prevents form submission from failing when DB connection pool exhausted.
-
-        Args:
-            db: Database session
-            user_id: User ID
-            resource_name: Resource name (e.g., 'candidates')
-            action: Action type ('view', 'create', 'edit', 'delete')
-            tenant_id: Tenant ID for multi-tenancy
-
-        Returns:
-            True if user has permission, False otherwise. Returns True on DB errors (graceful degradation).
-        """
-        logger.debug(f"has_permission called: user={user_id}, resource={resource_name}, action={action}, tenant={tenant_id}")
+        A personal override on the resource decides outright; otherwise any of the user's
+        templates granting it is enough. Fails closed: any error (missing role, missing
+        resource, bad input) denies."""
         try:
-            # Validate inputs
-            if not user_id or not resource_name or not action:
-                logger.debug(f"Invalid inputs: user={user_id}, resource={resource_name}, action={action}")
+            field = ACTION_FIELDS.get(action)
+            if not user_id or not resource_name or field is None:
                 return False
-
-            # Map action to permission field
-            action_map = {
-                'view': 'can_view',
-                'create': 'can_create',
-                'edit': 'can_edit',
-                'delete': 'can_delete'
-            }
-
-            if action not in action_map:
-                logger.warning(f"has_permission: invalid action '{action}'")
-                return False
-
-            permission_field = action_map[action]
-            logger.debug(f"Mapped action '{action}' to field '{permission_field}'")
-
-            # Get user's role template (single role)
-            logger.debug(f"Getting user role for user {user_id}")
-            role = RoleTemplatePermissionService.get_user_role(db, user_id, tenant_id)
-            if not role:
-                logger.debug(f"User role not found for {user_id}")
-                return False
-            logger.debug(f"Found role: id={role.id}, name={role.name}, tenant={role.tenant_id}")
-
-            # Get the resource
-            logger.debug(f"Getting resource '{resource_name}' with tenant {tenant_id}")
             resource = RoleTemplatePermissionService.get_resource_by_name(db, resource_name, tenant_id)
-            if not resource:
-                logger.debug(f"Resource '{resource_name}' not found for tenant {tenant_id}")
+            if resource is None:
                 return False
-            logger.debug(f"Found resource: id={resource.id}, name={resource.name}, tenant={resource.tenant_id}")
-
-            # Step 1: Check role template permission (with tenant isolation)
-            logger.debug(f"Querying permission: role_id={role.id}, resource_id={resource.id}, tenant_id={tenant_id}")
-            role_perm = db.query(RoleTemplatePermission).filter(
-                RoleTemplatePermission.role_template_id == role.id,
-                RoleTemplatePermission.resource_id == resource.id,
-                RoleTemplatePermission.tenant_id == tenant_id
+            override = db.query(UserCustomPermission).filter(
+                UserCustomPermission.user_id == user_id,
+                UserCustomPermission.resource_id == resource.id,
             ).first()
-
-            role_has_permission = False
-            if role_perm:
-                role_has_permission = getattr(role_perm, permission_field, False)
-                logger.debug(f"Found permission: id={role_perm.id}, {permission_field}={role_has_permission}")
-            else:
-                logger.debug(f"No permission record found for role {role.id} and resource {resource.id}")
-
-            # Step 2: Check user custom override (can grant or restrict)
-            # Query user_custom_permissions if it exists
-            try:
-                from app.models.user import UserCustomPermission
-                custom_perm = db.query(UserCustomPermission).filter(
-                    UserCustomPermission.user_id == user_id,
-                    UserCustomPermission.resource_id == resource.id
-                ).first()
-
-                if custom_perm:
-                    # Custom override takes precedence
-                    return getattr(custom_perm, permission_field, False)
-            except (ImportError, AttributeError):
-                # UserCustomPermission model doesn't exist yet, use role permission only
-                pass
-
-            # Return role permission (no custom override)
-            logger.debug(f"Returning: role_has_permission={role_has_permission}")
-            return role_has_permission
-
+            if override is not None:
+                return bool(getattr(override, field))
+            template_ids = [t.id for t in RoleTemplatePermissionService.templates_for(db, user_id, tenant_id)]
+            if not template_ids:
+                return False
+            return db.query(RoleTemplatePermission.id).filter(
+                RoleTemplatePermission.role_template_id.in_(template_ids),
+                RoleTemplatePermission.resource_id == resource.id,
+                RoleTemplatePermission.tenant_id == tenant_id,
+                getattr(RoleTemplatePermission, field).is_(True),
+            ).first() is not None
         except (AttributeError, ValueError, TypeError) as e:
-            logger.debug(f"Exception in has_permission: {e}")
             logger.error(f"has_permission({user_id}, {resource_name}, {action}, tenant={tenant_id}): {e}", exc_info=True)
             return False
 
     @staticmethod
     def can_view(db: Session, user_id: str, resource_name: str, tenant_id: int = 1) -> bool:
-        """Check if user can VIEW a resource."""
-        return RoleTemplatePermissionService.has_permission(db, user_id, resource_name, 'view', tenant_id)
+        return RoleTemplatePermissionService.has_permission(db, user_id, resource_name, "view", tenant_id)
 
     @staticmethod
     def can_create(db: Session, user_id: str, resource_name: str, tenant_id: int = 1) -> bool:
-        """Check if user can CREATE in a resource."""
-        return RoleTemplatePermissionService.has_permission(db, user_id, resource_name, 'create', tenant_id)
+        return RoleTemplatePermissionService.has_permission(db, user_id, resource_name, "create", tenant_id)
 
     @staticmethod
     def can_edit(db: Session, user_id: str, resource_name: str, tenant_id: int = 1) -> bool:
-        """Check if user can EDIT a resource."""
-        return RoleTemplatePermissionService.has_permission(db, user_id, resource_name, 'edit', tenant_id)
+        return RoleTemplatePermissionService.has_permission(db, user_id, resource_name, "edit", tenant_id)
 
     @staticmethod
     def can_delete(db: Session, user_id: str, resource_name: str, tenant_id: int = 1) -> bool:
-        """Check if user can DELETE from a resource."""
-        return RoleTemplatePermissionService.has_permission(db, user_id, resource_name, 'delete', tenant_id)
+        return RoleTemplatePermissionService.has_permission(db, user_id, resource_name, "delete", tenant_id)
 
     @staticmethod
     def get_user_permissions(db: Session, user_id: str, tenant_id: int = 1) -> dict:
-        """
-        Get all permissions for a user as a dictionary.
-
-        Combines role template permissions with custom overrides.
-        Uses in-memory cache (5-min TTL) to reduce database load.
-        Uses circuit breaker to prevent cascading failures.
-
-        Returns: {
-            "resource_name": {
-                "can_view": True/False,
-                "can_create": True/False,
-                "can_edit": True/False,
-                "can_delete": True/False,
-                "display_name": "Display Name",
-                "overridden": True/False  (True if custom override applied)
-            },
-            ...
-        }
-        """
-        # PHASE 2 FIX (2026-09-21): Check cache first
+        """{resource_name: {can_view, can_create, can_edit, can_delete, display_name, overridden}}
+        for every resource the user has any right on. Same rules as has_permission.
+        Cached in-process (permission_cache, 5-min TTL); a circuit breaker returns {} if the
+        database keeps failing (the menu degrades to empty rather than erroring)."""
         from app.services.permission_cache import get_permission_cache
+        from app.services.permission_circuit_breaker import get_permission_breaker
+
         cache = get_permission_cache()
         cache_key = f"{user_id}:{tenant_id}"
-
-        cached_perms = cache.get(cache_key)
-        if cached_perms is not None:
-            return cached_perms
-
-        # PHASE 2 FIX (2026-09-21): Use circuit breaker to prevent cascading failures
-        from app.services.permission_circuit_breaker import get_permission_breaker
-        breaker = get_permission_breaker()
-
-        # If circuit is OPEN, return empty dict (graceful degradation)
-        def fetch_permissions():
-            return RoleTemplatePermissionService._fetch_user_permissions_internal(db, user_id, tenant_id)
-
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
         try:
-            permissions = breaker.call(
-                fetch_permissions,
-                fallback_value={}
+            permissions = get_permission_breaker().call(
+                lambda: RoleTemplatePermissionService._fetch_user_permissions_internal(db, user_id, tenant_id),
+                fallback_value={},
             )
         except Exception as e:
             logger.error(f"get_user_permissions({user_id}, tenant={tenant_id}): {e} - RETURNING EMPTY FALLBACK", exc_info=True)
             return {}
-
-        # Cache the result (even if empty)
         cache.set(cache_key, permissions)
         return permissions
 
     @staticmethod
     def _fetch_user_permissions_internal(db: Session, user_id: str, tenant_id: int = 1) -> dict:
-        """
-        Internal: Fetch user permissions from database.
-        This is the actual database operation wrapped by cache and circuit breaker.
-        """
-        try:
-            # Validate input
-            if not user_id:
-                raise ValueError("Cannot get user permissions: user_id is required")
+        if not user_id:
+            raise ValueError("Cannot get user permissions: user_id is required")
+        templates = RoleTemplatePermissionService.templates_for(db, user_id, tenant_id)
+        overrides = {o.resource_id: o for o in db.query(UserCustomPermission).filter(
+            UserCustomPermission.user_id == user_id)}
+        if not templates and not overrides:
+            raise ValueError(f"Cannot get user permissions: no role template found for user_id={user_id}")
 
-            # Get user's role template
-            role = RoleTemplatePermissionService.get_user_role(db, user_id, tenant_id)
-            if not role:
-                raise ValueError(f"Cannot get user permissions: no role template found for user_id={user_id}")
+        # Canonical resource per name, so this agrees with has_permission
+        resources = db.query(Resource).filter(Resource.tenant_id == tenant_id, Resource.enabled.is_(True)).all()
+        module_names = dict(db.query(Module.id, Module.name))
+        by_name: Dict[str, List[Resource]] = {}
+        for r in resources:
+            by_name.setdefault(r.name.lower(), []).append(r)
+        canonical = {c.id: c for c in (canonical_resource(group, module_names) for group in by_name.values())}
 
-            # OPTIMIZATION: Get only role template permissions (not all resources)
-            # This avoids expensive query of all resources for every request
-            # Filter by tenant to prevent cross-tenant leaks
-            role_perms = db.query(RoleTemplatePermission).filter(
-                RoleTemplatePermission.role_template_id == role.id,
-                RoleTemplatePermission.tenant_id == tenant_id
-            ).all()
+        flags: Dict[int, Dict[str, bool]] = {}
+        if templates:
+            for row in db.query(RoleTemplatePermission).filter(
+                    RoleTemplatePermission.role_template_id.in_([t.id for t in templates]),
+                    RoleTemplatePermission.tenant_id == tenant_id):
+                if row.resource_id not in canonical:
+                    continue
+                merged = flags.setdefault(row.resource_id, {f: False for f in FLAGS})
+                for f in FLAGS:
+                    merged[f] = merged[f] or bool(getattr(row, f))
 
-            if not role_perms:
-                logger.warning(f"No role template permissions found for role_id={role.id}")
-                return {}
-
-            # Get user custom permissions (overrides)
-            custom_perms = {}
-            try:
-                custom_perm_rows = db.query(UserCustomPermission).filter(
-                    UserCustomPermission.user_id == user_id
-                ).all()
-
-                for perm in custom_perm_rows:
-                    custom_perms[perm.resource_id] = {
-                        "can_view": perm.can_view,
-                        "can_create": perm.can_create,
-                        "can_edit": perm.can_edit,
-                        "can_delete": perm.can_delete
-                    }
-            except (ImportError, AttributeError):
-                pass
-
-            # Build final permissions from role + custom overrides
-            permissions = {}
-            resource_ids = [perm.resource_id for perm in role_perms]
-
-            if resource_ids:
-                resources_with_perms = db.query(Resource).filter(
-                    Resource.id.in_(resource_ids),
-                    Resource.tenant_id == tenant_id,
-                    Resource.enabled == True
-                ).all()
-
-                resource_by_id = {r.id: r for r in resources_with_perms}
-
-                for role_perm in role_perms:
-                    resource = resource_by_id.get(role_perm.resource_id)
-                    if not resource:
-                        continue
-
-                    perms = {
-                        "can_view": role_perm.can_view,
-                        "can_create": role_perm.can_create,
-                        "can_edit": role_perm.can_edit,
-                        "can_delete": role_perm.can_delete
-                    }
-                    overridden = False
-
-                    if role_perm.resource_id in custom_perms:
-                        perms = custom_perms[role_perm.resource_id]
-                        overridden = True
-
-                    permissions[resource.name] = {
-                        **perms,
-                        "display_name": resource.display_name,
-                        "overridden": overridden
-                    }
-
-            logger.info(f"get_user_permissions({user_id}): {len(permissions)} resources, {sum(1 for p in permissions.values() if p['overridden'])} overridden")
-            return permissions
-
-        except Exception as e:
-            logger.error(f"_fetch_user_permissions_internal({user_id}, tenant={tenant_id}): {e}", exc_info=True)
-            raise  # Re-raise so circuit breaker can catch it
+        permissions = {}
+        for rid in set(flags) | (set(overrides) & set(canonical)):
+            resource = canonical[rid]
+            overridden = rid in overrides
+            perms = ({f: bool(getattr(overrides[rid], f)) for f in FLAGS} if overridden
+                     else flags[rid])
+            if not overridden and not any(perms.values()):
+                continue
+            permissions[resource.name] = {**perms, "display_name": resource.display_name, "overridden": overridden}
+        logger.info(f"get_user_permissions({user_id}): {len(permissions)} resources, "
+                    f"{sum(1 for p in permissions.values() if p['overridden'])} overridden")
+        return permissions

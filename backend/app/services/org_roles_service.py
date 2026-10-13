@@ -100,3 +100,33 @@ def ensure_single_holder(db: Session, role: OrgRole, user_id: Optional[str] = No
     holder = other.first()
     if holder:
         raise ValueError(f"{holder.UserName or holder.UserEmail} already holds the {role.name} role")
+
+
+def ensure_permission_set(db: Session, role: OrgRole):
+    """The role's permission set (a non-system RoleTemplate owned by the role), created EMPTY
+    the first time so that giving someone a role never widens their access by itself; an
+    admin then grants what the role should allow in the Role Templates editor. Keeps the
+    template's name and level in step with the role (authority reads the role's level).
+    Flushes; the caller commits."""
+    from app.models.role_template import RoleTemplate
+
+    template = db.get(RoleTemplate, role.role_template_id) if role.role_template_id else None
+    if template is None:
+        template = RoleTemplate(name=f"{role.name} (role)", display_name=role.name,
+                                description=f"What every {role.name} may see and do",
+                                hierarchy_level=role.hierarchy_level, specialization="General",
+                                org_level_access=False, is_system=False, enabled=True,
+                                tenant_id=role.tenant_id)
+        db.add(template)
+        db.flush()
+        role.role_template_id = template.id
+    elif template.display_name != role.name or template.hierarchy_level != role.hierarchy_level:
+        template.name, template.display_name = f"{role.name} (role)", role.name
+        template.hierarchy_level = role.hierarchy_level
+    db.flush()
+    return template
+
+
+def owning_role(db: Session, template_id: int) -> Optional[OrgRole]:
+    """The Manage Role whose permission set this template is, or None (a function add-on)."""
+    return db.query(OrgRole).filter(OrgRole.role_template_id == template_id).first()

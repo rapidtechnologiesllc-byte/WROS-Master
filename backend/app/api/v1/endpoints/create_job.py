@@ -2,7 +2,7 @@ import json
 from datetime import datetime, date
 from typing import Optional, List
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Header, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.bu_scope import candidate_scope_filter, ensure_candidate_visible
@@ -732,7 +732,6 @@ def approve_job(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user = Depends(get_current_internal_user),
-    x_csrf_token: str = Header(None)  # FIX #18: CSRF token validation
 ):
     """
     Approve a pending job posting and make it live.
@@ -751,12 +750,10 @@ def approve_job(
     Raises:
         404: Job not found
         400: Job is not in pending_approval status
-        403: Invalid CSRF token
+
+    No CSRF token: WROS authenticates with a bearer header the browser never attaches
+    cross-site (credentials: 'omit', no cookies), so CSRF does not apply.
     """
-    # FIX #18: Validate CSRF token on state-changing operation
-    from app.core.csrf_protection import validate_csrf_token
-    if not x_csrf_token or not validate_csrf_token(x_csrf_token):
-        raise HTTPException(status_code=403, detail="Invalid or missing CSRF token")
 
     job = visible_job_or_404(db, user, job_id, f"Job '{job_id}'")
 

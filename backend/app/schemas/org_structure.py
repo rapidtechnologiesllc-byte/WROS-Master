@@ -62,6 +62,9 @@ class DepartmentResponse(BaseModel):
     active: bool = True
     created_at: datetime
     updated_at: datetime
+    # The function the name stands for (Recruitment, HR, Finance ... or General):
+    # org_hierarchy_validator.function_of_department_name
+    function: Optional[str] = None
 
     class Config:
         from_attributes = True

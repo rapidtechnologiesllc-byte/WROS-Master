@@ -7,6 +7,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.visibility import partner_choices, resolve_dashboard_partner, should_bypass_bu_filter
 from app.models.user import Users
+from app.core.tenant_context import tenant_id_of
 from app.services.training_certification_service import (
     get_buddy_program_overview,
     get_certification_summary,
@@ -64,9 +65,7 @@ def get_partner_dashboard(
     if partner_id is None:
         return {"status": "needs_partner", "data": None, "partners": partner_choices(db)}
 
-    if not current_user.tenant_id:
-        raise HTTPException(status_code=500, detail='User config error: missing tenant_id')
-    tenant_id = current_user.tenant_id
+    tenant_id = tenant_id_of(current_user)
     bus = db.query(BusinessUnit).filter(BusinessUnit.partner_user_id == partner_id,
                                         BusinessUnit.tenant_id == tenant_id).order_by(BusinessUnit.name).all()
     partner = db.query(Users).filter(Users.UserID == partner_id).first()

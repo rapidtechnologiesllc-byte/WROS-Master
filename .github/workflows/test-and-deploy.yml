@@ -100,25 +100,7 @@ jobs:
               conn.execute(text('CREATE SCHEMA IF NOT EXISTS app_schema'))
           Base.metadata.create_all(engine)
           "
-          pytest -q --tb=short -p no:cacheprovider \
-            tests/regression_suite.py \
-            tests/test_authority.py \
-            tests/test_billing_chain.py \
-            tests/test_financial_outlook.py \
-            tests/test_hiring_pipeline.py \
-            tests/test_interview_verdicts.py \
-            tests/test_job_lifecycle.py \
-            tests/test_navigation_menu.py \
-            tests/test_bu_location_heads.py \
-            tests/test_scope_*.py \
-            tests/test_roles_not_names.py \
-            tests/test_user_org_seat.py \
-            tests/test_employee_conversion.py \
-            tests/test_lifecycle_e2e.py \
-            tests/test_recruiter_pool.py \
-            tests/test_opportunity_sales.py \
-            tests/test_opportunity_win.py \
-            tests/test_code_commit_guard.py
+          pytest -q --tb=short -p no:cacheprovider $(grep -v '^#' tests/DEPLOY_GATE)
 
   test-frontend:
     name: Frontend - Build

@@ -14,6 +14,7 @@ import {
   subscribeNewsletter,
   unsubscribeNewsletter
 } from "../services/api/newsletters";
+import { confirmDialog } from "../utils/dialogs";
 
 export default function NewsletterScreen() {
   const [newsletters, setNewsletters] = useState([]);
@@ -118,7 +119,7 @@ export default function NewsletterScreen() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Delete this newsletter?")) return;
+    if (!(await confirmDialog("Delete this newsletter?"))) return;
     setError("");
     try {
       await deleteNewsletter(id);

@@ -12,6 +12,7 @@ import { Card, Button, Input, TextArea, Select } from "../components/ui";
 import { getTenantAIConfig, updateTenantAIConfig } from "../services/api/tenantAiConfig";
 import AdminAgentStateDashboard from "./AdminAgentStateDashboard";
 import AgentStandupsScreen from "./AgentStandupsScreen";
+import { confirmDialog } from "../utils/dialogs";
 
 const GREETING_CHANNELS = ["BOTH_PARALLEL", "WHATSAPP_FIRST", "EMAIL_FIRST"];
 
@@ -174,7 +175,7 @@ function IdentitySection({ config, save }) {
   const handleSave = async () => {
     const updates = {};
     if (name !== config.ai_agent_name) {
-      if (!window.confirm("Changing the agent name will affect all future messages. Current active conversations will see the new name on next message. Continue?")) {
+      if (!(await confirmDialog("Changing the agent name will affect all future messages. Current active conversations will see the new name on next message. Continue?"))) {
         return;
       }
       updates.ai_agent_name = name;
@@ -259,7 +260,7 @@ function EngagementTimingSection({ config, save }) {
       setActionError("Max follow-ups must be between 1 and 10.");
       return;
     }
-    if (maxN > 5 && !window.confirm("High follow-up counts may feel spammy to candidates. Continue?")) {
+    if (maxN > 5 && !(await confirmDialog("High follow-up counts may feel spammy to candidates. Continue?"))) {
       return;
     }
     setSaving(true);
@@ -421,7 +422,7 @@ function GlobalControlsSection({ config, save }) {
   const handleSave = async () => {
     const updates = {};
     if (enabled !== config.thunder_enabled) {
-      if (!enabled && !window.confirm("Disabling Thunder will pause all AI activity for all candidates immediately. Continue?")) {
+      if (!enabled && !(await confirmDialog("Disabling Thunder will pause all AI activity for all candidates immediately. Continue?"))) {
         return;
       }
       updates.thunder_enabled = enabled;

@@ -24,6 +24,7 @@ import {
   sendGraphMail,
   testSharepointConnection
 } from "../services/api/msgraph";
+import { confirmDialog } from "../utils/dialogs";
 
 // Interviewer recommendations (same list the backend accepts on submit and update):
 // any No Hire fails the round, all Hire/Must Hire passes it, anything else goes to the hiring manager.
@@ -218,7 +219,7 @@ export default function InterviewStatus({
                         <Button
                           variant="danger"
                           onClick={async () => {
-                            const ok = window.confirm(
+                            const ok = await confirmDialog(
                               `Remove member ${m.interviewer_name || m.interviewer_id}?`
                             );
                             if (!ok) return;
@@ -242,7 +243,7 @@ export default function InterviewStatus({
                   <Button
                     variant="danger"
                     onClick={async () => {
-                      const ok = window.confirm(
+                      const ok = await confirmDialog(
                         `Delete panel ${panelDetails.id}? This removes interviews and feedback.`
                       );
                       if (!ok) return;
@@ -347,7 +348,7 @@ export default function InterviewStatus({
                 <Button
                   variant="danger"
                   onClick={async () => {
-                    const ok = window.confirm(`Delete interview ${i.id}?`);
+                    const ok = await confirmDialog(`Delete interview ${i.id}?`);
                     if (!ok) return;
                     try {
                       await deleteInterview(i.id);
@@ -533,7 +534,7 @@ export default function InterviewStatus({
                 setFeedbackNotice("Feedback ID is required.");
                 return;
               }
-              const ok = window.confirm(`Delete feedback ${feedbackForm.feedbackId}?`);
+              const ok = await confirmDialog(`Delete feedback ${feedbackForm.feedbackId}?`);
               if (!ok) return;
               try {
                 await deleteInterviewFeedback(feedbackForm.feedbackId);

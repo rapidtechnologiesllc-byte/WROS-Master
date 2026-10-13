@@ -32,6 +32,7 @@ import {
   updatePortalProfile,
   uploadPortalDocument,
 } from "../services/api/candidatePortal";
+import { confirmDialog } from "../utils/dialogs";
 
 // S-346, 2026-08-06: how often the Messages tab checks for new messages
 // arriving on another channel (e.g. a WhatsApp reply) while the portal
@@ -524,7 +525,7 @@ function OfferTab({ token }) {
   }, [token]);
 
   const respond = async (offerId, action) => {
-    if (action === "decline" && !window.confirm("Decline this offer? This can't be undone.")) return;
+    if (action === "decline" && !(await confirmDialog("Decline this offer? This can't be undone."))) return;
     setBusy(true);
     setNotice("");
     try {

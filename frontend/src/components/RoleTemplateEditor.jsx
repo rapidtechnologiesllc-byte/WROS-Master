@@ -27,8 +27,21 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
-    description: ''
+    description: '',
+    specialization: 'General'
   });
+  // A role's own permission set ({id, name, hierarchy_level}) vs a function add-on (null)
+  const [ownerRole, setOwnerRole] = useState(null);
+  const [functions, setFunctions] = useState(['General']);
+
+  useEffect(() => {
+    apiRequest('/admin/role-templates/functions', { method: 'GET' })
+      .then(({ data }) => setFunctions(data.functions || ['General']))
+      .catch((err) => {
+        console.error('[RoleTemplateEditor] Failed to load functions:', err);
+        setActionError(`Failed to load functions: ${err.message}`);
+      });
+  }, []);
   const [permissions, setPermissions] = useState({});
   const [expandedModules, setExpandedModules] = useState({});
   const [actionError, setActionError] = useState(null);
@@ -45,8 +58,10 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
 
           setFormData({
             name: data.name || '',
-            description: data.description || ''
+            description: data.description || '',
+            specialization: data.specialization || 'General'
           });
+          setOwnerRole(data.owner_role || null);
 
           // Convert permissions to hierarchical structure
           const permsHierarchy = {};
@@ -154,34 +169,13 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
     setSaving(true);
     try {
       if (mode === 'create') {
-        // Check if template name already exists (preventing duplicates)
-        try {
-          await apiRequest(`/api/v1/api/admin/users-access-control/role-templates?search=${encodeURIComponent(formData.name)}`, {
-            method: 'GET'
-          });
-          // If we got here, check if name already exists
-          const checkResponse = await apiRequest(`/api/v1/api/admin/users-access-control/role-templates`, {
-            method: 'GET'
-          });
-
-          if (Array.isArray(checkResponse.data)) {
-            const duplicate = checkResponse.data.find(t => t.name?.toLowerCase() === formData.name.toLowerCase());
-            if (duplicate) {
-              setActionError(`A role template named "${formData.name}" already exists. Please use a different name.`);
-              setSaving(false);
-              return;
-            }
-          }
-        } catch (err) {
-          // If search fails, continue with creation (endpoint may not support search)
-        }
-
         const response = await apiRequest('/admin/role-templates', {
           method: 'POST',
           body: JSON.stringify({
             name: formData.name,
             display_name: formData.name,
             description: formData.description,
+            specialization: formData.specialization,
             permissions: []
           })
         });
@@ -202,8 +196,8 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
         await apiRequest(`/admin/role-templates/${templateId}`, {
           method: 'PUT',
           body: JSON.stringify({
-            display_name: formData.name,
             description: formData.description,
+            ...(ownerRole ? {} : { specialization: formData.specialization }),
             permissions: []
           })
         });
@@ -290,10 +284,10 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
         <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">
-              {mode === 'create' ? 'Create New Role Template' : 'Edit Role Template'}
+              {mode === 'create' ? 'New function add-on' : ownerRole ? `${ownerRole.name} role permissions` : 'Edit function add-on'}
             </h2>
             <p className="text-sm text-gray-600 mt-1">
-              Configure permissions for this role template
+              {ownerRole ? "What everyone holding this role may see and do" : "Extra access on top of a person's role"}
             </p>
           </div>
           <button
@@ -346,6 +340,19 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
           <div className="space-y-4">
             <h3 className="font-medium text-gray-900">Template Details</h3>
 
+            {ownerRole ? (
+              <p className="text-sm bg-purple-50 border border-purple-200 text-purple-900 rounded-lg p-3">
+                These are the permissions of the <strong>{ownerRole.name}</strong> role (L{ownerRole.hierarchy_level}).
+                Everyone whose Job Title is {ownerRole.name} gets them, on top of their function add-on.
+              </p>
+            ) : (
+              <p className="text-sm bg-blue-50 border border-blue-200 text-blue-900 rounded-lg p-3">
+                {mode === 'create' ? 'This creates a ' : 'This is a '}<strong>function add-on</strong>: extra access for
+                people in one function (e.g. Recruitment), on top of their role. Each role already has its own
+                permissions - edit those under Organizational Hierarchy → Manage Roles → Permissions.
+              </p>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Template ID
@@ -367,11 +374,31 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
                 type="text"
                 value={formData.name}
                 onChange={(val) => setFormData({ ...formData, name: val })}
-                placeholder="e.g., Senior Recruiter"
+                placeholder="e.g., Recruitment access"
                 disabled={mode === 'edit'}
                 className={mode === 'edit' ? 'bg-gray-100' : ''}
               />
             </div>
+
+            {!ownerRole && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Function *
+                </label>
+                <select
+                  value={formData.specialization}
+                  onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+                >
+                  {functions.map((f) => (
+                    <option key={f} value={f}>{f === 'General' ? 'General (any function)' : f}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  People whose department is this function get this add-on suggested on the user form.
+                </p>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">

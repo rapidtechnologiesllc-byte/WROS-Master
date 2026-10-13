@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.tenant_context import tenant_id_of
 from app.core.dependencies import get_db, get_current_user, require_resource_permission
 from app.models.user import Users
 from app.models.slm_learning_metrics import SLMMetrics
@@ -50,7 +51,7 @@ def get_system_health(
         # Get most recent metric
         latest = (
             db.query(SLMMetrics)
-            .filter(SLMMetrics.tenant_id == current_user.tenant_id)
+            .filter(SLMMetrics.tenant_id == str(tenant_id_of(current_user)))
             .order_by(SLMMetrics.timestamp.desc())
             .first()
         )
@@ -116,7 +117,7 @@ def get_learning_dashboard(
     """
     try:
         dashboard = UnifiedLearningOrchestrator.get_learning_dashboard(
-            db, current_user.tenant_id
+            db, str(tenant_id_of(current_user))
         )
 
         return {
@@ -161,7 +162,7 @@ def get_orchestrator_metrics(
 
     try:
         analysis = LearningWeightOptimizer.analyze_decision_batch(
-            db, current_user.tenant_id, name
+            db, str(tenant_id_of(current_user)), name
         )
 
         return {
@@ -245,7 +246,7 @@ def trigger_learning_cycle(
         logger.info(f"[LearningAPI] Manual cycle triggered by {current_user.email}")
 
         cycle_report = UnifiedLearningOrchestrator.run_learning_cycle(
-            db, current_user.tenant_id
+            db, str(tenant_id_of(current_user))
         )
 
         return {
@@ -292,7 +293,7 @@ def get_active_recommendations(
         # Get latest cycle report
         latest = (
             db.query(SLMMetrics)
-            .filter(SLMMetrics.tenant_id == current_user.tenant_id)
+            .filter(SLMMetrics.tenant_id == str(tenant_id_of(current_user)))
             .order_by(SLMMetrics.timestamp.desc())
             .first()
         )

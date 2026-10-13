@@ -11,7 +11,10 @@ from app.services.linkedin_pipeline_task_service import is_placeholder_email
 
 logger = logging.getLogger(__name__)
 
-NO_CONTACT_DAYS_AFTER_REJECTION = 90  # matches candidate_rejection_handler
+NO_CONTACT_DAYS_AFTER_REJECTION = 90
+# A second rejection signal for the same candidate within this window is the same
+# rejection (queue retry, manual + verdict paths both firing), not a new one.
+SAME_REJECTION_WINDOW = timedelta(hours=24)
 
 
 def rejection_cooldown_until(db: Session, candidate_id: str) -> Optional[datetime]:
@@ -41,3 +44,49 @@ def is_contactable(db: Session, candidate: Candidate) -> Tuple[bool, str]:
     if until is not None:
         return False, f"no-contact period until {until.isoformat()}"
     return True, "ok"
+
+
+def record_rejection(db: Session, candidate: Candidate, reason: str, *,
+                     rejected_by_user_id: Optional[str] = None, job_id: Optional[str] = None,
+                     note: Optional[str] = None) -> CandidateRejection:
+    """The one way a rejection is recorded, from every path (manual pipeline status,
+    interview No Hire verdict, queued candidate_rejection events). Idempotent:
+
+    - writes the candidate_rejections row that starts the 90-day no-contact period
+      (rejection_cooldown_until / is_contactable read it),
+    - switches Thunder off for the candidate,
+    - records a candidate_rejection EventLog entry for the timeline.
+
+    Adds to the session; the caller commits with its own change.
+    """
+    from app.models.event_log import EventLog
+
+    if candidate is None:
+        raise ValueError("Cannot record a rejection for a missing candidate")
+    if not reason or not str(reason).strip():
+        raise ValueError("A rejection needs a reason")
+    now = datetime.utcnow()
+    existing = db.query(CandidateRejection).filter(
+        CandidateRejection.candidate_id == candidate.candidateID,
+        CandidateRejection.rejection_status == "ACTIVE",
+        CandidateRejection.rejected_at >= now - SAME_REJECTION_WINDOW,
+    ).order_by(CandidateRejection.rejected_at.desc()).first()
+    candidate.thunder_enabled = False
+    if existing is not None:
+        return existing
+    if candidate.tenant_id is None:
+        raise ValueError(f"Candidate {candidate.candidateID} has no tenant")
+    rejection = CandidateRejection(
+        candidate_id=candidate.candidateID, job_id=job_id, rejection_reason=str(reason)[:512],
+        rejection_note=note, rejected_by_user_id=rejected_by_user_id, rejected_at=now,
+        tenant_id=candidate.tenant_id,
+    )
+    db.add(rejection)
+    db.add(EventLog(
+        tenant_id=str(candidate.tenant_id), candidate_id=candidate.candidateID,
+        event_type="candidate_rejection",
+        payload={"reason": str(reason), "job_id": job_id, "rejected_by": rejected_by_user_id,
+                 "no_contact_until": (now + timedelta(days=NO_CONTACT_DAYS_AFTER_REJECTION)).isoformat()},
+    ))
+    logger.info(f"[ContactPolicy] Rejection recorded for {candidate.candidateID}: {reason}")
+    return rejection

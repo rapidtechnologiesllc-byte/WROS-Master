@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Bot, Power, X, AlertTriangle, CheckCircle } from "lucide-react";
 import { getAssignments, deactivateAgent } from "../../services/api/aiAgent";
+import { confirmDialog } from "../../utils/dialogs";
 
 function formatDateTime(value) {
   if (!value) return "-";
@@ -49,7 +50,7 @@ export default function ThunderAssignmentSection({ candidateId, onChanged }) {
 
   const handleDeactivate = async () => {
     if (!candidateId || !activeAssignment) return;
-    const confirmed = window.confirm(
+    const confirmed = await confirmDialog(
       `Deactivate Thunder for this candidate? ${
         activeAssignment.ai_agent_name || "The AI recruiter"
       } will stop messaging them and any open conversation will be closed. This cannot be undone.`,

@@ -98,7 +98,7 @@ def _make_employee(db, tenant, **overrides):
     return emp
 
 # ---------------------------------------------------------------------------
-# HRMS-0801: lifecycle + auto-creation on WON
+# HRMS-0801: lifecycle + auto-creation on CONTRACT (signed contract = win)
 # ---------------------------------------------------------------------------
 
 def test_manual_project_creation(db_session, tenant_and_client):
@@ -116,18 +116,19 @@ def test_cannot_create_from_opportunity_not_won(db_session, tenant_and_client):
     with pytest.raises(ValueError):
         create_project_from_won_opportunity(db_session, opp, name="x")
 
-def test_transition_to_won_auto_creates_project_inheriting_client_and_currency(db_session, tenant_and_client):
+def test_signing_contract_auto_creates_project_inheriting_client_and_currency(db_session, tenant_and_client):
     tenant, client = tenant_and_client
+    client.business_unit_id = "BU-TEST"  # a contract can only be signed for a client in a business unit
     opp = create_opportunity(
         db_session, tenant_id=tenant.id, client_id=client.id,
         revenue_value_usd_cents=500_000_00, probability_pct=80, currency="INR",
     )
     db_session.commit()
 
-    opportunity, project = transition_stage(db_session, opp, "WON", project_name="Acme Guidewire Rollout")
+    opportunity, project = transition_stage(db_session, opp, "CONTRACT", project_name="Acme Guidewire Rollout")
     db_session.commit()
 
-    assert opportunity.stage == "WON"
+    assert opportunity.stage == "CONTRACT"
     assert project.client_id == client.id
     assert project.currency == "INR"
     assert project.opportunity_id == opp.id

@@ -9,6 +9,7 @@ import { ROUTES } from "../utils/Routes";
 import cx from "../utils/cx";
 import ThunderActivityFeedPanel from "../components/activity/ThunderActivityFeedPanel";
 import BUSwitcher from "../components/BUSwitcher";
+import { alertDialog } from "../utils/dialogs";
 
 export default function TopBar({
   role,
@@ -127,7 +128,7 @@ export default function TopBar({
       setWhatsappNumber(data?.whatsapp_number || "");
       setShowProfileModal(true);
     } catch {
-      alert("Failed to fetch profile");
+      alertDialog("Failed to fetch profile");
     }
   };
 

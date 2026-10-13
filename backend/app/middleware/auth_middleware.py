@@ -65,6 +65,13 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         # app.services.whatsapp_webhook_service.
         "/webhooks/whatsapp",
         "/api/v1/webhooks/whatsapp",
+        # Delivery-outcome callbacks from SendGrid / Mailgun / Twilio: no bearer token
+        # possible; each request must carry a valid provider signature, verified fail-closed
+        # in app.core.delivery_webhook_auth.
+        "/api/v1/webhooks/sendgrid",
+        "/api/v1/webhooks/mailgun",
+        "/api/v1/webhooks/twilio-sms",
+        "/api/v1/webhooks/twilio-whatsapp",
         # Form dropdown data endpoints (authenticated users need these)
         "/admin/certifications/business-units",
         "/admin/certifications/roles",

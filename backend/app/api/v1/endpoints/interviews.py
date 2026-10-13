@@ -191,6 +191,11 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
     verdict = verdict_for_panel(db, panel)
     if verdict.verdict == "FAIL":
         cs.piplineStatus = "Rejected"
+        from app.models.candidate import Candidate
+        from app.services.candidate_contact_policy import record_rejection
+        record_rejection(db, db.query(Candidate).filter(Candidate.candidateID == candidate_id).first(),
+                         f"Interview: {verdict.level} round '{panel.round_name}' verdict No Hire",
+                         job_id=getattr(interview, "job_id", None))
         db.add(CandidateHistory(
             candidateID=candidate_id, event_type="Custom",
             note=f"Rejected: {verdict.level} round '{panel.round_name}' verdict is No Hire.",

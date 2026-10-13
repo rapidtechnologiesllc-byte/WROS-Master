@@ -75,3 +75,12 @@ build/
 # machine-local, never part of the app.
 start-dev.cmd
 .claude/worktrees/
+
+# Local runtime artifacts (never commit)
+*.pid
+*.sqlite3
+*.sqlite3.backup
+dump.rdb
+*.bundle
+nohup.out
+__pycache__/

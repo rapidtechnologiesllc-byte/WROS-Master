@@ -13,6 +13,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.services.role_template_permission_service import RoleTemplatePermissionService
 from app.core.logging import logger
+from app.core.tenant_context import tenant_id_of
 
 router = APIRouter(prefix="/hr/me", tags=["navigation"])
 
@@ -76,9 +77,7 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
         # Get user ID
         if hasattr(current_user, 'UserID'):
             user_id = current_user.UserID
-            if not getattr(current_user, 'tenant_id', None):
-                raise HTTPException(status_code=500, detail="User config error: missing tenant_id")
-            tenant_id = current_user.tenant_id
+            tenant_id = tenant_id_of(current_user)
         else:
             user_id = current_user.get("sub")
             tenant_id = current_user.get("tenant_id", 1)

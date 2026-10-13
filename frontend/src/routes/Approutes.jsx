@@ -129,6 +129,7 @@ import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
 import MyReferralsScreen from "../screens/MyReferralsScreen";
 import LinkedInPipelineScreen from "../screens/LinkedInPipelineScreen";
 import DocumentUploadScreen from "../screens/DocumentUploadScreen";
+import { confirmDialog, alertDialog } from "../utils/dialogs";
 
 
 // Wrapper component that renders the appropriate dashboard based on user permissions
@@ -450,7 +451,7 @@ function AuthenticatedApp() {
   );
 
   const notify = useCallback((title, message) => {
-    alert(`${title}\n\n${message}`);
+    alertDialog(`${title}\n\n${message}`);
   }, []);
 
   const refreshJobs = useCallback(async () => {
@@ -808,7 +809,7 @@ function AuthenticatedApp() {
                   onDeleteJob={
                     canDeleteJobs
                       ? async (jobId) => {
-                          const ok = window.confirm(`Delete job ${jobId}?`);
+                          const ok = await confirmDialog(`Delete job ${jobId}?`);
                           if (!ok) return;
 
                           try {

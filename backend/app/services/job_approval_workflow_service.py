@@ -103,7 +103,7 @@ def assign_recruiter_on_approval(db: Session, job: Jobs) -> Optional[Users]:
     if job.recuriterID:
         return db.query(Users).filter(Users.UserID == job.recuriterID).first()
 
-    recruiter = assign_to_recruiter_roundrobin(db)
+    recruiter = assign_to_recruiter_roundrobin(db, job.tenant_id)
     if not recruiter:
         logger.warning(f"[JobApproval] No available recruiters to assign to job {job.jobID}")
         return None

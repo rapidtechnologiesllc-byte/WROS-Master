@@ -28,6 +28,7 @@ from app.services.org_hierarchy_validator import (
     HIERARCHY_LEVELS,
     SPECIALIZATIONS,
     OrgHierarchyValidator,
+    function_of_department_name,
 )
 from app.models.org_structure import OrgPosition, OrgNode, Department
 from app.models.business_unit import BusinessUnit
@@ -189,6 +190,7 @@ def list_departments(
         dept_dict = DepartmentResponse.from_orm(dept).dict()
         dept_dict['tenant_name'] = tenant_name
         dept_dict['business_unit_name'] = dept.business_unit.name if dept.business_unit else None
+        dept_dict['function'] = function_of_department_name(dept.name)
         result.append(DepartmentResponse(**dept_dict))
 
     return result
@@ -292,22 +294,15 @@ def delete_org_node_endpoint(
     current_user = Depends(get_current_internal_user),
     db: Session = Depends(get_db),
 ):
-    from app.models.employee import Employee
-
     tenant_id = current_user.tenant_id
     node = db.query(OrgNode).filter(OrgNode.id == org_node_id, OrgNode.tenant_id == tenant_id).first()
     if not node:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Org node not found")
 
-    if db.query(OrgNode).filter(OrgNode.parent_id == org_node_id).count():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Reassign this node's direct reports before deleting it")
-    if db.query(Users).filter(Users.org_node_id == org_node_id).count():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A user is placed on this node - reassign them before deleting it")
-    if db.query(Employee).filter(Employee.org_node_id == org_node_id).count():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="An employee is placed on this node - reassign them before deleting it")
-    if db.query(Department).filter(Department.hiring_manager_id == org_node_id).count():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This node is a department's hiring manager - change that first")
+    # Direct reports, people seated here, partner/BU assignments, department hiring manager ...
+    from app.core.references import ensure_deletable
 
+    ensure_deletable(db, node, f"Seat '{node.name}'")
     db.delete(node)
     db.commit()
     return {"status": "deleted", "id": org_node_id}
@@ -423,11 +418,9 @@ def delete_department_endpoint(
     dept = db.query(Department).filter(Department.id == department_id, Department.tenant_id == tenant_id).first()
     if not dept:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found")
-    if db.query(OrgNode).filter(OrgNode.department_id == department_id).count():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Org nodes belong to this department - move them first")
-    if db.query(Users).filter(Users.department_id == department_id).count():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Users belong to this department - move them first")
+    from app.core.references import ensure_deletable
 
+    ensure_deletable(db, dept, f"Department '{dept.name}'")  # seats, users, tasks routed to it ...
     db.delete(dept)
     db.commit()
     return {"status": "deleted", "id": department_id}
@@ -460,7 +453,9 @@ def _role_dict(db: Session, role) -> dict:
 
     return {"id": role.id, "name": role.name, "hierarchy_level": role.hierarchy_level,
             "level_name": HIERARCHY_LEVELS.get(role.hierarchy_level), "designation": role.designation,
-            "description": role.description, "active": role.active, "users": holders_count(db, role)}
+            "description": role.description, "active": role.active, "users": holders_count(db, role),
+            # the role's permission set, edited in the Role Templates editor
+            "role_template_id": role.role_template_id}
 
 
 def _audit_role(action: str, role, user) -> None:
@@ -486,7 +481,7 @@ def list_org_roles(include_inactive: bool = False, current_user=Depends(get_curr
 def create_org_role(request: OrgRoleRequest, current_user=Depends(get_current_internal_user),
                     db: Session = Depends(get_db)) -> dict:
     from app.models.org_structure import OrgRole
-    from app.services.org_roles_service import validate_role
+    from app.services.org_roles_service import ensure_permission_set, validate_role
 
     designation = request.designation or None
     try:
@@ -497,6 +492,8 @@ def create_org_role(request: OrgRoleRequest, current_user=Depends(get_current_in
     role = OrgRole(tenant_id=current_user.tenant_id, name=name, hierarchy_level=request.hierarchy_level,
                    designation=designation, description=request.description)
     db.add(role)
+    db.flush()
+    ensure_permission_set(db, role)
     db.commit()
     db.refresh(role)
     _audit_role("created", role, current_user)
@@ -511,7 +508,8 @@ def update_org_role(role_id: int, request: OrgRoleUpdateRequest, current_user=De
     or be retired: reassign its people first."""
     from app.models.org_structure import OrgRole
     from app.models.user import Users
-    from app.services.org_roles_service import holders_count, validate_role
+    from app.services.org_roles_service import ensure_permission_set, holders_count, validate_role
+    from app.services.role_template_permission_service import invalidate_permissions
 
     role = db.query(OrgRole).filter(OrgRole.id == role_id, OrgRole.tenant_id == current_user.tenant_id).first()
     if role is None:
@@ -545,7 +543,9 @@ def update_org_role(role_id: int, request: OrgRoleUpdateRequest, current_user=De
         role.description = request.description or None
     if request.active is not None:
         role.active = request.active
+    ensure_permission_set(db, role)  # template name/level follow the role
     db.commit()
+    invalidate_permissions()
     db.refresh(role)
     _audit_role("updated", role, current_user)
     return _role_dict(db, role)

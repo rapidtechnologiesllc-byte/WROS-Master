@@ -7,15 +7,13 @@ Templates can be edited from the UI and include placeholders like {{employee_nam
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional, List
+from typing import Optional
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user, require_role_template_permission
-from app.core.permission_registry import Permissions
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
 from app.models.message_template import MessageTemplate, TEMPLATE_KEYS, TEMPLATE_CHANNELS
 from app.services.template_service import TemplateService
-from app.core.logging import logger
 
 router = APIRouter(prefix="/message-templates", tags=["message-templates"])
 
@@ -45,7 +43,7 @@ class TemplateResponse(BaseModel):
         from_attributes = True
 
 
-@router.get("/keys", response_model=dict, dependencies=[Depends(require_role_template_permission(*Permissions.USERS_VIEW))])
+@router.get("/keys", response_model=dict, dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_template_keys():
     """Get available template keys and channels."""
     return {
@@ -54,7 +52,7 @@ def get_template_keys():
     }
 
 
-@router.get("/{template_key}")
+@router.get("/{template_key}", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_template(
     template_key: str,
     channel: str = "EMAIL",
@@ -79,7 +77,7 @@ def get_template(
 
 
 
-@router.post("/{template_key}")
+@router.post("/{template_key}", dependencies=[Depends(require_resource_permission("admin-settings", "edit"))])
 def create_template_version(
     template_key: str,
     request: TemplateRequest,
@@ -107,7 +105,7 @@ def create_template_version(
     return TemplateResponse.from_orm(template)
 
 
-@router.post("/{template_id}/activate")
+@router.post("/{template_id}/activate", dependencies=[Depends(require_resource_permission("admin-settings", "edit"))])
 def activate_template(
     template_id: int,
     db: Session = Depends(get_db),
@@ -130,7 +128,7 @@ def activate_template(
     return {"status": "success", "message": "Template activated"}
 
 
-@router.get("/{template_id}/preview")
+@router.get("/{template_id}/preview", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def preview_template(
     template_id: int,
     candidate_id: str,
@@ -169,7 +167,7 @@ def preview_template(
     }
 
 
-@router.get("")
+@router.get("", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def list_templates(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),

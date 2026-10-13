@@ -76,7 +76,7 @@ export default function EmployeeConversionScreen() {
 
       // Roles = enabled role templates (Users & Access Control > Roles)
       const templates = await listRoleTemplates();
-      setRoles(templates.filter((t) => t.enabled !== false));
+      setRoles(templates.filter((t) => t.enabled !== false && !t.owner_role)); // role sets come with the role
 
       // The Job Title list is readable with user access; without it the title is matched
       // from the position and placement goes to the BU head
@@ -159,7 +159,7 @@ export default function EmployeeConversionScreen() {
       return false;
     }
     if (formData.role_ids.length === 0) {
-      setActionError("Please select a role");
+      setActionError("Please select their function access (add-on)");
       return false;
     }
     if (!formData.position.trim()) {
@@ -391,14 +391,14 @@ export default function EmployeeConversionScreen() {
                 />
               )}
 
-              {/* One role template per user (Users.role_template_id) */}
+              {/* Function add-on (Users.role_template_id); the role's own permissions come with the Org role */}
               <Select
-                label="Access (role template)"
+                label="Function access (add-on)"
                 value={formData.role_ids[0] != null ? String(formData.role_ids[0]) : ""}
                 onChange={(value) => handleRoleSelect(value)}
                 disabled={submitting}
                 options={[
-                  { value: "", label: roles.length ? "Select a role" : "No roles available" },
+                  { value: "", label: roles.length ? "Select function access" : "No add-ons available" },
                   ...roles.map((role) => ({
                     value: String(role.id),
                     label: role.display_name || role.name,
