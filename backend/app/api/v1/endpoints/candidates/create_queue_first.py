@@ -213,7 +213,7 @@ async def create_candidate(
             "skill_records": [r.model_dump(mode="json") for r in request.skill_records or []],
             "certification_records": [r.model_dump(mode="json") for r in request.certification_records or []],
             "created_by_user_id": getattr(current_user, 'UserID', None),
-            "tenant_id": getattr(current_user, 'tenant_id', 1),
+            "tenant_id": (current_user.tenant_id or (_ for _ in ()).throw(ValueError("Missing tenant_id"))),
         }
 
         enqueue_result = MessageQueueService.enqueue(

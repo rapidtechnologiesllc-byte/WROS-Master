@@ -557,7 +557,9 @@ def _leader_requirement(min_level: int) -> str:
 
 
 def _bu_tenant(user: Users) -> int:
-    return user.tenant_id if getattr(user, "tenant_id", None) else 1
+    if not getattr(user, "tenant_id", None):
+        raise HTTPException(status_code=500, detail="User config error: missing tenant_id")
+    return user.tenant_id
 
 
 def _leader(db: Session, tenant_id: int, user_id: str, min_level: int, label: str) -> Users:
@@ -679,7 +681,9 @@ def create_business_unit_rbac(
         raise HTTPException(status_code=400, detail="Business Unit name is required")
 
     # Determine tenant_id (default to 1 if None)
-    tenant_id = current_user.tenant_id if hasattr(current_user, 'tenant_id') and current_user.tenant_id else 1
+    if not getattr(current_user, 'tenant_id', None):
+        raise HTTPException(status_code=500, detail="User config error: missing tenant_id")
+    tenant_id = current_user.tenant_id
 
     new_bu = BusinessUnit(
         name=req.name,
@@ -713,7 +717,7 @@ def update_business_unit_rbac(
     """Update a business unit. Accessible from RBAC endpoints (matches create_business_unit_rbac's field set - region/continent are accepted but BusinessUnit has no such columns, same as create)."""
     bu = db.query(BusinessUnit).filter(
         BusinessUnit.id == bu_id,
-        BusinessUnit.tenant_id == (current_user.tenant_id if hasattr(current_user, 'tenant_id') and current_user.tenant_id else 1),
+        BusinessUnit.tenant_id == (current_user.tenant_id if current_user.tenant_id else (lambda: (_ for _ in ()).throw(Exception("Missing tenant_id")))()),
     ).first()
     if not bu:
         raise HTTPException(status_code=404, detail="Business unit not found")
@@ -745,7 +749,7 @@ def delete_business_unit_rbac(
     """Delete a business unit. Accessible from RBAC endpoints."""
     bu = db.query(BusinessUnit).filter(
         BusinessUnit.id == bu_id,
-        BusinessUnit.tenant_id == (current_user.tenant_id if hasattr(current_user, 'tenant_id') and current_user.tenant_id else 1),
+        BusinessUnit.tenant_id == (current_user.tenant_id if current_user.tenant_id else (lambda: (_ for _ in ()).throw(Exception("Missing tenant_id")))()),
     ).first()
     if not bu:
         raise HTTPException(status_code=404, detail="Business unit not found")

@@ -64,7 +64,9 @@ def get_partner_dashboard(
     if partner_id is None:
         return {"status": "needs_partner", "data": None, "partners": partner_choices(db)}
 
-    tenant_id = current_user.tenant_id or 1
+    if not current_user.tenant_id:
+        raise HTTPException(status_code=500, detail='User config error: missing tenant_id')
+    tenant_id = current_user.tenant_id
     bus = db.query(BusinessUnit).filter(BusinessUnit.partner_user_id == partner_id,
                                         BusinessUnit.tenant_id == tenant_id).order_by(BusinessUnit.name).all()
     partner = db.query(Users).filter(Users.UserID == partner_id).first()
@@ -113,3 +115,4 @@ def get_partner_dashboard(
         "by_company": by_company,
         "data": operational,
     }
+

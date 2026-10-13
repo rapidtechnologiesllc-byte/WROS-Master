@@ -52,7 +52,11 @@ async def get_me(
     from app.core import authority
     from app.services.role_template_permission_service import RoleTemplatePermissionService
 
-    tenant_id = current_user.tenant_id or 1
+    if not current_user.tenant_id:
+        logger.error(f"User {current_user.UserID} missing tenant_id (critical auth issue)")
+        raise HTTPException(status_code=500, detail="User configuration error: missing tenant_id")
+
+    tenant_id = current_user.tenant_id
     role = db.query(RoleTemplate).filter(RoleTemplate.id == current_user.role_template_id).first() \
         if current_user.role_template_id else None
     permissions = RoleTemplatePermissionService.get_user_permissions(db, current_user.UserID, tenant_id) or {}

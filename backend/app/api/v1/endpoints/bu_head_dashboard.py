@@ -20,7 +20,9 @@ def _bu_targets_by_company(db: Session, user: Users, bu_id: int, companies) -> l
     from app.services.fiscal_year_service import current_fy
     from app.services.goal_tree_service import build_company_tree
 
-    tenant_id = user.tenant_id or 1
+    if not user.tenant_id:
+        raise HTTPException(status_code=500, detail="User configuration error: missing tenant_id")
+    tenant_id = user.tenant_id
     tree, _ = build_company_tree(db, tenant_id, current_fy(db, tenant_id), bu_ids={bu_id})
     return [
         {"company_id": c["entity_id"], "company": c["name"], "metrics": bu["metrics"]}
