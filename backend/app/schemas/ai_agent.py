@@ -1,13 +1,11 @@
 """
 Pydantic Schemas — AI Conversation Agent
-import logging
 """
 
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
-from app.core.logging import logger
 
 # ---------------------------------------------------------------------------
 # Assign AI Agent

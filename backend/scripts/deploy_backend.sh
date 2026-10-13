@@ -26,6 +26,8 @@ WORKER_PATTERN="[/]home/HRMS/WROS-Master/backend/start_worker.py"
 WORKER_CRON="* * * * * cd $REPO/backend && /usr/bin/flock -n /tmp/wros-queue-worker.lock $VENV/bin/python $REPO/backend/start_worker.py >> /home/HRMS/wros-queue-worker.log 2>&1"
 # Outlook mail capture: one pass every 15 minutes (only users who connected Outlook)
 MAIL_SYNC_CRON="*/15 * * * * cd $REPO/backend && /usr/bin/flock -n /tmp/wros-mail-sync.lock $VENV/bin/python -m app.workers.mail_sync_worker >> /home/HRMS/wros-mail-sync.log 2>&1"
+# Background jobs (app/core/scheduled_jobs.py); only names in SCHEDULED_JOBS_ENABLED run
+JOBS_CRON="*/5 * * * * cd $REPO/backend && /usr/bin/flock -n /tmp/wros-scheduled-jobs.lock $VENV/bin/python -m app.workers.scheduled_jobs_worker >> /home/HRMS/wros-scheduled-jobs.log 2>&1"
 ME="$(id -un)"
 
 cd "$REPO"
@@ -87,6 +89,6 @@ echo "[deploy] backend healthy"
 
 # Queue worker: ensure the watchdog exists, then stop the old worker (SIGTERM
 # lets it finish its cycle); cron starts the new code within a minute.
-( crontab -l 2>/dev/null | grep -v "wros-queue-worker.lock" | grep -v "wros-mail-sync.lock" || true; echo "$WORKER_CRON"; echo "$MAIL_SYNC_CRON" ) | crontab -
+( crontab -l 2>/dev/null | grep -v "wros-queue-worker.lock" | grep -v "wros-mail-sync.lock" | grep -v "wros-scheduled-jobs.lock" || true; echo "$WORKER_CRON"; echo "$MAIL_SYNC_CRON"; echo "$JOBS_CRON" ) | crontab -
 pkill -u "$ME" -f "$WORKER_PATTERN" || true
 echo "[deploy] queue worker restarting via cron"

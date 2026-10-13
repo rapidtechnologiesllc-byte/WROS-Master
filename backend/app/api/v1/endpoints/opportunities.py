@@ -1,16 +1,11 @@
 """
 S-236/HRMS-0207 (Create Opportunity), S-237/HRMS-0208 (Pipeline Kanban),
 S-239/HRMS-0210 (Role Demand from Opportunity), S-240/HRMS-0211
-import logging
 (Revenue Potential rollup).
 
-Backend (app.services.opportunity_service) was already real and tested
--- this is the first API surface for any of it. Gated behind
-revenue.view (Avinash's 2026-08-05 EPIC-02/03 access spec: CEO/Finance/
-HR Manager org-wide, Partner/BU Head scoped to their own BU) via
-app.core.revenue_visibility_scope, reusing the exact same BU-scoping
-mechanism the other machine's session already built rather than a
-second, divergent one.
+Each route checks the opportunities permission it needs (view / create / edit; the
+Kanban checks pipeline-management) -- not the P&L permission (revenue), which sales
+staff do not hold. Visibility is by business unit (app.core.data_scope).
 
 Stage list stays the hardcoded OPPORTUNITY_STAGES default (per
 app.models.opportunity's own docstring: HRMS-0115 config-driven stages
@@ -23,12 +18,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.services.demand_service import DemandValidationError
 from app.core.dependencies import require_resource_permission
-from app.core.revenue_visibility_scope import get_revenue_scoped_client_ids
 from app.models.client import Client
-from app.models.demand import Demand
 from app.models.employee import Employee
-from app.models.opportunity import OPPORTUNITY_STAGES, Opportunity
+from app.models.opportunity import OPPORTUNITY_STAGES, Opportunity, OpportunityProfile
 from app.models.user import Users
 from app.schemas.opportunity import (
     OpportunityCreateRequest, OpportunityItem, OpportunityListResponse,
@@ -42,6 +36,7 @@ from app.services.opportunity_service import (
     transition_stage,
 )
 
+from app.core.data_scope import client_bu_id, client_filter, ensure_visible
 router = APIRouter(prefix="/opportunities", tags=["opportunities"])
 
 def _to_item(db: Session, opportunity: Opportunity) -> OpportunityItem:
@@ -54,13 +49,18 @@ def _to_item(db: Session, opportunity: Opportunity) -> OpportunityItem:
         db.query(Users).filter(Users.UserID == opportunity.client_owner_id).first()
         if opportunity.client_owner_id else None
     )
+    profile = db.query(OpportunityProfile).filter(OpportunityProfile.opportunity_id == opportunity.id).first()
     return OpportunityItem(
         id=opportunity.id, client_id=opportunity.client_id,
         client_name=client.company_name if client else None,
         owner_employee_id=opportunity.owner_employee_id,
         owner_name=(f"{owner.first_name} {owner.last_name}".strip() if owner else None),
         client_owner_id=opportunity.client_owner_id,
-        client_owner_name=(f"{client_owner.first_name} {client_owner.last_name}".strip() if client_owner else None),
+        client_owner_name=(client_owner.UserName if client_owner else None),  # users have one name field
+        service=profile.service if profile else None,
+        guidewire_module=profile.guidewire_module if profile else None,
+        client_type=profile.client_type if profile else None,
+        pricing_model=profile.pricing_model if profile else None,
         stage=opportunity.stage, revenue_value_usd_cents=opportunity.revenue_value_usd_cents,
         revenue_value_native=opportunity.revenue_value_native, currency=opportunity.currency,
         probability_pct=opportunity.probability_pct,
@@ -69,24 +69,48 @@ def _to_item(db: Session, opportunity: Opportunity) -> OpportunityItem:
         created_at=opportunity.created_at, updated_at=opportunity.updated_at,
     )
 
+def _sellers(db: Session, tenant_id, action: str):
+    """Users of the tenant whose role template may work opportunities (`action`): who may
+    own an opportunity, by permission -- never by title or role name."""
+    from app.models.role_template import Resource, RoleTemplatePermission
+
+    flag = getattr(RoleTemplatePermission, f"can_{action}")
+    allowed = db.query(RoleTemplatePermission.role_template_id).join(
+        Resource, Resource.id == RoleTemplatePermission.resource_id).filter(
+        Resource.name == "opportunities", flag.is_(True))
+    return db.query(Users).filter(Users.tenant_id == tenant_id, Users.terminated_at.is_(None),
+                                  Users.role_template_id.in_(allowed))
+
+
 def _scoped_query(db: Session, current_user: Users):
-    query = db.query(Opportunity)
-    client_ids = get_revenue_scoped_client_ids(db, current_user)
-    if client_ids is not None:
-        query = query.filter(Opportunity.client_id.in_(client_ids))
-    return query
+    """Opportunities of the caller's tenant whose client is in a business unit they may see
+    (an opportunity belongs to its client's BU -- app.core.data_scope)."""
+    return db.query(Opportunity).filter(Opportunity.tenant_id == current_user.tenant_id,
+                                        client_filter(db, current_user, Opportunity.client_id))
+
+
+def _get_opportunity_or_404(db: Session, opportunity_id: str, current_user: Users) -> Opportunity:
+    opportunity = _scoped_query(db, current_user).filter(Opportunity.id == opportunity_id).first()
+    if not opportunity:
+        raise HTTPException(status_code=404, detail=f"Opportunity {opportunity_id!r} not found.")
+    return opportunity
 
 @router.post(
     "",
     response_model=OpportunityItem,
-    status_code=201,
-    dependencies=[Depends(require_resource_permission("opportunities", "create"))]
+    status_code=201
 )
 def create_opportunity_endpoint(
     body: OpportunityCreateRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("opportunities", "create")),
 ):
+    ensure_visible(db, current_user, client_bu_id(db, body.client_id), "Client")
+    # The client owner is a person who may sell (same tenant, opportunities.create);
+    # by default whoever records the opportunity
+    client_owner_id = body.client_owner_id or current_user.UserID
+    if not _sellers(db, current_user.tenant_id, "create").filter(Users.UserID == client_owner_id).first():
+        raise HTTPException(status_code=422, detail="Client Owner must be someone who can create opportunities")
     try:
         opportunity = create_opportunity(
             db, tenant_id=current_user.tenant_id, client_id=body.client_id,
@@ -94,7 +118,10 @@ def create_opportunity_endpoint(
             currency=body.currency,
             revenue_value_native=body.revenue_value_native,
             owner_employee_id=body.owner_employee_id,
+            client_owner_id=client_owner_id,
             expected_close_date=body.expected_close_date, stage=body.stage,
+            profile={"service": body.service, "guidewire_module": body.guidewire_module,
+                     "client_type": body.client_type, "pricing_model": body.pricing_model},
         )
         db.commit()
         db.refresh(opportunity)
@@ -105,14 +132,13 @@ def create_opportunity_endpoint(
 
 @router.get(
     "",
-    response_model=OpportunityListResponse,
-    dependencies=[Depends(require_resource_permission("opportunities", "view"))]
+    response_model=OpportunityListResponse
 )
 def list_opportunities(
     stage: Optional[str] = None,
     client_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("opportunities", "view")),
 ):
     query = _scoped_query(db, current_user)
     if stage:
@@ -123,20 +149,14 @@ def list_opportunities(
     return OpportunityListResponse(opportunities=[_to_item(db, o) for o in opportunities])
 
 @router.get(
-    "/eligible-owners",
-    dependencies=[Depends(require_resource_permission("opportunities", "view"))]
+    "/eligible-owners"
 )
 def list_eligible_owners(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("opportunities", "view")),
 ):
-    """Opportunity Owner options -- 2026-08-12, Avinash: "anyone with
-    access to opportunity should be in the dropdown," not the full
-    employee roster. Scoped to employees with a linked WROS user
-    account whose role actually carries revenue.view -- the exact
-    permission gating this whole Opportunity Pipeline screen."""
-    # Permissions live on role templates (the legacy Role/Permission tables
-    # this used were never imported -- the endpoint always crashed)
+    """Opportunity Owner options (employees): "anyone with access to opportunity should be
+    in the dropdown" (2026-08-12) -- employees whose login may view opportunities."""
     from app.models.role_template import Resource, RoleTemplatePermission
 
     rows = (
@@ -144,20 +164,43 @@ def list_eligible_owners(
         .join(Users, Users.UserID == Employee.wros_user_id)
         .join(RoleTemplatePermission, RoleTemplatePermission.role_template_id == Users.role_template_id)
         .join(Resource, Resource.id == RoleTemplatePermission.resource_id)
-        .filter(Resource.name == "revenue", RoleTemplatePermission.can_view.is_(True))
+        .filter(Resource.name == "opportunities", RoleTemplatePermission.can_view.is_(True),
+                Users.tenant_id == current_user.tenant_id)
         .distinct()
         .all()
     )
-    return {"employees": [{"id": e.id, "first_name": e.first_name, "last_name": e.last_name} for e in rows]}
+    return {"employees": [{"id": e.id, "first_name": e.first_name, "last_name": e.last_name,
+                           "is_current_user": e.wros_user_id == current_user.UserID} for e in rows]}
+
+
+@router.get("/stages")
+def list_stage_rules(current_user: Users = Depends(require_resource_permission("opportunities", "view"))):
+    """The stage list and where each stage may move next: the screen's Move menu and
+    drag-and-drop read this, so they can never offer a move the server refuses."""
+    from app.models.opportunity import STAGE_TRANSITIONS, WON_STAGES
+
+    return {"stages": list(OPPORTUNITY_STAGES), "won": list(WON_STAGES),
+            "transitions": {stage: sorted(nxt) for stage, nxt in STAGE_TRANSITIONS.items()}}
+
+
+# Declared before /{opportunity_id}, which would otherwise swallow this path (it did: 404)
+@router.get("/client-owners")
+def list_client_owners(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_resource_permission("opportunities", "view")),
+):
+    """Client Owner options: users who may create opportunities."""
+    users = _sellers(db, current_user.tenant_id, "create").order_by(Users.UserName).all()
+    return {"users": [{"id": u.UserID, "name": u.UserName or u.UserEmail,
+                       "is_current_user": u.UserID == current_user.UserID} for u in users]}
 
 @router.get(
     "/pipeline",
-    response_model=PipelineResponse,
-    dependencies=[Depends(require_resource_permission("pipeline-management", "view"))]
+    response_model=PipelineResponse
 )
 def get_pipeline(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("pipeline-management", "view")),
 ):
     """S-237 Kanban -- columns per configured stage, revenue + weighted
     forecast totals per column, respecting the same BU scope as the
@@ -176,33 +219,27 @@ def get_pipeline(
 
 @router.get(
     "/{opportunity_id}",
-    response_model=OpportunityItem,
-    dependencies=[Depends(require_resource_permission("opportunities", "view"))]
+    response_model=OpportunityItem
 )
 def get_opportunity(
     opportunity_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("opportunities", "view")),
 ):
-    opportunity = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
-    if not opportunity:
-        raise HTTPException(status_code=404, detail=f"Opportunity {opportunity_id!r} not found.")
+    opportunity = _get_opportunity_or_404(db, opportunity_id, current_user)
     return _to_item(db, opportunity)
 
 @router.post(
     "/{opportunity_id}/transition",
-    response_model=OpportunityStageTransitionResponse,
-    dependencies=[Depends(require_resource_permission("opportunities", "create"))]
+    response_model=OpportunityStageTransitionResponse
 )
 def transition_opportunity_stage(
     opportunity_id: str,
     body: OpportunityStageTransitionRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("opportunities", "edit")),
 ):
-    opportunity = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
-    if not opportunity:
-        raise HTTPException(status_code=404, detail=f"Opportunity {opportunity_id!r} not found.")
+    opportunity = _get_opportunity_or_404(db, opportunity_id, current_user)
     try:
         result = transition_stage(
             db, opportunity, body.new_stage,
@@ -222,34 +259,28 @@ def transition_opportunity_stage(
     return OpportunityStageTransitionResponse(opportunity=_to_item(db, opportunity), project_id=project_id)
 
 @router.get(
-    "/{opportunity_id}/revenue-rollup",
-    dependencies=[Depends(require_resource_permission("opportunities", "view"))]
+    "/{opportunity_id}/revenue-rollup"
 )
 def get_revenue_rollup(
     opportunity_id: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("opportunities", "view")),
 ):
-    opportunity = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
-    if not opportunity:
-        raise HTTPException(status_code=404, detail=f"Opportunity {opportunity_id!r} not found.")
+    opportunity = _get_opportunity_or_404(db, opportunity_id, current_user)
     return {"opportunity_id": opportunity_id, "role_demand_revenue_usd_cents": get_opportunity_revenue_rollup(db, opportunity)}
 
 @router.post(
     "/{opportunity_id}/role-demand",
     response_model=RoleDemandFromOpportunityResponse,
-    status_code=201,
-    dependencies=[Depends(require_resource_permission("opportunities", "create"))]
+    status_code=201
 )
 def create_role_demand(
     opportunity_id: str,
     body: RoleDemandFromOpportunityRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("opportunities", "create")),
 ):
-    opportunity = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
-    if not opportunity:
-        raise HTTPException(status_code=404, detail=f"Opportunity {opportunity_id!r} not found.")
+    opportunity = _get_opportunity_or_404(db, opportunity_id, current_user)
     try:
         demand = create_role_demand_from_opportunity(
             db, opportunity, tenant_id=current_user.tenant_id,
@@ -260,7 +291,11 @@ def create_role_demand(
         )
         db.commit()
         db.refresh(demand)
-    except ValueError as exc:
+    except (ValueError, DemandValidationError) as exc:  # e.g. an OPEN demand for this role already exists
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc))
+    # Sold work is hired for at once: Flash recruiter + sourcing for the open demand
+    from app.services.recruiting_service import start_recruiting
+
+    start_recruiting(demand, reason="role demand for a won opportunity")
     return demand

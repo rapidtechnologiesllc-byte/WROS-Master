@@ -3,14 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { Briefcase, AlertCircle, CheckCircle, X } from "lucide-react";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
 import {
-  generateJobDescription,
   createJob,
   generateJobWithAgent,
   generateJobComplete,
   updateJob,
   getJobById,
 } from "../services/api/jobs";
-import { Button, Card, Input, Select, TextArea, LocationCascadeSelect, formatLocation, parseLocation } from "../components/ui";
+import { Button, Card, Input, Select, TextArea, LocationCascadeSelect, formatLocation } from "../components/ui";
 import RateField from "../components/ui/RateField";
 import { searchUsers, getHrMe } from "../services/api/users";
 import { listClients, getBusinessUnitAssignments } from "../services/api/clients";
@@ -18,7 +17,6 @@ import ScreenErrorDisplay from "../components/ScreenErrorDisplay";
 import {
   listBusinessUnits,
 } from "../services/api/rbac";
-import { createTask } from "../services/api/tasks";
 import { Steps } from "antd";
 import { ROUTES } from "../utils/Routes";
 
@@ -35,7 +33,6 @@ export default function JobCreate({
   const [companyClient, setCompanyClient] = useState("");
   const [companyType, setCompanyType] = useState("");
   const [contactPerson, setContactPerson] = useState("");
-  const [dept, setDept] = useState("Digital");
   const [location, setLocation] = useState("Remote");
   const [experienceLevel, setExperienceLevel] = useState("");
   const [payAmount, setPayAmount] = useState("");
@@ -47,32 +44,22 @@ export default function JobCreate({
   const [jobStatus, setJobStatus] = useState("Draft");
   const [noOfPositions, setNoOfPositions] = useState(1);
   const [hmUserId, setHmUserId] = useState("");
-  const [rmUserId, setRmUserId] = useState("");
-  const [users, setUsers] = useState([]);
-  const [usersBusy, setUsersBusy] = useState(false);
   const [hmOneLiner, setHmOneLiner] = useState("");
   const internalJdTemplate =
     "Overview:\n\nRoles & Responsibilities:\n- \n\nQualifications:\n- ";
   const [internalJD, setInternalJD] = useState(internalJdTemplate);
-  const [externalJD, setExternalJD] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [businessUnitList, setBusinessUnitList] = useState([]);
   const [selectedBusinessUnit, setSelectedBusinessUnit] = useState("");
   const [clientList, setClientList] = useState([]);
-  const [hrUsers, setHrUsers] = useState([]);
+  // The BU head who approves this job (per company the client contracts with)
   const [resolvedBuHead, setResolvedBuHead] = useState(null);
-  const [resolvedHrManager, setResolvedHrManager] = useState(null);
   const [hiringManagers, setHiringManagers] = useState([]);
   const [current, setCurrent] = useState(0);
   const [isInternalRole, setIsInternalRole] = useState(null); // null = auto-detect, true = internal, false = external
   const canCreateJobDirectly = hasPermission("jobs", "create");
 
-  // Ask Flash Modal state
-  const [showAskFlash, setShowAskFlash] = useState(false);
-  const [flashQuestions, setFlashQuestions] = useState([]);
-  const [flashAnswers, setFlashAnswers] = useState({});
-  const [isAnswering, setIsAnswering] = useState(false);
   const [draftJobId, setDraftJobId] = useState(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState(""); // "saving", "saved", or ""
   const [locationValue, setLocationValue] = useState({
@@ -125,8 +112,8 @@ export default function JobCreate({
           const draftJob = await getJobById(draftJobId);
           if (draftJob) {
             // Restore all fields from draft job
-            if (draftJob.job_title && !title) setTitle(draftJob.job_title);
-            if (draftJob.job_description && !internalJD) setInternalJD(draftJob.job_description);
+            if (draftJob.job_title) setTitle((t) => t || draftJob.job_title);
+            if (draftJob.job_description) setInternalJD((jd) => jd || draftJob.job_description);
             if (draftJob.no_of_positions) setNoOfPositions(draftJob.no_of_positions);
             if (draftJob.job_location) setLocation(draftJob.job_location);
             if (draftJob.job_experience) setExperienceLevel(draftJob.job_experience);
@@ -180,7 +167,6 @@ export default function JobCreate({
           no_of_positions: Number(noOfPositions || 1),
           start_date: startDate || new Date().toISOString().split('T')[0],
           hiring_manager_id: hmUserId || null,
-          reporting_manager_id: rmUserId || null,
           salary_range: payAmount ? `${payAmount} ${payRateType}` : null,
           client_id: clientList?.find((c) => c?.company_name === companyClient)?.id || "",
           billing_rate_usd_cents: billRate ? Math.round(parseFloat(billRate) * 100) : 0,
@@ -197,78 +183,7 @@ export default function JobCreate({
     }, 2000); // Auto-save 2 seconds after last change
 
     return () => clearTimeout(saveTimer);
-  }, [title, internalJD, skills, experienceLevel, locationValue, isJobLocationRemote, companyClient, payAmount, payRateType, billRate, clientList, startDate, hmUserId, rmUserId, noOfPositions, draftJobId, mode, isReadOnly]);
-
-  useEffect(() => {
-    let isMounted = true;
-    const load = async () => {
-      setUsersBusy(true);
-
-      try {
-        const [hrManagers, reportingManagers] = await Promise.all([
-          searchUsers({
-            user_role: "HR",
-          }),
-          searchUsers({
-            permission_role: "Reporting Manager",
-          }),
-        ]);
-        if (!isMounted) return;
-
-        const mergedUsers = [
-          ...(hrManagers?.users ?? []),
-          ...(reportingManagers?.users ?? []),
-        ];
-        const uniqueUsers = Array.from(
-          new Map(mergedUsers.map((user) => [user?.user_id, user])).values(),
-        );
-        setUsers(uniqueUsers);
-      } catch (error) {
-        console.error("Failed to load users:", error);
-        if (!isMounted) return;
-        setUsers([]);
-      } finally {
-        if (!isMounted) return;
-        setUsersBusy(false);
-      }
-    };
-    load();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    const loadHrUsers = async () => {
-      if (!selectedBusinessUnit) {
-        setHrUsers([]);
-        return;
-      }
-
-      const businessUnitName =
-        businessUnitList?.find((bu) => bu?.id === Number(selectedBusinessUnit))
-          ?.name ?? "";
-      if (!businessUnitName) {
-        setHrUsers([]);
-        return;
-      }
-      try {
-        const response = await searchUsers({
-          user_role: "HR",
-          business_unit: businessUnitName,
-        });
-
-        setHrUsers(Array.isArray(response?.users) ? response.users : []);
-      } catch (error) {
-        console.error("Failed to load HR users:", error);
-        setHrUsers([]);
-      }
-    };
-    loadHrUsers();
-  }, [
-    selectedBusinessUnit,
-    businessUnitList,
-  ]);
+  }, [title, internalJD, skills, selectedSkills, experienceLevel, locationValue, isJobLocationRemote, companyClient, companyType, contactPerson, isInternalRole, payAmount, payRateType, billRate, clientList, startDate, hmUserId, noOfPositions, draftJobId, mode, isReadOnly]);
 
   // Selecting a client auto-resolves its Business Unit -- one less
   // manual step, matching the agentic-first "fewer clicks" mandate.
@@ -308,29 +223,24 @@ export default function JobCreate({
         return;
       }
       try {
+        const clientId = clientList?.find((c) => c?.company_name === companyClient)?.id;
         const assignments = await getBusinessUnitAssignments(
-          selectedBusinessUnit
+          selectedBusinessUnit, clientId
         );
         setResolvedBuHead(assignments?.bu_head || null);
-        setResolvedHrManager(assignments?.hr_manager || null);
-        if (assignments?.hr_manager?.user_id && !contactPerson) {
-          setContactPerson(assignments.hr_manager.user_id);
-        }
       } catch (error) {
         console.error("Failed to resolve BU assignments:", error);
         setResolvedBuHead(null);
-        setResolvedHrManager(null);
       }
     };
     resolveAssignments();
-  }, [selectedBusinessUnit, contactPerson]);
+  }, [selectedBusinessUnit, clientList, companyClient]);
 
   useEffect(() => {
     const loadHiringManagers = async () => {
       try {
-        const response = await searchUsers({
-          permission_role: "Hiring Manager",
-        });
+        // any internal user can be a job's hiring manager (an assignment, not authority)
+        const response = await searchUsers({ limit: 200 });
 
         setHiringManagers(Array.isArray(response?.users) ? response.users : []);
       } catch (error) {
@@ -348,7 +258,7 @@ export default function JobCreate({
       const next = { rateType: "$/Year", amount: "" };
       if (!value) return next;
       // Parse "150 $/Year" format
-      const match = String(value).trim().match(/^(\d+(?:\.\d+)?)\s*([\$₹]\/\w+)$/);
+      const match = String(value).trim().match(/^(\d+(?:\.\d+)?)\s*([$₹]\/\w+)$/);
       if (match) {
         next.amount = match[1];
         next.rateType = match[2];
@@ -362,7 +272,6 @@ export default function JobCreate({
     setCompanyClient(initialJob.company_name || "");
     setCompanyType(initialJob.company_type || "");
     setContactPerson(initialJob.contact_person || "");
-    setDept(initialJob.dept || "");
     setLocation(initialJob.job_location || "");
     setExperienceLevel(initialJob.job_experience || "");
     setPayAmount(parsedPay.amount);
@@ -481,91 +390,6 @@ export default function JobCreate({
     return lower;
   };
 
-  const generateInternalOverviewAndRolesFromApi = async () => {
-    const oneLiner = hmOneLiner.trim();
-    if (!oneLiner) {
-      setScreenError("Add a hiring manager 1-liner to generate roles.");
-      return;
-    }
-    setIsGenerating(true);
-    try {
-      // Step 1: Call agent to get clarifying questions
-      const { questions, job_title, estimated_experience } = await generateJobWithAgent(oneLiner);
-
-      // Store questions and show modal
-      setFlashQuestions(questions || []);
-      setFlashAnswers({}); // Reset answers
-      setShowAskFlash(true);
-
-      setActionSuccess("Answer the questions to generate the complete job details.");
-    } catch (err) {
-      setScreenError(err?.message || "Failed to generate questions.");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleAnswerSubmit = async () => {
-    // Validate all required questions are answered
-    const missingAnswers = flashQuestions
-      .filter(q => q.required)
-      .filter(q => !flashAnswers[q.field])
-      .map(q => q.question);
-
-    if (missingAnswers.length > 0) {
-      setScreenError(`Please answer: ${missingAnswers.join(", ")}`);
-      return;
-    }
-
-    setIsAnswering(true);
-    try {
-      // Step 2: Call agent with answers to generate complete job
-      // Ensure all answer values are strings (backend expects dict[str, str])
-      const stringifiedAnswers = Object.fromEntries(
-        Object.entries(flashAnswers).map(([key, value]) => [key, String(value ?? "")])
-      );
-      const data = await generateJobComplete(hmOneLiner.trim(), stringifiedAnswers);
-
-      // Auto-populate all fields from agent response
-      if (data?.job_title) setTitle(data.job_title);
-      if (data?.position_type) setPositionType(data.position_type);
-      if (data?.pay_range) {
-        const parsedPay = parsePayRangeAnswer(data.pay_range);
-        if (parsedPay.amount) setPayAmount(parsedPay.amount);
-        if (parsedPay.rateType) setPayRateType(parsedPay.rateType);
-      }
-      if (data?.job_open_date) setStartDate(data.job_open_date);
-      if (data?.job_location) setLocation(data.job_location);
-      if (data?.role_type) {
-        setIsInternalRole(!/external/i.test(data.role_type));
-      }
-      if (data?.client_name) setCompanyClient(data.client_name);
-
-      if (data?.job_experience) {
-        const expMatch = String(data.job_experience).match(/(\d+)/);
-        if (expMatch) {
-          const years = Math.min(20, Math.max(1, Number(expMatch[1])));
-          setExperienceLevel(years);
-        }
-      }
-
-      if (data?.generated_job_description) {
-        setInternalJD(data.generated_job_description);
-      }
-
-      if (Array.isArray(data?.job_skills) && data.job_skills.length) {
-        setSkills(data.job_skills.join(", "));
-      }
-
-      setShowAskFlash(false);
-      setActionSuccess("Job details generated and auto-populated!");
-    } catch (err) {
-      setScreenError(err?.message || "Failed to generate complete job.");
-    } finally {
-      setIsAnswering(false);
-    }
-  };
-
   const handleCreateJob = async () => {
     setIsSaving(true);
     const required = [
@@ -620,7 +444,6 @@ export default function JobCreate({
         no_of_positions: Number(noOfPositions || 0),
         start_date: startDate,
         hiring_manager_id: hmUserId || null,
-        reporting_manager_id: rmUserId || null,
         salary_range: payRangeString,
         business_unit: selectedBusinessUnit ? Number(selectedBusinessUnit) : null,
         is_internal_role: isInternalRole, // true = internal (BU Head), false = external (Partner)
@@ -635,43 +458,8 @@ export default function JobCreate({
         await updateJob(jobId, payload);
       }
 
-      if (jobId) {
-        // Get the selected hiring manager's info
-        const hiringManager = hiringManagers?.find(hm => hm.user_id === hmUserId);
-
-        if (hiringManager?.user_id === hiringManager?.bu_head_id) {
-          // Hiring manager is also the BU Head - create task for recruiter to start work
-          if (rmUserId) {
-            try {
-              await createTask({
-                job_id: jobId,
-                assigned_to: rmUserId,
-                task_type: "job_recruit",
-                status: "active",
-                description: `Start candidate search for job "${title}"`,
-                priority: "high",
-              });
-            } catch (taskErr) {
-              console.error("Error creating recruiter task:", taskErr);
-            }
-          }
-        } else if (hiringManager?.bu_head_id) {
-          // Hiring manager is not BU Head - create approval task for BU Head
-          try {
-            await createTask({
-              job_id: jobId,
-              assigned_to: hiringManager.bu_head_id,
-              task_type: "job_approval",
-              status: "pending",
-              description: `Job approval required for "${title}" from ${hiringManager.user_name}`,
-              priority: "high",
-            });
-          } catch (taskErr) {
-            console.error("Error creating approval task:", taskErr);
-          }
-        }
-      }
-
+      // Approval routing (BU head of the client's company, or straight to recruiting) is
+      // done by the backend on create -- app.services.job_approval_workflow_service.
       setActionSuccess(`Created job ${title}`);
       navigate(ROUTES.JOBS);
     } catch (err) {
@@ -719,7 +507,7 @@ export default function JobCreate({
       // The job is created once, on submit.
 
       // Get questions from Flash
-      const { questions } = await generateJobWithAgent(oneLiner);
+      await generateJobWithAgent(oneLiner);
 
       // Provide default answers from form fields (Step 1 may not have all fields)
       const defaultAnswers = {
@@ -786,18 +574,6 @@ export default function JobCreate({
       console.error("Generation error:", err);
     } finally {
       setIsGenerating(false);
-    }
-  };
-
-  const next = () => {
-    if (current < 1) {
-      setCurrent(current + 1);
-    }
-  };
-
-  const prev = () => {
-    if (current > 0) {
-      setCurrent(current - 1);
     }
   };
 
@@ -943,6 +719,11 @@ export default function JobCreate({
                 onChange={(value) => setSelectedBusinessUnit(value)}
                 options={buOptions}
               />
+              {resolvedBuHead && (
+                <p className="text-xs text-gray-500 md:col-span-2 -mt-2">
+                  Approver (BU head): {resolvedBuHead.name}
+                </p>
+              )}
               <Select
                 label="Job Status *"
                 value={jobStatus}
@@ -1019,6 +800,8 @@ export default function JobCreate({
             </div>
           </fieldset>
         );
+      default:
+        return null;
     }
   };
 

@@ -1,25 +1,18 @@
-import logging
-from app.core.database import get_db
 """BU Head Dashboard Endpoints - Real data for business unit leaders."""
 
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from app.core.database import SessionLocal
+
+from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_resource_permission
 from app.core.visibility import resolve_dashboard_head_bu
-from app.services.bu_head_dashboard_service import BUHeadDashboardService
 from app.models.user import Users
+from app.services.bu_head_dashboard_service import BUHeadDashboardService
 
 router = APIRouter(prefix="/dashboards/bu-head", tags=["BU Head Dashboard"])
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 def _bu_targets_by_company(db: Session, user: Users, bu_id: int) -> list:
     """This BU's FY revenue / headcount / new-logo targets vs actuals in each company it operates in."""
@@ -27,10 +20,10 @@ def _bu_targets_by_company(db: Session, user: Users, bu_id: int) -> list:
     from app.services.goal_tree_service import build_company_tree
 
     tenant_id = user.tenant_id or 1
-    companies, _ = build_company_tree(db, tenant_id, current_fy(db, tenant_id), bu_ids={bu_id})
+    tree, _ = build_company_tree(db, tenant_id, current_fy(db, tenant_id), bu_ids={bu_id})
     return [
         {"company_id": c["entity_id"], "company": c["name"], "metrics": bu["metrics"]}
-        for c in companies for p in c["children"] for bu in p["children"]
+        for c in tree for p in c["children"] for bu in p["children"]
     ]
 
 

@@ -1,7 +1,6 @@
 """
 Candidate History API
 =====================
-import logging
 Provides a chronological audit trail / timeline for every candidate.
 
 Routes:

@@ -3,7 +3,6 @@ Executive Signal & Culture Agent -- the redesigned "Agent Avinash"
 (2026-08-04 session, [[wros_ceo_agent_backlog]]). Advisory-only by
 design, same posture as every other agent in this codebase: watches,
 drafts, surfaces -- never autonomously acts on a real person's job,
-import logging
 comp, or standing.
 
 Real correction made while building this: the original design assumed

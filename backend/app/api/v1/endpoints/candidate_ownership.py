@@ -2,34 +2,27 @@
 Candidate Pool Ownership API
 ============================
 Routes:
-  GET  /candidate-pool/                        — list all candidates with pool status
-  GET  /candidate-pool/{candidate_id}          — pool status for one candidate
-  POST /candidate-pool/{candidate_id}/override — HR Admin manual override
-import logging
+  GET  /candidate-pool/  — candidates (in the caller's business-unit scope) with pool status
 """
 
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.bu_scope import apply_bu_scope_to_candidate_query
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.candidate import Candidate
 from app.models.candidate_ownership import CandidateOwnership, POOL_BU, POOL_ORG
-from app.models.business_unit import BusinessUnit
 from app.schemas.candidate_ownership import (
     CandidateOwnershipListItem,
     CandidateOwnershipListResponse,
     CandidateOwnershipResponse,
-    OwnershipOverrideRequest,
 )
-from app.services.candidate_pool_service import (
-    get_ownership,
-    set_bu_owned,
-    set_org_pool,
-)
+from app.services.candidate_pool_service import get_ownership
 
 router = APIRouter(prefix="/candidate-pool", tags=["candidate-pool"])
 
@@ -93,6 +86,11 @@ def list_candidate_pool(
 
     Candidates who have **never been assigned** to any BU are implicitly in the
     Org Pool (they may not have a `candidate_ownership` row yet).
+
+    Business-unit scope (CEO 2026-10-12): the list is first narrowed to what the caller may
+    see (org-level: all; everyone else: the Org Pool plus their own BUs' candidates), so
+    `bu_id` can only narrow further -- picking another BU yields nothing. Filters run in
+    SQL before paging, so a page is never emptied by filtering after the LIMIT.
     """
     if pool_status and pool_status not in VALID_POOL_STATUSES:
         raise HTTPException(
@@ -100,21 +98,25 @@ def list_candidate_pool(
             detail=f"Invalid pool_status '{pool_status}'. Allowed: {sorted(VALID_POOL_STATUSES)}",
         )
 
-    # HRMS-0109 -- scope to the caller's tenant.
-    candidate_query = db.query(Candidate)
+    # HRMS-0109 -- scope to the caller's tenant, then to their business units.
+    candidate_query = apply_bu_scope_to_candidate_query(
+        db, db.query(Candidate).filter(Candidate.tenant_id == user.tenant_id), user,
+    )
+    bu_owned = select(CandidateOwnership.candidateID).where(
+        CandidateOwnership.pool_status == POOL_BU).correlate(None)
+    if pool_status == POOL_BU:
+        candidate_query = candidate_query.filter(Candidate.candidateID.in_(bu_owned))
+    elif pool_status == POOL_ORG:
+        candidate_query = candidate_query.filter(~Candidate.candidateID.in_(bu_owned))
+    if bu_id is not None:
+        candidate_query = candidate_query.filter(Candidate.candidateID.in_(
+            select(CandidateOwnership.candidateID).where(CandidateOwnership.owned_by_bu_id == bu_id).correlate(None)))
     all_candidates = candidate_query.order_by(Candidate.candidateID).offset(skip).limit(limit).all()
 
     results = []
     for c in all_candidates:
         row = get_ownership(c.candidateID, db)
         effective_status = row.pool_status if row else POOL_ORG
-        effective_bu_id  = row.owned_by_bu_id if row else None
-
-        # Apply filters
-        if pool_status and effective_status != pool_status:
-            continue
-        if bu_id is not None and effective_bu_id != bu_id:
-            continue
 
         results.append(CandidateOwnershipListItem(
             candidate_id=c.candidateID,

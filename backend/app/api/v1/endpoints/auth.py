@@ -1,16 +1,12 @@
 # 2026-08-17: Fixed PostgreSQL column quoting in unified_login
 from datetime import datetime, timedelta
 import logging
-from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
-import app.schemas as schema
 from app.core.database import (
-    SessionLocal,
-    engine,
     check_candidate,
     check_user,
     get_db,
@@ -18,14 +14,12 @@ from app.core.database import (
     authenticate_candidate
 )
 from app.core.security import (
-    verify_password,
     create_access_token,
     create_refresh_token,
     get_password_hash,
-    security,
-    decode_access_token
+    security
 )
-from app.core.dependencies import get_current_candidate, get_current_user, require_role_template_permission
+from app.core.dependencies import get_current_user
 from app.core.mfa import (
     EMAIL_OTP_TTL_MINUTES,
     MFA_PENDING_TOKEN_MINUTES,
@@ -33,17 +27,14 @@ from app.core.mfa import (
     generate_email_otp_code,
     hash_email_otp_code,
     mfa_enforcement_enabled,
-    role_requires_email_otp,
-    role_requires_mfa,
 )
 from app.services.email_service import EmailService
 from app.services.role_template_permission_service import RoleTemplatePermissionService
-from app.models.candidate import Candidate
 from app.models.user import Users
 from app.models.role_template import RoleTemplate
 from app.schemas.auth import SignupRequest, SignupResponse
 from app.contracts import UnifiedLoginRequest, UnifiedLoginResponse, ValidateEmailRequest
-from app.utils.uniq_id_generator import user_id_generator, generate_password
+from app.utils.uniq_id_generator import user_id_generator
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +127,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Email and password are required")
 
     logger.info(f"[LOGIN-START] Login attempt for email={request.email}")
-    logger.debug(f"[LOGIN-DEBUG] Request received, starting authentication flow")
+    logger.debug("[LOGIN-DEBUG] Request received, starting authentication flow")
 
     user = None
     try:
@@ -166,25 +157,22 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             )
 
         role_template_id = user.role_template_id
-        user_role = "User"
-
         try:
             rt = db.query(RoleTemplate).filter(RoleTemplate.id == role_template_id).first()
-            if not rt:
-                logger.error(f"Role template {role_template_id} not found")
-                raise HTTPException(status_code=403, detail="Role template not found")
-            if not hasattr(rt, 'name') or not rt.name:
-                logger.error(f"Role template {role_template_id} has no name")
-                raise HTTPException(status_code=403, detail="Role template has no name")
-            user_role = rt.name
-        except HTTPException:
-            raise
         except Exception as e:
             logger.error(f"Failed to fetch role template {role_template_id}: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Failed to load user role. Please try again.")
+        if not rt or not rt.enabled:
+            logger.error(f"Login rejected: role template {role_template_id} missing or disabled")
+            raise HTTPException(status_code=403, detail="Your role is not active. Please reach out to help desk.")
 
-        totp_gate = mfa_enforcement_enabled() and role_requires_mfa(user_role)
-        email_otp_gate = email_otp_enforcement_enabled() and role_requires_email_otp(user_role)
+        user_role = rt.display_name or rt.name  # display label only; authority comes from the template's flags
+
+        # MFA by the role template (hierarchy level), never by the role's name
+        from app.core import authority
+
+        totp_gate = mfa_enforcement_enabled() and authority.requires_totp(db, user)
+        email_otp_gate = email_otp_enforcement_enabled() and authority.requires_email_otp(db, user)
 
         if totp_gate or email_otp_gate:
             pending_token = create_access_token(
@@ -257,6 +245,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
                 access_token=pending_token,
                 is_first_time=False,
                 user_role=user_role,
+                authority=authority.summary(db, user),
                 user_name=user.UserName if hasattr(user, 'UserName') and user.UserName else "",
                 user_email=user.UserEmail,
                 permissions=user_permissions,
@@ -317,6 +306,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
             refresh_token=refresh_token,
             is_first_time=False,
             user_role=user_role,
+            authority=authority.summary(db, user),
             user_name=user.UserName if hasattr(user, 'UserName') and user.UserName else "",
             user_email=user.UserEmail,
             permissions=user_permissions,
@@ -537,17 +527,10 @@ def refresh_token_endpoint(
                 detail="Your permissions have been revoked. Please contact help desk."
             )
 
-        user_role = "User"
-        if user and hasattr(user, 'UserRole') and user.UserRole:
-            user_role = user.UserRole
+        from app.core import authority
 
-        if hasattr(user, 'role_template_id') and user.role_template_id:
-            try:
-                rt = db.query(RoleTemplate).filter(RoleTemplate.id == user.role_template_id).first()
-                if rt and hasattr(rt, 'name') and rt.name:
-                    user_role = rt.name
-            except Exception as e:
-                logger.error(f"Failed to fetch role template: {e}", exc_info=True)
+        role = authority.role_of(db, user)
+        user_role = (role.display_name or role.name) if role else None  # display label only
 
         logger.info(f"Token refreshed for user {user.UserID}")
         return UnifiedLoginResponse(
@@ -556,6 +539,7 @@ def refresh_token_endpoint(
             refresh_token=new_refresh_token,
             is_first_time=False,
             user_role=user_role,
+            authority=authority.summary(db, user),
             user_name=user.UserName if hasattr(user, 'UserName') and user.UserName else "",
             user_email=user.UserEmail,
             permissions=user_permissions,
@@ -628,7 +612,7 @@ async def reset_password(
         raise HTTPException(status_code=400, detail="new_password is required")
 
     if not isinstance(new_password, str) or len(new_password) < 8:
-        logger.warning(f"Password reset failed: password too short")
+        logger.warning("Password reset failed: password too short")
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
     user = None
@@ -643,7 +627,7 @@ async def reset_password(
         raise HTTPException(status_code=404, detail="User not found")
 
     if not hasattr(user, 'UserPassword'):
-        logger.error(f"Password reset failed: user missing UserPassword")
+        logger.error("Password reset failed: user missing UserPassword")
         raise HTTPException(status_code=500, detail="User record incomplete. Please contact help desk.")
 
     try:
@@ -659,3 +643,24 @@ async def reset_password(
 
     logger.info(f"Password reset successful for user {user_id}")
     return {"status": "success", "message": "Password reset successfully"}
+
+
+@router.post("/activate")
+def activate_account(request: dict, db: Session = Depends(get_db)):
+    """Public: set your password from the emailed single-use link (activation or reset)."""
+    from app.services.account_activation_service import ActivationError, activate
+
+    try:
+        user = activate(db, (request or {}).get("token", ""), (request or {}).get("new_password", ""))
+    except ActivationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"status": "ok", "email": user.UserEmail}
+
+
+@router.post("/forgot-password")
+def forgot_password(request: dict, db: Session = Depends(get_db)):
+    """Public: email a reset link if the address has an account. Same answer either way."""
+    from app.services.account_activation_service import request_reset
+
+    request_reset(db, (request or {}).get("email", ""))
+    return {"status": "ok", "message": "If that email has an account, a reset link is on its way."}

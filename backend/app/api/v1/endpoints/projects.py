@@ -4,7 +4,6 @@ HRMS-0801 (Project Lifecycle) + HRMS-0804 (Milestones) + HRMS-0805
 HRMS-0519 (SI Partner Engagement Tagging) -- API Endpoints
 =========================================================================
 Prefix: /projects
-import logging
 Tag:    projects
 
 Wires app.services.project_service (real, tested backend, pre-existing
@@ -23,8 +22,10 @@ HRMS-0807 (Project Risk Flagging) is deliberately not exposed here --
 project_service.py's own docstring explains why (it's specified to
 only ever display a Phase-3 agent's health score, which doesn't exist).
 
-Auth: get_current_internal_user, same posture as every endpoint this
-program.
+Auth: the role template's projects permission decides the actions; the
+business unit decides the records (CEO 2026-10-12, app.core.data_scope):
+a project belongs to its client's BU. Every /projects/{id} route resolves
+the project through _get_project_or_404 (tenant + scope).
 
 Routes:
   POST   /projects                              Create a project.
@@ -42,9 +43,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.data_scope import client_bu_id, client_filter, ensure_visible
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
-from app.core.dependencies import require_resource_permission
 from app.core.logging import logger
 from app.services.message_queue_service import MessageQueueService
 from app.models.client import Client
@@ -100,8 +101,14 @@ def _milestone_to_item(m: ProjectMilestone) -> MilestoneItem:
         is_complete=m.is_complete, completion_date=m.completion_date, delay_days=m.delay_days,
     )
 
-def _get_project_or_404(db: Session, project_id: str) -> Project:
-    project = db.query(Project).filter(Project.id == project_id).first()
+def _get_project_or_404(db: Session, project_id: str, user: Users) -> Project:
+    """One project of the caller's tenant whose client's business unit is in the caller's scope
+    (app.core.data_scope); any other id is 404, the same answer as one that does not exist.
+    Every /projects/{id} route goes through here."""
+    project = db.query(Project).filter(
+        Project.id == project_id, Project.tenant_id == user.tenant_id,
+        client_filter(db, user, Project.client_id),
+    ).first()
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found.")
     return project
@@ -125,9 +132,10 @@ def create_project_endpoint(
     # line_type=SPECIALITY, not a second disconnected concept). The
     # client is authoritative; body.delivery_engine/si_partner (still
     # accepted for backward-compat request shapes) are ignored.
-    client = db.query(Client).filter(Client.id == body.client_id).first()
+    client = db.query(Client).filter(Client.id == body.client_id, Client.tenant_id == current_user.tenant_id).first()
     if client is None:
         raise HTTPException(status_code=404, detail=f"Client {body.client_id!r} not found.")
+    ensure_visible(db, current_user, client_bu_id(db, client.id), f"Client {body.client_id!r}")
     if not client.line_type:
         raise HTTPException(
             status_code=400,
@@ -180,7 +188,7 @@ def create_project_endpoint(
         raise HTTPException(status_code=500, detail=f"Write validation failed: Project {project.id} not found in database after commit")
 
     try:
-        msg_id = MessageQueueService.enqueue(
+        MessageQueueService.enqueue(
             task_name="project_created",
             data={
                 "project_id": project.id,
@@ -210,7 +218,9 @@ def list_projects(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    query = db.query(Project).filter(Project.tenant_id == current_user.tenant_id)
+    query = db.query(Project).filter(
+        Project.tenant_id == current_user.tenant_id, client_filter(db, current_user, Project.client_id),
+    )
     if client_id:
         query = query.filter(Project.client_id == client_id)
     if status:
@@ -231,14 +241,14 @@ def transition_status(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    project = _get_project_or_404(db, project_id)
+    project = _get_project_or_404(db, project_id, current_user)
     try:
         project = transition_project_status(db, project, body.status)
     except InvalidProjectTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc))
 
     try:
-        msg_id = MessageQueueService.enqueue(
+        MessageQueueService.enqueue(
             task_name="project_status_changed",
             data={
                 "project_id": project.id,
@@ -265,7 +275,7 @@ def create_milestone_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    project = _get_project_or_404(db, project_id)
+    project = _get_project_or_404(db, project_id, current_user)
     milestone = create_milestone(
         db, project, title=body.title, due_date=body.due_date,
         tenant_id=current_user.tenant_id, description=body.description,
@@ -273,7 +283,7 @@ def create_milestone_endpoint(
     )
 
     try:
-        msg_id = MessageQueueService.enqueue(
+        MessageQueueService.enqueue(
             task_name="milestone_created",
             data={
                 "milestone_id": milestone.id,
@@ -300,7 +310,7 @@ def list_milestones(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    _get_project_or_404(db, project_id)
+    _get_project_or_404(db, project_id, current_user)
     milestones = (
         db.query(ProjectMilestone)
         .filter(ProjectMilestone.project_id == project_id)
@@ -322,6 +332,7 @@ def complete_milestone_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
+    _get_project_or_404(db, project_id, current_user)
     milestone = db.query(ProjectMilestone).filter(
         ProjectMilestone.id == milestone_id, ProjectMilestone.project_id == project_id,
     ).first()
@@ -333,7 +344,7 @@ def complete_milestone_endpoint(
         raise HTTPException(status_code=409, detail=str(exc))
 
     try:
-        msg_id = MessageQueueService.enqueue(
+        MessageQueueService.enqueue(
             task_name="milestone_completed",
             data={
                 "milestone_id": milestone.id,
@@ -361,7 +372,7 @@ def unfilled_roles(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    project = _get_project_or_404(db, project_id)
+    project = _get_project_or_404(db, project_id, current_user)
     gaps = get_unfilled_project_roles(db, project)
     return UnfilledRolesResponse(roles=[UnfilledRoleItem(**g) for g in gaps])
 
@@ -376,6 +387,6 @@ def expected_revenue(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    project = _get_project_or_404(db, project_id)
+    project = _get_project_or_404(db, project_id, current_user)
     result = calculate_project_expected_revenue(db, project)
     return ExpectedRevenueResponse(**result)

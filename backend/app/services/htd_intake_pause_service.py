@@ -1,11 +1,10 @@
 """
-import logging
 S-359/HRMS-P511 -- HTD Intake Pause Engine: Conversion Rate Breach.
 
-WhatsApp/email notification to "BU Head + Hemant" (AC-3) is NOT wired
-here -- flagged, not silently dropped: this codebase has no lookup
-that resolves the "HEMANT_BU_HEAD" gate-owner role (already referenced
-in htd_phase_gate_service.py) to a real email/WhatsApp number anywhere.
+WhatsApp/email notification to the BU head (AC-3) is NOT wired here yet --
+flagged, not silently dropped. The BU head is now resolvable
+(app.services.bu_leadership: BusinessUnitLocationHead per BU and company),
+so the remaining work is choosing the BU and company a pause belongs to.
 A real EmailService.send_notification() exists and could be called
 once that lookup is built; inventing a hardcoded recipient address
 here would be worse than not sending anything. The permanent
@@ -27,7 +26,6 @@ from sqlalchemy.orm import Session
 
 from app.models.employee import Employee
 from app.models.htd_intake_pause import HtdIntakeStatus, HtdMonthlyMetric, HtdPauseLogEntry
-from app.core.logging import logger
 
 CONVERSION_RATE_THRESHOLD = Decimal("0.50")
 CORE_CONVERSION_WINDOW_DAYS = 400

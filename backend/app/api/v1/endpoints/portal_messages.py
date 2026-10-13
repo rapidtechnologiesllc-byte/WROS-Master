@@ -2,7 +2,6 @@
 S-004/HRMS-0404 -- Web Portal Chat Messages
 ==============================================
 Prefix: /portal/conversations
-import logging
 Tag:    portal-messages
 
 Candidate-authenticated (get_current_candidate -- real JWT candidate
@@ -18,9 +17,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_candidate, require_resource_permission
+from app.core.dependencies import get_current_candidate
 from app.models.candidate import Candidate
-from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.schemas.portal_messages import (
     PortalMessageHistoryResponse,
     PortalMessageRequest,
@@ -39,10 +37,6 @@ router = APIRouter(prefix="/portal/conversations", tags=["portal-messages"])
 
 @router.post(
     "/{conversation_id}/messages",
-    dependencies=[
-        Depends(require_resource_permission("candidates", "create")),
-        Depends(get_current_internal_user),
-    ],
     response_model=PortalMessageResponse,
     status_code=201,
     summary="Candidate sends a message via the web portal",
@@ -68,10 +62,6 @@ def post_portal_message(
 
 @router.get(
     "/{conversation_id}/messages",
-    dependencies=[
-        Depends(require_resource_permission("candidates", "view")),
-        Depends(get_current_internal_user),
-    ],
     response_model=PortalMessageHistoryResponse,
     summary="Candidate retrieves their portal conversation history",
 )
@@ -90,10 +80,6 @@ def list_portal_messages(
 
 @router.get(
     "/{conversation_id}/messages/poll",
-    dependencies=[
-        Depends(require_resource_permission("candidates", "view")),
-        Depends(get_current_internal_user),
-    ],
     response_model=PortalMessageHistoryResponse,
     summary="S-346 -- long-poll for messages newer than after_id (WebSocket fallback)",
 )

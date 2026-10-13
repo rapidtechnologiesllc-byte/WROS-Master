@@ -1,6 +1,5 @@
 """
 Executive Signal & Culture Agent -- quarterly feedback cycle,
-import logging
 recognition draft-and-approve, dissatisfaction triage.
 
 Advisory-only throughout, per the redesigned CEO-agent decision

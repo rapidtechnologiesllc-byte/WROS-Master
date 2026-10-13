@@ -1,5 +1,4 @@
 """
-import logging
 S-047/HRMS-0447 -- Interview Availability Collection.
 
 candidate_availability_slots: genuinely new table -- one row per

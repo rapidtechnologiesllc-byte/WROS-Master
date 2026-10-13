@@ -1,6 +1,5 @@
 """
 HRMS-0901 -- Timesheet Submission -- and HRMS-0902 -- Timesheet
-import logging
 Approval Workflow.
 
 Scheduled jobs described in both stories (TimesheetCreationJob every
@@ -21,15 +20,15 @@ Submission/Interview). Whoever builds the endpoint must add that check;
 these functions trust the caller.
 """
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.task import Task
+from app.models.user import Users
 from app.models.timesheet import (
     MAX_SUBMISSION_LOOKBACK_WEEKS,
     MAX_WEEKLY_HOURS,
@@ -71,8 +70,9 @@ def create_weekly_draft(
     if week_starting_date.weekday() != 0:
         raise InvalidTimesheetEntry("week_starting_date must be a Monday.")
 
+    # employee + allocation + week identifies the timesheet; the tenant is the allocation's, so a
+    # caller passing a different (or no) tenant never creates a second timesheet for the same week
     existing = db.query(Timesheet).filter(
-        Timesheet.tenant_id == tenant_id,
         Timesheet.employee_id == allocation.employee_id,
         Timesheet.allocation_id == allocation.id,
         Timesheet.week_starting_date == week_starting_date,
@@ -81,7 +81,7 @@ def create_weekly_draft(
         return existing
 
     timesheet = Timesheet(
-        tenant_id=tenant_id, employee_id=allocation.employee_id, allocation_id=allocation.id,
+        tenant_id=allocation.tenant_id or tenant_id, employee_id=allocation.employee_id, allocation_id=allocation.id,
         week_starting_date=week_starting_date,
     )
     db.add(timesheet)
@@ -103,7 +103,6 @@ def create_weekly_draft_for_task(
         raise InvalidTimesheetEntry("week_starting_date must be a Monday.")
 
     existing = db.query(Timesheet).filter(
-        Timesheet.tenant_id == tenant_id,
         Timesheet.employee_id == employee_id,
         Timesheet.task_id == task.id,
         Timesheet.week_starting_date == week_starting_date,
@@ -112,7 +111,7 @@ def create_weekly_draft_for_task(
         return existing
 
     timesheet = Timesheet(
-        tenant_id=tenant_id, employee_id=employee_id, task_id=task.id,
+        tenant_id=getattr(task, "tenant_id", None) or tenant_id, employee_id=employee_id, task_id=task.id,
         week_starting_date=week_starting_date,
     )
     db.add(timesheet)
@@ -128,6 +127,8 @@ def upsert_entries(db: Session, timesheet: Timesheet, entries: List[dict]) -> Ti
         raise TimesheetNotEditable("Approved timesheets are immutable -- use the dispute process instead.")
 
     today = date.today()
+    week_end = timesheet.week_starting_date + timedelta(days=6)
+    allocation = db.get(EmployeeAllocation, timesheet.allocation_id) if timesheet.allocation_id else None
     by_date = {e.entry_date: e for e in db.query(TimesheetEntry).filter(
         TimesheetEntry.timesheet_id == timesheet.id
     ).all()}
@@ -141,6 +142,14 @@ def upsert_entries(db: Session, timesheet: Timesheet, entries: List[dict]) -> Ti
             raise InvalidTimesheetEntry(f"Cannot log hours for a future date: {entry_date}.")
         if hours < 0 or hours > 24:
             raise InvalidTimesheetEntry(f"Hours for {entry_date} must be between 0 and 24, got {hours}.")
+        if not timesheet.week_starting_date <= entry_date <= week_end:
+            raise InvalidTimesheetEntry(
+                f"{entry_date} is outside this timesheet's week ({timesheet.week_starting_date} to {week_end}).")
+        if allocation is not None and hours and (
+                entry_date < allocation.start_date or (allocation.end_date and entry_date > allocation.end_date)):
+            raise InvalidTimesheetEntry(
+                f"{entry_date} is outside the allocation ({allocation.start_date} to "
+                f"{allocation.end_date or 'open'}): hours can only be logged while allocated.")
 
         existing = by_date.get(entry_date)
         if existing:
@@ -204,21 +213,18 @@ def approve_timesheet(db: Session, timesheet: Timesheet, approved_by: Optional[s
     try:
         employee = db.query(Employee).filter(Employee.id == timesheet.employee_id).first()
         if employee and employee.email:
-            # Calculate total hours from timesheet entries
-            total_hours = sum(entry.hours or 0 for entry in timesheet.entries)
+            total_hours = float(timesheet.total_hours or 0)
             week_starting = timesheet.week_starting_date.strftime("%Y-%m-%d") if timesheet.week_starting_date else "unknown"
 
-            # Get approver name (fallback to ID if not found)
-            approver_name = approved_by or "HR/Manager"
-            if approved_by:
-                approver = db.query(Employee).filter(Employee.email == approved_by).first()
-                if approver:
-                    approver_name = f"{approver.first_name} {approver.last_name}".strip() or approver_name
+            # approved_by is the approver's UserID
+            approver = db.query(Users).filter(Users.UserID == approved_by).first() if approved_by else None
+            approver_name = (approver.UserName if approver else None) or "HR/Manager"
+            approver_email = approver.UserEmail if approver else None
 
             EmailService.notify_timesheet_approved(
                 employee_email=employee.email,
                 employee_name=f"{employee.first_name} {employee.last_name}".strip() or "Employee",
-                approver_email=approved_by or "admin@blitzenx.com",
+                approver_email=approver_email,
                 approver_name=approver_name,
                 week_starting_date=week_starting,
                 total_hours=total_hours,
@@ -272,8 +278,7 @@ def create_weekly_draft_batch(db: Session) -> dict:
 
     Returns: dict with counts (created, skipped, errors)
     """
-    from datetime import datetime, timedelta
-    from app.models.resource_management import EmployeeAllocation
+    from datetime import timedelta
 
     today = date.today()
     # Calculate the Monday of the current week
@@ -293,20 +298,21 @@ def create_weekly_draft_batch(db: Session) -> dict:
             timesheet = create_weekly_draft(
                 db, allocation, week_starting_date, tenant_id=allocation.tenant_id
             )
-            # Check if this is a newly created timesheet or an existing one
-            if timesheet.created_at and (datetime.utcnow() - timesheet.created_at).total_seconds() < 300:
+            is_new = timesheet in db.new
+            # Commit per allocation: one bad row must not lose the drafts already created
+            db.commit()
+            if is_new:
                 created += 1
             else:
                 skipped += 1
         except Exception as exc:
-            logger.error(f"Error: {str(exc)}", exc_info=True)
+            db.rollback()
+            logger.error(f"[TimesheetDraft] allocation {allocation.id} failed: {exc}", exc_info=True)
             errors.append({
                 "allocation_id": allocation.id,
                 "employee_id": allocation.employee_id,
                 "error": str(exc)
             })
-
-            db.commit()
 
     return {
         "created": created,

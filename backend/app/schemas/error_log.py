@@ -1,4 +1,3 @@
-from app.core.logging import logger
 """Pydantic schemas -- S-215 Error Logging Framework."""
 from datetime import datetime
 import logging

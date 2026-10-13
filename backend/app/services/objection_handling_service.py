@@ -1,5 +1,4 @@
 """
-import logging
 S-072/HRMS-0472 -- Objection Handling Engine.
 
 Real architecture reuse: "objecting" was already a defined VALID_INTENT
@@ -52,7 +51,6 @@ from typing import Callable, Dict, Optional
 
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.services import candidate_context_service, prompt_framework_service

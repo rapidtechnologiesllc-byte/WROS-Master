@@ -150,7 +150,57 @@ class Settings:
     SMTP_PORT: Optional[int] = int(os.getenv("SMTP_PORT", "587")) if os.getenv("SMTP_PORT") else None
     SMTP_USER: Optional[str] = os.getenv("SMTP_USER")
     SMTP_PASSWORD: Optional[str] = os.getenv("SMTP_PASSWORD")
-    
+
+    # Passive-talent enrichment (free sources only; a source with no credentials is skipped)
+    ENRICHMENT_ENABLED: bool = os.getenv("ENRICHMENT_ENABLED", "true").lower() == "true"
+    SEARXNG_URL: Optional[str] = os.getenv("SEARXNG_URL")
+    GOOGLE_CSE_API_KEY: Optional[str] = get_secret("google-cse-api-key", default=os.getenv("GOOGLE_CSE_API_KEY"))
+    GOOGLE_CSE_ID: Optional[str] = os.getenv("GOOGLE_CSE_ID")
+    # Free tier is 100/day; keep headroom for manual checks
+    GOOGLE_CSE_DAILY_BUDGET: int = int(os.getenv("GOOGLE_CSE_DAILY_BUDGET", "90"))
+    GITHUB_TOKEN: Optional[str] = get_secret("github-token", default=os.getenv("GITHUB_TOKEN"))
+    OUTREACH_SENDER_NAME: str = os.getenv("OUTREACH_SENDER_NAME", "the BlitzenX talent team")
+
+    # Thunder email: one HRMS mailbox sends and is read for replies
+    THUNDER_MAILBOX: str = os.getenv("THUNDER_MAILBOX", "helpdesk_hrms@blitzenx.com")
+    # Exchange Online allows ~30 msgs/min and ~10k recipients/day per mailbox; ramp cold mail slowly
+    THUNDER_MAX_SENDS_PER_HOUR: int = int(os.getenv("THUNDER_MAX_SENDS_PER_HOUR", "25"))
+    THUNDER_MAX_SENDS_PER_DAY: int = int(os.getenv("THUNDER_MAX_SENDS_PER_DAY", "200"))
+    THUNDER_SEND_WINDOW: str = os.getenv("THUNDER_SEND_WINDOW", "09-18")  # candidate-local hours
+    THUNDER_MIN_GAP_HOURS: int = int(os.getenv("THUNDER_MIN_GAP_HOURS", "48"))
+    THUNDER_NURTURE_INTERVAL_DAYS: int = int(os.getenv("THUNDER_NURTURE_INTERVAL_DAYS", "30"))
+
+    # Finance: invoices are emailed from this mailbox (same Graph app permissions as Thunder)
+    FINANCE_MAILBOX: str = os.getenv("FINANCE_MAILBOX", "") or THUNDER_MAILBOX
+    # Rupees per US dollar, to turn an accepted offer letter's annual CTC (INR) into the
+    # employee's monthly USD cost. Unset = cost stays unknown (flagged in the P&L), never guessed.
+    # Authority thresholds on RoleTemplate.hierarchy_level (1 Intern .. 17 CEO; see
+    # org_hierarchy_validator.HIERARCHY_LEVELS). app.core.authority reads these.
+    SENIOR_MANAGER_MIN_LEVEL: int = int(os.getenv("SENIOR_MANAGER_MIN_LEVEL", "9"))
+    DIRECTOR_MIN_LEVEL: int = int(os.getenv("DIRECTOR_MIN_LEVEL", "11"))
+    BU_LEADER_MIN_LEVEL: int = int(os.getenv("BU_LEADER_MIN_LEVEL", "14"))
+    PARTNER_MIN_LEVEL: int = int(os.getenv("PARTNER_MIN_LEVEL", "16"))
+    CEO_LEVEL: int = int(os.getenv("CEO_LEVEL", "17"))
+    MFA_TOTP_MIN_LEVEL: int = int(os.getenv("MFA_TOTP_MIN_LEVEL", "14"))
+    # auto-invoicing considers this many complete months back (oldest first), so late approvals still bill
+    AUTO_INVOICE_LOOKBACK_MONTHS: int = int(os.getenv("AUTO_INVOICE_LOOKBACK_MONTHS", "3"))
+    # INR per 1 USD (CEO 2026-10-11: $1 = 85 INR); the FX_INR_PER_USD env var overrides it
+    FX_INR_PER_USD: float = float(os.getenv("FX_INR_PER_USD") or 85)
+    # Paid hours in a month (40h x 52 weeks / 12); turns monthly loaded cost into an hourly cost
+    STANDARD_MONTHLY_HOURS: float = float(os.getenv("STANDARD_MONTHLY_HOURS", "173.33"))
+    # planned billable hours per business day for projected revenue (allocation x utilization)
+    STANDARD_DAILY_HOURS: float = float(os.getenv("STANDARD_DAILY_HOURS", "8"))
+
+    # Background jobs (app/core/scheduled_jobs.py): comma-separated names. Unset = every
+    # registered job (all internal: drafts, staff reminders, AR tasks, metrics); set it to ""
+    # in .env to switch them all off, or to a shorter list
+    SCHEDULED_JOBS_ENABLED: str = os.getenv(
+        "SCHEDULED_JOBS_ENABLED",
+        "timesheet_draft_creation,timesheet_reminders,ar_follow_up,expire_bu_ownerships,"
+        "daily_revenue_scan,engagement_metrics,birthday_drafts,hiring_pipeline_sweep,client_start_date,auto_invoicing",
+    )
+    SCHEDULED_JOB_LEASE_GRACE_SECONDS: int = int(os.getenv("SCHEDULED_JOB_LEASE_GRACE_SECONDS", "120"))
+
     @classmethod
     def validate_config(cls) -> bool:
         """Validate that required configuration is present.

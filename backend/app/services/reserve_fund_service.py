@@ -6,15 +6,13 @@ invented number -- matching the "contribution-% reserve with a
 contribution amount/cadence itself is a real transaction Avinash (or
 Finance) records, never invented here.
 """
-from datetime import date
 import logging
-from typing import List, Optional
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
 from app.models.reserve_fund import ReserveFundEntry
 from app.services.pnl_service import get_bu_pnl
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

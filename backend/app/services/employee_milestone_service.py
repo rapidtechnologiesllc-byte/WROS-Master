@@ -1,5 +1,4 @@
 """
-import logging
 S-356/HRMS-0517 -- Employee Milestone Tracker: Personal, Project & Org.
 
 scan_overdue_milestones() is the idempotent, directly-callable function
@@ -14,7 +13,6 @@ from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.employee_milestone import (
     OPEN_MILESTONE_STATUSES,
     EmployeeMilestone,

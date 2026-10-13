@@ -1,5 +1,4 @@
 """
-import logging
 S-057/HRMS-0457 -- Document Collection Agent.
 
 Real architecture adaptations:

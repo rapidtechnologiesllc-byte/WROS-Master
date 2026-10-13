@@ -10,9 +10,11 @@ from datetime import datetime, timedelta
 from typing import Dict, Any
 from functools import wraps
 
-from app.core.logging import logger
 from app.core.database import SessionLocal
+from sqlalchemy import and_, or_
+
 from app.models.channel_queue import ChannelQueueItem
+from app.services.delivery_errors import DeliveryDeferred
 from app.services.channel_processors.candidate_queue_processor import CandidateQueueProcessor
 from app.services.queue_doctor_service import QueueDoctorService
 from app.services.thunder_pause_service import is_thunder_paused
@@ -22,7 +24,6 @@ logger = logging.getLogger(__name__)
 
 class HandlerTimeoutError(Exception):
     """Raised when handler execution exceeds timeout."""
-    pass
 
 
 def with_timeout(timeout_seconds: int = 30):
@@ -72,6 +73,36 @@ def with_timeout(timeout_seconds: int = 30):
     return decorator
 
 
+DEFAULT_HANDLER_TIMEOUT_SECONDS = 30
+
+
+def _handler_timeout(message_type: str) -> int:
+    """Per-handler timeout (QueueProcessorService.HANDLER_TIMEOUTS), default 30s."""
+    from app.services.queue_processor_service import QueueProcessorService
+    return int(QueueProcessorService.HANDLER_TIMEOUTS.get(message_type, DEFAULT_HANDLER_TIMEOUT_SECONDS))
+
+
+STALE_SCHEDULED_AFTER = timedelta(days=2)
+
+
+def _dead_letter_stale_scheduled(db, now: datetime) -> int:
+    """Delayed messages queued while this worker ignored SCHEDULED rows would
+    otherwise all fire at once; anything overdue by more than 2 days is
+    dead-lettered (visible, re-queueable) instead of executed late."""
+    stale = db.query(ChannelQueueItem).filter(
+        ChannelQueueItem.status == "SCHEDULED",
+        ChannelQueueItem.scheduled_for < now - STALE_SCHEDULED_AFTER,
+    ).all()
+    for message in stale:
+        message.status = "DEAD_LETTER"
+        message.error = (f"Stale delayed message: due {message.scheduled_for.isoformat()}, "
+                         f"never run (worker did not process SCHEDULED before)")
+    if stale:
+        db.commit()
+        logger.warning(f"[Worker] Dead-lettered {len(stale)} stale SCHEDULED messages instead of running them late")
+    return len(stale)
+
+
 def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Dict[str, Any]:
     """
     Main worker function to process all message queues.
@@ -97,9 +128,15 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
             }
         # Query PENDING messages (ordered by created_at for FIFO)
         # Process PENDING messages
-        pending_messages = db.query(ChannelQueueItem).filter(
-            ChannelQueueItem.status == "PENDING"
-        ).order_by(ChannelQueueItem.created_at).limit(batch_size).all()
+        # PENDING honours next_retry_at (a not-sent message waits until then);
+        # SCHEDULED is a delayed message (enqueue(delay_seconds=...)) that is now due.
+        now = datetime.utcnow()
+        _dead_letter_stale_scheduled(db, now)
+        pending_messages = db.query(ChannelQueueItem).filter(or_(
+            and_(ChannelQueueItem.status == "PENDING",
+                 or_(ChannelQueueItem.next_retry_at.is_(None), ChannelQueueItem.next_retry_at <= now)),
+            and_(ChannelQueueItem.status == "SCHEDULED", ChannelQueueItem.scheduled_for <= now),
+        )).order_by(ChannelQueueItem.created_at).limit(batch_size).all()
 
         # Also check for FAILED messages ready for retry
         retry_messages = db.query(ChannelQueueItem).filter(
@@ -149,14 +186,31 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
 
                     handler = MessageHandlerRegistry.get_handler(message.type)
                     if handler:
+                        timeout_seconds = _handler_timeout(message.type)
                         try:
-                            # Wrap handler with 30-second timeout guard
-                            wrapped_handler = with_timeout(30)(handler)
+                            wrapped_handler = with_timeout(timeout_seconds)(handler)
                             result = wrapped_handler(message, db)
+                        except DeliveryDeferred as deferred:
+                            # Not sent: stays PENDING as "not sent" until retry_at; never
+                            # marked COMPLETED and never counts toward retry exhaustion.
+                            db.rollback()
+                            message.status = "PENDING"
+                            message.next_retry_at = deferred.retry_at
+                            message.error = f"NOT_SENT: {deferred.reason}"[:500]
+                            try:
+                                db.commit()
+                            except Exception as commit_err:
+                                db.rollback()
+                                logger.error(f"[Worker] Failed to keep {message.id} pending: {commit_err}", exc_info=True)
+                            logger.warning(
+                                f"[Worker] {message.type} {message.id} NOT SENT ({deferred.reason}); "
+                                f"pending until {deferred.retry_at.isoformat()}"
+                            )
+                            continue
                         except HandlerTimeoutError as e:
                             logger.error(f"[Worker] Handler timeout for message {message.id} (type: {message.type}): {e}")
                             message.status = "FAILED"
-                            message.error = f"Handler timeout: exceeded 30 seconds"
+                            message.error = f"Handler timeout: exceeded {timeout_seconds} seconds"
                             message.completed_at = datetime.utcnow()
                             message.retry_count = (message.retry_count or 0) + 1
                             message.next_retry_at = datetime.utcnow() + timedelta(minutes=5)

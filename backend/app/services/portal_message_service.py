@@ -1,6 +1,5 @@
 """
 S-004/HRMS-0404 -- Store Web Portal Chat Messages.
-import logging
 S-346/HRMS-P116 -- Portal Real-Time Chat Widget (2026-08-05 addition).
 
 Adapted to this codebase's real architecture: stores into the existing
@@ -43,10 +42,8 @@ from typing import Dict, Optional
 
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
-from app.core.dependencies import get_current_candidate
 
 MAX_MESSAGE_LENGTH = 4000
 RATE_LIMIT_PER_HOUR = 20

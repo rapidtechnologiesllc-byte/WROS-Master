@@ -1,5 +1,4 @@
 """
-import logging
 HRMS-0904 -- Timesheet Dispute Resolution.
 
 BR-01: the original approved Timesheet/TimesheetEntry rows are never
@@ -18,7 +17,6 @@ from sqlalchemy.orm import Session
 
 from app.models.timesheet import Timesheet
 from app.models.timesheet_dispute import OPEN_DISPUTE_STATUSES, TimesheetDispute
-from app.core.logging import logger
 
 MIN_REASON_LENGTH = 50
 

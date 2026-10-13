@@ -1,5 +1,4 @@
 """
-import logging
 S-038/HRMS-0438 -- Compensation Fit Score.
 
 Real architecture adaptations:

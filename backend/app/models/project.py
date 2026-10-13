@@ -1,6 +1,5 @@
 """
 HRMS-0801 (Project Lifecycle Management) + HRMS-0804 (Milestone
-import logging
 Creation & Completion Tracking), Phase 2 Domain 4.
 
 A project is auto-created when an Opportunity transitions to WON (see

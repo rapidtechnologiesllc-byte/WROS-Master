@@ -1,5 +1,4 @@
 """
-import logging
 S-062/HRMS-0462 -- Recruiter Intervention Queue.
 
 recruiter_intervention_queue: genuinely new table -- one row per open
@@ -37,7 +36,7 @@ QUEUE_REASONS = (
     "HIGH_ABANDONMENT", "NO_SHOW", "OFFER_COUNTER", "DOCUMENT_OVERDUE",
 )
 QUEUE_STATUSES = ("OPEN", "IN_PROGRESS", "RESOLVED")
-PRIORITY_CRITICAL, PRIORITY_HIGH, PRIORITY_MEDIUM = True, 2, 3
+PRIORITY_CRITICAL, PRIORITY_HIGH, PRIORITY_MEDIUM = 1, 2, 3
 
 logger = logging.getLogger(__name__)
 

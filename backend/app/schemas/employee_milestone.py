@@ -1,5 +1,4 @@
 import logging
-from app.core.logging import logger
 """Pydantic schemas -- S-356/HRMS-0517 (Employee Milestone Tracker) API."""
 
 from datetime import date

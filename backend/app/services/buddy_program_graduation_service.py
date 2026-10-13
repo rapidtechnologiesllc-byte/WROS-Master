@@ -1,5 +1,4 @@
 """
-import logging
 S-365/HRMS-0521 -- Buddy Program Graduation Gate: BU Head Approval.
 
 record_graduation_decision() is the one function that ever moves a
@@ -28,7 +27,6 @@ from sqlalchemy.orm import Session
 from app.models.buddy_program import BuddyProgramRecord
 from app.models.employee import Employee
 from app.services.employee_service import transition_employee_status
-from app.core.logging import logger
 
 MAX_EXTENSIONS = 2  # BR: third review is Graduate or Exit only
 EXTENSION_DAYS = 15

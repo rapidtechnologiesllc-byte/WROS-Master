@@ -1,5 +1,4 @@
 """
-import logging
 Agent Pyramid Reporting System - 6-Level Hierarchical Accountability
 
 COMPLETE HIERARCHY (Deep to Shallow):
@@ -88,7 +87,7 @@ from app.core import roles
 
 logger = logging.getLogger(__name__)
 
-WON_STAGES = ("CONTRACT", "ACTIVE")
+from app.models.opportunity import WON_STAGES  # noqa: E402 -- one definition of a win
 
 
 def _active_project_id(db: Session, employee_id: str):
@@ -717,7 +716,7 @@ class PartnerWeeklyConsolidationAgent:
         elif revenue > 50000:
             return f"✅ STRONG WEEK: ${revenue:,.0f} revenue + {opps} new opportunities. Maintaining pace."
         else:
-            return f"✅ ON TRACK: All BUs performing within targets. Continue current execution."
+            return "✅ ON TRACK: All BUs performing within targets. Continue current execution."
 
     @staticmethod
     def _generate_action_items(bu_reports: List[Dict], escalations: List[str], pace_pct: float = 100) -> List[Dict]:
@@ -730,7 +729,7 @@ class PartnerWeeklyConsolidationAgent:
             actions.append({
                 "priority": "CRITICAL",
                 "item": f"Annual goal pace at {pace_pct:.0f}%",
-                "action": f"Increase revenue velocity. Current pace misses annual target. Review pipeline and deal stages.",
+                "action": "Increase revenue velocity. Current pace misses annual target. Review pipeline and deal stages.",
                 "owner": "Partner",
                 "due_date": "This week"
             })

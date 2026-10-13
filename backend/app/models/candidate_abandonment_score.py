@@ -1,5 +1,4 @@
 """
-import logging
 S-046/HRMS-0446 -- Candidate Abandonment Prediction.
 
 candidate_abandonment_scores: genuinely new table -- one row per

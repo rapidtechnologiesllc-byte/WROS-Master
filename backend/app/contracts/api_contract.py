@@ -1,5 +1,4 @@
 """
-import logging
 STRICT API CONTRACT - Single Source of Truth for all Frontend/Backend Integration
 
 This file defines the EXACT shape of all data that flows between frontend and backend.
@@ -79,6 +78,8 @@ class UnifiedLoginResponse(BaseModel):
     user_name: Optional[str] = Field(default=None)
     user_email: Optional[EmailStr] = Field(default=None)
     permissions: Optional[Dict[str, Any]] = Field(default=None)
+    # role-template authority flags (app.core.authority.summary); the UI decides by these
+    authority: Optional[Dict[str, Any]] = Field(default=None)
 
     # Candidate fields (None for users)
     candidate_id: Optional[str] = Field(default=None)
@@ -163,7 +164,8 @@ MODULES_AND_RESOURCES = {
                   "admin-agent-state", "admin-weekly-recap", "bu-head-dashboard",
                   "agent-pyramid", "goals"],
     "Admin": ["users-access-control", "admin-settings", "certifications", "role-templates",
-              "business-units", "delivery-centers", "organizational-hierarchy", "permission-composition"],
+              "business-units", "delivery-centers", "organizational-hierarchy", "permission-composition",
+              "org-roles"],
     "Executive Dashboards": ["ceo-dashboard-view", "cfo-dashboard-view", "partner-dashboard-view", "bu-head-dashboard-view"],
     "AI & Automation": ["ask-thunder", "ai-coaching", "slm-dashboard"],
 }

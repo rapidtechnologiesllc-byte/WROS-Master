@@ -1,5 +1,4 @@
 """
-import logging
 API Contracts - STRICT enforcement of frontend/backend integration
 
 This package contains the authoritative definition of all API schemas.

@@ -1,9 +1,8 @@
 import logging
-from app.core.logging import logger
 """Employee Referral Service - Handle job referrals and bonus tracking."""
 
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, Any, List
 from app.models.referral import EmployeeReferral, JobReferralSettings, ReferralBonus
 from app.models.employee import Employee

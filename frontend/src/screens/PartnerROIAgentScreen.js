@@ -1,3 +1,4 @@
+import FinancialOutlookPanel from "../components/FinancialOutlookPanel";
 import { useEffect, useState } from "react";
 import { TrendingUp, AlertCircle, Target, X, AlertTriangle } from "lucide-react";
 import { Card, Button } from "../components/ui";
@@ -109,6 +110,10 @@ export default function PartnerROIAgentScreen() {
           onChange={(e) => setSelectedMonth(e.target.value)}
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
         />
+      </div>
+
+      <div className="mb-6">
+        <FinancialOutlookPanel title="My business units: plan vs actual" />
       </div>
 
       {/* KPI Grid */}

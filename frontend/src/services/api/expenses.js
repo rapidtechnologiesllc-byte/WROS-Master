@@ -34,6 +34,22 @@ export const approveExpense = async (expenseId) => {
   return data;
 };
 
+// Manager step: once approved the expense counts as a cost in the P&L
+export const managerApproveExpense = async (expenseId) => {
+  const { data } = await apiRequest(`/expenses/${expenseId}/manager-approve`, { method: "POST" });
+  return data;
+};
+
+export const managerRejectExpense = async (expenseId) => {
+  const { data } = await apiRequest(`/expenses/${expenseId}/manager-reject`, { method: "POST" });
+  return data;
+};
+
+export const markExpensePaid = async (expenseId) => {
+  const { data } = await apiRequest(`/expenses/${expenseId}/mark-paid`, { method: "POST" });
+  return data;
+};
+
 export const getClientInvestmentPosition = async (clientId) => {
   const { data } = await apiRequest(`/clients/${clientId}/investment-position`, {
     method: "GET",

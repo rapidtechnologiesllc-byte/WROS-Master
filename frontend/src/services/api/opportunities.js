@@ -19,7 +19,21 @@ export const listEligibleOpportunityOwners = async () => {
 
 export const listClientOwners = async () => {
   const { data } = await apiRequest("/opportunities/client-owners", { method: "GET" });
-  return data?.employees || [];
+  return data?.users || [];
+};
+
+// Stage list and allowed moves, from the server (one cached request per page load)
+let stageRulesPromise = null;
+export const getStageRules = () => {
+  if (!stageRulesPromise) {
+    stageRulesPromise = apiRequest("/opportunities/stages", { method: "GET" })
+      .then(({ data }) => data)
+      .catch((err) => {
+        stageRulesPromise = null; // let the next caller retry
+        throw err;
+      });
+  }
+  return stageRulesPromise;
 };
 
 export const getPipeline = async () => {

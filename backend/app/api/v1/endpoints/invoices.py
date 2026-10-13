@@ -2,7 +2,6 @@
 HRMS-0907 -- Invoice Generation, Status Tracking -- API Endpoints
 =========================================================================
 Prefix: /invoices
-import logging
 Tag:    invoices
 
 Wires app.services.invoice_service (real, tested backend, pre-existing
@@ -17,17 +16,19 @@ service.py's own docstring (no automatic sending/reconciliation exists
 in this codebase) -- separate endpoints for each transition, not
 folded into approve.
 
-Auth: get_current_internal_user, same posture as every endpoint this
-program. No dedicated "Finance" role exists in this codebase's RBAC
-(app/services/rbac_service.py) despite HRMS-0907 BR-0907-02 saying
-approval is "always a Finance-role action" -- flagged, not guessed at,
-same posture as every other RM/Finance role gap this session.
+Auth: the role template's invoices permission decides the actions (approval
+additionally needs Finance at Senior Manager+, enforced in approve_invoice);
+the business unit decides the records (CEO 2026-10-12, app.core.data_scope):
+an invoice belongs to its client's BU.
 
 Routes:
   POST   /invoices/generate         Generate a DRAFT invoice for a project+period.
   POST   /invoices/{id}/approve     DRAFT -> APPROVED.
-  POST   /invoices/{id}/send        APPROVED -> SENT.
-  POST   /invoices/{id}/mark-paid   SENT -> PAID.
+  POST   /invoices/{id}/send        Email the APPROVED invoice to the client's ACCOUNTS contact;
+                                    it becomes SENT once the email has actually gone out.
+  POST   /invoices/{id}/record-external-delivery  APPROVED -> SENT when delivered another way.
+  POST   /invoices/{id}/mark-paid   SENT -> PAID, and the revenue is recognised.
+  POST   /invoices/{id}/record-payment  Record the bank payment: matched transaction + PAID + revenue.
   GET    /invoices                  List (optional project_id/client_id/status filter).
   GET    /invoices/{id}             One invoice with line items.
 """
@@ -39,35 +40,47 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.data_scope import client_filter
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.invoice import Invoice, InvoiceLineItem
 from app.models.project import Project
 from app.models.user import Users
+from app.models.invoice_delivery import InvoiceDelivery
 from app.schemas.invoice import (
     GenerateInvoiceRequest,
+    MarkPaidRequest,
+    RecordPaymentRequest,
+    RecordExternalDeliveryRequest,
     InvoiceItem,
     InvoiceLineItemItem,
     InvoiceListResponse,
 )
 from app.services.invoice_service import (
+    AlreadyInvoiced,
+    MissingBillingContact,
     NothingToInvoice,
     MissingBillRate,
     InvalidInvoiceTransition,
+    InvoiceApproverNotAllowed,
     OpenDisputeBlocksInvoice,
     UnapprovedTimesheetBlocksInvoice,
     approve_invoice,
     generate_invoice,
     mark_invoice_paid,
-    send_invoice,
+    record_external_delivery,
+    request_invoice_email,
 )
-from app.services.ar_followup_service import scan_overdue_invoices, trigger_ar_follow_up
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
 def _to_item(db: Session, invoice: Invoice) -> InvoiceItem:
     line_items = db.query(InvoiceLineItem).filter(InvoiceLineItem.invoice_id == invoice.id).all()
+    delivery = db.query(InvoiceDelivery).filter(InvoiceDelivery.invoice_id == invoice.id).first()
     return InvoiceItem(
+        delivery_channel=delivery.channel if delivery else None,
+        delivery_status=delivery.status if delivery else None,
+        delivery_to=delivery.to_address if delivery else None,
         id=invoice.id, project_id=invoice.project_id, client_id=invoice.client_id,
         billing_period_start=invoice.billing_period_start, billing_period_end=invoice.billing_period_end,
         status=invoice.status, total_usd_cents=invoice.total_usd_cents, currency=invoice.currency,
@@ -82,8 +95,13 @@ def _to_item(db: Session, invoice: Invoice) -> InvoiceItem:
         ],
     )
 
-def _get_invoice_or_404(db: Session, invoice_id: str) -> Invoice:
-    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+def _get_invoice_or_404(db: Session, invoice_id: str, user: Users) -> Invoice:
+    """One invoice of the caller's tenant whose client's business unit is in the caller's scope
+    (app.core.data_scope); any other id is 404. Every /invoices/{id} route goes through here."""
+    invoice = db.query(Invoice).filter(
+        Invoice.id == invoice_id, Invoice.tenant_id == user.tenant_id,
+        client_filter(db, user, Invoice.client_id),
+    ).first()
     if invoice is None:
         raise HTTPException(status_code=404, detail="Invoice not found.")
     return invoice
@@ -99,7 +117,9 @@ def generate_invoice_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    project = db.query(Project).filter(Project.id == body.project_id).first()
+    project = db.query(Project).filter(Project.id == body.project_id,
+                                       Project.tenant_id == current_user.tenant_id,
+                                       client_filter(db, current_user, Project.client_id)).first()
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found.")
 
@@ -112,8 +132,11 @@ def generate_invoice_endpoint(
         raise HTTPException(status_code=409, detail=str(exc))
     except OpenDisputeBlocksInvoice as exc:
         raise HTTPException(status_code=409, detail=str(exc))
-    except (NothingToInvoice, MissingBillRate) as exc:
+    except (NothingToInvoice, MissingBillRate, AlreadyInvoiced) as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
     db.commit()
     db.refresh(invoice)
 
@@ -122,7 +145,7 @@ def generate_invoice_endpoint(
         from app.services.message_queue_service import MessageQueueService
         MessageQueueService.enqueue(
             task_name='invoice_created_flash',
-            task_id=str(invoice.id),
+            task_id=f"invoice_created:{invoice.id}",
             data={
                 'invoice_id': str(invoice.id),
                 'created_at': datetime.utcnow().isoformat()
@@ -144,20 +167,27 @@ def approve_invoice_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    invoice = _get_invoice_or_404(db, invoice_id)
+    invoice = _get_invoice_or_404(db, invoice_id, current_user)
     try:
         invoice = approve_invoice(db, invoice, approved_by=current_user.UserID)
+    except InvoiceApproverNotAllowed as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
     except InvalidInvoiceTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     db.commit()
     db.refresh(invoice)
+
+    # an invoice auto-invoicing drafted goes to the client as soon as Finance approves it
+    from app.services.invoice_automation_service import send_after_approval
+
+    send_after_approval(db, invoice, current_user.UserID)
 
     # Queue invoice approval for FLASH orchestrator
     try:
         from app.services.message_queue_service import MessageQueueService
         MessageQueueService.enqueue(
             task_name='invoice_updated_flash',
-            task_id=str(invoice.id),
+            task_id=f"invoice_approved:{invoice.id}",
             data={
                 'invoice_id': str(invoice.id),
                 'status': 'approved',
@@ -172,7 +202,7 @@ def approve_invoice_endpoint(
 @router.post(
     "/{invoice_id}/send",
     response_model=InvoiceItem,
-    summary="Mark an APPROVED invoice as SENT",
+    summary="Email an APPROVED invoice to the client's accounts contact",
     dependencies=[Depends(require_resource_permission("invoices", "create"))]
 )
 def send_invoice_endpoint(
@@ -180,9 +210,35 @@ def send_invoice_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    invoice = _get_invoice_or_404(db, invoice_id)
+    invoice = _get_invoice_or_404(db, invoice_id, current_user)
     try:
-        invoice = send_invoice(db, invoice)
+        request_invoice_email(db, invoice, requested_by=current_user.UserID)
+    except InvalidInvoiceTransition as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except MissingBillingContact as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except RuntimeError as exc:
+        db.rollback()
+        logger.error(f"[Invoices] could not queue email for {invoice_id}: {exc}", exc_info=True)
+        raise HTTPException(status_code=503, detail="The invoice email could not be queued; try again shortly.")
+    db.refresh(invoice)
+    return _to_item(db, invoice)
+
+@router.post(
+    "/{invoice_id}/record-external-delivery",
+    response_model=InvoiceItem,
+    summary="Record that an APPROVED invoice was delivered outside email (e.g. client portal)",
+    dependencies=[Depends(require_resource_permission("invoices", "create"))]
+)
+def record_external_delivery_endpoint(
+    invoice_id: str,
+    body: RecordExternalDeliveryRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    invoice = _get_invoice_or_404(db, invoice_id, current_user)
+    try:
+        record_external_delivery(db, invoice, recorded_by=current_user.UserID, note=body.note)
     except InvalidInvoiceTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     db.commit()
@@ -192,20 +248,50 @@ def send_invoice_endpoint(
 @router.post(
     "/{invoice_id}/mark-paid",
     response_model=InvoiceItem,
-    summary="Mark a SENT invoice as PAID",
+    summary="Mark a SENT invoice as PAID and recognise its revenue",
     dependencies=[Depends(require_resource_permission("invoices", "create"))]
 )
 def mark_invoice_paid_endpoint(
     invoice_id: str,
+    body: Optional[MarkPaidRequest] = None,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    invoice = _get_invoice_or_404(db, invoice_id)
+    invoice = _get_invoice_or_404(db, invoice_id, current_user)
+    paid_on = body.paid_on if body else None
+    if paid_on and paid_on > datetime.utcnow().date():
+        raise HTTPException(status_code=422, detail="paid_on cannot be in the future.")
     try:
-        invoice = mark_invoice_paid(db, invoice)
+        mark_invoice_paid(db, invoice, paid_at=datetime.combine(paid_on, datetime.min.time()) if paid_on else None)
     except InvalidInvoiceTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     db.commit()
+    db.refresh(invoice)
+    return _to_item(db, invoice)
+
+@router.post(
+    "/{invoice_id}/record-payment",
+    response_model=InvoiceItem,
+    summary="Record the client's payment: bank transaction matched, invoice PAID, revenue recognised",
+    dependencies=[Depends(require_resource_permission("invoices", "create"))]
+)
+def record_payment_endpoint(
+    invoice_id: str,
+    body: RecordPaymentRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    from app.services.bank_reconciliation_service import BankReconciliationError, record_invoice_payment
+
+    invoice = _get_invoice_or_404(db, invoice_id, current_user)
+    if body.paid_on > datetime.utcnow().date():
+        raise HTTPException(status_code=422, detail="paid_on cannot be in the future.")
+    try:
+        record_invoice_payment(db, invoice, paid_on=body.paid_on, amount_usd_cents=body.amount_usd_cents,
+                               reference=body.reference, recorded_by=current_user.UserID)
+    except BankReconciliationError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc))
     db.refresh(invoice)
     return _to_item(db, invoice)
 
@@ -222,7 +308,9 @@ def list_invoices(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    query = db.query(Invoice).filter(Invoice.tenant_id == current_user.tenant_id)
+    query = db.query(Invoice).filter(
+        Invoice.tenant_id == current_user.tenant_id, client_filter(db, current_user, Invoice.client_id),
+    )
     if project_id:
         query = query.filter(Invoice.project_id == project_id)
     if client_id:
@@ -243,6 +331,6 @@ def get_invoice(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    invoice = _get_invoice_or_404(db, invoice_id)
+    invoice = _get_invoice_or_404(db, invoice_id, current_user)
     return _to_item(db, invoice)
 

@@ -137,7 +137,8 @@ class RecruiterAssignmentServiceForCandidates:
                 Users.tenant_id == tenant_id,
                 Users.UserRole == roles.RECRUITER,  # Use constant, not pattern matching
                 Users.terminated_at.is_(None),
-            ).all()
+                Users.role_template_id.in_(may_work_candidates),
+            ).all() if authority.in_function(db, u, "Recruitment")]
 
             # Validate all recruiters have proper role_template alignment
             recruiters = [r for r in recruiters if RoleValidationService.is_recruiter(r)]

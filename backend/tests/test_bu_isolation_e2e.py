@@ -9,17 +9,14 @@ Verifies:
 5. When candidate is submitted to job, it becomes isolated to that BU
 """
 
-import pytest
 from unittest.mock import Mock
 from sqlalchemy.orm import Session
 
 from app.models.business_unit import BusinessUnit
-from app.models.candidate import Candidate
-from app.models.candidate_ownership import CandidateOwnership, POOL_ORG
 from app.models.user import Users
 from app.models.role_template import RoleTemplate
 from app.core.visibility import is_org_level_user, should_bypass_bu_filter, get_user_bu_id
-from app.core.bu_scope import is_bu_restricted, apply_bu_scope_to_candidate_query
+from app.core.bu_scope import is_bu_restricted
 
 
 class TestBUVisibility:
@@ -58,8 +55,8 @@ class TestBUVisibility:
         assert should_bypass_bu_filter(user) is False
         assert get_user_bu_id(user) == 1
 
-    def test_legacy_hardcoded_role_fallback(self):
-        """Legacy UserRole still recognized (backward compatibility)"""
+    def test_legacy_userrole_grants_nothing(self):
+        """The legacy UserRole string grants no org-level view (CEO 2026-10-10: role template only)"""
         user = Mock(spec=Users)
         user.UserEmail = "admin@company.com"
         user.role_template_id = None  # No new RBAC
@@ -67,8 +64,8 @@ class TestBUVisibility:
         user.UserRole = "CEO"  # Legacy hardcoded role
         user.role = None
 
-        assert is_org_level_user(user) is True
-        assert should_bypass_bu_filter(user) is True
+        assert is_org_level_user(user) is False
+        assert should_bypass_bu_filter(user) is False
 
 
 class TestBUScopedCandidateQueries:

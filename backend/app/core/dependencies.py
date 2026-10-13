@@ -1,6 +1,5 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
-import logging
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -9,7 +8,6 @@ from app.core.logging import logger
 from app.models.user import Users
 from app.models.candidate import Candidate
 from app.services.role_template_permission_service import RoleTemplatePermissionService
-from app.services.permission_helper import PermissionHelper
 
 def _reject_if_mfa_pending(payload: dict) -> None:
     """
@@ -180,9 +178,9 @@ async def get_current_internal_user(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        logger.error(f"[get_current_internal_user] Error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Authentication failed: {str(e)}")
+        logger.error(f"[get_current_internal_user] Error: {e}", exc_info=True)
+        # never echo internals (SQL, stack text) to the caller of an auth check
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Authentication failed.")
 
 async def get_current_mfa_pending_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -254,9 +252,6 @@ def require_permission(permission: str):
 
         # Use new role template permission service
 
-        # Super User & Admin bypass — always has all permissions
-        if RoleTemplatePermissionService.is_super_user(db, user.UserID, user.tenant_id):
-            return user
 
         # For legacy support: map old permission strings to new resource names
         # This will return False if the resource doesn't exist in the database
@@ -315,9 +310,6 @@ def require_role_template_permission(resource_name: str, field_name: str = "can_
                 detail="User has no tenant assigned"
             )
 
-        # Super User bypass - always grants all permissions
-        if RoleTemplatePermissionService.is_super_user(db, user.UserID, user.tenant_id):
-            return user
 
         # Query role template permissions from database (DYNAMIC, not hard-coded)
         if not RoleTemplatePermissionService.has_permission(db, user.UserID, resource_name, action, user.tenant_id):
@@ -331,86 +323,3 @@ def require_role_template_permission(resource_name: str, field_name: str = "can_
     _check.__wros_authn__ = "role_template_permission_check"
     return _check
 
-def require_attribute(attribute: str, expected: bool = True):
-    """FastAPI dependency factory that enforces a role attribute flag."""
-    async def _check(
-        credentials: HTTPAuthorizationCredentials = Depends(security),
-        db: Session = Depends(get_db),
-    ):
-
-        token = credentials.credentials
-        payload = decode_access_token(token)
-        _reject_if_mfa_pending(payload)
-        user_id: str = payload.get("sub", "")
-
-        user = db.query(Users).filter(Users.UserID == user_id).first()
-        if not user:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-
-        # DISABLED - Single company deployment, no tenant scoping needed
-        # from app.core.tenant_context import activate_tenant_scope
-        # activate_tenant_scope(user.tenant_id)
-
-        # Super User bypass — check via PermissionHelper
-        # Super User role has all permissions; check fundamental admin.manage permission
-        if PermissionHelper.is_super_admin(user.UserID, db, user.tenant_id):
-            return user
-
-        # TODO: Implement attribute checking via role templates (has_attribute is a stub)
-        # For now, Super User bypass above gates access; attribute checking not yet implemented
-        # if not RoleTemplateService.has_role_attribute(db, user.UserID, attribute, expected, user.tenant_id):
-        #     raise HTTPException(
-        #         status_code=status.HTTP_403_FORBIDDEN,
-        #         detail=f"Access denied: role attribute '{attribute}' required",
-        #     )
-        return user
-
-    # HRMS-0114 — see require_permission's matching comment above.
-    _check.__wros_attribute__ = attribute
-    return _check
-
-async def require_admin_role(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db),
-) -> Users:
-    """
-    S-213/BR-0115-01 -- a literal "Admin role" gate, not an RBAC
-    permission string (this codebase has no 'config.write' permission
-    seeded, and the business rule itself is phrased as a role check, not
-    a permission). "Super User" also passes, matching the bypass every
-    other guard in this file already grants it.
-    """
-    token = credentials.credentials
-    payload = decode_access_token(token)
-    _reject_if_mfa_pending(payload)
-    user_id: str = payload.get("sub", "")
-
-    user = db.query(Users).filter(Users.UserID == user_id).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-
-    # DISABLED - Single company deployment, no tenant scoping needed
-    # from app.core.tenant_context import activate_tenant_scope
-    # activate_tenant_scope(user.tenant_id)
-
-    # Check admin permission via PermissionHelper (database-driven RBAC)
-    # Admin users have admin.edit (or other admin CRUD) permissions
-    has_admin_perms = PermissionHelper.has_any_permission(
-        user.UserID,
-        ["admin.manage", "admin.edit", "admin.create", "rbac.manage"],
-        db,
-        user.tenant_id
-    )
-
-    if not has_admin_perms:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
-    return user
-
-# HRMS-0114 -- same marker convention as get_current_hr_or_admin etc.
-# above; without this, app.core.route_security_audit's startup gate
-# treats any route using ONLY this dependency as having no declared
-# auth at all and refuses to boot. A real role check, not just "any
-# internal user," but not the RBAC permission-string system either
-# (no 'config.write' permission is seeded) -- __wros_authn__ is the
-# closer-fitting of the two marker categories.
-require_admin_role.__wros_authn__ = "admin_role_only"

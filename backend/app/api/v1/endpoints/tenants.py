@@ -3,7 +3,6 @@ S-219/HRMS-0121 -- Multi-Continent Locale & Currency Config -- API
 Endpoints
 =========================================================================
 Prefix: /tenants
-import logging
 Tag:    tenants
 
 Genuinely new backend -- no Tenant-config model, service, or REST layer

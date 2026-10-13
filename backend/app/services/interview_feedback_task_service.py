@@ -6,7 +6,6 @@ hasn't submitted feedback yet" from "hiring manager hasn't decided
 yet" -- it didn't (zero create_task() calls anywhere in the interview
 feedback flow). This module is the "pending-feedback" half; the
 "pending-HM-decision" half already exists as
-import logging
 interviews.py::_create_hm_review_task() (category=INTERVIEW_REVIEW).
 
 Real requirement: these must be real, separately-scoped Tasks per

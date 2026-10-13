@@ -1,5 +1,4 @@
 """
-import logging
 S-059/HRMS-0459 -- Candidate Journey Dashboard.
 
 Real architecture adaptations:

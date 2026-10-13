@@ -1,6 +1,5 @@
 """
 HRMS-0711 -- Client Submission Pipeline, Phase 2 Domain 2 (the piece
-import logging
 connecting Demand -> Candidate -> Employee).
 
 Follows the EPIC-01/Phase A track -- the same sprint sequence that

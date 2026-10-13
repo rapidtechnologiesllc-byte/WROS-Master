@@ -35,7 +35,6 @@ from app.services.ai_conversation_service import AI_AGENT_NAME
 from app.services.notification_service import ChannelNotConfigured
 from app.services.delivery_factory import get_delivery_service
 from app.services.email_service import EmailService
-from app.core.logging import logger
 
 # The shared/Thunder number -- used when the AI owns the conversation, or
 # as a fallback for a human owner with no personal number registered.

@@ -1,5 +1,4 @@
 """
-import logging
 S-058/HRMS-0458 -- Joining Readiness Score.
 
 candidate_joining_scores: genuinely new table -- one row per (tenant,

@@ -1,7 +1,6 @@
 """
 Pydantic schemas — S-256/HRMS-0506 (canonical) Resource Demand
 Planning / Future Demand vs Bench Forecast API.
-import logging
 """
 
 import logging
@@ -9,7 +8,6 @@ from datetime import date
 from typing import List
 
 from pydantic import BaseModel
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

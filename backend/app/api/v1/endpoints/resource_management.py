@@ -2,7 +2,6 @@
 HRMS-1105 (canonical S-320) — Resource Management Agent — API Endpoints
 =========================================================================
 Prefix: /resource-management
-import logging
 Tag:    resource-management
 
 Wires the service layer built earlier this program

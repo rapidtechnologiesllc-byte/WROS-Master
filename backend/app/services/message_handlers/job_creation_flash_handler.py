@@ -150,21 +150,6 @@ class JobCreationFlashHandler:
                 job_status = payload.get('job_status', 'active')
 
                 if job_status == "active":
-                    # BLOCKER #5: Queue Flash analysis for candidates on this job
-                    try:
-                        from app.services.message_queue_service import MessageQueueService
-                        MessageQueueService.enqueue(
-                            task_name="flash_analysis_for_job",
-                            data={
-                                "job_id": job_id,
-                                "job_title": job_title,
-                                "tenant_id": job.tenant_id,
-                            }
-                        )
-                        logger.info(f"[JobCreate] Queued Flash analysis for job {job_id}")
-                    except Exception as flash_err:
-                        logger.warning(f"[JobCreate] Failed to queue Flash analysis (non-blocking): {flash_err}")
-
                     # Scan for ready candidates matching this job
                     try:
                         from app.services.ready_for_opportunity_service import scan_new_job_for_matches

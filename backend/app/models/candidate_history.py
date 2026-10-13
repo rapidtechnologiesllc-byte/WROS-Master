@@ -1,7 +1,6 @@
 """
 Candidate History Model
 =======================
-import logging
 Stores a chronological audit trail / timeline for every candidate.
 
 Each row represents one event in the candidate's journey, for example:

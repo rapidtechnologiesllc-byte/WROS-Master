@@ -2,7 +2,6 @@
 Employee self-service timesheet.
 ==================================================================
 Prefix: /my
-import logging
 Tag:    my-timesheet
 
 Real gap closed 2026-08-04: the existing timesheet engine (see
@@ -25,7 +24,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
-from app.schemas.allocation import AllocationItem, AllocationListResponse
+from app.schemas.allocation import AllocationListResponse
 from app.schemas.timesheet import TimesheetItem, TimesheetListResponse, UpsertEntriesRequest
 from app.services.employee_self_service import (
     NoLinkedEmployeeRecord, NotYourAllocation, NotYourTimesheet, get_my_active_allocations,
@@ -44,7 +43,7 @@ def _current_employee_or_404(db: Session, current_user: Users):
 @router.get(
     "/allocations",
     response_model=AllocationListResponse,
-    dependencies=[Depends(require_resource_permission("allocations", "view"))]
+    dependencies=[Depends(require_resource_permission("my-timesheet", "view"))]  # own allocations only
 )
 def my_allocations(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     from app.api.v1.endpoints.allocations import _to_item as allocation_to_item
@@ -100,10 +99,22 @@ def submit_my_own_timesheet(
 ):
 
     employee = _current_employee_or_404(db, current_user)
+    from app.services.timesheet_service import (
+        InvalidTimesheetEntry,
+        InvalidTimesheetTransition,
+        StaleTimesheetSubmission,
+    )
+
     try:
         timesheet = submit_my_timesheet(db, employee, timesheet_id)
     except NotYourTimesheet as exc:
         raise HTTPException(status_code=403, detail=str(exc))
+    except InvalidTimesheetTransition as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc))
+    except (InvalidTimesheetEntry, StaleTimesheetSubmission) as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
     return timesheet_to_item(db, timesheet)
 
 @router.get(

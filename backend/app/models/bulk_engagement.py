@@ -1,5 +1,4 @@
 """
-import logging
 S-074/HRMS-0474 -- Bulk Candidate Engagement Launch.
 
 Real architecture adaptation: no separate `bulk_import_batches`

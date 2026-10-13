@@ -1,6 +1,5 @@
 """
 HRMS-0316 -- Invoice Generation, Calculation, Sending & Payment Tracking
-import logging
 =========================================================================
 
 Complete invoice lifecycle management with hard enforcement of business rules:
@@ -18,42 +17,35 @@ Four core methods:
 
 import logging
 import uuid
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 from typing import Optional, List, Dict, Tuple
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
 
 from app.models.invoice import Invoice, InvoiceLineItem, INVOICE_STATUSES
-from app.models.timesheet import Timesheet, TIMESHEET_STATUSES
+from app.models.timesheet import Timesheet
 from app.models.employee import Employee
 from app.models.client import Client
 from app.models.project import Project
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.timesheet_dispute import TimesheetDispute
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 
 class InvoiceError(Exception):
     """Base exception for invoice operations."""
-    pass
 
 class UnapprovedTimesheetBlocksInvoice(InvoiceError):
     """R-10 enforcement: Cannot invoice period with unapproved timesheets."""
-    pass
 
 class OpenDisputeBlocksInvoice(InvoiceError):
     """BR-02 enforcement: Cannot invoice period with open timesheet disputes."""
-    pass
 
 class InvalidInvoiceTransition(InvoiceError):
     """Attempted illegal status transition."""
-    pass
 
 class InvoicePaymentError(InvoiceError):
     """Error during payment tracking."""
-    pass
 
 class InvoiceS316Service:
     """
@@ -412,7 +404,6 @@ class InvoiceS316Service:
         """
         # STUBBED: In production, send actual email via sendThunderMessage()
         # This placeholder logs the intent
-        pass
 
     # ========================================================================
     # PRIMARY METHOD 4: track_payment()

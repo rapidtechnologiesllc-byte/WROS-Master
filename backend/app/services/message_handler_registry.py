@@ -1,7 +1,6 @@
 """Message Handler Registry - Maps message types to handler functions."""
 import logging
 from typing import Dict, Callable, Optional, Any
-from app.core.database import SessionLocal
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -108,6 +107,51 @@ def _initialize_default_handlers():
     except Exception as e:
         logger.error(f"[Registry] Failed to register candidate note handler: {e}", exc_info=True)
 
+    try:
+        from app.services.message_handlers.enrich_linkedin_candidate_handler import EnrichLinkedInCandidateHandler
+        MessageHandlerRegistry.register("enrich_linkedin_candidate", EnrichLinkedInCandidateHandler.process)
+        logger.info("[Registry] Registered enrich_linkedin_candidate handler")
+    except Exception as e:
+        logger.error(f"[Registry] CRITICAL: Failed to register enrich_linkedin_candidate handler: {e}", exc_info=True)
+
+    try:
+        from app.services.message_handlers.thunder_send_email_handler import ThunderSendEmailHandler
+        from app.services.message_handlers.thunder_inbound_email_handler import ThunderInboundEmailHandler
+        MessageHandlerRegistry.register("thunder_send_email", ThunderSendEmailHandler.process)
+        MessageHandlerRegistry.register("thunder_process_inbound_email", ThunderInboundEmailHandler.process)
+        logger.info("[Registry] Registered Thunder email cadence handlers")
+    except Exception as e:
+        logger.error(f"[Registry] CRITICAL: Failed to register Thunder email handlers: {e}", exc_info=True)
+
+    try:
+        from app.services.message_handlers.send_account_email_handler import SendAccountEmailHandler
+        MessageHandlerRegistry.register("send_account_email", SendAccountEmailHandler.process)
+        logger.info("[Registry] Registered send_account_email handler")
+    except Exception as e:
+        logger.error(f"[Registry] CRITICAL: Failed to register send_account_email handler: {e}", exc_info=True)
+
+    try:
+        from app.services.message_handlers.hiring_pipeline_handlers import (
+            HiringConvertToBenchHandler,
+            HiringPipelineEvaluateHandler,
+            HiringStageActionHandler,
+        )
+        MessageHandlerRegistry.register("hiring_convert_to_bench", HiringConvertToBenchHandler.process)
+        MessageHandlerRegistry.register("hiring_pipeline_evaluate", HiringPipelineEvaluateHandler.process)
+        MessageHandlerRegistry.register("hiring_stage_action", HiringStageActionHandler.process)
+        from app.services.message_handlers.send_pipeline_email_handler import SendPipelineEmailHandler
+        MessageHandlerRegistry.register("send_pipeline_email", SendPipelineEmailHandler.process)
+        logger.info("[Registry] Registered hiring pipeline handlers")
+    except Exception as e:
+        logger.error(f"[Registry] CRITICAL: Failed to register hiring pipeline handlers: {e}", exc_info=True)
+
+    try:
+        from app.services.message_handlers.send_invoice_email_handler import SendInvoiceEmailHandler
+        MessageHandlerRegistry.register("send_invoice_email", SendInvoiceEmailHandler.process)
+        logger.info("[Registry] Registered send_invoice_email handler")
+    except Exception as e:
+        logger.error(f"[Registry] CRITICAL: Failed to register send_invoice_email handler: {e}", exc_info=True)
+
     # Register ops alert handler (NEW - Phase 3/4 stale message detection)
     try:
         from app.services.message_handlers.ops_alert_handler import OpsAlertHandler
@@ -133,6 +177,8 @@ def _initialize_default_handlers():
 
         MessageHandlerRegistry.register("job_status_changed", handle_job_status_changed)
         MessageHandlerRegistry.register("source_candidates_for_job", handle_source_candidates_for_job)  # Skill matching + cascade detection
+        from app.services.recruiting_service import handle_sourcing_complete
+        MessageHandlerRegistry.register("candidate_sourcing_complete", handle_sourcing_complete)  # top matches -> recruiter task
     except ImportError as e:
         logger.warning(f"[Registry] Could not import job handlers: {e}")
 
@@ -164,95 +210,17 @@ def _initialize_default_handlers():
     except ImportError as e:
         logger.warning(f"[Registry] Could not import Thunder/Formation handlers: {e}")
 
-    # Register offer handlers
-    try:
-        from app.services.message_handlers.offer_approved_handler import handle_offer_approved
-        from app.services.message_handlers.offer_sent_handler import handle_offer_sent
-        from app.services.message_handlers.offer_accepted_handler import handle_offer_accepted
-        from app.services.message_handlers.offer_rejected_handler import handle_offer_rejected
-        MessageHandlerRegistry.register("offer_approved", handle_offer_approved)
-        MessageHandlerRegistry.register("offer_sent", handle_offer_sent)
-        MessageHandlerRegistry.register("offer_accepted", handle_offer_accepted)
-        MessageHandlerRegistry.register("offer_rejected", handle_offer_rejected)
-    except ImportError as e:
-        logger.warning(f"[Registry] Could not import offer handlers: {e}")
+    # Offers move through the offer-letter endpoints and offer_response_service only; the
+    # offer_approved/sent/accepted/rejected queue handlers had no producer and were deleted.
 
-    # Register Phase 2: Revenue & Invoicing handlers (CRITICAL - ASC 606 compliance)
-    try:
-        from app.services.message_handlers.invoice_generation_handler import InvoiceGenerationHandler
-        from app.services.message_handlers.invoice_approved_handler import InvoiceApprovedHandler
-        from app.services.message_handlers.invoice_sent_handler import InvoiceSentHandler
-        from app.services.message_handlers.invoice_paid_handler import InvoicePaidHandler
-        from app.services.message_handlers.revenue_recognized_handler import RevenueRecognizedHandler
-        from app.services.message_handlers.s316_milestone_completion_handler import S316MilestoneCompletionHandler
-        from app.services.message_handlers.s316_invoice_handler import S316InvoiceHandler
+    # Invoice status changes happen only in invoice_service (approve: Finance Senior Manager+;
+    # send: request_invoice_email; paid: bank_reconciliation_service) and revenue only in
+    # revenue_chain_service.recognize_revenue. The old queue handlers that set those statuses
+    # directly (bypassing those rules) were deleted 2026-10-10.
 
-        # Standard timesheet-based invoicing (5 handlers)
-        MessageHandlerRegistry.register("invoice_generation", InvoiceGenerationHandler.process)
-        MessageHandlerRegistry.register("invoice_approved", InvoiceApprovedHandler.process)
-        MessageHandlerRegistry.register("invoice_sent", InvoiceSentHandler.process)
-        MessageHandlerRegistry.register("invoice_paid", InvoicePaidHandler.process)
-        MessageHandlerRegistry.register("revenue_recognized", RevenueRecognizedHandler.process)
-
-        # S316 service-based invoicing (2 handlers)
-        MessageHandlerRegistry.register("s316_milestone_completion", S316MilestoneCompletionHandler.process)
-        MessageHandlerRegistry.register("s316_invoice_generation", S316InvoiceHandler.process)
-
-        logger.info("[Registry] Registered Phase 2 invoice & revenue handlers (7 handlers total)")
-    except ImportError as e:
-        logger.warning(f"[Registry] Could not import invoice/revenue handlers: {e}")
-    except Exception as e:
-        logger.error(f"[Registry] Failed to register invoice/revenue handlers: {e}", exc_info=True)
-
-    # Register Phase 3: Hiring Manager Validation handlers (CRITICAL - hiring workflow)
-    try:
-        from app.services.message_handlers.hm_validation_created_handler import HMValidationCreatedHandler
-        from app.services.message_handlers.hm_validation_notification_handler import HMValidationNotificationHandler
-        from app.services.message_handlers.hm_validation_response_handler import HMValidationResponseHandler
-        from app.services.message_handlers.hm_validation_escalation_handler import HMValidationEscalationHandler
-
-        MessageHandlerRegistry.register("hm_validation_created", HMValidationCreatedHandler.process)
-        MessageHandlerRegistry.register("hm_validation_notify", HMValidationNotificationHandler.process)
-        MessageHandlerRegistry.register("hm_validation_response_submitted", HMValidationResponseHandler.process)
-        MessageHandlerRegistry.register("hm_validation_escalated", HMValidationEscalationHandler.process)
-        logger.info("[Registry] Registered Phase 3 HM validation handlers (4 of 5 core)")
-
-        from app.services.message_handlers.referral_submission_handler import ReferralSubmissionHandler
-        from app.services.message_handlers.referral_hire_conversion_handler import ReferralHireConversionHandler
-        from app.services.message_handlers.referral_payment_approval_handler import ReferralPaymentApprovalHandler
-
-        MessageHandlerRegistry.register("employee_referral_submitted", ReferralSubmissionHandler.process)
-        MessageHandlerRegistry.register("referral_hire_conversion", ReferralHireConversionHandler.process)
-        MessageHandlerRegistry.register("referral_payment_approval", ReferralPaymentApprovalHandler.process)
-        logger.info("[Registry] Registered Phase 3 referral handlers (3 handlers)")
-    except ImportError as e:
-        logger.warning(f"[Registry] Could not import HM validation handlers: {e}")
-    except Exception as e:
-        logger.error(f"[Registry] Failed to register HM validation handlers: {e}", exc_info=True)
-
-    # Register interview handlers (legacy signature, needs adapter)
-    try:
-        from app.services.message_handlers.interview_scheduled_handler import handle_interview_scheduled as legacy_handle_interview_scheduled
-
-        def _interview_scheduled_adapter(message: Any, db: Session) -> Dict[str, Any]:
-            """Adapter for legacy interview_scheduled handler."""
-            event_payload = {
-                "candidate_id": message.payload.get("candidate_id"),
-                "data": message.payload
-            }
-            return legacy_handle_interview_scheduled(event_payload, db)
-
-        MessageHandlerRegistry.register("interview_scheduled", _interview_scheduled_adapter)
-    except ImportError as e:
-        logger.warning(f"[Registry] Could not import interview handlers: {e}")
-
-    # Register project/milestone handlers
-    try:
-        from app.services.message_handlers.project_handlers import handle_project_created, handle_project_status_changed
-        MessageHandlerRegistry.register("project_created", handle_project_created)
-        MessageHandlerRegistry.register("project_status_changed", handle_project_status_changed)
-    except ImportError:
-        logger.info("[Registry] Project handlers not yet available")
+    # interview_scheduled (queued by POST /interviews after it creates the interview): pause
+    # Thunder outreach only. The old handler created a second, duplicate interview row.
+    MessageHandlerRegistry.register("interview_scheduled", _pause_thunder_on_interview)
 
     # Register offer generation handler (existing - needs adapter)
     try:

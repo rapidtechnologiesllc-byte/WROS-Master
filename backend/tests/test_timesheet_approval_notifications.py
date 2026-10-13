@@ -4,7 +4,6 @@ Verifies that EmailService.notify_timesheet_approved() is properly wired into ap
 """
 from datetime import date, datetime
 from unittest.mock import patch, MagicMock
-import logging
 from sqlalchemy.orm import Session
 
 from app.services.timesheet_service import approve_timesheet
@@ -49,27 +48,29 @@ def _create_mock_db():
 def test_approve_timesheet_sends_notification():
     """
     PRIORITY 1 TEST: Verify that approve_timesheet() calls EmailService.notify_timesheet_approved()
-    and that the email notification is properly queued.
+    and that the email notification is properly queued. approved_by is the approver's UserID
+    (timesheets endpoint passes current_user.UserID); their email comes from the Users row.
     """
-    # Create mock objects
+    from app.models.employee import Employee
+    from app.models.user import Users
+
     db = _create_mock_db()
     timesheet = _create_mock_timesheet()
     employee = _create_mock_employee()
+    approver = MagicMock(UserID="U-MGR", UserEmail="manager@test.com", UserName="Mary Manager")
 
-    # Mock the database query for finding the employee
-    db.query.return_value.filter.return_value.first.return_value = employee
+    def query(model):
+        q = MagicMock()
+        q.filter.return_value.first.return_value = employee if model is Employee else approver if model is Users else None
+        return q
+    db.query.side_effect = query
 
     with patch("app.services.timesheet_service.EmailService.notify_timesheet_approved") as mock_email:
-        # Call approve_timesheet()
-        result = approve_timesheet(
-            db,
-            timesheet,
-            approved_by="manager@test.com"
-        )
+        result = approve_timesheet(db, timesheet, approved_by="U-MGR")
 
         # Verify timesheet status changed to APPROVED
         assert result.status == "APPROVED"
-        assert result.approved_by == "manager@test.com"
+        assert result.approved_by == "U-MGR"
         assert result.approved_at is not None
 
         # Verify EmailService.notify_timesheet_approved() was called
@@ -97,6 +98,7 @@ def test_approve_timesheet_sends_notification():
         assert kwargs["employee_email"] == "employee@test.com"
         assert kwargs["employee_name"] == "John Doe"
         assert kwargs["approver_email"] == "manager@test.com"
+        assert kwargs["approver_name"] == "Mary Manager"
         assert kwargs["total_hours"] == 40.0
         assert kwargs["week_starting_date"] == "2026-08-04"
 

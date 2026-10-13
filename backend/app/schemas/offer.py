@@ -6,7 +6,6 @@ from datetime import datetime, date
 from typing import Optional, Dict, List, Any
 import logging
 from pydantic import BaseModel, Field, EmailStr, validator
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

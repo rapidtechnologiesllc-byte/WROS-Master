@@ -1,5 +1,4 @@
 """
-import logging
 S-347/HRMS-P117 -- Candidate Desire Intelligence Engine.
 
 candidate_desire_signals: a real, new, queryable ledger of every

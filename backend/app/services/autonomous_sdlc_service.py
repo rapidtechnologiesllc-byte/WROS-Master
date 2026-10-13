@@ -31,6 +31,7 @@ Architecture: PostgreSQL-based message queue (no Redis/Celery)
 Pattern: Spartan Formation - Architect leads each cycle, full orchestration
 """
 import logging
+import pathlib
 import subprocess
 import json
 import os
@@ -39,6 +40,17 @@ from typing import Dict, Any, List
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
+
+# The checkout this file lives in (backend/app/services -> repo root)
+REPO_ROOT = str(pathlib.Path(__file__).resolve().parents[3])
+
+
+def require_code_commit_opt_in() -> None:
+    """Code that stages and commits to git runs only where a person explicitly allowed it
+    (ALLOW_CODE_COMMITS=1, e.g. a developer checkout). Off by default everywhere, so a run
+    on the production server can never commit into its checkout and break the next deploy."""
+    if os.getenv("ALLOW_CODE_COMMITS") != "1":
+        raise AutonomousSDLCError("Automated git commits are disabled (set ALLOW_CODE_COMMITS=1 to allow them here)")
 
 # SAFETY: Refuse to run in production
 ENVIRONMENT = os.getenv("ENVIRONMENT", "local").lower()
@@ -356,17 +368,18 @@ def _deploy_changes(develop_result: Dict[str, Any]) -> Dict[str, Any]:
         logger.info("[DEPLOY] No changes to commit")
         return {"deployed": False, "reason": "No fixes applied"}
 
+    require_code_commit_opt_in()
     try:
         logger.info("[DEPLOY] Committing changes to git")
 
         # Stage all changes
-        subprocess.run(["git", "add", "-A"], cwd="C:\\Users\\AvinashMukund\\Documents\\Claude\\WROS-Master", check=True, capture_output=True)
+        subprocess.run(["git", "add", "-A"], cwd=REPO_ROOT, check=True, capture_output=True)
 
         # Commit with message
         commit_message = f"chore: Autonomous SDLC fixes - {develop_result.get('fixes_applied')} issues fixed\n\nAutonomously fixed issues from SDLC audit cycle.\n\nCo-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>"
         result = subprocess.run(
             ["git", "commit", "-m", commit_message],
-            cwd="C:\\Users\\AvinashMukund\\Documents\\Claude\\WROS-Master",
+            cwd=REPO_ROOT,
             capture_output=True,
             text=True
         )

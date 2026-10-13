@@ -1,30 +1,21 @@
 // Candidate search/listing and selection screen.
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Search, Users, AlertCircle, CheckCircle, X } from "lucide-react";
+import { Plus, Users, AlertCircle, CheckCircle, X, Linkedin } from "lucide-react";
 import {
   Button,
   Card,
-  Input,
-  Select,
   StatusBadge,
   Table,
 } from "../components/ui";
 import CandidateEditModal from "./CandidateEditModal";
+import LinkedInAddCandidateModal from "../components/LinkedInAddCandidateModal";
 import {
   getAllCandidates,
   getCandidateStatus,
   updateCandidateStatus,
 } from "../services/api/candidates";
-import MoveStageDrawer from "../components/ui/MoveStageDrawer";
 import ScreenErrorDisplay from "../components/ScreenErrorDisplay";
 import { Table as AntTable } from "antd";
-import {
-  managerReviewApprove,
-  managerReviewList,
-} from "../services/api/preOnboarding";
-import { sendPlainEmail, sendLoginCredentials } from "../services/api/email";
-import { getEmailBodyHTML } from "../utils/preboardingEmailTemplate";
-import { getRejectionEmailHTML } from "../utils/rejectionEmailTemplate";
 import { useNavigate } from "react-router-dom";
 import CandidateActionMenu from "../components/ui/CandidateActionMenu";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
@@ -49,23 +40,17 @@ export default function CandidateSearch({
   setAutoOpenSchedule,
   onRefreshCandidates,
 }) {
-  const [query, setQuery] = useState("");
-  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [query] = useState("");
   const [editCandidateId, setEditCandidateId] = useState("");
   const [overrideEditingCandidate, setOverrideEditingCandidate] =
     useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [candidateList, setCandidateList] = useState(candidates || []);
-  const [openMoveDrawer, setOpenMoveDrawer] = useState(false);
-  const [preonboardingModal, setPreonboardingModal] = useState(false);
-  const [candidateActions, setCandidateActions] = useState({});
-  const [preOnboardingCandidates, setPreOnboardingCandidates] = useState([]);
-  const [managerCandidatesList, setManagerCandidatesList] = useState([]);
-  const [approvalCandidates, setApprovalCandidates] = useState([]);
   const [loading, setLoading] = useState(false);
   const [screenError, setScreenError] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
+  const [linkedInOpen, setLinkedInOpen] = useState(false);
   const navigate = useNavigate();
   const isAntTableRole =
     hasPermission("candidates", "view") ||
@@ -92,24 +77,16 @@ export default function CandidateSearch({
   };
 
   useEffect(() => {
-    // Refresh all candidate lists on mount
-    if (hasPermission("candidates", "view")) {
-      fetchCandidates();
-    }
+    // Refresh the candidate list on mount
     if (hasPermission("candidates", "edit")) {
       fetchApprovalCandidates();
-    }
-    if (hasPermission("offers", "view")) {
-      offerApprovalCandidates();
     }
   }, []);
 
   const fetchApprovalCandidates = async () => {
     try {
       setLoading(true);
-      const canData = await managerReviewList().catch(e => { throw e; });
-      setManagerCandidatesList(canData?.candidates);
-      // Also refresh all candidates to show newly created ones
+      // Refresh all candidates to show newly created ones
       if (hasPermission("candidates", "view")) {
         const allData = await getAllCandidates().catch(e => { throw e; });
         setCandidateList(allData?.candidates || []);
@@ -128,50 +105,8 @@ export default function CandidateSearch({
       // Fetch all candidate lists to ensure UI is in sync
       const allData = await getAllCandidates().catch(e => { throw e; });
       setCandidateList(allData?.candidates || []);
-      setPreOnboardingCandidates(allData?.candidates || []);
-
-      const approvalData = await managerReviewList().catch(e => { throw e; });
-      setManagerCandidatesList(approvalData?.candidates || []);
-
-      const offerData = await getAllCandidates().catch(e => { throw e; });
-      const filteredOffers = offerData?.candidates?.filter(
-        (c) => c.pipline_status?.toLowerCase() === "OfferApproval".toLowerCase()
-      ) || [];
-      setApprovalCandidates(filteredOffers);
     } catch (err) {
       setScreenError(err?.message || "Failed to refresh candidates");
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchCandidates = async () => {
-    try {
-      setLoading(true);
-      const canData = await getAllCandidates().catch(e => { throw e; });
-      const filteredCandidates = canData?.candidates;
-      setPreOnboardingCandidates(filteredCandidates);
-    } catch (err) {
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const offerApprovalCandidates = async () => {
-    try {
-      setLoading(true);
-      const canData = await getAllCandidates().catch(e => { throw e; });
-
-      const filteredCandidates =
-        canData?.candidates?.filter(
-          (candidate) =>
-            candidate.pipline_status?.toLowerCase() ===
-            "OfferApproval".toLowerCase(),
-        ) || [];
-      setApprovalCandidates(filteredCandidates);
-    } catch (err) {
       throw err;
     } finally {
       setLoading(false);
@@ -289,81 +224,6 @@ export default function CandidateSearch({
       }
     } catch (err) {
       throw err;
-    }
-  };
-
-  const handlePreOnboardingAction = async (record, action) => {
-    setActionError(null);
-    setActionSuccess(null);
-    try {
-      const res = await managerReviewApprove(record, action).catch(e => { throw e; });
-      if (res?.status === "success") {
-        const updatedCandidate = res?.data;
-        setCandidateList((prev) =>
-          prev.map((candidate) =>
-            candidate.candidate_id === updatedCandidate.candidate_id
-              ? {
-                  ...candidate,
-                  pipeline_status: updatedCandidate.pipeline_status,
-                  status: updatedCandidate.status,
-                  updated_at: updatedCandidate.updated_at,
-                }
-              : candidate,
-          ),
-        );
-        if (action === "Approve") {
-          const emailSend = await sendPlainEmail({ toEmail: record?.candidate_email, subject: "Pre-Onboarding Task", bodyContent: getEmailBodyHTML(record?.candidate_name), isHtml: true }).catch(e => { throw e; });
-          await sendLoginCredentials(record?.candidate_id).catch(e => { throw e; });
-          if (emailSend?.status === "success") {
-            setActionSuccess(
-              `Candidate ${record?.candidate_name} approved for Pre-Onboarding`,
-            );
-          }
-        } else {
-          setActionSuccess(
-            `Candidate ${record?.candidate_name} has been rejected`,
-          );
-        }
-      }
-    } catch (err) {
-      setScreenError(
-        action === "Approve"
-          ? "Candidate already moved to Pre-Onboarding"
-          : "Failed to reject candidate",
-      );
-      throw err;
-    }
-  };
-
-  const managerRejectCandidate = async (record) => {
-    setActionError(null);
-    setActionSuccess(null);
-    try {
-      const result = await updateCandidateStatus(record?.candidate_id, { status: "Active", pipeline_status: "Pre-onboarding-Approval" }).catch(e => { throw e; });
-      if (result?.status === "success") {
-        await fetchCandidates().catch(e => { throw e; });
-        const updatedCandidate = result.data;
-        setCandidateList((prev) =>
-          prev.map((candidate) =>
-            candidate.candidate_id === result?.candidate_id
-              ? { ...candidate, ...result }
-              : candidate,
-          ),
-        );
-
-        setActionSuccess(
-          `Candidate ${record?.candidate_name} rejected successfully`,
-        );
-
-        try {
-          await sendPlainEmail({ toEmail: record?.candidate_email, subject: "Update on Your Application", bodyContent: getRejectionEmailHTML(record?.candidate_name), isHtml: true }).catch(emailError => { console.error("Failed to send rejection email", emailError); setActionError("Candidate rejected, but email could not be sent"); throw emailError; });
-          setActionSuccess("Rejection email sent successfully");
-        } catch (emailError) {
-          throw emailError;
-        }
-      }
-    } catch (err) {
-      setScreenError(err?.message || "Failed to process candidate");
     }
   };
 
@@ -571,6 +431,12 @@ export default function CandidateSearch({
           </div>
         )}
 
+        <LinkedInAddCandidateModal
+          open={linkedInOpen}
+          onClose={() => setLinkedInOpen(false)}
+          onQueued={() => refreshAllCandidates().catch(() => {})}
+        />
+
         <div className="space-y-6">
           <div className="rounded-2xl border border-gray-200 bg-white p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -582,12 +448,21 @@ export default function CandidateSearch({
 
               <div className="flex items-center gap-2">
                 {hasPermission("candidates", "create") && (
-                  <Button
-                    onClick={onCreateCandidate}
-                    className="h-[46px] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
-                  >
-                    <Plus className="h-4 w-4" /> Add Candidate
-                  </Button>
+                  <>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setLinkedInOpen(true)}
+                      className="h-[46px] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                    >
+                      <Linkedin className="h-4 w-4" /> Add from LinkedIn
+                    </Button>
+                    <Button
+                      onClick={onCreateCandidate}
+                      className="h-[46px] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                    >
+                      <Plus className="h-4 w-4" /> Add Candidate
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
@@ -665,7 +540,6 @@ export default function CandidateSearch({
           <CandidateEditModal
             candidate={editingCandidate}
             onClose={() => {
-              setEditModalOpen(false);
               setEditCandidateId("");
               setOverrideEditingCandidate(null);
             }}

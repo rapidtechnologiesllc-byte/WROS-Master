@@ -1,12 +1,10 @@
 import logging
-from app.core.logging import logger
 
 """Role-Based Dashboard Service - Personalized views for CEO, Recruiter, HR, Finance."""
 
 from sqlalchemy.orm import Session
 from typing import Optional
 from app.models.user import Users
-from app.services.agent_state_service import get_agent_state_target, get_all_agent_states
 from app.services.agent_kill_switch_service import AgentKillSwitchService
 logger = logging.getLogger(__name__)
 

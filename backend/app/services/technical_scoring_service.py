@@ -1,5 +1,4 @@
 """
-import logging
 S-037/HRMS-0437 -- Technical Qualification Score.
 
 Real architecture adaptations:
@@ -59,11 +58,10 @@ Real architecture adaptations:
 import logging
 import re
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.candidate import Candidate, CandidateJobApplication
 from app.models.candidate_job_score import CandidateJobScore
 from app.models.candidate_resume_parsed import CandidateResumeParsed

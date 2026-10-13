@@ -65,6 +65,30 @@ class Department(Base):
     def __repr__(self) -> str:
         return f"<Department id={self.id} name={self.name!r} bu_id={self.business_unit_id}>"
 
+class OrgRole(Base):
+    """A role (job title) the firm uses -- "Senior Consultant", "Delivery Manager", "CFO" --
+    and the org level (1-17) it sits at. Managed on the Organizational Hierarchy screen
+    next to departments; the user form's Job Title list comes from here, and choosing a
+    role sets the person's level. The level decides reporting and the home dashboard
+    (via LEVEL_POSITION_CODES); the person's department decides their function."""
+    __tablename__ = "org_roles"
+
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    hierarchy_level = Column(Integer, nullable=False)
+    # "ceo" / "cfo" / None: the few roles code treats specially (home dashboard), set here,
+    # never inferred from a department name
+    designation = Column(String(16), nullable=True)
+    description = Column(Text, nullable=True)
+    active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("uq_org_roles_tenant_name", "tenant_id", "name", unique=True),
+    )
+
+
 class OrgPosition(Base):
     """
     Named organizational titles: CEO, Partner, BU Head, Senior Director, Director, etc.

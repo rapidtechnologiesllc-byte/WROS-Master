@@ -1,5 +1,4 @@
 """
-import logging
 HRMS-0706 -- Interview Panel Assignment, Phase 2 Domain 2.
 
 get_assigned_interviewer() is the helper HRMS-0448 (Calendar Matching
@@ -25,7 +24,6 @@ from sqlalchemy.orm import Session
 from app.models.employee import Employee
 from app.models.interview_pipeline import DemandInterviewPanel, SubmissionInterview
 from app.models.submission import Submission
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

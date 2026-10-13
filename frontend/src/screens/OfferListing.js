@@ -51,7 +51,7 @@ const OfferListing = () => {
   const [statusSelected, setStatusSelected] = useState("");
   const [actionError, setActionError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
-  const canManageOffers = hasPermission("offers", "edit");
+  const canManageOffers = hasPermission("offer-letters", "edit");
   const offerStatusOptions = [
     { label: "Released", value: "Released" },
     { label: "AwaitingApproval", value: "AwaitingApproval" },

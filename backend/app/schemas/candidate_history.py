@@ -2,16 +2,12 @@
 Candidate History Schemas
 =========================
 Pydantic request / response models for the candidate history (timeline) API.
-import logging
 """
 
 import logging
-from app.models.user import Interview
-from docx import Document
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field
-from app.core.logging import logger
 
 # ---------------------------------------------------------------------------
 # Allowed event types — validated on creation

@@ -56,8 +56,9 @@ def handle_create_user_with_roles(message: Any, db: Session) -> Dict[str, Any]:
             db,
             tenant_id=tenant_id,
             name=user_name,
+            # Level from the Job Title's role (set by the endpoint); function from the department
             hierarchy_level=payload.get("hierarchy_level") or role_template.hierarchy_level,
-            specialization=payload.get("specialization") or role_template.specialization,
+            specialization=None,
             parent_id=payload.get("parent_node_id"),
             department_id=payload.get("department_id"),
             # The seat carries the user's company (BX-US / BX-IN)

@@ -12,39 +12,12 @@ logger = logging.getLogger(__name__)
 
 
 def is_org_level_user(user: Users) -> bool:
-    """
-    Check if user should see organization-level data (not BU-scoped).
-
-    Queries role_template.org_level_access flag instead of hardcoded role names.
-    Supports both new RBAC (role_template) and legacy UserRole systems.
-    """
-    if not user:
+    """Sees organization-wide data (not BU-scoped): the user's enabled role template is
+    flagged org_level_access. Never by role name, legacy UserRole or a super-user flag."""
+    role = getattr(user, "role_template", None) if user else None
+    if role is None or not role.enabled:
         return False
-
-    # New RBAC: Check role_template.org_level_access flag
-    if user.role_template_id and user.role_template:
-        try:
-            org_level = getattr(user.role_template, 'org_level_access', False)
-            if org_level:
-                logger.debug(f"User {user.UserEmail} is org-level via role_template {user.role_template.name}")
-                return True
-        except Exception as e:
-            logger.warning(f"Failed to check role_template org_level_access: {e}")
-
-    # Legacy RBAC: Check hardcoded role set (for backward compatibility)
-    # These roles will be migrated to set org_level_access=True on their role_template
-    legacy_org_level_roles = {"super user", "admin", "ceo", "cfo"}
-
-    if user.UserRole and user.UserRole.lower() in legacy_org_level_roles:
-        logger.debug(f"User {user.UserEmail} is org-level via legacy UserRole: {user.UserRole}")
-        return True
-
-    # Check role_template (new RBAC system) for org_level_access flag
-    if user.role_template and hasattr(user.role_template, 'org_level_access') and user.role_template.org_level_access:
-        logger.debug(f"User {user.UserEmail} is org-level via role_template: {user.role_template.name}")
-        return True
-
-    return False
+    return bool(role.org_level_access)
 
 
 def should_bypass_bu_filter(user: Users) -> bool:
@@ -79,18 +52,15 @@ def get_user_bu_id(user: Users) -> int | None:
 
 def get_user_bu_ids(db, user: Users) -> set[int] | None:
     """
-    Every BU a BU-scoped user may see: their own BU, the BUs they own as
-    Partner, and the BUs they run as BU Head. None = org-level (no filter).
+    The business units a BU-scoped user may see (CEO 2026-10-12: by business unit only,
+    never by location): the BUs they partner, the BUs they head in any company, and their
+    own BU. None = org-level (role template org_level_access) -- no filter.
     """
-    from app.models.business_unit import BusinessUnit
+    from app.services.bu_leadership import led_business_units
 
     if should_bypass_bu_filter(user):
         return None
-    ids = {
-        bu_id for (bu_id,) in db.query(BusinessUnit.id).filter(
-            (BusinessUnit.partner_user_id == user.UserID) | (BusinessUnit.manager_id == user.UserID)
-        )
-    }
+    ids = led_business_units(db, user)
     if user.business_unit_id is not None:
         ids.add(user.business_unit_id)
     return ids
@@ -140,8 +110,7 @@ def resolve_dashboard_head_bu(db, user: Users, requested_bu_id: int | None) -> t
     else:
         rows = db.query(BusinessUnit).filter(
             BusinessUnit.active == True,  # noqa: E712
-            (BusinessUnit.manager_id == user.UserID) | (BusinessUnit.partner_user_id == user.UserID)
-            | (BusinessUnit.id == user.business_unit_id),
+            BusinessUnit.id.in_(get_user_bu_ids(db, user) or set()),
         ).order_by(BusinessUnit.name).all()
         allowed = [{"id": bu.id, "name": bu.display_name or bu.name} for bu in rows]
     allowed_ids = {b["id"] for b in allowed}

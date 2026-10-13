@@ -48,9 +48,11 @@ export const addClientContact = async (clientId, payload) => {
   return data;
 };
 
-export const getBusinessUnitAssignments = async (businessUnitId) => {
+// The BU head for a new job: the head of the BU in the client's company when clientId is given
+export const getBusinessUnitAssignments = async (businessUnitId, clientId) => {
+  const query = clientId ? `?client_id=${encodeURIComponent(clientId)}` : "";
   const { data } = await apiRequest(
-    `/clients/business-units/${businessUnitId}/assignments`,
+    `/clients/business-units/${businessUnitId}/assignments${query}`,
     { method: "GET" }
   );
   return data;

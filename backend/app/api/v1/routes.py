@@ -1,4 +1,3 @@
-import logging
 import fastapi
 
 from app.api.v1.endpoints.auth import router as auth_router
@@ -45,6 +44,7 @@ from app.api.v1.endpoints.partner_incentives import router as partner_incentives
 from app.api.v1.endpoints.revenue_targets import router as revenue_targets_router
 from app.api.v1.endpoints.forecast_and_leakage import router as forecast_and_leakage_router
 from app.api.v1.endpoints.cost_rate import router as cost_rate_router
+from app.api.v1.endpoints.revenue_chain import router as revenue_chain_router
 from app.api.v1.endpoints.public_chat import router as public_chat_router
 from app.api.v1.endpoints.flash import router as flash_router
 from app.api.v1.endpoints.whatsapp_webhook import router as whatsapp_webhook_router
@@ -87,22 +87,24 @@ from app.api.v1.endpoints.goals_management import router as goals_router
 from app.api.v1.endpoints.slm_feedback import router as slm_feedback_router
 from app.api.v1.endpoints.message_queue import router as message_queue_router
 from app.api.v1.endpoints.linkedin_candidate_pipeline import router as linkedin_pipeline_router
-from app.api.v1.endpoints.business_units import router as business_units_router
 from app.api.v1.endpoints.admin_queue import router as admin_queue_router
 from app.api.v1.endpoints.employee_conversion import router as employee_conversion_router
+from app.api.v1.endpoints.hiring_pipeline import router as hiring_pipeline_router
+from app.api.v1.endpoints.bgv import router as bgv_router
+from app.api.v1.endpoints.client_onboarding import router as client_onboarding_router
 from app.api.v1.endpoints.hiring_manager_validation import router as hiring_manager_validation_router
 from app.api.v1.endpoints.offers import router as offers_router
 from app.api.v1.endpoints.spartan_forecasting import router as spartan_forecasting_router
 from app.api.v1.endpoints.system_health import router as system_health_router
 from app.api.v1.endpoints.users_access_control import router as users_access_control_router
 from app.api.v1.endpoints.learning import router as learning_router
+from app.api.v1.endpoints.learning_transcript import router as learning_transcript_router
 from app.api.v1.endpoints.health_check import router as health_check_router
 from app.api.v1.endpoints.slm_exports import router as slm_exports_router
 from app.api.v1.endpoints.flash_queue_metrics import router as flash_queue_metrics_router
 from app.api.v1.endpoints.csrf_token import router as csrf_token_router
 from app.api.v1.endpoints.system_diagnostics import router as system_diagnostics_router
 from app.api.v1.endpoints.api_keys import router as api_keys_router
-from app.api.v1.endpoints.admin_setup import router as admin_setup_router
 from app.api.v1.endpoints.role_templates import rbac_router
 # Dashboard APIs deleted in 985681ca while their screens were still live
 from app.api.v1.endpoints.bi_explorer import router as bi_explorer_router
@@ -113,6 +115,10 @@ from app.api.v1.endpoints.intervention_queue import router as intervention_queue
 from app.api.v1.endpoints.agent_config import router as agent_config_router
 from app.api.v1.endpoints.tenant_ai_config import router as tenant_ai_config_router
 from app.api.v1.endpoints.email_templates import router as email_templates_router
+from app.api.v1.endpoints.webhooks import router as webhooks_router
+from app.api.v1.endpoints.cascade_prediction import router as cascade_prediction_router
+from app.api.v1.endpoints.learning_analytics import router as learning_analytics_router
+from app.api.v1.endpoints.learning_dashboard import router as learning_dashboard_router
 
 try:
     router = fastapi.APIRouter(prefix="/api/v1")
@@ -125,15 +131,16 @@ router.include_router(router=role_templates_router)
 router.include_router(router=rbac_router)
 router.include_router(router=role_template_modules_router)
 router.include_router(router=org_structure_router)
-router.include_router(router=business_units_router)
 router.include_router(router=users_access_control_router)
 router.include_router(router=learning_router)
+router.include_router(router=learning_analytics_router)
+router.include_router(router=learning_dashboard_router)
+router.include_router(router=learning_transcript_router)
 router.include_router(router=health_check_router)
 router.include_router(router=slm_exports_router)
 router.include_router(router=flash_queue_metrics_router)
 router.include_router(router=csrf_token_router)
 router.include_router(router=system_diagnostics_router)
-router.include_router(router=admin_setup_router)
 router.include_router(router=api_keys_router)
 router.include_router(router=users_router)
 router.include_router(router=create_job_router)
@@ -179,9 +186,12 @@ router.include_router(router=partner_incentives_router)
 router.include_router(router=revenue_targets_router)
 router.include_router(router=forecast_and_leakage_router)
 router.include_router(router=cost_rate_router)
+router.include_router(router=revenue_chain_router)
 router.include_router(router=public_chat_router)
 router.include_router(router=flash_router)
 router.include_router(router=whatsapp_webhook_router)
+router.include_router(router=webhooks_router)
+router.include_router(router=cascade_prediction_router)
 router.include_router(router=portal_messages_router)
 router.include_router(router=ai_recruiter_assignment_router)
 router.include_router(router=message_templates_router)
@@ -221,9 +231,11 @@ router.include_router(router=admin_queue_router)
 # agent_config, bi_explorer, bu_head_dashboard, candidate_ranking, candidate_rejection,
 # dynamic_config, interview_decision, queue, resume_upload, training_dashboards:
 # endpoint modules were removed from the working tree; not registered until restored.
-# doctor_traces_dashboard: references app.models.doctor_trace.DoctorTrace, which was
-# never added to this codebase; not registered until that model exists.
+# doctor_traces_dashboard: deleted (it referenced a DoctorTrace model that never existed).
 router.include_router(router=employee_conversion_router)
+router.include_router(router=hiring_pipeline_router)
+router.include_router(router=bgv_router)
+router.include_router(router=client_onboarding_router)
 router.include_router(router=hiring_manager_validation_router)
 router.include_router(router=offers_router)
 router.include_router(router=spartan_forecasting_router)

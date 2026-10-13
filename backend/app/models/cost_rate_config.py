@@ -3,7 +3,6 @@ EPIC-16 (Finance & Accounting Operations) -- Fully Loaded Cost +
 Blended Delivery Rate foundation. Every other EPIC-16 engine (P&L,
 Reserve Fund, Hiring Affordability) depends on knowing what an
 employee actually costs and what a BU actually bills, so this is
-import logging
 built first.
 
 Config-driven, not hardcoded -- statutory/overhead percentages vary by

@@ -1,5 +1,4 @@
-﻿from datetime import datetime
-import logging
+﻿import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,7 +8,6 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db, check_user
 from app.core.security import get_password_hash, create_access_token, verify_password
 from app.core.dependencies import get_current_internal_user, require_resource_permission
-from app.services.permission_helper import PermissionHelper
 from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, BusinessUnit, Department
 
 # Alias for backward compatibility
@@ -20,26 +18,16 @@ from app.models.client import Client
 from app.models.document import CandidateDocument
 from app.models.role_template import RoleTemplate
 from app.models.newsletter import Newsletter
-from app.models.permission import JobTitle
 from app.schemas.auth import SignupRequest
 from app.schemas.user import (
     AllUsersResponse, UserResponse,
     CandidateAssignmentCreate, CandidateAssignmentResponse,
-    InterviewCreate, InterviewResponse, InterviewUpdateRequest,
-    InterviewFeedbackCreate, InterviewFeedbackResponse,
-    AssignedCandidateResponse, AssignedInterviewResponse,
-    PanelMemberCreate, PanelMemberResponse, DeleteResponse,
-    ChangePasswordRequest, HrMeResponse,
-    SingleUserResponse, HiringManagerAssignedCandidateResponse,
-    DigestPreferenceRequest, DigestPreferenceResponse,
-    AdminResetPasswordRequest,
-    CreateUserWithRolesRequest,
+    AssignedCandidateResponse, AssignedInterviewResponse, DeleteResponse,
+    ChangePasswordRequest, SingleUserResponse,
+    AdminResetPasswordRequest, CreateUserWithRolesRequest,
     UpdateUserWithRolesRequest,
 )
-from app.utils.uniq_id_generator import user_id_generator
 from app.services.org_hierarchy_validator import validate_before_employee_creation
-from app.services.message_queue_service import MessageQueueService
-from app.models.org_structure import OrgNode
 from app.models.location import Location
 
 logger = logging.getLogger(__name__)
@@ -56,117 +44,46 @@ async def get_me(
     current_user: Users = Depends(get_current_internal_user),
 ):
     """
-    Return the profile of the currently authenticated HR / Admin user
-    together with a fresh access token, roles, and permissions.
-
-    Useful for:
-    - Restoring session state after page reload
-    - Refreshing the token without a full re-login
-    - Fetching up-to-date role / business-unit information
-    - Building dynamic navigation based on user permissions
+    The signed-in internal user's profile with a fresh access token, role, permissions and
+    authority (incl. home_dashboard), in the login response's format. Called on every app
+    load, so a role or permission change takes effect without logging out. Failures raise
+    (500) -- an empty permission list would silently show a blank app.
     """
-    try:
-        from app.services.role_template_permission_service import RoleTemplatePermissionService
+    from app.core import authority
+    from app.services.role_template_permission_service import RoleTemplatePermissionService
 
-        # Get tenant ID (use current_user's tenant_id, default to 1)
-        tenant_id = current_user.tenant_id or 1
-
-        # Get user's assigned role template
-        user_roles = []
-        roles_list = []
-        permission_role = None
-
-        # Try to get role template, but don't fail if missing
-        try:
-            if current_user.role_template_id:
-                rt = db.query(RoleTemplate).filter(RoleTemplate.id == current_user.role_template_id).first()
-                if rt:
-                    roles_list.append(rt.name)
-                    permission_role = rt.name
-                    user_roles.append({
-                        "id": rt.id,
-                        "name": rt.name,
-                    })
-        except Exception as e:
-            logger.warning(f"Failed to get role template for user {current_user.UserID}: {e}")
-            # Continue - don't fail on role template errors
-
-        # Get all permissions for the user
-        permissions_dict = {}
-
-        # Try to fetch permissions, but don't fail if the service is down
-        try:
-            perms_result = RoleTemplatePermissionService.get_user_permissions(
-                db, current_user.UserID, tenant_id
-            )
-            permissions_dict = perms_result or {}
-            logger.debug(f"get_user_permissions returned type={type(permissions_dict)}, len={len(permissions_dict)}")
-        except Exception as e:
-            # Log but don't fail - return empty permissions instead of 500
-            logger.warning(f"Failed to get permissions for user {current_user.UserID}: {e}")
-            permissions_dict = {}
-
-        # Mint a fresh token using the same claims as login
-        access_token = create_access_token(
-            data={
-                "sub": current_user.UserID,
-                "email": current_user.UserEmail,
-                "type": "user",
-                "name": current_user.UserName,
-                "tenant_id": tenant_id,
-                "role_template_id": current_user.role_template_id,
-            }
-        )
-
-        # Return response matching the login endpoint format
-        return {
-            "user_id": current_user.UserID,
-            "user_name": current_user.UserName,
-            "user_email": current_user.UserEmail,
-            "user_role": current_user.UserRole,
-            "job_title": getattr(current_user, 'job_title', None),
-            "permission_role": permission_role,
+    tenant_id = current_user.tenant_id or 1
+    role = db.query(RoleTemplate).filter(RoleTemplate.id == current_user.role_template_id).first() \
+        if current_user.role_template_id else None
+    permissions = RoleTemplatePermissionService.get_user_permissions(db, current_user.UserID, tenant_id) or {}
+    access_token = create_access_token(
+        data={
+            "sub": current_user.UserID,
+            "email": current_user.UserEmail,
+            "type": "user",
+            "name": current_user.UserName,
+            "tenant_id": tenant_id,
             "role_template_id": current_user.role_template_id,
-            "business_unit_id": getattr(current_user, 'business_unit_id', None),
-            "whatsapp_number": getattr(current_user, 'whatsapp_number', None),
-            "permissions": permissions_dict,
-            "created_at": current_user.CreatedAt,
-            "access_token": access_token,
-            "token_type": "bearer",
-            "digest_enabled": getattr(current_user, 'digest_enabled', True),
-            "roles": roles_list,
         }
-    except Exception as e:
-        # Last resort fallback - still return user data even if something fails
-        logger.error(f"[get_me] Error getting user profile: {e}", exc_info=True)
-        # Return minimal user data instead of 500 error
-        access_token = create_access_token(
-            data={
-                "sub": current_user.UserID,
-                "email": current_user.UserEmail,
-                "type": "user",
-                "name": current_user.UserName,
-                "tenant_id": current_user.tenant_id or 1,
-                "role_template_id": current_user.role_template_id,
-            }
-        )
-        return {
-            "user_id": current_user.UserID,
-            "user_name": current_user.UserName,
-            "user_email": current_user.UserEmail,
-            "user_role": current_user.UserRole,
-            "job_title": getattr(current_user, 'job_title', None),
-            "permission_role": None,
-            "role_template_id": current_user.role_template_id,
-            "business_unit_id": getattr(current_user, 'business_unit_id', None),
-            "whatsapp_number": getattr(current_user, 'whatsapp_number', None),
-            "permissions": {},
-            "created_at": current_user.CreatedAt,
-            "access_token": access_token,
-            "token_type": "bearer",
-            "digest_enabled": getattr(current_user, 'digest_enabled', True),
-            "roles": [],
-        }
+    )
+    return {
+        "user_id": current_user.UserID,
+        "user_name": current_user.UserName,
+        "user_email": current_user.UserEmail,
+        "user_role": current_user.UserRole,
+        "job_title": getattr(current_user, "job_title", None),
+        "permission_role": role.name if role else None,
+        "role_template_id": current_user.role_template_id,
+        "business_unit_id": getattr(current_user, "business_unit_id", None),
+        "whatsapp_number": getattr(current_user, "whatsapp_number", None),
+        "permissions": permissions,
+        "authority": authority.summary(db, current_user),
+        "created_at": current_user.CreatedAt,
+        "access_token": access_token,
+        "token_type": "bearer",
+        "digest_enabled": getattr(current_user, "digest_enabled", True),
+        "roles": [role.name] if role else [],
+    }
 
 
 @router.get(
@@ -178,43 +95,29 @@ def get_all_users(
     db: Session = Depends(get_db),
     user = Depends(get_current_internal_user)
 ):
-    """Get all users (HR, Admin, etc.) from the system."""
-    try:
-        logger.info("get_all_users: Starting query")
-        users = db.query(Users).all()
-        logger.info(f"get_all_users: Found {len(users)} users")
-
-        users_data = []
-        for idx, u in enumerate(users):
-            try:
-                logger.info(f"get_all_users: Processing user {idx+1}/{len(users)} - UserID={u.UserID}")
-                # role_template_id is now mandatory - no need to check for None
-                role_template = db.query(RoleTemplate).filter(RoleTemplate.id == u.role_template_id).first()
-                logger.info(f"get_all_users: Creating UserResponse for {u.UserID}")
-
-                users_data.append(UserResponse(
-                    user_id=u.UserID,
-                    user_name=u.UserName or "",
-                    user_email=u.UserEmail,
-                    user_role=u.UserRole,
-                    job_title=u.job_title,
-                    role_template_id=u.role_template_id,
-                    created_at=u.CreatedAt,
-                    permission_role=(role_template.name if role_template else None),
-                    department_id=u.department_id,
-                    department_name=(u.department.name if (u.department and hasattr(u.department, 'name')) else None),
-                    business_unit_id=u.business_unit_id,
-                    business_unit_name=(u.business_unit.name if (u.business_unit and hasattr(u.business_unit, 'name')) else None),
-                ))
-            except Exception as e:
-                logger.error(f"Error processing user {u.UserID}: {str(e)}", exc_info=True)
-                continue
-
-        logger.info(f"get_all_users: Returning {len(users_data)} users")
-        return AllUsersResponse(total_users=len(users_data), users=users_data)
-    except Exception as e:
-        logger.error(f"CRITICAL: get_all_users failed: {str(e)}", exc_info=True)
-        raise
+    """Every user of the caller's tenant (HR, Admin, etc.)."""
+    users = db.query(Users).filter(Users.tenant_id == user.tenant_id).all()
+    templates = {t.id: t.name for t in db.query(RoleTemplate).filter(
+        RoleTemplate.id.in_({u.role_template_id for u in users if u.role_template_id})).all()}
+    users_data = [
+        UserResponse(
+            user_id=u.UserID,
+            user_name=u.UserName or "",
+            user_email=u.UserEmail,
+            user_role=u.UserRole,
+            job_title=u.job_title,
+            role_template_id=u.role_template_id,
+            created_at=u.CreatedAt,
+            permission_role=templates.get(u.role_template_id),
+            department_id=u.department_id,
+            department_name=u.department.name if u.department else None,
+            business_unit_id=u.business_unit_id,
+            business_unit_name=u.business_unit.name if u.business_unit else None,
+            org_node_id=u.org_node_id,
+        )
+        for u in users
+    ]
+    return AllUsersResponse(total_users=len(users_data), users=users_data)
 
 @router.get(
     "/users/search",
@@ -229,13 +132,13 @@ def search_users(
         default=None,
         description="Partial, case-insensitive search on user name or email",
     ),
-    permission_role: Optional[str] = Query(
+    authority: Optional[str] = Query(
         default=None,
-        description="Exact RBAC role name to filter by (e.g. 'HR Manager', 'Admin')",
+        description="Role-template authority: partner | bu_leader | director | finance_leader | org_level",
     ),
     user_role: Optional[str] = Query(
         default=None,
-        description="Legacy UserRole field filter (e.g. 'HR', 'Admin', 'Recruiter')",
+        description="Role template name (a list filter for display, never an authority check)",
     ),
     department: Optional[str] = Query(
         default=None,
@@ -267,7 +170,7 @@ def search_users(
 
     # HRMS-0109 -- scope to the caller's tenant before any of the
     # optional filters below narrow it further.
-    query = db.query(Users)
+    query = db.query(Users).filter(Users.tenant_id == user.tenant_id)
 
     # â"€â"€ name filter â€" partial match on UserName OR UserEmail â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     if name:
@@ -285,8 +188,28 @@ def search_users(
             RoleTemplate.name == user_role
         )
 
-    # NOTE: permission_role filter removed 2026-08-24 (referenced non-existent Role model and Users.role_id field)
-    # If needed, use RoleTemplate join: query.join(RoleTemplate, RoleTemplate.id == Users.role_template_id)
+    # role-template authority (app.core.authority thresholds), never a role name
+    if authority:
+        from app.core.config import settings
+
+        levels = {"partner": settings.PARTNER_MIN_LEVEL, "bu_leader": settings.BU_LEADER_MIN_LEVEL,
+                  "director": settings.DIRECTOR_MIN_LEVEL, "finance_leader": settings.SENIOR_MANAGER_MIN_LEVEL}
+        if authority not in levels and authority != "org_level":
+            raise HTTPException(status_code=422, detail=f"authority must be one of {sorted(levels) + ['org_level']}")
+        if not user_role:
+            query = query.join(RoleTemplate, RoleTemplate.id == Users.role_template_id)
+        query = query.filter(RoleTemplate.enabled.is_(True))
+        if authority == "org_level":
+            query = query.filter(RoleTemplate.org_level_access.is_(True))
+        else:
+            query = query.filter(RoleTemplate.hierarchy_level >= levels[authority])
+        if authority == "finance_leader":
+            # The same rule invoice approval uses (role template level + Finance function from
+            # the template or the department): the picker and the check can't disagree
+            from app.core import authority as auth
+
+            leaders = {u.UserID for u in query.all() if auth.is_finance_leader(db, u)}
+            query = query.filter(Users.UserID.in_(leaders or {""}))
 
     # â"€â"€ Department filter â€" join through Department â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     if department:
@@ -342,7 +265,7 @@ def get_user_details_by_id(
     """
     Retrieve user details by their User ID, including department and business unit.
     """
-    u = db.query(Users).filter(Users.UserID == user_id).first()
+    u = db.query(Users).filter(Users.UserID == user_id, Users.tenant_id == current_user.tenant_id).first()
     if not u:
         raise HTTPException(
             status_code=404,
@@ -407,7 +330,7 @@ def create_candidate_assignment(
 
     if request.hiring_manager_id:
         try:
-            hiring_manager = db.query(Users).filter(Users.UserID == request.hiring_manager_id).first()
+            hiring_manager = db.query(Users).filter(Users.UserID == request.hiring_manager_id, Users.tenant_id == user.tenant_id).first()
         except Exception as query_error:
             logger.error(f"Failed to query hiring manager {request.hiring_manager_id}: {query_error}", exc_info=True)
             raise
@@ -420,7 +343,7 @@ def create_candidate_assignment(
 
     if request.reporting_manager_id:
         try:
-            reporting_manager = db.query(Users).filter(Users.UserID == request.reporting_manager_id).first()
+            reporting_manager = db.query(Users).filter(Users.UserID == request.reporting_manager_id, Users.tenant_id == user.tenant_id).first()
         except Exception as query_error:
             logger.error(f"Failed to query reporting manager {request.reporting_manager_id}: {query_error}", exc_info=True)
             raise
@@ -769,10 +692,14 @@ def create_user_with_roles(
         raise HTTPException(status_code=400, detail="Password is required")
     if not request.role_template_id:
         raise HTTPException(status_code=400, detail="Role template is required")
-    if not request.hierarchy_level:
-        raise HTTPException(status_code=400, detail="Hierarchy level is required")
-    if not request.specialization:
-        raise HTTPException(status_code=400, detail="Specialization is required")
+    # The Job Title names a managed role, and the role sets the org level
+    from app.services.org_roles_service import ensure_single_holder, require_role
+    try:
+        org_role = require_role(db, current_user.tenant_id, request.job_title)
+        ensure_single_holder(db, org_role)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    seat_level = org_role.hierarchy_level
 
     # Check if user email already exists
     try:
@@ -806,7 +733,7 @@ def create_user_with_roles(
     # specialization, reporting line) is chosen on the form and checked by
     # the reporting rules below. Level 17 is the CEO: one per organization,
     # reports to no one.
-    if request.hierarchy_level == 17:
+    if seat_level == 17:
         from app.models.org_structure import OrgNode
         existing_ceo = db.query(OrgNode).filter(
             OrgNode.tenant_id == current_user.tenant_id, OrgNode.hierarchy_level == 17, OrgNode.active.is_(True),
@@ -841,8 +768,8 @@ def create_user_with_roles(
     try:
         is_valid, error_msg = validate_before_employee_creation(
             db,
-            hierarchy_level=request.hierarchy_level,
-            specialization=request.specialization,
+            hierarchy_level=seat_level,
+            specialization=None,
             parent_node_id=request.parent_node_id,
             business_unit_id=request.business_unit_id,
             tenant_id=current_user.tenant_id,
@@ -876,10 +803,9 @@ def create_user_with_roles(
                 'department_id': request.department_id,
                 'location_id': request.location_id,
                 'role_ids': [request.role_template_id],
-                'job_title': request.job_title,
                 'partner_id': request.partner_id,
-                'hierarchy_level': request.hierarchy_level,
-                'specialization': request.specialization,
+                'job_title': org_role.name,
+                'hierarchy_level': seat_level,
                 'parent_node_id': request.parent_node_id,
                 'created_by_user_id': current_user.UserID,
                 'tenant_id': tenant_id
@@ -930,7 +856,7 @@ def update_user(
         raise ValueError("user_id is required")
 
     try:
-        target = db.query(Users).filter(Users.UserID == user_id).first()
+        target = db.query(Users).filter(Users.UserID == user_id, Users.tenant_id == current_user.tenant_id).first()
     except Exception as query_error:
         logger.error(f"Failed to query user {user_id}: {query_error}", exc_info=True)
         raise
@@ -944,19 +870,75 @@ def update_user(
             raise ValueError("tenant_id is REQUIRED - cannot proceed without it")
         target.tenant_id = current_user.tenant_id
 
+    from app.core.data_scope import ensure_assignable
+    from app.models.business_unit import BusinessUnit
+    from app.models.org_structure import OrgNode
+    from app.services.org_roles_service import ensure_single_holder, require_role, role_for_title
+    from app.services.org_structure_service import place_user_in_org
+
     if request.user_name is not None:
         target.UserName = request.user_name
-    if request.job_title is not None:
-        target.job_title = request.job_title
-    # role_template_id is MANDATORY - if updating, must provide valid value
+    title_changed = request.job_title is not None and \
+        (request.job_title or "").strip().lower() != (target.job_title or "").strip().lower()
+    if title_changed:
+        # A new Job Title must be a managed role (it sets the person's org level)
+        try:
+            new_role = require_role(db, current_user.tenant_id, request.job_title)
+            ensure_single_holder(db, new_role, target.UserID)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        target.job_title = new_role.name
     if request.role_template_id is not None:
-        if not request.role_template_id:
-            raise ValueError("role_template_id is REQUIRED - cannot be null")
+        if not db.query(RoleTemplate).filter(RoleTemplate.id == request.role_template_id).first():
+            raise HTTPException(status_code=422, detail="Role template not found")
         target.role_template_id = request.role_template_id
     if request.business_unit_id is not None:
+        if not db.query(BusinessUnit).filter(BusinessUnit.id == request.business_unit_id,
+                                             BusinessUnit.tenant_id == current_user.tenant_id).first():
+            raise HTTPException(status_code=422, detail="Business unit not found")
+        ensure_assignable(db, current_user, request.business_unit_id, "user")
         target.business_unit_id = request.business_unit_id
     if request.department_id is not None:
-        target.department_id = request.department_id
+        target.department_id = request.department_id or None
+
+    # Org-chart seat: created when the user has none, moved when they do. Only the seat
+    # fields (level, boss, company) or a new Job Title place the seat; a department change
+    # alone just follows onto an existing seat. An existing seat is re-leveled only by a new
+    # Job Title. Fields not sent keep the seat's current value; an unchanged seat is not
+    # re-validated, so editing a name never trips over legacy org data.
+    seat = db.query(OrgNode).filter(OrgNode.id == target.org_node_id).first() if target.org_node_id else None
+    sent = request.model_fields_set
+
+    def pick(field, current):
+        return getattr(request, field) if field in sent else current
+
+    if {"hierarchy_level", "parent_node_id", "location_id"} & sent or (title_changed and seat is not None):
+        title_role = role_for_title(db, current_user.tenant_id, target.job_title)
+        if seat is not None and not title_changed:
+            level = seat.hierarchy_level
+        elif title_role:
+            level = title_role.hierarchy_level
+        else:
+            level = pick("hierarchy_level", seat.hierarchy_level if seat else None)
+        if not level:
+            raise HTTPException(status_code=422, detail="Give the user a Job Title (role) to place them in the org chart")
+        parent_id = pick("parent_node_id", seat.parent_id if seat else None) or None
+        company_id = pick("location_id", seat.company_id if seat else None) or None
+        unchanged = seat is not None and (seat.hierarchy_level, seat.parent_id, seat.company_id,
+                                          seat.department_id) == (int(level), parent_id, company_id,
+                                                                  target.department_id)
+        if not unchanged:
+            try:
+                place_user_in_org(db, target, hierarchy_level=int(level), specialization=None,
+                                  parent_id=parent_id, company_id=company_id,
+                                  department_id=target.department_id)
+            except ValueError as exc:
+                db.rollback()
+                raise HTTPException(status_code=422, detail=str(exc))
+    elif seat is not None and "department_id" in sent and seat.department_id != target.department_id:
+        from app.services.org_hierarchy_validator import specialization_for_department
+        seat.department_id = target.department_id
+        seat.specialization = specialization_for_department(db, target.department_id)
 
     try:
         db.commit()
@@ -991,6 +973,7 @@ def update_user(
         department_name=(target.department.name if (target.department and hasattr(target.department, 'name')) else None),
         business_unit_id=target.business_unit_id,
         business_unit_name=(target.business_unit.name if (target.business_unit and hasattr(target.business_unit, 'name')) else None),
+        org_node_id=target.org_node_id,
         created_at=target.CreatedAt
     )
 
@@ -1017,7 +1000,7 @@ def delete_user(
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
     try:
-        target = db.query(Users).filter(Users.UserID == user_id).first()
+        target = db.query(Users).filter(Users.UserID == user_id, Users.tenant_id == current_user.tenant_id).first()
     except Exception as query_error:
         logger.error(f"Failed to query user {user_id}: {query_error}", exc_info=True)
         raise
@@ -1262,7 +1245,7 @@ def admin_reset_password(
     """
 
     # Find target user
-    target_user = db.query(Users).filter(Users.UserID == user_id).first()
+    target_user = db.query(Users).filter(Users.UserID == user_id, Users.tenant_id == current_user.tenant_id).first()
     if not target_user:
         raise HTTPException(
             status_code=404,
@@ -1316,14 +1299,18 @@ def get_user_by_id(
         HTTPException 404: If the user is not found.
     """
 
-    target = db.query(Users).filter(Users.UserID == user_id).first()
+    target = db.query(Users).filter(Users.UserID == user_id, Users.tenant_id == current_user.tenant_id).first()
     if not target:
         raise HTTPException(
             status_code=404,
             detail=f"User with ID '{user_id}' not found",
         )
 
+    from app.models.org_structure import OrgNode
+
     role = db.query(RoleTemplate).filter(RoleTemplate.id == target.role_template_id).first()
+    seat = db.query(OrgNode).filter(OrgNode.id == target.org_node_id).first() if target.org_node_id else None
+    boss = db.query(OrgNode).filter(OrgNode.id == seat.parent_id).first() if seat and seat.parent_id else None
 
     return SingleUserResponse(
         user_id=target.UserID,
@@ -1337,6 +1324,10 @@ def get_user_by_id(
         department_id=target.department_id,
         location_id=target.location_id,
         org_node_id=target.org_node_id,
+        hierarchy_level=seat.hierarchy_level if seat else None,
+        specialization=seat.specialization if seat else None,
+        parent_node_id=seat.parent_id if seat else None,
+        reports_to=boss.name if boss else None,
         created_at=target.CreatedAt,
     )
 

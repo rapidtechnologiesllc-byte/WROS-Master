@@ -2,7 +2,6 @@
 S-070/HRMS-0470 -- Candidate Engagement Health Metrics
 ==================================================================
 Prefix: /candidates
-import logging
 Tag:    engagement-metrics
 
 GET /candidates/{candidate_id}/engagement-metrics

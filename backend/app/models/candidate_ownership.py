@@ -2,7 +2,6 @@
 Candidate Ownership Model
 =========================
 Tracks whether a candidate belongs to the Org Pool (visible to all BUs)
-import logging
 or is exclusively owned by a specific Business Unit.
 
 State machine:

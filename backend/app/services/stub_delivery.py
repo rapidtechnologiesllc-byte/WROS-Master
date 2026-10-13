@@ -7,11 +7,9 @@ Enables frontend testing and CI/CD without Twilio/SendGrid keys.
 
 import logging
 import uuid
-from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.services.delivery_service import DeliveryService, DeliveryResult
-from app.core.logging import logger
 
 logger = logging.getLogger(__name__)
 

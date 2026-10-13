@@ -1,5 +1,4 @@
 """
-import logging
 Database Contract - Ensures database is properly initialized on startup.
 
 This module guarantees:
@@ -13,8 +12,6 @@ This module guarantees:
 Run on every backend startup to ensure data integrity.
 """
 
-import os
-import uuid
 import secrets
 import string
 from sqlalchemy.orm import Session
@@ -87,6 +84,10 @@ def initialize_database():
         _initialize_linkedin_outreach_tasks()
         logger.info("[OK] LinkedIn outreach tasks backfilled")
 
+        # Step 8: Approved Thunder email copy (idempotent; never overwrites DB edits)
+        logger.info("[Contract] Step 8: Seeding Thunder email variants...")
+        _initialize_thunder_variants()
+
         logger.info("[OK] Database contract validated - all systems ready")
 
     except Exception as e:
@@ -104,6 +105,20 @@ def _initialize_linkedin_outreach_tasks():
         # Optional data backfill: never block backend startup over it
         db.rollback()
         logger.error(f"[Contract] LinkedIn outreach task backfill failed (startup continues): {e}", exc_info=True)
+    finally:
+        db.close()
+
+def _initialize_thunder_variants():
+    """Seed approved Thunder email copy that is missing."""
+    from app.services.thunder_mail.seed_variants import seed_thunder_variants
+    db = SessionLocal()
+    try:
+        added = seed_thunder_variants(db)
+        logger.info(f"[OK] Thunder email variants seeded ({added} added)")
+    except Exception as e:
+        # Sends fail closed without variants (choose_variant raises), so startup continues
+        db.rollback()
+        logger.error(f"[Contract] Thunder variant seeding failed (startup continues): {e}", exc_info=True)
     finally:
         db.close()
 
@@ -132,6 +147,13 @@ def _initialize_tenant():
         db.commit()
     finally:
         db.close()
+
+ROLE_AUTHORITY_SEED_KEY = "role_authority_seeded"
+ORG_LEVEL_SEED_ROLES = ("Super Admin", "Admin")
+# Resources only the seeded admin roles start with: who may define the firm's job titles
+# and levels (org-roles) is an administrator decision, not every system role's.
+ADMIN_ONLY_RESOURCES = frozenset({"org-roles"})
+
 
 def _initialize_rbac():
     """Ensure all modules, resources, and admin role exist.
@@ -253,14 +275,17 @@ def _initialize_rbac():
             for resource in resources:
                 if resource.id in existing_resource_ids:
                     continue
+                # Admin-only resources start closed on the other system roles; the Role
+                # Templates editor can open them later (the row exists, so it is never re-seeded)
+                granted = resource.name not in ADMIN_ONLY_RESOURCES or role_template.name in ORG_LEVEL_SEED_ROLES
                 db.add(RoleTemplatePermission(
                     role_template_id=role_template.id,
                     resource_id=resource.id,
                     tenant_id=role_template.tenant_id,
-                    can_view=True,
-                    can_create=True,
-                    can_edit=True,
-                    can_delete=True
+                    can_view=granted,
+                    can_create=granted,
+                    can_edit=granted,
+                    can_delete=granted
                 ))
                 permissions_granted += 1
 
@@ -299,49 +324,248 @@ LEADERSHIP_ROLES = {
         "permissions": {
             "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
                     "activity-feed", "ask-flash", "candidates", "jobs", "submissions", "interviews",
-                    "allocations", "timesheets", "projects", "resources", "opportunities", "demand-confirmation"],
+                    "allocations", "timesheets", "projects", "resources", "opportunities", "demand-confirmation",
+                    "pipeline-management", "clients"],
             "v": ["offer-letters", "employees", "onboarding", "utilization-dashboard", "resource-forecast",
-                  "employee-in-bench", "clients", "invoices", "forecasts", "revenue", "goals", "kpi-dashboard",
+                  "employee-in-bench", "invoices", "forecasts", "revenue", "goals", "kpi-dashboard",
                   "bu-head-dashboard", "bu-head-dashboard-view", "business-units", "delivery-centers",
                   "organizational-hierarchy", "ask-thunder"],
+        },
+    },
+    # Finance at Senior Manager level: reviews and approves invoices (CEO 2026-10-10: only
+    # Finance at Senior Manager or above may approve). Assign it (or a more senior Finance
+    # role -- Director 11, VP 14, CFO 16) to the people who approve what clients are billed.
+    "Finance Manager": {
+        "display_name": "Finance Manager",
+        "description": "Finance, Senior Manager level: reviews and approves invoices, payments, revenue",
+        "hierarchy_level": 9,
+        "specialization": "Finance",
+        "org_level_access": True,
+        "permissions": {
+            "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
+                    "activity-feed", "ask-flash", "invoices", "invoice-management", "expenses", "revenue",
+                    "finance-operations", "forecasts", "budget-management", "payroll"],
+            "v": ["clients", "projects", "allocations", "timesheets", "employees", "reports",
+                  "executive-revenue-dashboard", "kpi-dashboard", "analytics", "business-units",
+                  "opportunities", "pipeline-management"],
+        },
+    },
+    # Sells: finds opportunities, owns client relationships, raises role demands for won
+    # work. Scoped to their business units; no P&L (revenue) access.
+    "Sales": {
+        "display_name": "Sales",
+        "description": "Opens and works opportunities and client relationships for their business units",
+        "hierarchy_level": 8,
+        "specialization": "Sales",
+        "org_level_access": False,
+        "permissions": {
+            "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
+                    "activity-feed", "ask-flash", "clients", "opportunities", "proposals", "pipeline-management"],
+            "v": ["demand-confirmation", "projects", "jobs", "business-units"],
+        },
+    },
+    # Every converted employee gets this: their own work only. (The system "User" role is
+    # seeded with every permission, so it must never be an employee's default.)
+    "Employee": {
+        "display_name": "Employee",
+        "description": "Self-service: own timesheets, expenses, tasks, referrals, notifications",
+        "hierarchy_level": 2,
+        "org_level_access": False,
+        "permissions": {
+            "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
+                    "activity-feed", "ask-flash"],
         },
     },
 }
 
 
+def ensure_role(db, name: str, spec: dict) -> bool:
+    """Create one LEADERSHIP_ROLES-style role template with its permissions if missing.
+    Existing roles are never touched (the Role Templates editor owns them)."""
+    if db.query(RoleTemplate).filter(RoleTemplate.name == name).first():
+        return False
+    resources = {r.name: r for r in db.query(Resource).all()}
+    role = RoleTemplate(
+        name=name, display_name=spec["display_name"], description=spec["description"],
+        hierarchy_level=spec["hierarchy_level"], org_level_access=spec["org_level_access"],
+        specialization=spec.get("specialization", "General"), is_system=False, tenant_id=1,
+    )
+    db.add(role)
+    db.flush()
+    granted = 0
+    for mode, names in spec["permissions"].items():
+        for resource_name in names:
+            resource = resources.get(resource_name)
+            if resource is None:
+                raise RuntimeError(f"Role {name}: unknown resource {resource_name!r}")
+            db.add(RoleTemplatePermission(
+                role_template_id=role.id, resource_id=resource.id, tenant_id=1,
+                can_view=True, can_create=mode == "vce", can_edit=mode == "vce", can_delete=False,
+            ))
+            granted += 1
+    db.commit()
+    logger.info(f"[Contract] Created role template {name} with {granted} permissions")
+    return True
+
+
 def _initialize_leadership_roles():
-    """Create the Partner and BU Head role templates if missing (idempotent)."""
+    """Create the Partner, BU Head, Finance Manager and Employee role templates if missing (idempotent)."""
     db = SessionLocal()
     try:
-        resources = {r.name: r for r in db.query(Resource).all()}
         for name, spec in LEADERSHIP_ROLES.items():
-            if db.query(RoleTemplate).filter(RoleTemplate.name == name).first():
-                continue
-            role = RoleTemplate(
-                name=name, display_name=spec["display_name"], description=spec["description"],
-                hierarchy_level=spec["hierarchy_level"], org_level_access=spec["org_level_access"],
-                is_system=False, tenant_id=1,
-            )
-            db.add(role)
-            db.flush()
-            granted = 0
-            for mode, names in spec["permissions"].items():
-                for resource_name in names:
-                    resource = resources.get(resource_name)
-                    if resource is None:
-                        raise RuntimeError(f"Leadership role {name}: unknown resource {resource_name!r}")
-                    db.add(RoleTemplatePermission(
-                        role_template_id=role.id, resource_id=resource.id, tenant_id=1,
-                        can_view=True, can_create=mode == "vce", can_edit=mode == "vce", can_delete=False,
-                    ))
-                    granted += 1
-            db.commit()
-            logger.info(f"[Contract] Created role template {name} with {granted} permissions")
+            ensure_role(db, name, spec)
+        _move_converted_employees_off_user_role(db)
+        _initialize_role_authority(db)
+        _initialize_bu_location_heads(db)
+        _initialize_org_positions(db)
+        _initialize_org_roles(db)
+        _initialize_pipeline_access(db)
     except Exception:
         db.rollback()
         raise
     finally:
         db.close()
+
+
+
+
+def _initialize_role_authority(db):
+    """Who sees every business unit is read from RoleTemplate.org_level_access only
+    (app.core.authority). So that switching to the flag never narrows anyone's view, set
+    it on the seeded Super Admin and Admin roles ONCE per tenant. A system_config marker
+    records that it ran, so a later change in the Role Templates editor is never
+    overwritten. (It used to run only while no role carried the flag; the seeded Finance
+    Manager role carries it from creation, so Super Admin and Admin never got it.)
+    (What any role may DO comes from its permission matrix alone; system roles are seeded
+    with every permission by _initialize_rbac.)"""
+    from app.models.system_config import SystemConfig
+
+    tenant_ids = [t for (t,) in db.query(RoleTemplate.tenant_id)
+                  .filter(RoleTemplate.name.in_(ORG_LEVEL_SEED_ROLES)).distinct().all()]
+    for tenant_id in tenant_ids:
+        marker = db.query(SystemConfig.id).filter(
+            SystemConfig.tenant_id == tenant_id, SystemConfig.business_unit_id.is_(None),
+            SystemConfig.config_key == ROLE_AUTHORITY_SEED_KEY).first()
+        if marker:
+            continue
+        updated = db.query(RoleTemplate).filter(
+            RoleTemplate.tenant_id == tenant_id, RoleTemplate.name.in_(ORG_LEVEL_SEED_ROLES)) \
+            .update({RoleTemplate.org_level_access: True}, synchronize_session=False)
+        db.add(SystemConfig(tenant_id=tenant_id, business_unit_id=None, config_category="SYSTEM",
+                            config_key=ROLE_AUTHORITY_SEED_KEY, config_value={"org_level_access": list(ORG_LEVEL_SEED_ROLES)}))
+        db.commit()
+        logger.info(f"[Contract] Set org_level_access on {updated} seeded role template(s) for tenant {tenant_id}")
+
+
+PIPELINE_ACCESS_SEED_KEY = "pipeline_access_seeded"
+
+
+def _initialize_pipeline_access(db):
+    """Opportunities stopped requiring the P&L permission (revenue). So that nobody loses the
+    pipeline and the Kanban opens for everyone who works opportunities, ONCE per tenant (a
+    system_config marker; later Role Templates edits are never overwritten), by permission:
+    a role that could see revenue may view opportunities, and a role that may view
+    opportunities may view the pipeline board."""
+    from app.models.system_config import SystemConfig
+
+    resources = {r.name: r.id for r in db.query(Resource).filter(
+        Resource.name.in_(("revenue", "opportunities", "pipeline-management")))}
+    missing = {"revenue", "opportunities", "pipeline-management"} - set(resources)
+    if missing:
+        raise RuntimeError(f"Pipeline access seed: resources not seeded: {sorted(missing)}")
+
+    def grant(role, resource_name):
+        row = db.query(RoleTemplatePermission).filter(
+            RoleTemplatePermission.role_template_id == role.id,
+            RoleTemplatePermission.resource_id == resources[resource_name]).first()
+        if row is None:
+            db.add(RoleTemplatePermission(role_template_id=role.id, resource_id=resources[resource_name],
+                                          tenant_id=role.tenant_id, can_view=True, can_create=False,
+                                          can_edit=False, can_delete=False))
+        elif not row.can_view:
+            row.can_view = True
+        else:
+            return 0
+        return 1
+
+    def can_view(role, resource_name):
+        return db.query(RoleTemplatePermission.id).filter(
+            RoleTemplatePermission.role_template_id == role.id,
+            RoleTemplatePermission.resource_id == resources[resource_name],
+            RoleTemplatePermission.can_view.is_(True)).first() is not None
+
+    tenant_ids = [t for (t,) in db.query(RoleTemplate.tenant_id).distinct().all() if t is not None]
+    for tenant_id in tenant_ids:
+        if db.query(SystemConfig.id).filter(SystemConfig.tenant_id == tenant_id,
+                                            SystemConfig.business_unit_id.is_(None),
+                                            SystemConfig.config_key == PIPELINE_ACCESS_SEED_KEY).first():
+            continue
+        granted = 0
+        for role in db.query(RoleTemplate).filter(RoleTemplate.tenant_id == tenant_id).all():
+            if can_view(role, "revenue"):
+                granted += grant(role, "opportunities")
+            db.flush()
+            if can_view(role, "opportunities"):
+                granted += grant(role, "pipeline-management")
+        db.add(SystemConfig(tenant_id=tenant_id, business_unit_id=None, config_category="SYSTEM",
+                            config_key=PIPELINE_ACCESS_SEED_KEY, config_value={"granted": granted}))
+        db.commit()
+        logger.info(f"[Contract] Pipeline access: {granted} permission(s) granted for tenant {tenant_id}")
+
+
+def _initialize_org_positions(db):
+    """The fixed position ladder every org seat points at (CEO, Partner, BU Head ...). Without
+    it no seat can be created on a fresh database. Creates missing positions only, never
+    rewrites existing ones."""
+    from app.models.org_structure import OrgPosition
+    from app.services.org_structure_service import DEFAULT_POSITIONS
+
+    existing = {name for (name,) in db.query(OrgPosition.name)}
+    missing = [OrgPosition(**spec) for spec in DEFAULT_POSITIONS if spec["name"] not in existing]
+    if missing:
+        db.add_all(missing)
+        db.commit()
+        logger.info(f"[Contract] Seeded {len(missing)} org positions")
+
+
+def _initialize_org_roles(db):
+    """Seed the role list once per tenant from the org levels (idempotent: only when the
+    tenant has no roles yet, so roles renamed or retired on the screen stay that way)."""
+    from app.models.org_structure import OrgRole
+    from app.models.tenant import Tenant
+    from app.services.org_roles_service import DEFAULT_DESIGNATIONS, DEFAULT_ROLE_TITLES
+
+    for (tenant_id,) in db.query(Tenant.id).all():
+        if db.query(OrgRole.id).filter(OrgRole.tenant_id == tenant_id).first():
+            continue
+        db.add_all(OrgRole(tenant_id=tenant_id, name=name, hierarchy_level=level,
+                           designation=DEFAULT_DESIGNATIONS.get(name)) for name, level in DEFAULT_ROLE_TITLES)
+        db.commit()
+        logger.info(f"[Contract] Seeded {len(DEFAULT_ROLE_TITLES)} org roles for tenant {tenant_id}")
+
+
+def _initialize_bu_location_heads(db):
+    """BU heads are per company (BusinessUnitLocationHead). Carry any old single
+    BusinessUnit.manager_id over once (idempotent: it is cleared after the move)."""
+    from app.services.bu_leadership import carry_over_single_heads
+
+    moved = carry_over_single_heads(db)
+    if moved:
+        logger.info(f"[Contract] Carried {moved} BU head(s) over to per-company heads")
+
+
+def _move_converted_employees_off_user_role(db):
+    """Accounts created by candidate conversion (UserRole "Employee") that were given the
+    full-access system "User" role move to the Employee role (idempotent)."""
+    employee_role = db.query(RoleTemplate).filter(RoleTemplate.name == "Employee").first()
+    user_role = db.query(RoleTemplate).filter(RoleTemplate.name == "User").first()
+    if employee_role is None or user_role is None:
+        return
+    moved = db.query(Users).filter(Users.UserRole == "Employee", Users.role_template_id == user_role.id) \
+        .update({Users.role_template_id: employee_role.id}, synchronize_session=False)
+    db.commit()
+    if moved:
+        logger.info(f"[Contract] Moved {moved} converted employee account(s) from the User role to Employee")
 
 
 def _initialize_admin_user():
@@ -912,11 +1136,6 @@ def _run_schema_migrations():
                 ("upload_sequence", "INTEGER NULL"),
             ],
         }
-        super_flag_existed = db.execute(text("""
-            SELECT 1 FROM information_schema.columns
-            WHERE table_schema = 'app_schema' AND table_name = 'role_templates'
-              AND column_name = 'is_super_user'
-        """)).scalar() is not None
         for table_name, columns in drifted_tables.items():
             for column_name, column_def in columns:
                 try:
@@ -933,19 +1152,7 @@ def _run_schema_migrations():
                         logger.warning(f"[Contract] Migration warning for {table_name}.{column_name}: {e}")
                     db.rollback()
 
-        # Flag the existing Super Admin template only when the column was
-        # just created, so a later deliberate change is never overwritten.
-        if not super_flag_existed:
-            try:
-                db.execute(text("""
-                    UPDATE app_schema.role_templates SET is_super_user = true
-                    WHERE name = 'Super Admin'
-                """))
-                db.commit()
-                logger.info("[Contract] Migration: flagged existing Super Admin role template")
-            except Exception as e:
-                logger.warning(f"[Contract] Migration warning for role_templates.is_super_user backfill: {e}")
-                db.rollback()
+        # (org_level_access is set once by _initialize_role_authority.)
 
         # Migration 5b: linkedin_candidate_pipeline was first created with
         # uuid columns for user/candidate ids, but ids in this system are

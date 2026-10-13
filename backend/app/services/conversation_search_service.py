@@ -1,5 +1,4 @@
 """
-import logging
 S-015/HRMS-0415 -- Conversation Search.
 
 Adapted to real architecture: the spec's PostgreSQL tsvector/
@@ -32,7 +31,6 @@ from sqlalchemy.orm import Session
 
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
-from app.core.logging import logger
 
 MIN_QUERY_LENGTH = 2
 SNIPPET_LENGTH = 150

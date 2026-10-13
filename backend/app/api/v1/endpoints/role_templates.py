@@ -1,15 +1,16 @@
-import logging
 """Role Template management endpoints."""
+import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
-from app.models.role_template import Module, Resource, RoleTemplate, RoleTemplatePermission
+from app.core.config import settings
+from app.models.role_template import Resource, RoleTemplate, RoleTemplatePermission
 from app.models.business_unit import BusinessUnit
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import Dict, List, Optional
 import json
 
 from app.core.audit import write_audit_log
@@ -269,7 +270,7 @@ def update_role_template(
             logger.info(f"[PUT] Updated display_name to: {data.display_name}")
         if data.description is not None:
             template.description = data.description
-            logger.info(f"[PUT] Updated description")
+            logger.info("[PUT] Updated description")
 
         # Delete existing permissions
         logger.info(f"[PUT] Deleting existing permissions for template {template_id}")
@@ -277,7 +278,7 @@ def update_role_template(
             RoleTemplatePermission.role_template_id == template.id
         ).delete()
         db.flush()
-        logger.info(f"[PUT] Permissions deleted and flushed")
+        logger.info("[PUT] Permissions deleted and flushed")
 
         # Add new permissions
         if data.permissions:
@@ -294,9 +295,9 @@ def update_role_template(
                 db.add(perm)
                 logger.info(f"[PUT] Added permission {idx+1}: resource_id={perm_input.resource_id}")
 
-        logger.info(f"[PUT] Flushing permissions")
+        logger.info("[PUT] Flushing permissions")
         db.flush()
-        logger.info(f"[PUT] Committing transaction")
+        logger.info("[PUT] Committing transaction")
         db.commit()
         logger.info(f"[PUT] Role template {template_id} updated successfully")
 
@@ -541,38 +542,44 @@ class BusinessUnitCreateRequest(BaseModel):
     # Companies (legal entities, e.g. BX-US, BX-IN) the BU operates in.
     # None leaves unchanged; [] clears.
     company_ids: Optional[List[str]] = None
-    # Users; "" clears, None leaves unchanged
+    # Users; "" clears, None leaves unchanged. One partner for the whole BU.
     partner_user_id: Optional[str] = None
-    head_user_id: Optional[str] = None
+    # BU head per company the BU operates in: {company_id: user_id, "" clears that company}.
+    # None leaves all heads unchanged; companies not listed are left as they are.
+    location_heads: Optional[Dict[str, str]] = None
 
 
-# Who may be named on a BU (role template names)
-PARTNER_ROLES = ("Partner",)
-BU_HEAD_ROLES = ("BU Head", "Partner")
+# Who may be named on a BU: by role template hierarchy level (app.core.authority), not role name
+def _leader_requirement(min_level: int) -> str:
+    from app.services.org_hierarchy_validator import HIERARCHY_LEVELS
+
+    return f"{HIERARCHY_LEVELS.get(min_level, f'level {min_level}')} or above (role level {min_level}+)"
 
 
 def _bu_tenant(user: Users) -> int:
     return user.tenant_id if getattr(user, "tenant_id", None) else 1
 
 
-def _leader(db: Session, tenant_id: int, user_id: str, roles: tuple, label: str) -> Users:
-    from app.models.role_template import RoleTemplate
+def _leader(db: Session, tenant_id: int, user_id: str, min_level: int, label: str) -> Users:
+    from app.core import authority
+
     user = db.query(Users).filter(Users.UserID == user_id, Users.tenant_id == tenant_id).first()
     if not user:
         raise HTTPException(status_code=422, detail=f"Unknown {label}")
-    role = db.query(RoleTemplate).filter(RoleTemplate.id == user.role_template_id).first()
-    if not role or role.name not in roles:
+    if authority.level(db, user) < min_level:
         raise HTTPException(
             status_code=422,
-            detail=f"{label} must have the {' or '.join(roles)} role (Users tab); {user.UserName or user.UserEmail} is {role.name if role else 'unassigned'}",
+            detail=f"{label} must be {_leader_requirement(min_level)}; {user.UserName or user.UserEmail}'s role is "
+                   f"level {authority.level(db, user)} (set it on the Users tab)",
         )
     return user
 
 
 def _set_bu_structure(db: Session, bu: BusinessUnit, tenant_id: int, req: BusinessUnitCreateRequest) -> None:
-    """Validate and apply companies, partner and BU head."""
+    """Validate and apply companies, partner and the BU head in each company."""
     from app.models.business_unit import BusinessUnitCompany
     from app.models.location import Location
+    from app.services import bu_leadership
 
     if req.company_ids is not None:
         wanted = set(req.company_ids)
@@ -586,31 +593,41 @@ def _set_bu_structure(db: Session, bu: BusinessUnit, tenant_id: int, req: Busine
                 db.delete(row)
         for company_id in wanted - set(current):
             db.add(BusinessUnitCompany(tenant_id=tenant_id, business_unit_id=bu.id, company_id=company_id))
+        db.flush()
+        bu_leadership.drop_heads_outside(db, bu.id, wanted)
 
     if req.partner_user_id is not None:
-        bu.partner_user_id = _leader(db, tenant_id, req.partner_user_id, PARTNER_ROLES, "Partner").UserID if req.partner_user_id else None
-    if req.head_user_id is not None:
-        bu.manager_id = _leader(db, tenant_id, req.head_user_id, BU_HEAD_ROLES, "BU Head").UserID if req.head_user_id else None
+        bu.partner_user_id = _leader(db, tenant_id, req.partner_user_id, settings.PARTNER_MIN_LEVEL, "Partner").UserID if req.partner_user_id else None
+    if req.location_heads is not None:
+        try:
+            bu_leadership.set_location_heads(
+                db, bu, tenant_id, req.location_heads,
+                lambda user_id: _leader(db, tenant_id, user_id, settings.BU_LEADER_MIN_LEVEL, "BU Head"))
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
 
 
 def _bu_dict(db: Session, bu: BusinessUnit) -> dict:
     from app.models.business_unit import BusinessUnitCompany
     from app.models.location import Location
+    from app.services.bu_leadership import location_heads
 
     companies = (
         db.query(Location).join(BusinessUnitCompany, BusinessUnitCompany.company_id == Location.id)
         .filter(BusinessUnitCompany.business_unit_id == bu.id).order_by(Location.name).all()
     )
     person = lambda u: {"user_id": u.UserID, "name": u.UserName or u.UserEmail} if u else None
+    heads = location_heads(db, bu.id)
     return {
         "id": bu.id,
         "name": bu.name,
         "display_name": bu.display_name,
         "description": bu.description,
         "active": bu.active,
-        "companies": [{"id": c.id, "name": c.name} for c in companies],
+        # each company the BU operates in, with the BU head there
+        "companies": [{"id": c.id, "name": c.name, "head": person(heads[c.id].head) if c.id in heads else None}
+                      for c in companies],
         "partner": person(bu.partner),
-        "head": person(bu.manager),
     }
 
 @rbac_router.get("/business-units/leader-options", dependencies=[Depends(require_resource_permission("business-units", "view"))])
@@ -621,14 +638,16 @@ def business_unit_leader_options(
     """Users who can be named Partner / BU Head on a business unit (by role)."""
     from app.models.role_template import RoleTemplate
 
-    def users_with(roles):
+    def users_at(min_level):
         rows = (db.query(Users).join(RoleTemplate, RoleTemplate.id == Users.role_template_id)
-                .filter(Users.tenant_id == _bu_tenant(current_user), RoleTemplate.name.in_(roles))
+                .filter(Users.tenant_id == _bu_tenant(current_user), RoleTemplate.enabled.is_(True),
+                        RoleTemplate.hierarchy_level >= min_level)
                 .order_by(Users.UserName).all())
         return [{"user_id": u.UserID, "name": u.UserName or u.UserEmail} for u in rows]
 
-    return {"partners": users_with(PARTNER_ROLES), "heads": users_with(BU_HEAD_ROLES),
-            "partner_roles": list(PARTNER_ROLES), "head_roles": list(BU_HEAD_ROLES)}
+    return {"partners": users_at(settings.PARTNER_MIN_LEVEL), "heads": users_at(settings.BU_LEADER_MIN_LEVEL),
+            "partner_requirement": _leader_requirement(settings.PARTNER_MIN_LEVEL),
+            "head_requirement": _leader_requirement(settings.BU_LEADER_MIN_LEVEL)}
 
 @rbac_router.get("/business-units/{bu_id}", dependencies=[Depends(require_resource_permission("business-units", "view"))])
 def get_business_unit_rbac(

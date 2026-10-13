@@ -11,7 +11,6 @@ from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.client import (
     CONTACT_ROLE_TYPES, Client, ClientContact, ClientHistory, STATUSES_REQUIRING_CONTACT,
 )
@@ -22,10 +21,6 @@ from app.models.submission import Submission
 from app.models.interview_pipeline import SubmissionInterview
 from app.models.user import Users
 from app.services.notification_service import send_notification
-
-# BR-02: roles allowed to see markup_rate_pct. CS and recruiters are
-# deliberately excluded -- margin data is not their business to see.
-MARKUP_VISIBLE_ROLES = {"Super User", "BU Head", "Recruitment Manager", "Director"}
 
 logger = logging.getLogger(__name__)
 
@@ -221,9 +216,8 @@ def update_client_details(db: Session, client: Client, updates: dict) -> Client:
     `status` (its own sanctioned path is set_client_status(), which
     enforces BR-01's contact requirement -- bypassing that here would
     let a status change skip the check), and `markup_rate_pct` (BR-02
-    confidential -- restricted to MARKUP_VISIBLE_ROLES at read time;
-    a write path here would let a broader-access edit endpoint bypass
-    that read restriction, so margin changes stay out of scope)."""
+    confidential: no client API returns it, and a write path here would
+    let a broad-access edit endpoint change margins, so it stays out)."""
     unknown = set(updates) - EDITABLE_CLIENT_FIELDS
     if unknown:
         raise ClientValidationError(f"Not editable via this path: {sorted(unknown)}")
@@ -281,29 +275,6 @@ def set_client_status(
     db.add(client)
     db.add(history)
     return client
-
-def serialize_client_for_role(client: Client, role_name: str) -> dict:
-    """
-    BR-02: markup_rate_pct is confidential -- included only for roles in
-    MARKUP_VISIBLE_ROLES. This is the one sanctioned serialization path;
-    a route building its own dict by hand risks forgetting the guard.
-    """
-    data = {
-        "id": client.id,
-        "company_name": client.company_name,
-        "company_short_name": client.company_short_name,
-        "industry": client.industry,
-        "client_type": client.client_type,
-        "line_type": client.line_type,
-        "website": client.website,
-        "tier": client.tier,
-        "status": client.status,
-        "billing_currency": client.billing_currency,
-        "payment_terms_days": client.payment_terms_days,
-    }
-    if role_name in MARKUP_VISIBLE_ROLES:
-        data["markup_rate_pct"] = float(client.markup_rate_pct) if client.markup_rate_pct is not None else None
-    return data
 
 def set_primary_contact(db: Session, client: Client, contact: ClientContact) -> ClientContact:
     """

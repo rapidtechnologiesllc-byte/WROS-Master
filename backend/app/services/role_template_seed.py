@@ -1,5 +1,4 @@
 """
-import logging
 Role Template Seeding - Initialize role templates with permissions.
 
 ZERO-HARDCODING: Seeds default role templates with permissions from

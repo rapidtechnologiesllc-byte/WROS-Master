@@ -18,7 +18,6 @@ from sqlalchemy.orm import Session
 
 from app.models.candidate import Candidate
 from app.services.thunder_service import build_candidate_context, generate_thunder_reply, ThunderReplyGenerationFailed
-from app.core.logging import logger
 from app.services.message_handlers.base_message_handler import time_bound
 
 logger = logging.getLogger(__name__)
@@ -288,7 +287,7 @@ class SLMEmailGenerationHandler:
     @staticmethod
     def should_retry(message: Any) -> bool:
         """Determine if message should be retried."""
-        from datetime import datetime, timedelta
+        from datetime import datetime
         MAX_RETRIES = 3
 
         if message.retry_count >= MAX_RETRIES:

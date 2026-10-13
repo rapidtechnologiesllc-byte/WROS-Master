@@ -1,7 +1,6 @@
 """
 HRMS-1105 (canonical S-320, not S-274 as its `.docx` filename says --
 confirmed against `WROS_Canonical_Backlog_S001-401.xlsx`) -- Resource
-import logging
 Management Agent.
 
 bench_allocation_recommendations: the LLM-ranked, advisory-only output of

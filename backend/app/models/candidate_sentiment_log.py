@@ -1,5 +1,4 @@
 """
-import logging
 S-036/HRMS-0436 -- Candidate Sentiment Analysis.
 
 candidate_sentiment_log: a real, new, queryable ledger -- distinct from

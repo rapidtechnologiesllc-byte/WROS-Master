@@ -62,7 +62,7 @@ import AssignmentsScreen from "../screens/AssignmentsScreen";
 import CandidateCreate from "../screens/CandidateCreate";
 import CandidateSearch from "../screens/CandidateSearch";
 import CandidateSelfService from "../screens/CandidateSelfService";
-import { canAccessMyWorkspace, isCandidateUser } from "../utils/permissionsRoleTemplate";
+import { canAccessMyWorkspace, hasPermission, homeDashboard, isCandidateUser } from "../utils/permissionsRoleTemplate";
 import { useNavigate } from "react-router-dom";
 import CandidateDetailsWrapper from "./wrappers/CandidateDetailsWrapper";
 import JobWorkspaceWrapper from "./wrappers/JobWorkspaceWrapper";
@@ -76,6 +76,8 @@ import OpportunityPipelineScreen from "../screens/OpportunityPipelineScreen";
 import MyExpensesScreen from "../screens/MyExpensesScreen";
 import ExecutiveRevenueDashboardScreen from "../screens/ExecutiveRevenueDashboardScreen";
 import FinanceOperationsScreen from "../screens/FinanceOperationsScreen";
+import PnlScreen from "../screens/PnlScreen";
+import ActivateAccount from "../pages/ActivateAccount";
 import DemandConfirmationScreen from "../screens/DemandConfirmationScreen";
 import SubmissionsScreen from "../screens/SubmissionsScreen";
 import AllocationsScreen from "../screens/AllocationsScreen";
@@ -116,11 +118,12 @@ import SLABreachBanner from "../components/SLABreachBanner";
 import AdminAgentStateDashboard from "../screens/AdminAgentStateDashboard";
 import AdminWeeklyRecapDashboard from "../screens/AdminWeeklyRecapDashboard";
 import EmployeeConversionScreen from "../screens/EmployeeConversionScreen";
+import HiringPipelineScreen from "../screens/HiringPipelineScreen";
 import ForcePasswordReset from "../pages/ForcePasswordReset";
 import CEOExecutiveDashboardScreen from "../screens/CEOExecutiveDashboardScreen";
 import TrainingCertificationDashboard from "../screens/TrainingCertificationDashboard";
 import CertificationManagementScreen from "../screens/CertificationManagementScreen";
-import TroyPartnerDashboard from "../screens/TroyPartnerDashboard";
+import PartnerDashboard from "../screens/PartnerDashboard";
 import BIExplorerScreen from "../screens/BIExplorerScreen";
 import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
 import MyReferralsScreen from "../screens/MyReferralsScreen";
@@ -130,38 +133,22 @@ import DocumentUploadScreen from "../screens/DocumentUploadScreen";
 
 // Wrapper component that renders the appropriate dashboard based on user permissions
 // RBAC-driven: Uses permissions from role templates, not hardcoded job titles
-const DashboardRouter = ({ candidates, jobs, interviews, offers, jobTitle }) => {
-  const perms = (() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
-      // If stored as object (permission metadata), convert keys to array
-      if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
-        return Object.keys(stored);
-      }
-      return Array.isArray(stored) ? stored : [];
-    } catch {
-      return [];
-    }
-  })();
-
-  // CEO/SuperUser dashboard (wildcard permission)
-  if (Array.isArray(perms) && perms.includes('*.*')) {
+const DashboardRouter = ({ candidates, jobs, interviews, offers }) => {
+  // Home dashboard by position, decided server-side (authority.home_dashboard): CEO level ->
+  // CEO, C-level finance -> CFO, partner level -> Partner, BU head level -> BU Head. Holding a
+  // dashboard's permission (as an admin role does) never makes it home.
+  const home = homeDashboard();
+  if (home === "ceo") {
     return <CEOUnifiedDashboard />;
   }
-
-  // CFO dashboard (finance.manage permission)
-  if (Array.isArray(perms) && perms.includes('finance.manage')) {
+  if (home === "cfo") {
     return <CFOAgentScreen />;
   }
-
-  // Partner dashboard (business_unit.manage permission or partner-specific)
-  if ((Array.isArray(perms) && perms.includes('business_unit.manage')) || (Array.isArray(perms) && perms.includes('reports.manage'))) {
+  if (home === "partner") {
     return <PartnerROIAgentScreen />;
   }
-
-  // HR Manager and Resource Manager get standard dashboard
-  if ((Array.isArray(perms) && perms.includes('employees.manage')) || (Array.isArray(perms) && perms.includes('recruitment.create'))) {
-    return <Dashboard candidates={candidates} jobs={jobs} interviews={interviews} offers={offers} />;
+  if (home === "bu_head") {
+    return <BuHeadDashboardScreen />;
   }
 
   // Everyone else gets the generic dashboard
@@ -293,6 +280,19 @@ const normalizeJobStatusForApi = (uiStatus) => {
 // Role names from role templates are not hardcoded in frontend
 // Instead, check user's permissions (which come from role template assignments)
 
+const logout = () => {
+  localStorage.removeItem("hrms_token");
+  localStorage.removeItem("hrms_role");
+  localStorage.removeItem("hrms_authority");
+  localStorage.removeItem("hrms_user_name");
+  localStorage.removeItem("hrms_user_email");
+  localStorage.removeItem("hrms_candidate_id");
+  localStorage.removeItem("hrms_user_type");
+  localStorage.removeItem("hrms_roles");
+  localStorage.removeItem("hrms_permissions");
+  window.location.href = "/";
+};
+
 export default function AppRoutes() {
   // Public, unauthenticated Thunder chat widget -- a real external
   // visitor (careers page / job listing) has no account and never
@@ -300,6 +300,12 @@ export default function AppRoutes() {
   // same as /auth's special-casing.
   if (window.location.pathname.startsWith("/careers-chat")) {
     return <PublicThunderChatScreen />;
+  }
+
+  // Set your own password from an emailed link (activation / forgot password).
+  // Before the ?token= handling below: this token is NOT a session token.
+  if (window.location.pathname.startsWith("/activate")) {
+    return <ActivateAccount />;
   }
 
   // S-017/HRMS-0417 -- Candidate Self-Service Web Portal. The token in
@@ -337,6 +343,22 @@ export default function AppRoutes() {
     return <ForcePasswordReset />;
   }
 
+  // Candidates get their own self-service app (decided before any hook runs)
+  if (
+    isCandidateUser({
+      role: localStorage.getItem("permission_role"),
+      userType: String(localStorage.getItem("hrms_user_type") || "").trim().toLowerCase(),
+    })
+  ) {
+    return <CandidateSelfService onLogout={logout} />;
+  }
+
+  // Hooks live in AuthenticatedApp: they must run in the same order on every render,
+  // which the early returns above would break (react-hooks/rules-of-hooks)
+  return <AuthenticatedApp />;
+}
+
+function AuthenticatedApp() {
   const [storedRole, setStoredRole] = useState(localStorage.getItem("permission_role"));
   const [storedJobTitle, setStoredJobTitle] = useState(localStorage.getItem("job_title"));
   const [permissionsLoading, setPermissionsLoading] = useState(true);
@@ -344,28 +366,10 @@ export default function AppRoutes() {
     .trim()
     .toLowerCase();
 
-  // RBAC-driven: Check permissions instead of hardcoded role names
-  // Import these from permissionsRbac for consistent permission checking
-  const { isSuperAdmin: isSuperUser } = (() => {
-    try {
-      const perms = JSON.parse(localStorage.getItem('hrms_permissions') || '[]');
-      return { isSuperAdmin: Array.isArray(perms) && perms.includes('*.*') };
-    } catch {
-      return { isSuperAdmin: false };
-    }
-  })();
+  // Deleting a job needs the jobs delete permission on the role template
+  const canDeleteJobs = hasPermission("jobs", "delete");
 
-  const handleLogout = () => {
-    localStorage.removeItem("hrms_token");
-    localStorage.removeItem("hrms_role");
-    localStorage.removeItem("hrms_user_name");
-    localStorage.removeItem("hrms_user_email");
-    localStorage.removeItem("hrms_candidate_id");
-    localStorage.removeItem("hrms_user_type");
-    localStorage.removeItem("hrms_roles");
-    localStorage.removeItem("hrms_permissions");
-    window.location.href = "/";
-  };
+  const handleLogout = logout;
 
   // Root cause fix: Refresh role and permissions from /hr/me on app initialization
   // CRITICAL: This runs BEFORE Shell renders to ensure fresh permissions are loaded
@@ -411,15 +415,6 @@ export default function AppRoutes() {
       setPermissionsLoading(false);
     }
   }, []);
-
-  if (
-    isCandidateUser({
-      role: storedRole,
-      userType: storedUserType,
-    })
-  ) {
-    return <CandidateSelfService onLogout={handleLogout} />;
-  }
 
   const [role, setRole] = useState(storedRole);
   const [candidateRecord, setCandidateRecord] = useState(null);
@@ -654,6 +649,7 @@ export default function AppRoutes() {
             <Route path="demand-confirmation" element={<DemandConfirmationScreen />} />
             <Route path="employees" element={<EmployeesConsolidatedScreen />} />
             <Route path="employee-conversion" element={<EmployeeConversionScreen />} />
+            <Route path="hiring-pipeline" element={<HiringPipelineScreen />} />
             <Route path="linkedin-pipeline" element={<LinkedInPipelineScreen />} />
             <Route path="submissions" element={<SubmissionsScreen />} />
             <Route path="allocations" element={<AllocationsScreen />} />
@@ -670,6 +666,7 @@ export default function AppRoutes() {
             <Route path="opportunity-pipeline" element={<OpportunityPipelineScreen />} />
             <Route path="executive-revenue-dashboard" element={<ExecutiveRevenueDashboardScreen />} />
             <Route path="finance-operations" element={<FinanceOperationsScreen />} />
+            <Route path="pnl" element={<PnlScreen />} />
             <Route path="partner-roi" element={<PartnerROIAgentScreen />} />
             <Route path="ceo-fy-progress" element={<CEOUnifiedDashboard />} />
             <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
@@ -709,7 +706,7 @@ export default function AppRoutes() {
             <Route path="admin/users-access-control/delivery-centers/:dcId/edit" element={<DeliveryCenterFormPage />} />
 
             <Route path="training-certification" element={<TrainingCertificationDashboard />} />
-            <Route path="troy-partner-dashboard" element={<TroyPartnerDashboard />} />
+            <Route path="partner-dashboard" element={<PartnerDashboard />} />
             <Route path="bi-explorer" element={<BIExplorerScreen />} />
             <Route path="bu-head-dashboard" element={<BuHeadDashboardScreen />} />
 
@@ -809,7 +806,7 @@ export default function AppRoutes() {
                     }
                   }}
                   onDeleteJob={
-                    isSuperUser
+                    canDeleteJobs
                       ? async (jobId) => {
                           const ok = window.confirm(`Delete job ${jobId}?`);
                           if (!ok) return;

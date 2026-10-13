@@ -19,8 +19,21 @@ export const sendInvoice = async (invoiceId) => {
   return data;
 };
 
-export const markInvoicePaid = async (invoiceId) => {
-  const { data } = await apiRequest(`/invoices/${invoiceId}/mark-paid`, { method: "POST" });
+// Delivered outside email (e.g. uploaded to the client's portal): invoice becomes SENT
+export const recordExternalDelivery = async (invoiceId, note) => {
+  const { data } = await apiRequest(`/invoices/${invoiceId}/record-external-delivery`, {
+    method: "POST",
+    body: JSON.stringify({ note }),
+  });
+  return data;
+};
+
+// The client's payment: bank transaction matched, invoice PAID on paid_on, revenue recognised
+export const recordInvoicePayment = async (invoiceId, { paidOn, amountUsdCents, reference }) => {
+  const { data } = await apiRequest(`/invoices/${invoiceId}/record-payment`, {
+    method: "POST",
+    body: JSON.stringify({ paid_on: paidOn, amount_usd_cents: amountUsdCents, reference }),
+  });
   return data;
 };
 

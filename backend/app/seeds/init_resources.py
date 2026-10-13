@@ -52,7 +52,8 @@ RESOURCE_ROUTES = {
     "timesheets": "/timesheets",
     "htd-intake": "/htd-intake",
     "buddy-program": "/buddy-program",
-    "convert-to-employee": "/employee-conversion",
+    # the hiring pipeline (screen -> ... -> bench -> client); manual conversion stays at /employee-conversion
+    "convert-to-employee": "/hiring-pipeline",
     "utilization-dashboard": "/utilization-dashboard",
     "resource-forecast": "/forecast",
     # Sales
@@ -67,7 +68,7 @@ RESOURCE_ROUTES = {
     "invoices": "/invoices",
     "forecasts": "/forecast",
     "finance-operations": "/finance-operations",
-    "revenue": "/revenue",
+    "revenue": "/pnl",  # partner & org P&L (sales-ops keeps /revenue)
     # Reporting
     "bi-explorer": "/bi-explorer",
     # System
@@ -84,7 +85,7 @@ RESOURCE_ROUTES = {
     # FY goal tree (Org > Location > Partner > BU) + executive revenue; listed once, under Executive
     "goals": "/executive-revenue-dashboard",
     "cfo-dashboard": "/cfo-dashboard",
-    "partner-dashboard": "/troy-partner-dashboard",
+    "partner-dashboard": "/partner-dashboard",
     "executive-signal": "/executive-signal",
     "admin-agent-state": "/admin/agent-state-dashboard",
     "admin-weekly-recap": "/admin/weekly-recap",
@@ -99,7 +100,7 @@ RESOURCE_ROUTES = {
     # Executive Dashboards
     "ceo-dashboard-view": "/ceo-fy-progress",
     "cfo-dashboard-view": "/cfo-dashboard",
-    "partner-dashboard-view": "/troy-partner-dashboard",
+    "partner-dashboard-view": "/partner-dashboard",
     "bu-head-dashboard-view": "/bu-head-dashboard",
     # AI & Automation
     "ask-thunder": "/thunder",
@@ -108,6 +109,8 @@ RESOURCE_ROUTES = {
 
 # Menu labels where title-casing the resource name reads wrong
 NAV_LABELS = {
+    "convert-to-employee": "Hiring Pipeline",
+    "revenue": "P&L (Partner & Org)",
     "goals": "Goals & Revenue",
     "ceo-dashboard": "CEO Dashboard",
     "cfo-dashboard": "CFO Dashboard",
@@ -123,6 +126,14 @@ NAV_LABELS = {
 
 # Resources whose page is a tab of another page (Users & Access Control):
 # they keep their route (deep links, permissions) but are not menu items.
+# Extra screens governed by an existing resource's permission (no resource of their
+# own): shown in the menu right after that resource for every role that can view it.
+# The LinkedIn pipeline's endpoints all check "candidates", so its page does too --
+# CEO, CFO, partners and BU heads see it under Recruitment, not only recruiters.
+RESOURCE_EXTRA_PAGES = {
+    "candidates": [{"key": "linkedin-pipeline", "label": "LinkedIn Pipeline", "route": "/linkedin-pipeline"}],
+}
+
 NAV_TAB_RESOURCES = {"role-templates", "business-units", "delivery-centers", "organizational-hierarchy"}
 
 
@@ -190,7 +201,7 @@ def init_modules_and_resources(db: Session, tenant_id: int = 1):
 def make_personal_resources_mandatory(db: Session, tenant_id: int = 1):
     """Make Personal resources (dashboard, my-tasks, etc.) mandatory for all users."""
 
-    print(f"Making Personal resources mandatory for all users...")
+    print("Making Personal resources mandatory for all users...")
 
     # Get all role templates
     all_roles = db.query(RoleTemplate).filter(

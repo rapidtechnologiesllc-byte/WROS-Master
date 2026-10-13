@@ -1,7 +1,6 @@
 """
 HRMS-0316 -- Invoice Generation, Calculation, Sending & Payment Tracking
 Pydantic Schemas for Request/Response Validation
-import logging
 =========================================================================
 
 All monetary values use USD cents (BIGINT per R-09).
@@ -12,7 +11,6 @@ import logging
 from datetime import date, datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field, validator
-from app.core.logging import logger
 
 # ============================================================================
 # REQUEST SCHEMAS

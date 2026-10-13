@@ -1,5 +1,4 @@
 """
-import logging
 Revenue Recognition & P&L Attribution Model.
 
 Tracks revenue flows through the system:

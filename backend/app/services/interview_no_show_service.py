@@ -1,5 +1,4 @@
 """
-import logging
 S-052/HRMS-0452 -- Interview No-Show Handling.
 
 Real architecture adaptations:

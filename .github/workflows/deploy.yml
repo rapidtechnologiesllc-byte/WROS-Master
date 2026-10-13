@@ -57,10 +57,12 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Run tests (with fallback)
+      # No masking: a failing frontend test must stop the deploy.
+      - name: Run tests
         working-directory: frontend
-        run: npm test -- --ci --coverage --passWithNoTests 2>/dev/null || echo "No test suite configured"
-        continue-on-error: true
+        env:
+          CI: "true"
+        run: npm test -- --ci --watchAll=false --passWithNoTests
 
   deploy:
     name: Deploy to Production
@@ -78,6 +80,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # to see whether this push changed the backend
 
       - name: Download build artifact
         uses: actions/download-artifact@v4
@@ -113,6 +117,27 @@ jobs:
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Screens may call endpoints this push adds: when it changed the backend, wait until
+      # production runs that backend (test-and-deploy.yml) before swapping the build.
+      - name: Wait for this push's backend
+        if: steps.guard.outputs.skip != 'true' && github.event_name == 'push'
+        run: |
+          BEFORE="${{ github.event.before }}"
+          if git cat-file -e "$BEFORE^{commit}" 2>/dev/null && git diff --quiet "$BEFORE" HEAD -- backend/; then
+            echo "No backend change in this push"; exit 0
+          fi
+          SHA=$(git rev-parse HEAD)
+          for i in $(seq 1 60); do
+            if ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+                "cd /home/HRMS/WROS-Master && git merge-base --is-ancestor $SHA HEAD 2>/dev/null && \
+                 [ \"\$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/health)\" = 200 ]"; then
+              echo "Backend at $SHA or newer is live"; exit 0
+            fi
+            sleep 20
+          done
+          echo "Backend for $SHA is not live after 20 minutes; not deploying screens that need it"
+          exit 1
+
       # The server has no GitHub credentials: nothing is pulled there, the
       # CI build is copied. The old build is kept as build-prev-<time>.
       - name: Copy new build to production
@@ -134,15 +159,27 @@ jobs:
       - name: Health check
         if: steps.guard.outputs.skip != 'true'
         run: |
-          for i in $(seq 1 10); do
-            if curl -sf https://hrms.blitzenx.com/ | grep -q '<div id="root">'; then
-              echo "Frontend health check passed"
+          # Passes when the new index.html is served: through the public URL, or -- if the
+          # public route is unreachable from GitHub's runners (CDN/firewall) -- by the
+          # production server's own nginx (same host name and certificate, via SSH).
+          # Every attempt prints the HTTP status so a failure says why.
+          for i in $(seq 1 20); do
+            CODE=$(curl -s -o page.html -w '%{http_code}' --max-time 10 https://hrms.blitzenx.com/ || echo "000")
+            if [ "$CODE" = "200" ] && grep -q '<div id="root">' page.html; then
+              echo "Frontend health check passed (public URL)"
               exit 0
             fi
-            echo "Attempt $i: waiting for frontend..."
+            if ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+                "curl -sk --max-time 10 --resolve hrms.blitzenx.com:443:127.0.0.1 https://hrms.blitzenx.com/" \
+                | grep -q '<div id="root">'; then
+              echo "Frontend health check passed on the server's nginx; public URL answered HTTP $CODE from the runner"
+              exit 0
+            fi
+            echo "Attempt $i: public URL HTTP $CODE, server nginx not serving the app yet"
             sleep 3
           done
-          echo "Frontend health check failed"
+          echo "Frontend health check failed. Last public response (HTTP $CODE), first 300 bytes:"
+          head -c 300 page.html 2>/dev/null || true
           exit 1
 
       - name: Rollback on failure

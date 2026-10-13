@@ -852,7 +852,9 @@ def _write_timeline(
         tenant_id=tenant_id,
         entity_type=entity_type,
         entity_id=entity_id,
-        actor_id=actor_id,
+        # actor_id is a FK to users: only a USER actor has one ("THUNDER_AI" or a
+        # candidate id there violated the FK and silently dropped the whole entry)
+        actor_id=actor_id if actor_type == "USER" else None,
         actor_type=actor_type,
         action=action,
         description=description,

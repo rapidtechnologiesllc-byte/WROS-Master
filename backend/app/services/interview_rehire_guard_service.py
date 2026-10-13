@@ -5,7 +5,6 @@ epic-01 is complete" (2026-08-05). His own words: "if there was a
 nohire in the past then when the next time someone is trying to
 schedule interview to the candidate they need to provide a clear
 justification an agentic bot should review and decide or take approval
-import logging
 from hiring manager before scheduling the interview."
 
 Attaches to the LEGACY interview system
@@ -40,7 +39,6 @@ from typing import Callable, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.user import Interview, InterviewFeedback, InterviewPanel, Jobs
 from app.models.interview_rehire_review import InterviewRehireReview
 
@@ -59,30 +57,19 @@ class RehireReviewAlreadyDecided(Exception):
     pass
 
 def get_past_no_hire_panels(db: Session, candidate_id: str) -> List[InterviewPanel]:
-    """Every panel (any job, any round) this candidate has been through
-    where at least one submitted InterviewFeedback recommended
-    'Reject'. Empty list = no past no-hire on record."""
-    panels = db.query(InterviewPanel).filter(InterviewPanel.candidate_id == candidate_id).all()
-    if not panels:
-        return []
+    """Every panel (any job, any round) this candidate failed: its verdict is FAIL, which
+    any "No Hire" (or legacy "Reject") recommendation causes, or a hiring manager decided.
+    Empty list = no past no-hire on record."""
+    from app.services.interview_verdict_service import NO_HIRE, has_failed_round
 
-    panel_ids = [p.id for p in panels]
-    interviews = db.query(Interview).filter(Interview.panel_id.in_(panel_ids)).all()
-    if not interviews:
-        return []
-    interview_ids = [i.id for i in interviews]
-
-    reject_feedback = (
-        db.query(InterviewFeedback)
-        .filter(InterviewFeedback.interview_id.in_(interview_ids), InterviewFeedback.recommendation == "Reject")
-        .all()
-    )
-    if not reject_feedback:
-        return []
-
-    rejected_interview_ids = {f.interview_id for f in reject_feedback}
-    rejected_panel_ids = {i.panel_id for i in interviews if i.id in rejected_interview_ids}
-    return [p for p in panels if p.id in rejected_panel_ids]
+    failed = {p.id: p for p in has_failed_round(db, candidate_id)}
+    # fail closed: a No Hire counts even before the round is marked Completed
+    for panel, interview_id in db.query(InterviewPanel, Interview.id).join(
+            Interview, Interview.panel_id == InterviewPanel.id).filter(InterviewPanel.candidate_id == candidate_id).all():
+        if panel.id not in failed and db.query(InterviewFeedback).filter(
+                InterviewFeedback.interview_id == interview_id, InterviewFeedback.recommendation.in_(NO_HIRE)).first():
+            failed[panel.id] = panel
+    return list(failed.values())
 
 def candidate_has_past_no_hire(db: Session, candidate_id: str) -> bool:
     return bool(get_past_no_hire_panels(db, candidate_id))
@@ -250,6 +237,13 @@ def decide_rehire_review(
     review.decided_at = datetime.utcnow()
 
     if decision == "approve":
+        from app.models.candidate import Candidate
+        from app.services.submission_service import assert_experience_eligible
+
+        candidate = db.query(Candidate).filter(Candidate.candidateID == review.candidate_id).first()
+        if candidate is None:
+            raise RehireReviewNotFound(f"Candidate {review.candidate_id} of review {review_id} not found")
+        assert_experience_eligible(candidate, "schedule an interview")  # before anything changes
         panel = InterviewPanel(
             candidate_id=review.candidate_id,
             round_name=review.round_name,

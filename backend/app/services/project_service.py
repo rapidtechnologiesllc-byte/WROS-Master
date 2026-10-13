@@ -1,6 +1,5 @@
 """
 HRMS-0801 (Project Lifecycle) + HRMS-0804 (Milestones) + HRMS-0805
-import logging
 (Unfilled Roles) + HRMS-0806 (Revenue Estimate & Margin).
 
 HRMS-0807 (Project Risk Flagging) is NOT built -- it's specified to
@@ -20,7 +19,6 @@ from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.opportunity import Opportunity
 from app.models.project import Project, ProjectMilestone
-from app.core.logging import logger
 
 PROJECT_STATUS_TRANSITIONS = {
     "PLANNING": {"ACTIVE", "CLOSED"},
@@ -68,8 +66,11 @@ def create_project_from_won_opportunity(
 ) -> Project:
     """HRMS-0801 BR-0801-01: inherits client_id/currency directly from
     the won opportunity, no manual re-selection."""
-    if opportunity.stage != "WON":
-        raise ValueError(f"Cannot create a project from opportunity {opportunity.id} -- stage is '{opportunity.stage}', not WON.")
+    if opportunity.stage != "CONTRACT":
+        raise ValueError(f"Cannot create a project from opportunity {opportunity.id} -- stage is "
+                         f"'{opportunity.stage}', not CONTRACT (the signed contract is the win).")
+    if db.query(Project.id).filter(Project.opportunity_id == opportunity.id).first():
+        raise ValueError(f"Opportunity {opportunity.id} already has a project.")
 
     project = Project(
         tenant_id=tenant_id or opportunity.tenant_id, client_id=opportunity.client_id,

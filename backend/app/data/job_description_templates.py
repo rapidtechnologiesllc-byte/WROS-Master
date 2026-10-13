@@ -1,6 +1,5 @@
 """
 Job Description Templates — Known-Role Library
-import logging
 ================================================
 
 HOW TO ADD A NEW ROLE (Avinash — this is your action item):

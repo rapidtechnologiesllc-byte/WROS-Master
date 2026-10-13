@@ -12,15 +12,10 @@ Responsibilities:
   6. Log every action as a ConversationEvent.
 """
 
-import json
-import os
-import re
 import logging
-import requests
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
-from fastapi import HTTPException, Depends
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.graph_auth import get_graph_token
@@ -29,18 +24,7 @@ from app.core.logging import logger
 from app.core import roles
 from app.models.candidate import (
     Candidate,
-    CandidateInfoForm,
-    CandidateExperienceForm,
-    CandidateEducationForm,
 )
-from app.models.candidate_ai import (
-    CandidateAIAssignment,
-    CandidateConversation,
-    ConversationEvent,
-)
-from app.models.user import Users
-from app.services.email_service import EmailService
-from app.services.permission_helper import PermissionHelper
 
 logger = logging.getLogger(__name__)
 

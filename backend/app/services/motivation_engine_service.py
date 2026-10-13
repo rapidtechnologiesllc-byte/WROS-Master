@@ -1,5 +1,4 @@
 """
-import logging
 S-349/HRMS-P119 -- Proactive Motivation Engine.
 
 Real architecture:

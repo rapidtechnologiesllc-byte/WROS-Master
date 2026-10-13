@@ -1,4 +1,3 @@
-from app.core.logging import logger
 """Pydantic Schemas -- S-063/HRMS-0463 Candidate Risk Dashboard."""
 import logging
 from typing import List

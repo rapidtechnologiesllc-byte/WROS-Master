@@ -1,4 +1,3 @@
-from app.core.logging import logger
 """Pydantic Schemas -- S-046/HRMS-0446 Candidate Abandonment Prediction."""
 from datetime import datetime
 import logging

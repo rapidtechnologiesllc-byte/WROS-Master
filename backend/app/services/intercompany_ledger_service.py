@@ -1,4 +1,3 @@
-from app.core.logging import logger
 """EPIC-16 -- Intercompany Ledger. See app.models.intercompany_ledger
 for why this is manual-entry, not auto-derived."""
 import logging

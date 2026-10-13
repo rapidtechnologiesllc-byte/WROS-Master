@@ -1,7 +1,6 @@
 """
 HR Assignment Model
 ===================
-import logging
 Links a candidate to one or two HR/Recruiter users for the recruitment process.
 
 Fields:

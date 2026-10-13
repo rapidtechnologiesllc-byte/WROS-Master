@@ -5,7 +5,7 @@ Monitors P&L per partner and per BU and escalates when net profit falls
 below the 25% floor.
 
 Real data model:
-- A partner owns the BUs where BusinessUnit.manager_id is their UserID.
+- A partner owns the BUs where BusinessUnit.partner_user_id is their UserID.
 - Revenue is client invoices (Invoice.total_usd_cents, excluding DRAFT);
   invoices reach a BU through Client.business_unit_id.
 - Payroll is Employee.base_salary_usd_cents (monthly) for the BU's
@@ -19,7 +19,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, Iterable, List, Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core import roles
@@ -27,6 +27,7 @@ from app.models.business_unit import BusinessUnit
 from app.models.client import Client
 from app.models.employee import Employee
 from app.models.invoice import Invoice
+from app.models.org_structure import OrgNode
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,15 @@ NET_MARGIN_FLOOR_PCT = 25
 
 
 def partner_bu_ids(db: Session, partner_id: str) -> List[int]:
-    return [row[0] for row in db.query(BusinessUnit.id).filter(BusinessUnit.manager_id == partner_id).all()]
+    """The BUs this partner owns (BusinessUnit.partner_user_id). BU heads are per company (BusinessUnitLocationHead)."""
+    return [row[0] for row in db.query(BusinessUnit.id).filter(BusinessUnit.partner_user_id == partner_id).all()]
+
+
+def partner_user_ids(db: Session, tenant_id) -> List[str]:
+    """Partners are the users the BU structure names as partner, not a UserRole string."""
+    rows = db.query(BusinessUnit.partner_user_id).filter(BusinessUnit.tenant_id == tenant_id,
+                                                         BusinessUnit.partner_user_id.isnot(None)).distinct().all()
+    return [row[0] for row in rows]
 
 
 def _client_ids(bu_ids: Iterable[int]):
@@ -59,11 +68,14 @@ def _invoice_cents(db: Session, bu_ids: List[int], since: datetime) -> int:
 
 
 def _payroll_usd(db: Session, bu_ids: List[int], sales: bool) -> float:
-    title_is_sales = func.lower(func.coalesce(Employee.current_title, "")).like("%sales%")
+    """Sales vs delivery payroll by the function of the person's org seat (from their
+    department), never by words in a job title."""
+    in_sales = select(OrgNode.id).where(OrgNode.specialization == "Sales")
+    is_sales = Employee.org_node_id.in_(in_sales)
     cents = db.query(func.coalesce(func.sum(Employee.base_salary_usd_cents), 0)).filter(
         Employee.bu_id.in_(bu_ids),
         Employee.status.in_(WORKING_EMPLOYEE_STATUSES),
-        title_is_sales if sales else ~title_is_sales,
+        is_sales if sales else or_(Employee.org_node_id.is_(None), ~is_sales),
     ).scalar() or 0
     return cents / 100
 

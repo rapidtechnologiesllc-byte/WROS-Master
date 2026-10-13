@@ -11,11 +11,9 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.dependencies import require_resource_permission
-from app.core.visibility import should_bypass_bu_filter, get_user_bu_id
-from app.models.certification import Certification, EmployeeCertification
+from app.models.certification import Certification
 from app.models.kpi import EmployeeKPITarget, EmployeeKPIScore
 from app.models.employee import Employee
-from app.core.logging import logger
 
 router = APIRouter(prefix="/admin/certifications", tags=["admin-certifications"])
 

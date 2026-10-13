@@ -1,5 +1,4 @@
 """
-import logging
 HRMS-0103 — Demand / Job Requisition Management, Phase 2 Domain 2/4.
 
 Same SQL-Server/SQLite-portable translation conventions as

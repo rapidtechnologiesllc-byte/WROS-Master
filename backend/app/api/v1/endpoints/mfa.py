@@ -1,5 +1,4 @@
 """
-import logging
 Phase 1 B3 -- MFA enrollment and verification.
 
 Reached only via the mfa_pending short-lived token issued by

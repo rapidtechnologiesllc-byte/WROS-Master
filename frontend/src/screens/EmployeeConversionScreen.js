@@ -6,12 +6,18 @@ import { getAllCandidates } from "../services/api/candidates";
 import { listBusinessUnits } from "../services/api/rbac";
 import { listRoleTemplates } from "../services/api/role_templates";
 import { getHrMe } from "../services/api/users";
-import { getBusinessUnitId } from "../utils/permissionsRoleTemplate";
+import { getBusinessUnitId, hasPermission } from "../utils/permissionsRoleTemplate";
+
+// Who may list eligible supervisors (the org chart); others leave placement to the BU head
+const canPickSupervisor = () => hasPermission("admin-settings", "view");
 
 export default function EmployeeConversionScreen() {
   const [candidates, setCandidates] = useState([]);
   const [businessUnits, setBusinessUnits] = useState([]);
   const [roles, setRoles] = useState([]);
+  // Job Titles (org roles) and the seats the new hire may report to
+  const [orgRoles, setOrgRoles] = useState([]);
+  const [supervisors, setSupervisors] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState(null);
@@ -25,6 +31,8 @@ export default function EmployeeConversionScreen() {
     role_ids: [],
     position: "",
     joining_date: "",
+    org_role: "",
+    parent_node_id: "",
   });
 
   const [selectedCandidate, setSelectedCandidate] = useState(null);
@@ -69,6 +77,13 @@ export default function EmployeeConversionScreen() {
       // Roles = enabled role templates (Users & Access Control > Roles)
       const templates = await listRoleTemplates();
       setRoles(templates.filter((t) => t.enabled !== false));
+
+      // The Job Title list is readable with user access; without it the title is matched
+      // from the position and placement goes to the BU head
+      if (hasPermission("users-access-control", "view")) {
+        const { data: titles } = await apiRequest("/org/roles");
+        setOrgRoles(Array.isArray(titles) ? titles : []);
+      }
     } catch (error) {
       console.error("Error loading conversion data:", error);
       setActionError("Failed to load conversion data");
@@ -76,6 +91,24 @@ export default function EmployeeConversionScreen() {
       setLoading(false);
     }
   };
+
+  // Eligible supervisors follow the Job Title's level and the business unit
+  const orgRoleLevel = orgRoles.find((r) => r.name === formData.org_role)?.hierarchy_level;
+  useEffect(() => {
+    if (!orgRoleLevel || orgRoleLevel >= 17 || !canPickSupervisor()) {
+      setSupervisors([]);
+      return;
+    }
+    const params = new URLSearchParams({ hierarchy_level: String(orgRoleLevel) });
+    if (formData.business_unit_id) params.set("business_unit_id", String(formData.business_unit_id));
+    apiRequest(`/org/valid-supervisors?${params.toString()}`)
+      .then((res) => setSupervisors(Array.isArray(res.data) ? res.data : []))
+      .catch((err) => {
+        console.error("[EmployeeConversion] Failed to load supervisors:", err);
+        setSupervisors([]);
+        setActionError(`Could not load eligible supervisors: ${err.message}`);
+      });
+  }, [orgRoleLevel, formData.business_unit_id]);
 
   const handleCandidateSelect = (candidateId) => {
     const candidate = candidates.find(
@@ -157,6 +190,9 @@ export default function EmployeeConversionScreen() {
         role_ids: formData.role_ids.map((id) => parseInt(id, 10)),
         job_title: formData.position,
         joining_date: formData.joining_date,
+        // Job Title (org role) and boss: without a boss they go under their BU head
+        org_role: formData.org_role || null,
+        parent_node_id: formData.parent_node_id || null,
       };
 
       const { data: result } = await apiRequest("/employees/convert-candidate", {
@@ -177,6 +213,8 @@ export default function EmployeeConversionScreen() {
           role_ids: [],
           position: "",
           joining_date: "",
+          org_role: "",
+          parent_node_id: "",
         });
         setSelectedCandidate(null);
         // Reload candidates
@@ -329,9 +367,33 @@ export default function EmployeeConversionScreen() {
                 ]}
               />
 
+              {/* Job Title = org role: sets their level in the org chart */}
+              <Select
+                label="Job Title (org role)"
+                value={formData.org_role}
+                onChange={(value) => setFormData((prev) => ({ ...prev, org_role: value, parent_node_id: "" }))}
+                disabled={submitting}
+                options={[
+                  { value: "", label: "Match from the position title" },
+                  ...orgRoles.map((r) => ({ value: r.name, label: `${r.name} · L${r.hierarchy_level}` })),
+                ]}
+              />
+              {formData.org_role && orgRoleLevel < 17 && canPickSupervisor() && (
+                <Select
+                  label="Reports To"
+                  value={formData.parent_node_id}
+                  onChange={(value) => handleInputChange("parent_node_id", value)}
+                  disabled={submitting}
+                  options={[
+                    { value: "", label: "Their BU head (automatic)" },
+                    ...supervisors.map((n) => ({ value: n.id, label: `${n.name} (Level ${n.hierarchy_level})` })),
+                  ]}
+                />
+              )}
+
               {/* One role template per user (Users.role_template_id) */}
               <Select
-                label="Role"
+                label="Access (role template)"
                 value={formData.role_ids[0] != null ? String(formData.role_ids[0]) : ""}
                 onChange={(value) => handleRoleSelect(value)}
                 disabled={submitting}

@@ -2,7 +2,6 @@ from pydantic import BaseModel
 from typing import Optional
 import logging
 from datetime import datetime
-from app.core.logging import logger
 
 # Document upload schemas
 class DocumentUploadResponse(BaseModel):

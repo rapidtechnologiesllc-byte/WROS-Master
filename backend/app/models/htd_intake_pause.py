@@ -1,5 +1,4 @@
 """
-import logging
 S-359/HRMS-P511 -- HTD Intake Pause Engine: Conversion Rate Breach.
 
 Three small tables rather than the doc's generic `system_config` key-

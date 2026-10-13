@@ -1,5 +1,4 @@
 """
-import logging
 Navigation API - Returns personalized navigation structure based on user permissions.
 
 Endpoint: GET /hr/me/navigation
@@ -11,9 +10,8 @@ Uses database resources directly (no hardcoding) - supports all 175 resources dy
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, require_resource_permission
+from app.core.dependencies import get_current_user
 from app.services.role_template_permission_service import RoleTemplatePermissionService
-from app.models.role_template import Module, Resource
 from app.core.logging import logger
 
 router = APIRouter(prefix="/hr/me", tags=["navigation"])
@@ -45,6 +43,7 @@ def get_icon_for_resource(resource_name: str) -> str:
         "thunder_chat": "MessageCircle", "documents": "File", "tasks": "CheckSquare",
         # SLM (Self-Learning Model)
         "slm_dashboard": "Zap", "slm_training_data": "Database",
+        "linkedin-pipeline": "Linkedin",
     }
     return icon_map.get(resource_name, "Briefcase")
 
@@ -74,11 +73,6 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
     }
     """
     try:
-        import sys
-        print("[NAV-ENDPOINT-CALLED]", file=sys.stderr)
-        sys.stderr.flush()
-
-        logger.warning("[NAV-FIX] Starting navigation with resource_name fix active")
         # Get user ID
         if hasattr(current_user, 'UserID'):
             user_id = current_user.UserID
@@ -90,13 +84,9 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
         if not user_id:
             raise HTTPException(status_code=401, detail="User not identified")
 
-        print(f"[NAV-USER-ID] {user_id}", file=sys.stderr)
-        sys.stderr.flush()
-
         # Load module/resource structure from init_resources.py
-        from app.seeds.init_resources import MODULES_AND_RESOURCES, NAV_LABELS, NAV_TAB_RESOURCES, RESOURCE_ROUTES
-        print(f"[NAV-LOADED] MODULES_AND_RESOURCES has {len(MODULES_AND_RESOURCES)} modules", file=sys.stderr)
-        sys.stderr.flush()
+        from app.seeds.init_resources import (MODULES_AND_RESOURCES, NAV_LABELS, NAV_TAB_RESOURCES,
+                                             RESOURCE_EXTRA_PAGES, RESOURCE_ROUTES)
 
         navigation_modules = {}
         module_icons = {
@@ -107,17 +97,8 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
         }
 
         # OPTIMIZATION: Batch load all user permissions ONCE (not per-resource)
-        try:
-            all_permissions = RoleTemplatePermissionService.get_user_permissions(db, user_id, tenant_id)
-        except Exception as e:
-            logger.error(f"Failed to load user permissions: {e}")
-            all_permissions = {}
+        all_permissions = RoleTemplatePermissionService.get_user_permissions(db, user_id, tenant_id)
 
-        try:
-            is_super = RoleTemplatePermissionService.is_super_user(db, user_id, tenant_id)
-        except Exception as e:
-            logger.error(f"Failed to check super-user status: {e}")
-            is_super = False
 
         # Build navigation from init_resources. Only resources with a page
         # (RESOURCE_ROUTES) become menu items; the rest are permission-only.
@@ -132,17 +113,9 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
                 if not route or route in seen_routes:
                     continue
 
-                # SUPER USER: Allow all resources without permission check
-                if is_super:
-                    can_view = True
-                else:
-                    # Regular user: Check from cached permissions (already loaded once
-                    # above). all_permissions is keyed by the resource's real name
-                    # (hyphenated, matching Resource.name / RESOURCE_ROUTES) -- do not
-                    # normalize hyphens to underscores here, that key never exists in
-                    # the permissions dict and silently hides every hyphenated
-                    # resource (most of them) from navigation for non-super-users.
-                    can_view = all_permissions.get(resource_name, {}).get("can_view", False)
+                # The role's permission matrix decides, for every role (no super-user bypass).
+                # all_permissions is keyed by the resource's real (hyphenated) name.
+                can_view = all_permissions.get(resource_name, {}).get("can_view", False)
 
                 if can_view:
                     seen_routes.add(route)
@@ -152,15 +125,19 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
                         "icon": get_icon_for_resource(resource_name),
                         "route": route
                     })
+                    for page in RESOURCE_EXTRA_PAGES.get(resource_name, []):
+                        if page["route"] in seen_routes:
+                            continue
+                        seen_routes.add(page["route"])
+                        navigation_modules[module_name]["items"].append({
+                            "key": page["key"], "label": page["label"],
+                            "icon": get_icon_for_resource(page["key"]), "route": page["route"],
+                        })
 
         groups = [m for m in navigation_modules.values() if m["items"]]
-        logger.warning(f"[NAV] Returning {len(groups)} groups")
-        response = {"data": {"groups": groups}}
-        logger.warning(f"[NAV] Response: {response}")
-        return response
+        return {"data": {"groups": groups}}
 
     except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"Navigation error: {e}", exc_info=True)
         # Do NOT return fallback empty response - let error propagate
         # ALL navigation should be fully dynamic, no hardcoded fallbacks

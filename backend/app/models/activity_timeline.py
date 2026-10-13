@@ -1,5 +1,4 @@
 """
-import logging
 S-216/HRMS-0118 -- Shared Activity Timeline & File Attachment Framework.
 
 Polymorphic (entity_type, entity_id) history table -- BR-0118-01's

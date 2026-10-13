@@ -1,5 +1,4 @@
 """
-import logging
 HRMS-0711 -- Client Submission Pipeline, Phase 2 Domain 2.
 
 Compliance gates (checkExperienceEligibility / checkMarketProfileRule /
@@ -38,7 +37,6 @@ from sqlalchemy.orm import Session
 from app.models.candidate import Candidate
 from app.models.demand import Demand
 from app.models.employee import Employee
-from app.core.logging import logger
 from app.models.submission import (
     ALLOWED_SUBMISSION_TRANSITIONS,
     Submission,
@@ -95,6 +93,15 @@ def check_experience_eligibility(candidate: Candidate) -> dict:
         "experience_months": months, "deficit_months": deficit,
     }
 
+class ExperienceIneligible(ValueError):
+    """The 5-year rule (CEO): checked before every interview, at the pipeline, at offer and at submission."""
+
+
+def assert_experience_eligible(candidate: Candidate, step: str) -> None:
+    result = check_experience_eligibility(candidate)
+    if not result["is_eligible"]:
+        raise ExperienceIneligible(f"Cannot {step}: {result['message']}")
+
 def check_market_profile_rule(db: Session, candidate_id: str) -> dict:
     employee = db.query(Employee).filter(Employee.candidate_id == candidate_id).first()
     if employee is None:
@@ -122,6 +129,26 @@ def check_employment_type_rule(candidate: Candidate) -> dict:
         "error": "C2C_NOT_ACCEPTED",
         "message": "BlitzenX only accepts full-time (W2) candidates.",
     }
+
+def check_hiring_pipeline_rule(db: Session, candidate_id: str) -> dict:
+    """CEO hiring order: a candidate reaches a client only from the bench -- interviews
+    passed, offer accepted, onboarding complete, BGV cleared, employee created."""
+    from app.services.hiring_pipeline_service import PipelineGateBlocked, assert_gate
+
+    try:
+        assert_gate(db, candidate_id, "BENCH")
+    except PipelineGateBlocked as blocked:
+        reasons = "; ".join(blocked.blockers) or f"at {blocked.stage}"
+        return {"allowed": False, "error": "PIPELINE_INCOMPLETE", "stage": blocked.stage,
+                "message": f"Candidate has not cleared hiring yet ({blocked.stage}): {reasons}."}
+    from app.services.hiring_pipeline_service import bgv_status, get_or_create_pipeline
+
+    pipeline = get_or_create_pipeline(db, candidate_id)
+    if pipeline.grandfathered and bgv_status(db, candidate_id) not in ("PASSED", "WAIVED"):
+        # CEO decision 2026-10-10: employees from before the pipeline need a BGV too
+        return {"allowed": False, "error": "PIPELINE_INCOMPLETE", "stage": pipeline.stage,
+                "message": "Background verification must pass (or be waived) before a client submission."}
+    return {"allowed": True}
 
 def _log_violation(
     db: Session, *, tenant_id: Optional[int], recruiter_user_id: Optional[str],
@@ -184,6 +211,10 @@ def create_submission(
             blocked_message=employment_type["message"],
         )
 
+    pipeline = check_hiring_pipeline_rule(db, candidate.candidateID)
+    if not pipeline["allowed"]:
+        blockers.append(pipeline)  # recorded in hiring_pipeline_events, not submission_violations
+
     if blockers:
         db.flush()
         raise SubmissionComplianceError(blockers)
@@ -243,6 +274,8 @@ def update_client_response(
     PLACED, calls demand_service.record_placement() -- the one
     sanctioned increment path, never a bare positions_filled += 1 here.
     """
+    from app.services import client_onboarding_service
+
     current = submission.status
     allowed = ALLOWED_SUBMISSION_TRANSITIONS.get(current, set())
     if new_status not in allowed:
@@ -250,6 +283,12 @@ def update_client_response(
             f"Cannot transition submission from '{current}' to '{new_status}'. "
             f"Allowed from '{current}': {sorted(allowed) or 'none (terminal state)'}"
         )
+    start_date = None
+    if new_status == "PLACED":  # only once the client confirmed a start date
+        try:
+            start_date = client_onboarding_service.placement_start_date(db, submission)
+        except client_onboarding_service.ClientOnboardingError as exc:
+            raise InvalidSubmissionTransition(str(exc))
 
     submission.status = new_status
     submission.client_feedback = client_feedback
@@ -258,14 +297,29 @@ def update_client_response(
 
     if new_status == "PLACED":
         demand = db.query(Demand).filter(Demand.id == submission.demand_id).first()
-        if demand is not None:
+        # already allocated to this job: the placement was counted then
+        if demand is not None and not _already_allocated(db, submission, demand):
             record_placement(db, demand)
-            _allocate_placed_employee(db, submission, demand)
+            _allocate_placed_employee(db, submission, demand, start_date)
+        db.flush()
+        client_onboarding_service.mark_started(db, submission)
+    elif new_status == "OFFER_EXTENDED":  # the client selected the candidate
+        client_onboarding_service.start(db, submission)
 
     return submission
 
 
-def _allocate_placed_employee(db: Session, submission: Submission, demand) -> None:
+def _already_allocated(db: Session, submission: Submission, demand) -> bool:
+    from app.models.employee_allocation import EmployeeAllocation
+
+    employee = db.query(Employee).filter(Employee.candidate_id == submission.candidate_id).first()
+    return employee is not None and db.query(EmployeeAllocation).filter(
+        EmployeeAllocation.employee_id == employee.id, EmployeeAllocation.demand_id == demand.id,
+        EmployeeAllocation.status == "ACTIVE",
+    ).first() is not None
+
+
+def _allocate_placed_employee(db: Session, submission: Submission, demand, start_date=None) -> None:
     """A placement puts the employee on the job's client (and project): the
     ACTIVE allocation timesheets and invoices hang off. Idempotent per
     employee+job; a conflicting active allocation elsewhere is raised, not
@@ -274,9 +328,14 @@ def _allocate_placed_employee(db: Session, submission: Submission, demand) -> No
     from app.models.project import Project
     from app.services.employee_allocation_service import allocate_employee_to_project
 
+    from app.services.employee_allocation_service import AllocationNeedsClient
+
     employee = db.query(Employee).filter(Employee.candidate_id == submission.candidate_id).first()
-    if employee is None or not demand.client_id:
-        return
+    if employee is None:
+        raise AllocationNeedsClient(f"Candidate {submission.candidate_id} has no employee record; "
+                                    "only a bench employee can be placed.")
+    if not demand.client_id:
+        raise AllocationNeedsClient(f"Job {demand.id} has no client. Set the client on the job before placing.")
     already = db.query(EmployeeAllocation).filter(
         EmployeeAllocation.employee_id == employee.id, EmployeeAllocation.demand_id == demand.id,
         EmployeeAllocation.status == "ACTIVE",
@@ -286,5 +345,5 @@ def _allocate_placed_employee(db: Session, submission: Submission, demand) -> No
     project = db.query(Project).filter(Project.id == demand.project_id).first() if demand.project_id else None
     allocate_employee_to_project(
         db, tenant_id=submission.tenant_id, employee=employee, demand=demand,
-        start_date=demand.required_start_date, project=project, role=demand.job_title,
+        start_date=start_date or demand.required_start_date, project=project, role=demand.job_title,
     )

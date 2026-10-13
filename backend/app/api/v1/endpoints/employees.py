@@ -4,7 +4,6 @@ S-247 (View Bench Pool) + S-248 (Bench Duration & Aging Report) — API
 Endpoints
 =========================================================================
 Prefix: /employees
-import logging
 Tag:    employees
 
 No employee REST API of any kind previously existed in this codebase
@@ -13,9 +12,10 @@ history all being real, tested backend (this and earlier Phase 4
 rounds). This closes that gap for the foundational pieces four stories
 in the EPIC-05/Resource & Bench Management cluster need.
 
-Auth: same posture as every Phase 4 endpoint this program
-(get_current_internal_user -- any internal user). No employee-specific
-RBAC permission exists yet.
+Auth: the role template's employees permission decides the actions; the
+business unit decides the records (CEO 2026-10-12, app.core.data_scope):
+an employee belongs to Employee.bu_id. Out-of-scope ids are 404, moving an
+employee into a BU outside the caller's scope is 403.
 
 Routes (static paths registered before the /{employee_id} catch-all,
 so "bench-pool"/"bench-aging-alerts" never get swallowed as an id):
@@ -28,68 +28,43 @@ so "bench-pool"/"bench-aging-alerts" never get swallowed as an id):
   POST   /employees/{employee_id}/remove-from-bench
   GET    /employees/{employee_id}/bench-history
 """
-import io
-import os
 import json
 from datetime import date, datetime
 
 from typing import Optional
 
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
-from openpyxl import load_workbook
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.data_scope import bu_filter, ensure_assignable
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
-from app.models.candidate import Candidate
-from app.models.employee import Employee, EmployeeEngineHistory
+from app.models.employee import Employee
 from app.models.resource_management import BenchPoolEntry
 from app.models.user import Users
-from app.schemas.performance import PerformanceEventItem, PerformanceStoreResponse
 from app.core.logging import logger
 from app.schemas.employee import (
-    BenchAgingAlertItem,
-    BenchAgingAlertsResponse,
     BenchCostSummaryItem,
     BenchCostSummaryResponse,
-    BenchPeriodHistoryResponse,
-    BenchPeriodItem,
-    BulkImportResponse,
-    BulkImportRowError,
-    ConvertCandidateRequest,
     EmployeeCreateRequest,
     EmployeeItem,
     EmployeeListResponse,
-    EngineHistoryItem,
-    EngineHistoryResponse,
     MarkBenchRequest,
     RecordUtilizationRequest,
-    StaffingEligibilityResponse,
     UtilizationHistoryItem,
-    UtilizationHistoryResponse,
     UtilizationSummaryItem,
     UtilizationSummaryResponse,
 )
 from app.services.employee_service import (
     DuplicateEmployeeEmail,
-    convert_candidate_to_employee,
     create_employee_profile,
-    generate_employee_number,
-)
-from app.services.performance_store_service import (
-    get_performance_events,
-    get_score_averages_by_event_type,
 )
 from app.services.resource_management_service import (
     LOW_UTILIZATION_THRESHOLD_PCT,
-    check_bench_aging_alerts,
     get_bench_duration_days,
-    get_bench_period_history,
     get_current_bench_pool,
     get_latest_utilization_by_employee,
-    get_utilization_history,
-    is_staffing_eligible,
     mark_employee_on_bench,
     record_weekly_utilization_metric,
     remove_employee_from_bench,
@@ -134,8 +109,15 @@ def _to_item(db: Session, employee: Employee) -> EmployeeItem:
         company_id=employee.company_id,
     )
 
-def _get_employee_or_404(db: Session, employee_id: str) -> Employee:
-    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+def _visible_employees(db: Session, user: Users):
+    """This tenant's employees inside the caller's business-unit scope (app.core.data_scope)."""
+    return db.query(Employee).filter(Employee.tenant_id == user.tenant_id, bu_filter(db, user, Employee.bu_id))
+
+
+def _get_employee_or_404(db: Session, employee_id: str, user: Users) -> Employee:
+    """One employee of the caller's tenant and business-unit scope; any other id is 404, the
+    same answer as an id that does not exist."""
+    employee = _visible_employees(db, user).filter(Employee.id == employee_id).first()
     if employee is None:
         raise HTTPException(status_code=404, detail="Employee not found.")
     return employee
@@ -151,6 +133,7 @@ def create_employee(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
+    ensure_assignable(db, current_user, body.business_unit_id, "employee")
     fields = {}
     if body.current_title is not None:
         fields["current_title"] = body.current_title
@@ -166,8 +149,8 @@ def create_employee(
         fields["billing_rate_usd_cents"] = body.billing_rate_usd_cents
     if body.nationality is not None:
         fields["nationality"] = body.nationality
-    if body.org_node_id is not None:
-        fields["org_node_id"] = body.org_node_id
+    # The org-chart seat is not set here: it belongs to the person's login account and is
+    # placed on the user form (place_user_in_org), which also sets this record's seat/manager
     if body.business_unit_id is not None:
         fields["bu_id"] = body.business_unit_id
     if body.company_id:
@@ -227,7 +210,7 @@ def create_employee(
         from app.services.message_queue_service import MessageQueueService
         MessageQueueService.enqueue(
             task_name='employee_created_flash',
-            task_id=str(employee.id),
+            task_id=f"employee_created:{employee.id}",
             data={
                 'employee_id': str(employee.id),
                 'employee_email': employee.email,
@@ -265,12 +248,7 @@ def list_employees(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    employees = (
-        db.query(Employee)
-        .filter(Employee.tenant_id == current_user.tenant_id)
-        .order_by(Employee.created_at.desc())
-        .all()
-    )
+    employees = _visible_employees(db, current_user).order_by(Employee.created_at.desc()).all()
     return EmployeeListResponse(employees=[_to_item(db, e) for e in employees])
 
 class GuidewireCertificationUpdate(BaseModel):
@@ -303,9 +281,7 @@ def update_employee_organization(
 ):
     """Employer company (BX-US / BX-IN) and business unit: headcount is counted by both."""
     from app.models.business_unit import BusinessUnit
-    employee = db.query(Employee).filter(Employee.id == employee_id, Employee.tenant_id == current_user.tenant_id).first()
-    if not employee:
-        raise HTTPException(status_code=404, detail=f"Employee {employee_id} not found")
+    employee = _get_employee_or_404(db, employee_id, current_user)
     updates = body.dict(exclude_unset=True)
     if "company_id" in updates:
         employee.company_id = _company_or_400(db, updates["company_id"], current_user.tenant_id) if updates["company_id"] else None
@@ -315,6 +291,7 @@ def update_employee_organization(
             BusinessUnit.id == bu_id, BusinessUnit.tenant_id == current_user.tenant_id
         ).first():
             raise HTTPException(status_code=400, detail="Unknown business unit")
+        ensure_assignable(db, current_user, bu_id, "employee")
         employee.bu_id = bu_id
     db.commit()
     return {"employee_id": employee.id, "company_id": employee.company_id, "business_unit_id": employee.bu_id}
@@ -328,9 +305,7 @@ def update_guidewire_certifications(
     current_user: Users = Depends(get_current_internal_user),
 ):
     """Employees screen: Guidewire certification level now and target."""
-    employee = db.query(Employee).filter(Employee.id == employee_id, Employee.tenant_id == current_user.tenant_id).first()
-    if not employee:
-        raise HTTPException(status_code=404, detail=f"Employee {employee_id} not found")
+    employee = _get_employee_or_404(db, employee_id, current_user)
     for field in ("guidewire_certification_current", "guidewire_certification_expected"):
         value = getattr(body, field)
         if value is None:
@@ -357,12 +332,13 @@ def utilization_summary(
     current_user: Users = Depends(get_current_internal_user),
 ):
     latest_by_employee = get_latest_utilization_by_employee(db, tenant_id=current_user.tenant_id)
+    visible = {e.id: e for e in _visible_employees(db, current_user).filter(Employee.id.in_(list(latest_by_employee)))}
     items = []
     pct_values = []
     low_count = 0
     for employee_id, metric in latest_by_employee.items():
-        employee = db.query(Employee).filter(Employee.id == employee_id).first()
-        if employee is None:
+        employee = visible.get(employee_id)
+        if employee is None:  # outside the caller's business units
             continue
         pct = float(metric.utilization_pct)
         pct_values.append(pct)
@@ -392,11 +368,13 @@ def bench_cost_summary(
     current_user: Users = Depends(get_current_internal_user),
 ):
     entries = get_current_bench_pool(db, tenant_id=current_user.tenant_id)
+    visible = {e.id: e for e in _visible_employees(db, current_user).filter(
+        Employee.id.in_([entry.employee_id for entry in entries]))}
     items = []
     total_running = 0
     for entry in entries:
-        employee = db.query(Employee).filter(Employee.id == entry.employee_id).first()
-        if employee is None:
+        employee = visible.get(entry.employee_id)
+        if employee is None:  # outside the caller's business units
             continue
         days = get_bench_duration_days(entry)
         daily = entry.bench_cost_usd_cents
@@ -424,7 +402,7 @@ def get_employee(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    employee = _get_employee_or_404(db, employee_id)
+    employee = _get_employee_or_404(db, employee_id, current_user)
     return _to_item(db, employee)
 
 
@@ -439,7 +417,7 @@ def record_utilization(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    employee = _get_employee_or_404(db, employee_id)
+    employee = _get_employee_or_404(db, employee_id, current_user)
     metric = record_weekly_utilization_metric(db, employee, body.week_starting_date)
     db.commit()
     db.refresh(metric)
@@ -460,7 +438,7 @@ def mark_bench(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    employee = _get_employee_or_404(db, employee_id)
+    employee = _get_employee_or_404(db, employee_id, current_user)
     mark_employee_on_bench(db, employee, reason=body.reason)
     db.commit()
     db.refresh(employee)
@@ -476,7 +454,7 @@ def remove_from_bench(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    employee = _get_employee_or_404(db, employee_id)
+    employee = _get_employee_or_404(db, employee_id, current_user)
     remove_employee_from_bench(db, employee)
     db.commit()
     db.refresh(employee)

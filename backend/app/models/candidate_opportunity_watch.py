@@ -3,7 +3,6 @@ Ready-for-opportunity watch. Avinash's real design (2026-08-04 backlog
 capture): a candidate who isn't a fit right now shouldn't just be
 `closed` -- Thunder keeps watching for a future job that matches them,
 and nudges them directly only when a real match appears, never on a
-import logging
 recurring schedule.
 
 One row per (candidate, watch period) -- a candidate can be watched

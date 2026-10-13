@@ -74,3 +74,4 @@ build/
 # Local dev-server launch wrapper used by the Claude Code preview tooling --
 # machine-local, never part of the app.
 start-dev.cmd
+.claude/worktrees/

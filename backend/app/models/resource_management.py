@@ -1,5 +1,4 @@
 """
-import logging
 Phase 4, Part B -- Resource & Bench Management basics.
 
 `04-RESOURCE-MANAGEMENT.md` is explicit that no requirements doc exists

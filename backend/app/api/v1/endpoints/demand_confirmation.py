@@ -2,7 +2,6 @@
 S-372 (HRMS-0528) Confirmed vs Potential Demand Workflow — API Endpoints
 =========================================================================
 Prefix: /demand-confirmation
-import logging
 Tag:    demand-confirmation
 
 Wires app.services.demand_confirmation_service (built earlier this
@@ -42,6 +41,7 @@ Routes:
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.data_scope import ensure_visible, visible_job_or_404
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.demand import Demand
@@ -83,7 +83,7 @@ def _to_item(db: Session, call: DemandAlignmentCall) -> AlignmentCallItem:
         demand_job_title=demand.job_title if demand else "(unknown demand)",
         employee_id=call.employee_id,
         employee_name=employee_name,
-        curtis_user_id=call.curtis_user_id,
+        partner_user_id=call.partner_user_id,
         bu_head_user_id=call.bu_head_user_id,
         scheduled_at=call.scheduled_at,
         employee_fit_confirmed=call.employee_fit_confirmed,
@@ -95,16 +95,20 @@ def _to_item(db: Session, call: DemandAlignmentCall) -> AlignmentCallItem:
         specialty_client_release_triggered_at=call.specialty_client_release_triggered_at,
     )
 
-def _get_demand_or_404(db: Session, demand_id: str) -> Demand:
-    demand = db.query(Demand).filter(Demand.id == demand_id).first()
-    if demand is None:
-        raise HTTPException(status_code=404, detail="Demand not found.")
-    return demand
+def _get_demand_or_404(db: Session, demand_id: str, user: Users) -> Demand:
+    """The demand (a job), or 404 when it does not exist or belongs to another tenant or to a
+    business unit outside the caller's scope (CEO 2026-10-12)."""
+    return visible_job_or_404(db, user, demand_id, "Demand")
 
-def _get_call_or_404(db: Session, call_id: str) -> DemandAlignmentCall:
+def _get_call_or_404(db: Session, call_id: str, user: Users) -> DemandAlignmentCall:
+    """An alignment call belongs to its demand: another BU's call is "not found" too."""
     call = db.query(DemandAlignmentCall).filter(DemandAlignmentCall.id == call_id).first()
     if call is None:
         raise HTTPException(status_code=404, detail="Alignment call not found.")
+    try:
+        _get_demand_or_404(db, call.demand_id, user)
+    except HTTPException as exc:
+        raise HTTPException(status_code=404, detail="Alignment call not found.") from exc
     return call
 
 @router.post(
@@ -122,7 +126,7 @@ def confirm_sow(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    demand = _get_demand_or_404(db, demand_id)
+    demand = _get_demand_or_404(db, demand_id, current_user)
     try:
         demand = confirm_demand_with_sow(
             db, demand, sow_reference=body.sow_reference, sow_received_date=body.sow_received_date,
@@ -154,14 +158,16 @@ def schedule_call(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    demand = _get_demand_or_404(db, demand_id)
-    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    demand = _get_demand_or_404(db, demand_id, current_user)
+    employee = db.query(Employee).filter(
+        Employee.id == employee_id, Employee.tenant_id == current_user.tenant_id).first()
     if employee is None:
         raise HTTPException(status_code=404, detail="Employee not found.")
+    ensure_visible(db, current_user, employee.bu_id, "Employee")
 
     call = schedule_alignment_call(
         db, demand, employee,
-        curtis_user_id=body.curtis_user_id, bu_head_user_id=body.bu_head_user_id,
+        partner_user_id=body.partner_user_id, bu_head_user_id=body.bu_head_user_id,
     )
     db.commit()
     db.refresh(call)
@@ -181,7 +187,7 @@ def get_calls_for_demand(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    _get_demand_or_404(db, demand_id)
+    _get_demand_or_404(db, demand_id, current_user)
     calls = (
         db.query(DemandAlignmentCall)
         .filter(DemandAlignmentCall.demand_id == demand_id)
@@ -205,7 +211,7 @@ def confirm_call_fit(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    call = _get_call_or_404(db, call_id)
+    call = _get_call_or_404(db, call_id, current_user)
     try:
         call = confirm_fit(
             db, call, participant=body.participant, confirmed=body.confirmed, notes=body.notes,
@@ -232,8 +238,8 @@ def trigger_release(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    call = _get_call_or_404(db, call_id)
-    demand = _get_demand_or_404(db, call.demand_id)
+    call = _get_call_or_404(db, call_id, current_user)
+    demand = _get_demand_or_404(db, call.demand_id, current_user)
     try:
         call = trigger_specialty_client_release(
             db, call, demand, speciality_rm=current_user, tenant_id=current_user.tenant_id,

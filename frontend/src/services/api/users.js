@@ -109,7 +109,7 @@ export const changePassword = async ({
 };
 export const searchUsers = async ({
   name,
-  permission_role,
+  authority, // role-template authority: partner | bu_leader | director | finance_leader | org_level
   user_role,
   department,
   business_unit,
@@ -120,8 +120,8 @@ export const searchUsers = async ({
   if (name?.trim()) {
     params.set("name", name.trim());
   }
-  if (permission_role?.trim()) {
-    params.set("permission_role", permission_role.trim());
+  if (authority?.trim()) {
+    params.set("authority", authority.trim());
   }
   if (user_role?.trim()) {
     params.set("user_role", user_role.trim());

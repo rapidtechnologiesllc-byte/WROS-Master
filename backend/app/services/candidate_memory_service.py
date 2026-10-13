@@ -1,5 +1,4 @@
 """
-import logging
 S-021/HRMS-0421 -- Candidate Memory Store.
 
 Foundational story only, per its own dependency note ("HRMS-0422 Facts
@@ -30,7 +29,6 @@ from typing import Callable, Dict, List, Optional
 import requests
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.candidate_memory import CandidateMemory, CandidateMemoryFact, FACT_CATEGORIES

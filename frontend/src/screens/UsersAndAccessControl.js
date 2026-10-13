@@ -2,26 +2,23 @@
 // Nested route structure: /admin/users-access-control/:section
 // Sections: users, business-units, delivery-centers, organizational-hierarchy, role-templates
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   Plus, Edit2, Trash2, Lock, Users, Building2, MapPin, Globe, AlertCircle, CheckCircle, X
 } from "lucide-react";
-import { Card, Button, Input, Select, Table } from "../components/ui";
-import { canEdit, canDelete } from "../services/permissions";
+import { Card, Button, Input, Table } from "../components/ui";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
 import {
   getAllUsers,
-  createHrUser,
-  updateHrUser,
   deleteHrUser
 } from "../services/api/users";
 import {
   listRoleTemplates,
-  listModulesAndResources,
-  getRoleTemplate
+  listModulesAndResources
 } from "../services/api/role_templates";
 import { apiRequest } from "../services/api/client";
+import { listBusinessUnits } from "../services/api/rbac";
 import { getHrMe } from "../services/api/users";
 import RoleTemplateEditor from "../components/RoleTemplateEditor";
 
@@ -45,162 +42,16 @@ function SimpleModal({ isOpen, onClose, title, children }) {
   );
 }
 
-function UserPermissionsModal({ isOpen, onClose, user, roles }) {
-  const [expandedModules, setExpandedModules] = useState({});
-  const [expandAll, setExpandAll] = useState(false);
-
-  const userRole = roles.find(r => r.id === user?.role_id);
-  const rolePermissions = userRole?.permissions || {};
-
-  const moduleCategories = {
-    "CRM": ["candidates", "contacts", "deals", "accounts"],
-    "Recruitment": ["jobs", "interviews", "offers", "submissions"],
-    "Project Management": ["projects", "allocations", "resources", "timesheet"],
-    "Admin": ["role_templates", "users", "tenant_config", "locale", "ai_config"]
-  };
-
-  const toggleModule = (module) => {
-    setExpandedModules(prev => ({
-      ...prev,
-      [module]: !prev[module]
-    }));
-  };
-
-  const toggleExpandAll = () => {
-    const newExpandAll = !expandAll;
-    setExpandAll(newExpandAll);
-
-    const newExpanded = {};
-    Object.keys(moduleCategories).forEach(category => {
-      newExpanded[category] = newExpandAll;
-    });
-    setExpandedModules(newExpanded);
-  };
-
-  if (!isOpen || !user) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-4xl max-h-[90vh] rounded-lg bg-white overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="border-b p-6 flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold">Permissions for {user.user_name}</h2>
-            <p className="text-sm text-gray-600">Role: {userRole?.name || 'No role assigned'}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            ✕
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="mb-6">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={expandAll}
-                onChange={toggleExpandAll}
-                className="w-4 h-4"
-              />
-              <span className="text-sm font-medium text-gray-900">Expand all permissions</span>
-            </label>
-          </div>
-
-          <div className="space-y-4">
-            {Object.entries(moduleCategories).map(([category, modules]) => (
-              <div key={category} className="border rounded-lg">
-                <button
-                  onClick={() => toggleModule(category)}
-                  className="w-full px-4 py-3 flex items-center gap-2 hover:bg-gray-50 text-left"
-                >
-                  <span className={`transform transition ${expandedModules[category] ? 'rotate-180' : ''}`}>
-                    ▼
-                  </span>
-                  <h3 className="font-semibold text-gray-900">{category}</h3>
-                </button>
-
-                {expandedModules[category] && (
-                  <div className="border-t px-4 py-3 space-y-3 bg-gray-50">
-                    {modules.map(module => {
-                      const modulePerms = rolePermissions[module] || {};
-                      const verbs = ["view", "create", "edit", "delete"];
-
-                      return (
-                        <div key={module} className="space-y-2">
-                          <p className="text-sm font-medium text-gray-900 capitalize">{module.replace(/_/g, ' ')}</p>
-                          <div className="flex flex-wrap gap-3 ml-4">
-                            {verbs.map(verb => {
-                              const hasPermission = modulePerms[verb] || false;
-                              return (
-                                <div key={verb} className="flex items-center gap-2">
-                                  <span className="text-sm text-gray-600 capitalize">{verb}</span>
-                                  <label className="flex items-center">
-                                    <input
-                                      type="checkbox"
-                                      checked={hasPermission}
-                                      disabled
-                                      className="w-4 h-4"
-                                    />
-                                    <span className={`ml-1 text-xs font-semibold ${hasPermission ? 'text-green-600' : 'text-gray-400'}`}>
-                                      {hasPermission ? '✓' : 'OFF'}
-                                    </span>
-                                  </label>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="border-t p-6 flex gap-3 justify-end">
-          <Button variant="outline" onClick={onClose}>
-            Close
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function safeText(v) {
-  return v == null ? "" : String(v);
-}
-
 // USERS SECTION
 
 function UsersSection({ loading, error, users, roles, currentUserPermissions = {}, employees = [] }) {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
-  const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [actionError, setActionError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
-
-  const [businessUnits, setBusinessUnits] = useState([]);
-
-  const [partners, setPartners] = useState([
-    { id: 1, name: "Partner 1" },
-    { id: 2, name: "Partner 2" },
-    { id: 3, name: "Partner 3" }
-  ]);
-
-  const [jobTitles, setJobTitles] = useState([]);
-
-  const ORG_LEVEL_ROLES = ["CEO", "CFO", "Admin", "Finance"]; // No BU restriction
 
   const [resetForm, setResetForm] = useState({
     new_password: ""
@@ -220,16 +71,17 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
   const selectedUser = users.find(u => u.user_id === selectedUserId);
 
-  const handleDelete = async () => {
-    if (!selectedUserId) return;
+  // Takes the row's id directly: reading selectedUserId here would see the
+  // previous render's value and could delete a different user.
+  const handleDelete = async (userId) => {
+    if (!userId) return;
     if (!window.confirm("Are you sure? This action cannot be undone.")) return;
 
     setActionError(null);
     setBusy(true);
     try {
-      await deleteHrUser(selectedUserId);
+      await deleteHrUser(userId);
       setActionSuccess("User deleted successfully.");
-      setSelectedUserId("");
       window.location.reload();
     } catch (err) {
       setActionError(err.message || "Failed to delete user.");
@@ -311,7 +163,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
           onChange={(val) => setSearchTerm(val)}
           className="max-w-xs"
         />
-        {hasPermission("users", "edit") && (
+        {hasPermission("users-access-control", "edit") && (
           <Button
             onClick={() => navigate('/admin/users-access-control/users/create')}
             className="gap-2"
@@ -329,11 +181,18 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
           { header: "Job Title", accessor: "job_title", key: "job_title" },
           { header: "Role Template", accessor: "permission_role", key: "role_template" },
           {
+            header: "Org Chart",
+            key: "org_chart",
+            cell: (row) => (row.org_node_id
+              ? <span className="text-xs text-green-700">Connected</span>
+              : <span className="text-xs font-medium text-amber-700" title="Edit the user to choose who they report to">Not in org chart</span>),
+          },
+          {
             header: "Actions",
             key: "actions",
             cell: (row) => (
               <div className="flex items-center gap-2">
-                {canEdit(currentUserPermissions, "user") && (
+                {hasPermission("users-access-control", "edit") && (
                   <button
                     onClick={() => navigate(`/admin/users-access-control/users/${row.user_id}/edit`)}
                     className="text-blue-600 hover:text-blue-700"
@@ -352,12 +211,9 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                 >
                   <Lock className="h-4 w-4" />
                 </button>
-                {canDelete(currentUserPermissions, "user") && (
+                {hasPermission("users-access-control", "delete") && (
                   <button
-                    onClick={() => {
-                      setSelectedUserId(row.user_id);
-                      handleDelete();
-                    }}
+                    onClick={() => handleDelete(row.user_id)}
                     className="text-red-600 hover:text-red-700"
                     title="Delete user"
                   >
@@ -370,6 +226,40 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
         ]}
         data={filteredUsers}
       />
+
+      <SimpleModal
+        isOpen={showResetModal}
+        onClose={() => {
+          setShowResetModal(false);
+          setResetForm({ new_password: "" });
+          setSelectedUserId("");
+        }}
+        title={`Reset password${selectedUser ? ` for ${selectedUser.user_name || selectedUser.user_email}` : ""}`}
+      >
+        <div className="space-y-4">
+          <Input
+            label="New password"
+            type="password"
+            value={resetForm.new_password}
+            onChange={(val) => setResetForm({ new_password: val })}
+          />
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowResetModal(false);
+                setResetForm({ new_password: "" });
+                setSelectedUserId("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleResetPassword} disabled={busy}>
+              {busy ? "Resetting..." : "Reset password"}
+            </Button>
+          </div>
+        </div>
+      </SimpleModal>
     </div>
   );
 }
@@ -379,44 +269,15 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
 function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users }) {
   const [editingTemplateId, setEditingTemplateId] = useState(null);
-  const [editingTemplate, setEditingTemplate] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [toggling, setToggling] = useState({});
   const [togglingTemplate, setTogglingTemplate] = useState({});
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createRoleForm, setCreateRoleForm] = useState({ name: "", description: "" });
-  const [creatingTemplate, setCreatingTemplate] = useState(false);
-  const [expandedModules, setExpandedModules] = useState({});
-  const [moduleStates, setModuleStates] = useState({});
-  const [createTemplatePermissions, setCreateTemplatePermissions] = useState({});
-  const [createTemplateModuleStates, setCreateTemplateModuleStates] = useState({});
-  const [createTemplateExpandedModules, setCreateTemplateExpandedModules] = useState({});
   const [showUsersModal, setShowUsersModal] = useState(false);
   const [selectedRoleForUsers, setSelectedRoleForUsers] = useState(null);
   const [roleUsers, setRoleUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [actionError, setActionError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
-
-  // Fetch template details when editingTemplateId changes
-  useEffect(() => {
-    if (editingTemplateId) {
-      const fetchTemplate = async () => {
-        try {
-          const { data } = await apiRequest(`/admin/role-templates/${editingTemplateId}`, {
-            method: "GET"
-          });
-          setEditingTemplate(data || { name: "New Template", description: "", permissions: [] });
-        } catch (err) {
-          console.error("Failed to fetch template:", err);
-          setEditingTemplate({ name: "New Template", description: "", permissions: [] });
-        }
-      };
-      fetchTemplate();
-    } else {
-      setEditingTemplate(null);
-    }
-  }, [editingTemplateId]);
 
   const filteredRoles = useMemo(() => {
     if (!searchTerm) return roles;
@@ -427,14 +288,8 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
     );
   }, [roles, searchTerm]);
 
-  // Count users per template - match by template name
-  const getUserCount = (templateId, templateName) => {
-    return users.filter(u => {
-      // Match by user_role field (e.g., "Admin" matches template.name "Admin")
-      if (u.user_role === templateName) return true;
-      return false;
-    }).length;
-  };
+  // Count users per template by the template id they hold (names can be renamed)
+  const getUserCount = (templateId) => users.filter((u) => u.role_template_id === templateId).length;
 
   // Fetch users for a specific role template
   const handleShowUsers = async (roleId, roleName) => {
@@ -455,180 +310,8 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
     }
   };
 
-  // Convert flat permission list to hierarchical structure { module: { verb: true } }
-  const convertPermissionsToHierarchy = (perms) => {
-    if (!Array.isArray(perms)) return {};
-
-    const hierarchy = {};
-    perms.forEach(perm => {
-      if (!perm) return; // Skip null/undefined items
-
-      // Handle new backend format: { resource_id, can_view, can_create, can_edit, can_delete }
-      if (perm.resource_id !== undefined) {
-        // Get resource name from the resource (need to look up resource name)
-        // For now, use a placeholder - the actual resource name should come from backend
-        const resourceName = perm.resource_name || `resource_${perm.resource_id}`;
-
-        if (!hierarchy[resourceName]) {
-          hierarchy[resourceName] = {};
-        }
-        hierarchy[resourceName].view = perm.can_view || false;
-        hierarchy[resourceName].create = perm.can_create || false;
-        hierarchy[resourceName].edit = perm.can_edit || false;
-        hierarchy[resourceName].delete = perm.can_delete || false;
-      }
-      // Handle legacy format: { name: "candidates_view" }
-      else if (perm.name) {
-        const parts = perm.name.split('_');
-        if (parts.length >= 2) {
-          const verb = parts[parts.length - 1]; // Last part is the verb
-          const module = parts.slice(0, -1).join('_'); // Everything else is the module
-
-          if (!hierarchy[module]) {
-            hierarchy[module] = {};
-          }
-          hierarchy[module][verb] = true;
-        }
-      }
-    });
-    return hierarchy;
-  };
-
-  const editingPermissions = convertPermissionsToHierarchy(editingTemplate?.permissions || []);
-
-  const handleTogglePermission = async (resourceName, verb, currentState) => {
-    if (!editingTemplateId) return;
-
-    setActionError(null);
-    const key = `${editingTemplateId}_${resourceName}_${verb}`;
-    setToggling({ ...toggling, [key]: true });
-
-    try {
-      const newState = !currentState;
-
-      // Call backend to update permission
-      if (newState) {
-        // Grant permission
-        await apiRequest(`/admin/role-templates/${editingTemplateId}/grant-permission`, {
-          method: "POST",
-          body: JSON.stringify({
-            resource_name: resourceName,
-            action: verb
-          })
-        });
-      } else {
-        // Revoke permission
-        await apiRequest(`/admin/role-templates/${editingTemplateId}/revoke-permission`, {
-          method: "POST",
-          body: JSON.stringify({
-            resource_name: resourceName,
-            action: verb
-          })
-        });
-      }
-
-      // Re-fetch the role template to get updated permissions from backend
-      const updatedTemplate = await getRoleTemplate(editingTemplateId);
-
-      // Update the roles array with the updated template
-      setRoles(roles.map(r => r.id === editingTemplateId ? updatedTemplate : r));
-
-      setActionSuccess(`Permission ${newState ? 'enabled' : 'disabled'} for ${resourceName} - ${verb}`);
-    } catch (err) {
-      setActionError(err.message || `Failed to update permission for ${resourceName}`);
-    } finally {
-      setToggling({ ...toggling, [key]: false });
-    }
-  };
-
-  const handleToggleModule = async (moduleName, displayResources, shouldEnable) => {
-    if (!editingTemplateId) return;
-
-    setActionError(null);
-    setToggling({ ...toggling, [moduleName]: true });
-
-    try {
-      // Toggle all permissions for all resources in the module
-      for (const resource of displayResources) {
-        const resName = resource.name || resource.resource_name;
-        const actions = ['view', 'create', 'edit', 'delete'];
-
-        for (const action of actions) {
-          try {
-            if (shouldEnable) {
-              await apiRequest(`/admin/role-templates/${editingTemplateId}/grant-permission`, {
-                method: "POST",
-                body: JSON.stringify({
-                  resource_name: resName,
-                  action: action
-                })
-              });
-            } else {
-              await apiRequest(`/admin/role-templates/${editingTemplateId}/revoke-permission`, {
-                method: "POST",
-                body: JSON.stringify({
-                  resource_name: resName,
-                  action: action
-                })
-              });
-            }
-          } catch (err) {
-            console.error(`Failed to ${shouldEnable ? 'enable' : 'disable'} ${resName} - ${action}:`, err);
-          }
-        }
-      }
-
-      // Re-fetch the role template to get updated permissions from backend
-      const updatedTemplate = await getRoleTemplate(editingTemplateId);
-      setRoles(roles.map(r => r.id === editingTemplateId ? updatedTemplate : r));
-
-      setActionSuccess(`Module ${moduleName} ${shouldEnable ? 'enabled' : 'disabled'} successfully`);
-    } catch (err) {
-      setActionError(err.message || `Failed to toggle module ${moduleName}`);
-    } finally {
-      setToggling({ ...toggling, [moduleName]: false });
-    }
-  };
-
   if (loading) return <div className="p-6 text-gray-500">Loading templates...</div>;
   if (error) return <div className="p-6 text-red-500">{error}</div>;
-
-  const handleCreateRole = async () => {
-    setActionError(null);
-
-    if (!createRoleForm.name.trim()) {
-      setActionError("Role name is required.");
-      return;
-    }
-
-    if (!canCreateTemplate()) {
-      setActionError("Please enable at least one module and select permissions.");
-      return;
-    }
-
-    setCreatingTemplate(true);
-    try {
-      await apiRequest("/admin/role-templates", {
-        method: "POST",
-        body: JSON.stringify({
-          name: createRoleForm.name,
-          display_name: createRoleForm.name,
-          description: createRoleForm.description,
-          permissions: createTemplatePermissions  // ✅ Use actual permissions
-        })
-      });
-      setActionSuccess("Role created successfully.");
-      setShowCreateModal(false);
-      setCreateRoleForm({ name: "", description: "" });
-      setCreateTemplatePermissions({});
-      setCreateTemplateModuleStates({});
-      window.location.reload();
-    } catch (err) {
-      setActionError(err.message || "Failed to create role.");
-    } finally {
-      setCreatingTemplate(false);
-    }
-  };
 
   const handleToggleTemplateStatus = async (templateId, currentStatus) => {
     setActionError(null);
@@ -660,47 +343,8 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
   };
 
   const handleNewRoleTemplate = () => {
-    // Show modal to get template name/description from user
+    // RoleTemplateEditor (mode="create") collects the name, description and permissions
     setShowCreateModal(true);
-    setCreateRoleForm({ name: "", description: "" });
-    setCreateTemplatePermissions({});
-    setCreateTemplateModuleStates({});
-  };
-
-  const handleCreateRoleToggleModule = (moduleName, resources, shouldEnable) => {
-    setCreateTemplateModuleStates(prev => ({
-      ...prev,
-      [moduleName]: shouldEnable
-    }));
-
-    if (!shouldEnable) {
-      // Clear permissions for this module when turning it off
-      const newPerms = { ...createTemplatePermissions };
-      resources.forEach(resource => {
-        const resName = resource.name || resource.resource_name;
-        delete newPerms[resName];
-      });
-      setCreateTemplatePermissions(newPerms);
-    }
-  };
-
-  const handleCreateRoleTogglePermission = (resourceName, action, hasPermission) => {
-    const newPerms = { ...createTemplatePermissions };
-    if (!newPerms[resourceName]) {
-      newPerms[resourceName] = { view: false, create: false, edit: false, delete: false };
-    }
-    newPerms[resourceName][action] = !hasPermission;
-    setCreateTemplatePermissions(newPerms);
-  };
-
-  const canCreateTemplate = () => {
-    // Check if at least one module is enabled
-    const hasEnabledModule = Object.values(createTemplateModuleStates).some(enabled => enabled);
-    // Check if at least one permission is selected
-    const hasPermissions = Object.values(createTemplatePermissions).some(perms =>
-      Object.values(perms).some(p => p)
-    );
-    return createRoleForm.name.trim() && hasEnabledModule && hasPermissions;
   };
 
   return (
@@ -750,11 +394,10 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
         />
         <Button
           onClick={handleNewRoleTemplate}
-          disabled={creatingTemplate}
           className="gap-2"
         >
           <Plus className="h-4 w-4" />
-          {creatingTemplate ? "Creating..." : "New role template"}
+          New role template
         </Button>
       </div>
 
@@ -776,7 +419,7 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredRoles.map(role => {
-            const userCount = getUserCount(role.id, role.name);
+            const userCount = getUserCount(role.id);
             const isActive = role.enabled !== false; // Use enabled field from backend
             return (
               <div
@@ -918,6 +561,15 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
 
 // MAIN COMPONENT
 
+// Map URL section to internal tab names (route slugs, fixed by the router config)
+const sectionMap = {
+  "users": "users",
+  "business-units": "business-units",
+  "delivery-centers": "locations",  // Maps to LocationsSection (Companies: BX-US, BX-IN)
+  "organizational-hierarchy": "hierarchy",  // Maps to OrganizationalHierarchySection
+  "role-templates": "templates"
+};
+
 export default function UsersAndAccessControl() {
   const { section } = useParams();
   const navigate = useNavigate();
@@ -925,15 +577,6 @@ export default function UsersAndAccessControl() {
   // A user just added on the form: creation is queued, so follow the job
   const [pendingUser, setPendingUser] = useState(location.state?.pendingUser || null);
   const [pendingNotice, setPendingNotice] = useState(null);
-
-  // Map URL section to internal tab names
-  const sectionMap = {
-    "users": "users",
-    "business-units": "business-units",
-    "delivery-centers": "locations",  // Maps to LocationsSection (Companies: BX-US, BX-IN)
-    "organizational-hierarchy": "hierarchy",  // Maps to OrganizationalHierarchySection
-    "role-templates": "templates"
-  };
 
   // Get the current active tab from URL section, default to "users" if no section specified
   const activeTab = section ? sectionMap[section] : "users";
@@ -952,17 +595,23 @@ export default function UsersAndAccessControl() {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [modules, setModules] = useState([]);
-  const [verbMatrix, setVerbMatrix] = useState({});
   const [currentUserPermissions, setCurrentUserPermissions] = useState({});
 
   useEffect(() => {
     loadData();
   }, []);
 
+  // Drop the router state so a page refresh doesn't start following again.
+  // Once cleared, location.state has no pendingUser, so this does not re-fire.
+  const hasRouterPendingUser = Boolean(location.state?.pendingUser);
+  useEffect(() => {
+    if (hasRouterPendingUser) {
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [hasRouterPendingUser, location.pathname, navigate]);
+
   useEffect(() => {
     if (!pendingUser) return undefined;
-    // Drop the router state so a page refresh doesn't start following again
-    navigate(location.pathname, { replace: true, state: null });
     setPendingNotice({ kind: "info", text: `Creating ${pendingUser.email}…` });
     let stopped = false;
     let tries = 0;
@@ -1043,21 +692,6 @@ export default function UsersAndAccessControl() {
         }
       } catch (permErr) {
       }
-
-      // Convert verb_matrix from array-based to object-based structure
-      // Input: { "candidates": ["view", "create"], "jobs": ["view", "edit"] }
-      // Output: { "candidates": { "view": true, "create": true }, ... }
-      const verbMatrixObj = {};
-      const rawVerbMatrix = modulesRes?.verb_matrix || {};
-      for (const [module, verbs] of Object.entries(rawVerbMatrix)) {
-        verbMatrixObj[module] = {};
-        if (Array.isArray(verbs)) {
-          verbs.forEach(verb => {
-            verbMatrixObj[module][verb] = true;
-          });
-        }
-      }
-      setVerbMatrix(verbMatrixObj);
     } catch (err) {
       setError(err.message || "Failed to load data.");
     } finally {
@@ -1161,7 +795,15 @@ function BusinessUnitsSection() {
               <div className="grid grid-cols-3 gap-4 mt-2 text-sm text-gray-600">
                 <div><span className="font-medium">Companies:</span> {bu.companies.map(c => c.name).join(", ") || <span className="text-amber-700">none</span>}</div>
                 <div><span className="font-medium">Partner:</span> {bu.partner?.name || <span className="text-amber-700">not assigned</span>}</div>
-                <div><span className="font-medium">BU Head:</span> {bu.head?.name || <span className="text-amber-700">not assigned</span>}</div>
+                <div>
+                  <span className="font-medium">BU Head:</span>{" "}
+                  {bu.companies.length === 0 ? <span className="text-amber-700">no company</span> : bu.companies.map((c, i) => (
+                    <span key={c.id}>
+                      {i > 0 && ", "}
+                      {c.head?.name || <span className="text-amber-700">not assigned</span>} ({c.name})
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
             <div className="flex gap-2">
@@ -1188,7 +830,8 @@ function BusinessUnitsSection() {
 // ORGANIZATIONAL HIERARCHY SECTION
 
 function OrganizationalHierarchySection() {
-  const EMPTY_NODE_FORM = { name: "", hierarchy_level: "", specialization: "", parent_id: "", department_id: "", company_id: "" };
+  const EMPTY_NODE_FORM = { name: "", hierarchy_level: "", parent_id: "", department_id: "", company_id: "" };
+  const EMPTY_ROLE_FORM = { name: "", hierarchy_level: "", designation: "" };
 
   const [orgNodes, setOrgNodes] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -1208,20 +851,30 @@ function OrganizationalHierarchySection() {
   const [deptForm, setDeptForm] = useState({ name: "", business_unit_id: "" });
   const [editingDept, setEditingDept] = useState(null);
 
+  // Roles: the job titles people hold and the org level each one sits at
+  const [roles, setRoles] = useState([]);
+  const [showRoles, setShowRoles] = useState(false);
+  const [roleForm, setRoleForm] = useState(EMPTY_ROLE_FORM);
+  const [editingRole, setEditingRole] = useState(null);
+  const canManageRoles = hasPermission("org-roles", "edit");
+
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [nodesRes, deptRes, buRes, refRes, companyRes] = await Promise.all([
+      const [nodesRes, deptRes, buRes, refRes, companyRes, rolesRes] = await Promise.all([
         apiRequest("/org/nodes"),
         apiRequest("/org/departments"),
-        apiRequest("/api/v1/business-units"),
+        listBusinessUnits(),
         apiRequest("/org/hierarchy-reference"),
         apiRequest(DELIVERY_CENTERS_PATH),
+        // the role list is readable with user access; without it there is nothing to manage here
+        hasPermission("users-access-control", "view") ? apiRequest("/org/roles?include_inactive=true") : Promise.resolve({ data: [] }),
       ]);
+      setRoles(Array.isArray(rolesRes.data) ? rolesRes.data : []);
       setCompanies(companyRes.data?.delivery_centers || []);
       setOrgNodes(Array.isArray(nodesRes.data) ? nodesRes.data : []);
       setDepartments(Array.isArray(deptRes.data) ? deptRes.data : []);
-      setBusinessUnits(Array.isArray(buRes.data) ? buRes.data : []);
+      setBusinessUnits(buRes);
       setReference(refRes.data || { levels: [], specializations: [] });
     } catch (err) {
       setActionError(err?.message || "Failed to load organizational hierarchy");
@@ -1236,22 +889,22 @@ function OrganizationalHierarchySection() {
 
   const levelName = (level) => reference.levels.find(l => l.level === level)?.name || `Level ${level}`;
   const deptLabel = (d) => (d.business_unit_name ? `${d.name} · ${d.business_unit_name}` : d.name);
-  const departmentById = (id) => departments.find(d => d.id === id);
+  const departmentById = useCallback((id) => departments.find(d => d.id === id), [departments]);
 
-  // Eligible parents depend on level, specialization and the BU implied by the chosen department
+  // Eligible parents depend on level and the BU implied by the chosen department
   useEffect(() => {
     const level = Number(nodeForm.hierarchy_level);
-    if (!showAddNode || !level || !nodeForm.specialization || level >= 17) {
+    if (!showAddNode || !level || level >= 17) {
       setEligibleParents([]);
       return;
     }
-    const params = new URLSearchParams({ hierarchy_level: String(level), specialization: nodeForm.specialization });
+    const params = new URLSearchParams({ hierarchy_level: String(level) });
     const dept = departmentById(nodeForm.department_id);
     if (dept?.business_unit_id) params.set("business_unit_id", String(dept.business_unit_id));
     apiRequest(`/org/valid-supervisors?${params.toString()}`)
       .then(res => setEligibleParents(Array.isArray(res.data) ? res.data : []))
       .catch(() => setEligibleParents([]));
-  }, [showAddNode, nodeForm.hierarchy_level, nodeForm.specialization, nodeForm.department_id, departments]);
+  }, [showAddNode, nodeForm.hierarchy_level, nodeForm.department_id, departmentById]);
 
   const closeAddNode = () => {
     setShowAddNode(false);
@@ -1268,7 +921,6 @@ function OrganizationalHierarchySection() {
         body: JSON.stringify({
           name: nodeForm.name.trim(),
           hierarchy_level: Number(nodeForm.hierarchy_level),
-          specialization: nodeForm.specialization,
           parent_id: nodeForm.parent_id || null,
           department_id: nodeForm.department_id || null,
           company_id: nodeForm.company_id,
@@ -1326,6 +978,39 @@ function OrganizationalHierarchySection() {
       loadAll();
     } catch (err) {
       setActionError(err?.message || "Failed to save department");
+    }
+  };
+
+  const handleSaveRole = async (e) => {
+    e.preventDefault();
+    setActionError(null);
+    const form = editingRole || roleForm;
+    try {
+      await apiRequest(editingRole ? `/org/roles/${editingRole.id}` : "/org/roles", {
+        method: editingRole ? "PUT" : "POST",
+        body: JSON.stringify({
+          name: form.name.trim(),
+          hierarchy_level: Number(form.hierarchy_level),
+          designation: form.designation || (editingRole ? "" : null),
+        }),
+      });
+      setActionSuccess(editingRole ? "Role updated" : "Role added");
+      setEditingRole(null);
+      setRoleForm(EMPTY_ROLE_FORM);
+      loadAll();
+    } catch (err) {
+      setActionError(err?.message || "Failed to save role");
+    }
+  };
+
+  const handleRoleActive = async (role, active) => {
+    setActionError(null);
+    try {
+      await apiRequest(`/org/roles/${role.id}`, { method: "PUT", body: JSON.stringify({ active }) });
+      setActionSuccess(active ? `${role.name} restored` : `${role.name} retired`);
+      loadAll();
+    } catch (err) {
+      setActionError(err?.message || "Failed to change role");
     }
   };
 
@@ -1396,7 +1081,7 @@ function OrganizationalHierarchySection() {
 
   const nodeLevel = Number(nodeForm.hierarchy_level);
   const canSubmitNode =
-    nodeForm.name.trim() && nodeLevel && nodeForm.specialization && nodeForm.company_id && (nodeLevel >= 17 || nodeForm.parent_id);
+    nodeForm.name.trim() && nodeLevel && nodeForm.company_id && (nodeLevel >= 17 || nodeForm.parent_id);
   const untagged = orgNodes.filter(n => !n.company_id).length;
 
   return (
@@ -1429,6 +1114,14 @@ function OrganizationalHierarchySection() {
         >
           Manage Departments
         </button>
+        {canManageRoles && (
+          <button
+            onClick={() => setShowRoles(true)}
+            className="flex items-center gap-2 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium"
+          >
+            Manage Roles
+          </button>
+        )}
       </div>
 
       {!loading && (
@@ -1480,33 +1173,18 @@ function OrganizationalHierarchySection() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Hierarchy Level *</label>
-                <select
-                  value={nodeForm.hierarchy_level}
-                  onChange={(e) => setNodeForm(f => ({ ...f, hierarchy_level: e.target.value, parent_id: "" }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-                >
-                  <option value="">Select level</option>
-                  {reference.levels.map(l => (
-                    <option key={l.level} value={l.level}>L{l.level} · {l.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Specialization *</label>
-                <select
-                  value={nodeForm.specialization}
-                  onChange={(e) => setNodeForm(f => ({ ...f, specialization: e.target.value, parent_id: "" }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-                >
-                  <option value="">Select specialization</option>
-                  {reference.specializations.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Hierarchy Level *</label>
+              <select
+                value={nodeForm.hierarchy_level}
+                onChange={(e) => setNodeForm(f => ({ ...f, hierarchy_level: e.target.value, parent_id: "" }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              >
+                <option value="">Select level</option>
+                {reference.levels.map(l => (
+                  <option key={l.level} value={l.level}>L{l.level} · {l.name}</option>
+                ))}
+              </select>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -1535,7 +1213,7 @@ function OrganizationalHierarchySection() {
               </div>
             </div>
             <p className="text-xs text-gray-500">
-              Specialization is what the person does (it decides who they can report to). Department is the team tasks and approvals are routed to.
+              Department is the team tasks and approvals are routed to; the seat's function (Finance, HR ...) follows from it.
             </p>
             {nodeLevel > 0 && nodeLevel < 17 && (
               <div>
@@ -1547,13 +1225,13 @@ function OrganizationalHierarchySection() {
                 >
                   <option value="">Select supervisor</option>
                   {eligibleParents.map(p => (
-                    <option key={p.id} value={p.id}>{p.name} (L{p.hierarchy_level} · {p.specialization})</option>
+                    <option key={p.id} value={p.id}>{p.name} (L{p.hierarchy_level})</option>
                   ))}
                 </select>
-                {nodeForm.specialization && eligibleParents.length === 0 && (
+                {eligibleParents.length === 0 && (
                   <p className="text-xs text-amber-600 mt-1">
                     No eligible supervisor. Level {nodeLevel} must report to Level {nodeLevel + 1}-{Math.min(nodeLevel + 2, 17)}
-                    {nodeLevel < 13 ? " in the same specialization (unless the supervisor is Level 13+)" : ""}.
+                    {nodeLevel < 16 ? " in the same business unit (or a Level 16+ leader)" : ""}.
                   </p>
                 )}
               </div>
@@ -1568,6 +1246,81 @@ function OrganizationalHierarchySection() {
                 disabled={submittingNode || !canSubmitNode}
               >
                 {submittingNode ? "Adding..." : "Add Node"}
+              </button>
+            </div>
+          </form>
+        </SimpleModal>
+      )}
+
+      {showRoles && (
+        <SimpleModal isOpen={true} onClose={() => { setShowRoles(false); setEditingRole(null); setRoleForm(EMPTY_ROLE_FORM); }} title="Manage Roles">
+          <p className="text-xs text-gray-500 mb-3">
+            A role is a Job Title and the org level it sits at. A role people hold can't change level or be retired - give them another role first.
+          </p>
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {roles.map(role => (
+              <div key={role.id} className={`flex items-center justify-between p-3 rounded border ${role.active ? "bg-gray-50 border-gray-200" : "bg-white border-dashed border-gray-300 opacity-70"}`}>
+                <div>
+                  <span className="text-sm font-medium text-gray-900">{role.name}</span>
+                  <span className="ml-2 text-xs text-gray-500">L{role.hierarchy_level} · {role.level_name}</span>
+                  {role.designation && <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-800 text-xs rounded">{role.designation.toUpperCase()}</span>}
+                  <span className="ml-2 text-xs text-gray-500">{role.users} {role.users === 1 ? "person" : "people"}</span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setEditingRole({ id: role.id, name: role.name, hierarchy_level: role.hierarchy_level, designation: role.designation || "" })}
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    Edit
+                  </button>
+                  <button onClick={() => handleRoleActive(role, !role.active)} className="text-xs text-gray-600 hover:underline">
+                    {role.active ? "Retire" : "Restore"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <form onSubmit={handleSaveRole} className="mt-4 space-y-3 border-t pt-4">
+            <h4 className="text-sm font-semibold text-gray-900">{editingRole ? `Edit ${editingRole.name}` : "Add a role"}</h4>
+            <input
+              type="text"
+              value={(editingRole || roleForm).name}
+              onChange={(e) => (editingRole ? setEditingRole(r => ({ ...r, name: e.target.value })) : setRoleForm(f => ({ ...f, name: e.target.value })))}
+              placeholder="e.g., Technical Manager"
+              maxLength={150}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <select
+                value={(editingRole || roleForm).hierarchy_level}
+                onChange={(e) => (editingRole ? setEditingRole(r => ({ ...r, hierarchy_level: e.target.value })) : setRoleForm(f => ({ ...f, hierarchy_level: e.target.value })))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              >
+                <option value="">Select level</option>
+                {reference.levels.map(l => <option key={l.level} value={l.level}>L{l.level} · {l.name}</option>)}
+              </select>
+              <select
+                value={(editingRole || roleForm).designation}
+                onChange={(e) => (editingRole ? setEditingRole(r => ({ ...r, designation: e.target.value })) : setRoleForm(f => ({ ...f, designation: e.target.value })))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              >
+                <option value="">No designation</option>
+                <option value="ceo">CEO (Level 17)</option>
+                <option value="cfo">CFO (Level 16)</option>
+              </select>
+            </div>
+            <div className="flex gap-2 justify-end">
+              {editingRole && (
+                <button type="button" onClick={() => setEditingRole(null)} className="px-3 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg">
+                  Cancel
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={!(editingRole || roleForm).name.trim() || !(editingRole || roleForm).hierarchy_level}
+                className="px-3 py-2 text-sm bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover disabled:opacity-60"
+              >
+                {editingRole ? "Save Role" : "Add Role"}
               </button>
             </div>
           </form>
@@ -1796,27 +1549,6 @@ function LocationsSection() {
     { id: "organizational-hierarchy", label: "Organizational Hierarchy", icon: Globe, href: "/admin/users-access-control/organizational-hierarchy" },
     { id: "role-templates", label: "Role Templates", icon: null, label2: "📋", href: "/admin/users-access-control/role-templates" }
   ];
-
-  // Check if user has permission to manage role templates (Super User, Admin, CEO)
-  const hrmsRole = localStorage.getItem("hrms_role") || "";
-  const permissionRole = localStorage.getItem("permission_role") || "";
-  const hrmsPermissionsStr = localStorage.getItem("hrms_permissions") || "[]";
-  let hrmsPermissions = [];
-  try {
-    const parsed = JSON.parse(hrmsPermissionsStr);
-    hrmsPermissions = Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    // If parsing fails, use empty array
-    hrmsPermissions = [];
-  }
-
-  const canManageRoleTemplates = hrmsRole.toLowerCase() === "admin" ||
-                                 hrmsRole.toLowerCase() === "super user" ||
-                                 permissionRole.toLowerCase() === "admin" ||
-                                 permissionRole.toLowerCase() === "super user" ||
-                                 hrmsPermissions.some(p => p.includes("role") && p.includes("manage")) ||
-                                 hrmsPermissions.some(p => p.includes("rbac") && p.includes("manage")) ||
-                                 currentUserPermissions?.["role.manage"];
 
   // Determine the current nav section ID from activeTab
   const currentNavId = Object.keys(sectionMap).find(key => sectionMap[key] === activeTab) || "users";

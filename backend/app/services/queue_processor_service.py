@@ -16,10 +16,9 @@ import json
 import uuid
 import logging
 import time
-import random
 import threading
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 from enum import Enum
 
 from sqlalchemy import and_, or_
@@ -30,10 +29,10 @@ from app.services.message_handler_registry import MessageHandlerRegistry
 from app.services.slm_service import SLMService
 from app.services.architect_codebase_learning import ArchitectKnowledgeTeacher
 from app.services.email_retry_strategy import EmailRetryStrategy
-from app.core.logging import logger
-
 logger = logging.getLogger(__name__)
 
+
+from app.services.delivery_errors import DeliveryDeferred
 
 class QueueStatus(str, Enum):
     """Queue message status"""
@@ -67,6 +66,15 @@ class QueueProcessorService:
     # Email/SMS handlers are quick, webhook calls vary
     HANDLER_TIMEOUTS = {
         'engage_candidate_with_thunder': 60,  # Thunder: WhatsApp/Email API calls (network latency)
+        'enrich_linkedin_candidate': 50,  # Free web/GitHub lookups; handler self-limits to 45s
+        'thunder_send_email': 60,  # Graph draft + send
+        'thunder_process_inbound_email': 80,  # LLM classify (up to ~63s) + writes
+        'send_invoice_email': 50,  # Graph draft + send; handler self-limits to 45s
+        'send_account_email': 50,  # Graph draft + send; handler self-limits to 45s
+        'hiring_pipeline_evaluate': 45,  # handler self-limits to 40s
+        'hiring_stage_action': 45,
+        'hiring_convert_to_bench': 45,
+        'send_pipeline_email': 50,  # Graph draft + send; handler self-limits to 45s
         'send_whatsapp_message': 60,  # WhatsApp API calls
         'send_email_message': 30,  # Email typically fast
         'send_sms_message': 30,  # SMS typically fast
@@ -308,7 +316,7 @@ class QueueProcessorService:
                     and_(
                         ChannelQueueItem.status == QueueStatus.PENDING.value,
                         or_(
-                            ChannelQueueItem.retry_count == 0,
+                            ChannelQueueItem.next_retry_at.is_(None),
                             ChannelQueueItem.next_retry_at <= datetime.utcnow()
                         )
                     ),
@@ -366,6 +374,24 @@ class QueueProcessorService:
                             # Message already COMPLETED, don't rollback
                             # SLM training is supplementary to core queue processing
 
+                        # PHASE 4: Trigger autonomous learning cycle if threshold reached
+                        try:
+                            from app.services.queue_processor_learning_integration import QueueProcessorLearningIntegration
+
+                            orchestrator = message.type.split('_')[0] if '_' in message.type else 'flash'
+                            learning_result = QueueProcessorLearningIntegration.trigger_learning_cycle_if_needed(
+                                db=db,
+                                tenant_id=message.payload.get('tenant_id', '1') if isinstance(message.payload, dict) else '1',
+                                orchestrator=orchestrator,
+                                handler_result=result,
+                            )
+                            if learning_result:
+                                stats["learning_cycles"] = stats.get("learning_cycles", 0) + 1
+                                logger.info(f"[QueueProcessor] Learning cycle executed: {learning_result}")
+                        except Exception as learning_err:
+                            # Don't fail message processing if learning fails
+                            logger.warning(f"[QueueProcessor] Learning cycle failed (non-blocking): {learning_err}", exc_info=True)
+
                 except Exception as msg_err:
                     logger.error(f"[QueueProcessor] Message {message.id} failed: {msg_err}", exc_info=True)
                     stats["errors"].append(str(msg_err))
@@ -382,6 +408,7 @@ class QueueProcessorService:
 
     # Circuit breaker state (thread-safe with lock) - HIGH FIX #1: Thread safety
     _consecutive_failures = 0
+    _consecutive_failures_lock = threading.Lock()
     _FAILURE_THRESHOLD = 5
     HANDLER_TIMEOUT_SECONDS = 30  # ARCHITECT FIX: Timeout for long-running handlers
 
@@ -397,8 +424,6 @@ class QueueProcessorService:
 
         Returns result dict with status and outcome.
         """
-        import time
-        import json
         handler_start_time = time.time()
 
         # PHASE3.6: Validate payload size to prevent JSON parser crash
@@ -606,7 +631,7 @@ class QueueProcessorService:
                         from app.services.message_queue_service import MessageQueueService as MQS
                         recruiter_msg_id = MQS.enqueue(
                             task_name='flash_recruiter',
-                            task_id=f"recruit_{job_id}",
+                            task_id=f"recruit:{job_id}:created",
                             data={
                                 'job_id': job_id,
                                 'job_title': persisted_job.jobTitle,
@@ -620,6 +645,8 @@ class QueueProcessorService:
                             }
                         )
                         logger.info(f"[QueueProcessor] Queued flash_recruiter for job {job_id}: message_id={recruiter_msg_id}")
+                        MQS.enqueue(task_name='source_candidates_for_job', task_id=f"source:{job_id}:created",
+                                    data={'job_id': job_id, 'reason': 'created'})
                     except Exception as slm_err:
                         logger.error(f"[QueueProcessor] SLM analysis failed for job {job_id}: {slm_err}", exc_info=True)
                         # Don't fail - continue without SLM guidance (flash_recruiter will use defaults)
@@ -662,7 +689,6 @@ class QueueProcessorService:
                 if requires_delivery_confirmation:
                     # Check MessageDeliveryLog for actual delivery confirmation
                     from app.models.message_delivery import MessageDeliveryLog
-                    from app.models.candidate_ai import CandidateConversation
 
                     delivery_confirmed = False
                     delivery_status = None
@@ -756,10 +782,11 @@ class QueueProcessorService:
                                 message.retry_count += 1
                                 message.error = f"Validation retry: {str(rt_err)[:500]}"
                                 message.next_retry_at = datetime.utcnow() + timedelta(seconds=60)
+                                message.status = QueueStatus.PENDING.value
                                 db.commit()
 
                                 return {
-                                    "status": QueueStatus.RETRY_SCHEDULED.value,
+                                    "status": QueueStatus.PENDING.value,
                                     "message": f"Validation error, retrying: {str(rt_err)[:100]}",
                                     "retry_count": message.retry_count,
                                     "duration_ms": handler_duration_ms
@@ -783,10 +810,11 @@ class QueueProcessorService:
                         message.retry_count += 1
                         message.error = f"Handler validation error: {str(validation_err)[:500]}"
                         message.next_retry_at = datetime.utcnow() + timedelta(seconds=60)
+                        message.status = QueueStatus.PENDING.value
                         db.commit()
                         return {
-                            "status": QueueStatus.RETRY_SCHEDULED.value,
-                            "message": f"Handler validation error, retrying",
+                            "status": QueueStatus.PENDING.value,
+                            "message": "Handler validation error, retrying",
                             "retry_count": message.retry_count,
                             "duration_ms": handler_duration_ms
                         }
@@ -825,23 +853,8 @@ class QueueProcessorService:
                 message.retry_count = 0
                 db.commit()
 
-                # BLOCKING FIX #3: Queue to Thunder after candidate creation completes
-                if message.type == 'create_candidate' and handler_result and isinstance(handler_result, dict) and 'candidate_id' in handler_result:
-                    try:
-                        from app.services.message_queue_service import MessageQueueService
-                        tenant_id = message.payload.get('tenant_id', '1') if isinstance(message.payload, dict) else '1'
-                        thunder_result = MessageQueueService.enqueue(
-                            task_name='engage_candidate_with_thunder',
-                            data={
-                                'candidate_id': handler_result['candidate_id'],
-                                'tenant_id': tenant_id,
-                                'source': 'candidate_creation_handler'
-                            }
-                        )
-                        logger.info(f"[QueueProcessor] Queued Thunder engagement for candidate {handler_result['candidate_id']}: {thunder_result}")
-                    except Exception as thunder_err:
-                        logger.error(f"[QueueProcessor] Failed to queue Thunder engagement after candidate creation: {thunder_err}", exc_info=True)
-                        # Continue even if Thunder queueing fails - candidate was created successfully
+                # Thunder engagement after create_candidate is queued by
+                # CandidateCreationUnifiedHandler, which honours thunder_enabled.
 
                 # Reset circuit breaker on success (HIGH FIX #1: Thread-safe)
                 with QueueProcessorService._consecutive_failures_lock:
@@ -853,6 +866,29 @@ class QueueProcessorService:
                     "task": message.type,
                     "result": handler_result,
                     "handler_duration_ms": handler_duration_ms
+                }
+
+            except DeliveryDeferred as deferred:
+                # Not sent: stays PENDING as "not sent" until retry_at, never FAILED/COMPLETED
+                db.rollback()
+                message.status = QueueStatus.PENDING.value
+                message.next_retry_at = deferred.retry_at
+                message.last_attempted_at = datetime.utcnow()
+                message.error = f"NOT_SENT: {deferred.reason}"[:500]
+                message.result = json.dumps({
+                    "success": False, "not_sent": True, "reason": deferred.reason,
+                    "next_retry_at": deferred.retry_at.isoformat(),
+                })
+                db.commit()
+                logger.warning(
+                    f"[QueueProcessor] {message.id} ({message.type}) NOT SENT: {deferred.reason}; "
+                    f"pending until {deferred.retry_at.isoformat()}"
+                )
+                return {
+                    "status": QueueStatus.PENDING.value,
+                    "message_id": message.id,
+                    "not_sent": True,
+                    "next_retry_at": deferred.retry_at.isoformat(),
                 }
 
             except Exception as handler_err:

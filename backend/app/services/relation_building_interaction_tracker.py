@@ -1,5 +1,4 @@
 """
-import logging
 Relation Building Interaction Tracker - Continuous Persona Learning
 
 Captures and analyzes EVERY candidate interaction to continuously update persona:
@@ -21,9 +20,6 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from enum import Enum
 
-from app.core.logging import logger
-from app.models.candidate import Candidate
-from app.models.candidate_ai import ConversationEvent
 from app.services.candidate_memory_service import upsert_fact
 
 logger = logging.getLogger(__name__)

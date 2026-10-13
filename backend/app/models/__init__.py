@@ -87,7 +87,7 @@ class RolePermission:
     """Deprecated RBAC RolePermission stub"""
     pass
 
-from app.models.business_unit import BusinessUnit, BusinessUnitCompany
+from app.models.business_unit import BusinessUnit, BusinessUnitCompany, BusinessUnitLocationHead
 from app.models.business_unit_context import BusinessUnitContext
 from app.models.role_template import Module as RoleTemplateModule, Resource, RoleTemplate, RoleTemplatePermission
 from app.models.module import Module, ModulePermission
@@ -193,6 +193,18 @@ from app.models.candidate_desire_profile import CandidateDesireProfile
 from app.models.motivation import MotivationContentLibrary, MotivationOutcome
 from app.models.strategic_goal import StrategicGoal, CascadedGoal, GoalTarget, PyramidReport
 from app.models.linkedin_candidate_pipeline import LinkedInCandidatePipeline, LinkedInPipelineStatus
+from app.models.learning_events import (
+    LearningEvent,
+    LearningEventBatch,
+    SegmentLearningProfile,
+    DecisionOutcome,
+    ProcessedWebhookEvent,
+)
+from app.models.learning_transcript import (
+    LearningTranscript,
+    LearningAuditSummary,
+    LearningCascadeChain,
+)
 
 __all__ = [
     # Base
@@ -236,6 +248,7 @@ __all__ = [
     "RolePermission",
     "BusinessUnit",
     "BusinessUnitCompany",
+    "BusinessUnitLocationHead",
     "BusinessUnitContext",
     # Role Templates (ZERO-HARDCODING)
     "RoleTemplateModule",
@@ -403,5 +416,15 @@ __all__ = [
     # LinkedIn Candidate Pipeline (Manual Recruiter Sourcing)
     "LinkedInCandidatePipeline",
     "LinkedInPipelineStatus",
+    # Unified Learning Framework (Decision tracking & outcomes)
+    "LearningEvent",
+    "LearningEventBatch",
+    "SegmentLearningProfile",
+    "DecisionOutcome",
+    "ProcessedWebhookEvent",
+    # Learning Transcript & Audit (Full system audit transparency)
+    "LearningTranscript",
+    "LearningAuditSummary",
+    "LearningCascadeChain",
 ]
 

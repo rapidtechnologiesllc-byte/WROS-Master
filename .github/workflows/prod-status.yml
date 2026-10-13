@@ -1,0 +1,45 @@
+name: Production Status
+
+# Read-only check of what runs in production: Graph mailbox permissions,
+# enrichment sources, background jobs, queue (sent vs held "not sent"),
+# Thunder cadence, invoices and revenue. Output is counts and reasons, with
+# email addresses and phone numbers masked. send_test also sends one email
+# from each configured mailbox to itself, to prove Mail.Send.
+
+on:
+  workflow_dispatch:
+    inputs:
+      send_test:
+        description: "Send one test email from each mailbox to itself (proves Mail.Send)"
+        type: boolean
+        default: false
+
+env:
+  PROD_SERVER: ${{ secrets.PROD_SERVER_HOST }}
+  PROD_USER: ${{ secrets.PROD_USER }}
+  PROD_PATH: /home/HRMS/WROS-Master
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PROD_SSH_KEY }}
+
+      - name: Add host key to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p 22587 -H ${{ env.PROD_SERVER }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Production status
+        run: |
+          SEND_TEST=0
+          if [ "${{ inputs.send_test }}" = "true" ]; then SEND_TEST=1; fi
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+            "cd ${{ env.PROD_PATH }}/backend && SEND_TEST=$SEND_TEST timeout 240 ${{ env.PROD_PATH }}/venv/bin/python -" \
+            < backend/scripts/prod_status.py

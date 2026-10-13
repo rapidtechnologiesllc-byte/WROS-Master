@@ -17,6 +17,8 @@ from app.models.timesheet_nag import TimesheetNagLog
 from app.models.user import Users
 from app.services.notification_service import ChannelNotConfigured, send_notification
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_ESCALATION_DAYS = 3
 
 def scan_missing_timesheets(db: Session, *, week_starting_date: date, tenant_id: Optional[int] = None) -> List[Employee]:
@@ -93,7 +95,19 @@ def trigger_timesheet_nag(
         return log
 
     if log.resolved:
-        raise ValueError("Operation failed")
+        # was submitted, then rejected or reopened: missing again, so start over with the employee
+        log.resolved, log.escalation_level, log.last_nagged_at = False, 1, now
+        db.add(log)
+        db.commit()
+        if employee_user:
+            try:
+                send_notification(
+                    db, calling_context_tenant_id=tenant_id, recipient=employee_user, priority_tier="P2",
+                    message=f"Your timesheet for the week of {week_starting_date} needs to be submitted again.",
+                )
+            except ChannelNotConfigured:
+                pass
+        return log
 
     days_since_last_nag = (now - log.last_nagged_at).days if log.last_nagged_at else escalation_days
     if log.escalation_level == 1 and days_since_last_nag >= escalation_days:
@@ -116,19 +130,22 @@ def trigger_timesheet_nag(
 
     return log
 
-def run_timesheet_nag_job(db: Session) -> dict:
-    """Scheduler wrapper, 2026-08-06 -- this logic existed and was fully
-    tested but was never actually registered in app.core.scheduler,
-    same "built, never wired to run" gap as ar_followup_service's own
-    job wrapper below. Runs org-wide (scan_missing_timesheets/
-    trigger_timesheet_nag are called with no tenant_id filter -- each
-    Employee's own tenant_id is what gets stamped on the resulting
-    TimesheetNagLog/notification), current week only (Monday-anchored,
-    matching Timesheet.week_starting_date's own convention)."""
-    today = date.today()
-    week_starting_date = today - timedelta(days=today.weekday())
-    processed = 0
+def run_timesheet_nag_job(db: Session, today: Optional[date] = None) -> dict:
+    """Daily job (scheduled_jobs: timesheet_reminders). Nags about the week that has
+    just ended (Monday-anchored, matching Timesheet.week_starting_date): the
+    current week isn't due yet. Each employee is isolated, so one failure doesn't
+    stop reminders to everyone else."""
+    today = today or date.today()
+    week_starting_date = today - timedelta(days=today.weekday() + 7)
+    processed, failed = 0, []
     for employee in scan_missing_timesheets(db, week_starting_date=week_starting_date):
-        if trigger_timesheet_nag(db, employee, week_starting_date=week_starting_date, tenant_id=employee.tenant_id) is not None:
-            processed += 1
-    return {"processed": processed}
+        try:
+            if trigger_timesheet_nag(db, employee, week_starting_date=week_starting_date,
+                                     tenant_id=employee.tenant_id) is not None:
+                processed += 1
+        except Exception as exc:
+            db.rollback()
+            failed.append(employee.id)
+            logger.error(f"[TimesheetNag] {employee.id} week {week_starting_date}: {exc}", exc_info=True)
+    return {"week_starting_date": week_starting_date.isoformat(), "processed": processed,
+            "failed": len(failed), "failed_employee_ids": failed}

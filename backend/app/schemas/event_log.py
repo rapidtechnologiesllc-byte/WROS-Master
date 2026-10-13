@@ -1,4 +1,3 @@
-from app.core.logging import logger
 """Pydantic Schemas -- S-078/HRMS-0478 Event Emission Layer."""
 import logging
 from typing import Any, Dict, List, Optional

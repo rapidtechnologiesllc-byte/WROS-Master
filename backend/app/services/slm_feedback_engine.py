@@ -1,5 +1,4 @@
 """
-import logging
 SLM Feedback & Self-Improvement Engine
 
 The Self-Learning Model continuously improves by:
@@ -19,15 +18,13 @@ No manual intervention needed - the system learns from production usage.
 """
 
 import logging
-import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 
 from sqlalchemy import Column, String, Integer, DateTime, JSON, Float, func, and_
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.base import Base
 
 @dataclass

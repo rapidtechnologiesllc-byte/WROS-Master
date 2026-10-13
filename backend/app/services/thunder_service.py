@@ -1,5 +1,4 @@
 """
-import logging
 Phase 3 Part A1 -- Thunder Conversation Core.
 
 `03-THUNDER-AGENTIC-LAYER.md` calls for exactly two functions every
@@ -36,7 +35,6 @@ desire_profile=None rather than fabricating one, so a caller can tell
 import logging
 import os
 import re
-import secrets
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
@@ -44,14 +42,12 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from sqlalchemy.orm import Session
 
 from app.core.llm_prompt_safety import build_safe_prompt, flag_suspicious_patterns
-from app.core.logging import logger
-from app.core.security import get_password_hash
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.consent import ConsentRecord
 from app.models.internal_note import InternalNote
 from app.models.user import Jobs, Users
-from app.services.ai_conversation_service import AI_AGENT_NAME, AI_AGENT_PERSONA, resolve_thunder_config
+from app.services.ai_conversation_service import AI_AGENT_NAME, resolve_thunder_config
 from app.services.conversation_state_service import escalate as escalate_conversation
 from app.services.thunder_pause_service import (  # noqa: F401 -- re-exported for callers
     ThunderPausedError,
@@ -65,6 +61,7 @@ from app.services.whatsapp_routing_service import (  # noqa: F401 -- re-exported
 )
 from app.services.delivery_factory import get_delivery_service
 from app.models.message_delivery import MessageDeliveryLog
+from app.services.thunder_learning_integration import ThunderLearningIntegration
 
 WHATSAPP_OUTREACH_CONSENT_TYPE = "whatsapp_outreach"
 # 2026-07-23 -- public web chat (see app.services.public_chat_service) is a
@@ -238,16 +235,41 @@ def send_thunder_message(
             f"within the last {DEBOUNCE_SECONDS}s -- suppressed."
         )
 
+    # Get confidence score for learning system before sending
+    confidence_score = ThunderLearningIntegration.get_outreach_confidence(
+        db=db,
+        candidate=candidate,
+        channel=channel,
+    )
+
     if channel == "whatsapp":
-        return send_whatsapp_message(
+        event = send_whatsapp_message(
             db, conversation, candidate, message_body,
             sender_type=sender_type, sender_id=sender_id,
             whatsapp_client=whatsapp_client, auto_generated=auto_generated,
         )
-    return send_web_chat_message(
-        db, conversation, candidate, message_body,
-        sender_type=sender_type, sender_id=sender_id,
-    )
+    else:
+        event = send_web_chat_message(
+            db, conversation, candidate, message_body,
+            sender_type=sender_type, sender_id=sender_id,
+        )
+
+    # Record prediction in learning system (async/best-effort)
+    try:
+        ThunderLearningIntegration.record_outreach_prediction(
+            db=db,
+            tenant_id=candidate.tenant_id,
+            candidate=candidate,
+            conversation=conversation,
+            channel=channel,
+            message_body=message_body,
+            confidence_score=confidence_score,
+        )
+    except Exception as e:
+        logger.error(f"[Thunder] Failed to record learning prediction: {e}", exc_info=True)
+        # Don't fail the send - learning is non-blocking
+
+    return event
 
 def send_outbound_campaign_message(db: Session, conversation: CandidateConversation, candidate: Candidate, message_body: str, channel: str, *, email_subject: str = "Following up on your application") -> None:
     """Shared whatsapp/email send dispatch for the automated outreach
@@ -275,7 +297,12 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
         logger.warning(f"[Thunder] Email consent not given for candidate {candidate.candidateID!r}, skipping outreach")
         return
 
-    from app.services.message_queue_service import MessageQueueService
+    # Get confidence score for learning system before sending
+    confidence_score = ThunderLearningIntegration.get_outreach_confidence(
+        db=db,
+        candidate=candidate,
+        channel="email",
+    )
 
     try:
         # Use delivery service for email sending (instead of EmailService.send_email)
@@ -287,7 +314,9 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
             html=False
         )
 
-        # Create MessageDeliveryLog for tracking
+        # Create MessageDeliveryLog for tracking -- in a savepoint, so a failed log write
+        # undoes only itself, never the conversation work already in this transaction
+        savepoint = db.begin_nested()
         try:
             log_entry = MessageDeliveryLog(
                 conversation_id=conversation.id,
@@ -304,10 +333,11 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
             )
             db.add(log_entry)
             db.flush()
+            savepoint.commit()
             logger.debug(f"[Thunder] Created MessageDeliveryLog for email: {result.delivery_id}")
         except Exception as log_err:
-            logger.error(f"[Thunder] Failed to create MessageDeliveryLog: {log_err}")
-            db.rollback()
+            logger.error(f"[Thunder] Failed to create MessageDeliveryLog: {log_err}", exc_info=True)
+            savepoint.rollback()
 
         # Check delivery result
         if result.status == "failed":
@@ -327,22 +357,20 @@ def send_outbound_campaign_message(db: Session, conversation: CandidateConversat
         ))
         db.flush()
 
-        # Mark candidate_created message as COMPLETED after email sent successfully
+        # Record prediction in learning system (async/best-effort)
         try:
-            from app.models.message_queue import MessageQueue
-            message = db.query(MessageQueue).filter(
-                MessageQueue.resource_id == candidate.candidateID,
-                MessageQueue.type == "candidate_created",
-                MessageQueue.status != MessageQueueService.STATUS_COMPLETED,
-            ).first()
-
-            if message:
-                MessageQueueService.mark_completed(message.id, db=db)
-                logger.debug(f"[Thunder] Marked candidate_created message as COMPLETED: {message.id}")
-        except Exception as msg_err:
-            logger.error(f"Error: {str(msg_err)}", exc_info=True)
-            logger.error(f"[Thunder] Failed to mark message as completed: {msg_err}", exc_info=True)
-            # Don't fail email sending if message queue update fails
+            ThunderLearningIntegration.record_outreach_prediction(
+                db=db,
+                tenant_id=candidate.tenant_id,
+                candidate=candidate,
+                conversation=conversation,
+                channel="email",
+                message_body=message_body,
+                confidence_score=confidence_score,
+            )
+        except Exception as e:
+            logger.error(f"[Thunder] Failed to record learning prediction: {e}", exc_info=True)
+            # Don't fail the send - learning is non-blocking
     except Exception as exc:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.error(f"[Thunder] Email send failed for candidate {candidate.candidateID!r}: {exc}")

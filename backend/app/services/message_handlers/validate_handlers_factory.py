@@ -98,30 +98,6 @@ class ValidateHandlersFactory:
             raise RuntimeError(f"Database error: {str(e)}") from e
 
     @staticmethod
-    def validate_offer_exists(result: Dict[str, Any], db: Session, handler_name: str) -> None:
-        """Generic offer validation: record must exist."""
-        from app.models.user import Offer
-
-        if not result or "offer_id" not in result:
-            raise ValueError(f"Invalid result: {result}")
-
-        offer_id = result.get("offer_id")
-
-        try:
-            offer = db.query(Offer).filter(Offer.id == offer_id).first()
-            if not offer:
-                raise ValueError(f"Offer {offer_id} not found after {handler_name}")
-
-            logger.info(f"✅ {handler_name} validated: {offer_id}")
-
-        except ValueError:
-            raise
-
-        except Exception as e:
-            logger.error(f"[{handler_name}] RETRYABLE validation error: {e}", exc_info=True)
-            raise RuntimeError(f"Database error: {str(e)}") from e
-
-    @staticmethod
     def validate_job_exists(result: Dict[str, Any], db: Session, handler_name: str) -> None:
         """Generic job validation: record must exist."""
         from app.models.user import Jobs
@@ -265,7 +241,7 @@ class ValidateHandlersFactory:
     @staticmethod
     def validate_candidate_status(result: Dict[str, Any], db: Session, handler_name: str, expected_status: str) -> None:
         """Validate candidate status matches expected value."""
-        from app.models.candidate import Candidate, CandidateStatus
+        from app.models.candidate import CandidateStatus
 
         if not result or "candidate_id" not in result:
             raise ValueError(f"Invalid result: {result}")
@@ -291,31 +267,6 @@ class ValidateHandlersFactory:
             raise RuntimeError(f"Database error: {str(e)}") from e
 
     @staticmethod
-    def validate_offer_status(result: Dict[str, Any], db: Session, handler_name: str, expected_status: str) -> None:
-        """Validate offer status matches expected value."""
-        from app.models.user import Offer
-
-        if not result or "offer_id" not in result:
-            raise ValueError(f"Invalid result: {result}")
-
-        offer_id = result.get("offer_id")
-
-        try:
-            offer = db.query(Offer).filter(Offer.id == offer_id).first()
-            if not offer or offer.offerStatus != expected_status:
-                actual = offer.offerStatus if offer else 'None'
-                raise ValueError(f"Offer status is {actual}, expected {expected_status}")
-
-            logger.info(f"✅ {handler_name} validated: {offer_id} status={expected_status}")
-
-        except ValueError:
-            raise
-
-        except Exception as e:
-            logger.error(f"[{handler_name}] RETRYABLE error: {e}", exc_info=True)
-            raise RuntimeError(f"Database error: {str(e)}") from e
-
-    @staticmethod
     def validate_job_status(result: Dict[str, Any], db: Session, handler_name: str, expected_status: str) -> None:
         """Validate job status matches expected value."""
         from app.models.user import Jobs
@@ -332,36 +283,6 @@ class ValidateHandlersFactory:
                 raise ValueError(f"Job status is {actual}, expected {expected_status}")
 
             logger.info(f"✅ {handler_name} validated: {job_id} status={expected_status}")
-
-        except ValueError:
-            raise
-
-        except Exception as e:
-            logger.error(f"[{handler_name}] RETRYABLE error: {e}", exc_info=True)
-            raise RuntimeError(f"Database error: {str(e)}") from e
-
-    @staticmethod
-    def validate_message_delivery_logged(result: Dict[str, Any], db: Session, handler_name: str) -> None:
-        """Validate message delivery was logged."""
-        from app.models.message_delivery import MessageDelivery
-
-        if not result or "delivery_id" not in result:
-            raise ValueError(f"Invalid result: {result}")
-
-        delivery_id = result.get("delivery_id")
-
-        try:
-            delivery = db.query(MessageDelivery).filter(
-                MessageDelivery.id == delivery_id
-            ).first()
-
-            if not delivery:
-                raise ValueError(f"Delivery {delivery_id} not logged")
-
-            if delivery.status not in ['sent', 'delivered', 'pending']:
-                raise ValueError(f"Delivery status is {delivery.status}")
-
-            logger.info(f"✅ {handler_name} validated: delivery logged")
 
         except ValueError:
             raise
@@ -539,203 +460,6 @@ class ValidateHandlersFactory:
             raise RuntimeError(f"Database error: {str(e)}") from e
 
     @staticmethod
-    def validate_interview_scheduled_with_timestamp(result: Dict[str, Any], db: Session, handler_name: str) -> None:
-        """Validate interview scheduled with scheduled_at timestamp."""
-        from app.models.user import Interview
-
-        if not result or "interview_id" not in result:
-            raise ValueError(f"Invalid result: {result}")
-
-        interview_id = result.get("interview_id")
-
-        try:
-            interview = db.query(Interview).filter(Interview.id == interview_id).first()
-            if not interview:
-                raise ValueError(f"Interview {interview_id} not found")
-
-            if not hasattr(interview, 'scheduled_at') or interview.scheduled_at is None:
-                raise ValueError(f"Interview {interview_id} missing scheduled_at timestamp")
-
-            logger.info(f"✅ {handler_name} validated: {interview_id} scheduled")
-
-        except ValueError:
-            raise
-
-        except Exception as e:
-            logger.error(f"[{handler_name}] RETRYABLE error: {e}", exc_info=True)
-            raise RuntimeError(f"Database error: {str(e)}") from e
-
-    @staticmethod
-    def validate_interview_reminder_queued(result: Dict[str, Any], db: Session, handler_name: str) -> None:
-        """Validate reminder notification queued for interview."""
-        from app.models.message_queue import ChannelQueueItem
-
-        if not result or "interview_id" not in result:
-            raise ValueError(f"Invalid result: {result}")
-
-        interview_id = result.get("interview_id")
-
-        try:
-            reminder = db.query(ChannelQueueItem).filter(
-                ChannelQueueItem.payload.contains(f'"interview_id": "{interview_id}"'),
-                ChannelQueueItem.type.ilike('%reminder%')
-            ).first()
-
-            if not reminder:
-                raise ValueError(f"No reminder queued for interview {interview_id}")
-
-            logger.info(f"✅ {handler_name} validated: reminder queued")
-
-        except ValueError:
-            raise
-
-        except Exception as e:
-            logger.error(f"[{handler_name}] RETRYABLE error: {e}", exc_info=True)
-            raise RuntimeError(f"Database error: {str(e)}") from e
-
-    @staticmethod
-    def validate_offer_approval_recorded(result: Dict[str, Any], db: Session, handler_name: str) -> None:
-        """Validate offer approval (approved_at timestamp, approved_by set)."""
-        from app.models.user import Offer
-
-        if not result or "offer_id" not in result:
-            raise ValueError(f"Invalid result: {result}")
-
-        offer_id = result.get("offer_id")
-
-        try:
-            offer = db.query(Offer).filter(Offer.id == offer_id).first()
-            if not offer:
-                raise ValueError(f"Offer {offer_id} not found")
-
-            if not hasattr(offer, 'approved_at') or offer.approved_at is None:
-                raise ValueError(f"Offer {offer_id} missing approved_at timestamp")
-
-            logger.info(f"✅ {handler_name} validated: {offer_id} approved")
-
-        except ValueError:
-            raise
-
-        except Exception as e:
-            logger.error(f"[{handler_name}] RETRYABLE error: {e}", exc_info=True)
-            raise RuntimeError(f"Database error: {str(e)}") from e
-
-    @staticmethod
-    def validate_offer_letter_generated(result: Dict[str, Any], db: Session, handler_name: str) -> None:
-        """Validate offer letter PDF created."""
-        from app.models.user import Offer
-
-        if not result or "offer_id" not in result:
-            raise ValueError(f"Invalid result: {result}")
-
-        offer_id = result.get("offer_id")
-
-        try:
-            offer = db.query(Offer).filter(Offer.id == offer_id).first()
-            if not offer:
-                raise ValueError(f"Offer {offer_id} not found")
-
-            if not hasattr(offer, 'offer_letter_url') or not offer.offer_letter_url:
-                raise ValueError(f"Offer {offer_id} missing offer_letter_url")
-
-            logger.info(f"✅ {handler_name} validated: {offer_id} letter generated")
-
-        except ValueError:
-            raise
-
-        except Exception as e:
-            logger.error(f"[{handler_name}] RETRYABLE error: {e}", exc_info=True)
-            raise RuntimeError(f"Database error: {str(e)}") from e
-
-    @staticmethod
-    def validate_offer_sent_notification_queued(result: Dict[str, Any], db: Session, handler_name: str) -> None:
-        """Validate offer_sent notification queued."""
-        from app.models.message_queue import ChannelQueueItem
-
-        if not result or "offer_id" not in result:
-            raise ValueError(f"Invalid result: {result}")
-
-        offer_id = result.get("offer_id")
-
-        try:
-            message = db.query(ChannelQueueItem).filter(
-                ChannelQueueItem.type == 'offer_sent',
-                ChannelQueueItem.payload.contains(f'"offer_id": "{offer_id}"')
-            ).first()
-
-            if not message:
-                raise ValueError(f"No offer_sent notification queued for {offer_id}")
-
-            logger.info(f"✅ {handler_name} validated: notification queued")
-
-        except ValueError:
-            raise
-
-        except Exception as e:
-            logger.error(f"[{handler_name}] RETRYABLE error: {e}", exc_info=True)
-            raise RuntimeError(f"Database error: {str(e)}") from e
-
-    @staticmethod
-    def validate_offer_acceptance_recorded(result: Dict[str, Any], db: Session, handler_name: str) -> None:
-        """Validate offer acceptance (accepted_at timestamp)."""
-        from app.models.user import Offer
-
-        if not result or "offer_id" not in result:
-            raise ValueError(f"Invalid result: {result}")
-
-        offer_id = result.get("offer_id")
-
-        try:
-            offer = db.query(Offer).filter(Offer.id == offer_id).first()
-            if not offer:
-                raise ValueError(f"Offer {offer_id} not found")
-
-            if offer.offerStatus != 'ACCEPTED':
-                raise ValueError(f"Offer {offer_id} status is {offer.offerStatus}, expected ACCEPTED")
-
-            if not hasattr(offer, 'accepted_at') or offer.accepted_at is None:
-                raise ValueError(f"Offer {offer_id} missing accepted_at timestamp")
-
-            logger.info(f"✅ {handler_name} validated: {offer_id} accepted")
-
-        except ValueError:
-            raise
-
-        except Exception as e:
-            logger.error(f"[{handler_name}] RETRYABLE error: {e}", exc_info=True)
-            raise RuntimeError(f"Database error: {str(e)}") from e
-
-    @staticmethod
-    def validate_offer_rejection_recorded(result: Dict[str, Any], db: Session, handler_name: str) -> None:
-        """Validate offer rejection (rejected_at timestamp, reason recorded)."""
-        from app.models.user import Offer
-
-        if not result or "offer_id" not in result:
-            raise ValueError(f"Invalid result: {result}")
-
-        offer_id = result.get("offer_id")
-
-        try:
-            offer = db.query(Offer).filter(Offer.id == offer_id).first()
-            if not offer:
-                raise ValueError(f"Offer {offer_id} not found")
-
-            if offer.offerStatus != 'REJECTED':
-                raise ValueError(f"Offer {offer_id} status is {offer.offerStatus}, expected REJECTED")
-
-            if not hasattr(offer, 'rejected_at') or offer.rejected_at is None:
-                raise ValueError(f"Offer {offer_id} missing rejected_at timestamp")
-
-            logger.info(f"✅ {handler_name} validated: {offer_id} rejected")
-
-        except ValueError:
-            raise
-
-        except Exception as e:
-            logger.error(f"[{handler_name}] RETRYABLE error: {e}", exc_info=True)
-            raise RuntimeError(f"Database error: {str(e)}") from e
-
-    @staticmethod
     def validate_job_status_changed(result: Dict[str, Any], db: Session, handler_name: str, expected_status: str = None) -> None:
         """Validate job status transitioned to expected state."""
         from app.models.user import Jobs
@@ -754,62 +478,6 @@ class ValidateHandlersFactory:
                 raise ValueError(f"Job {job_id} status is {job.jobStatus}, expected {expected_status}")
 
             logger.info(f"✅ {handler_name} validated: {job_id} status={job.jobStatus}")
-
-        except ValueError:
-            raise
-
-        except Exception as e:
-            logger.error(f"[{handler_name}] RETRYABLE error: {e}", exc_info=True)
-            raise RuntimeError(f"Database error: {str(e)}") from e
-
-    @staticmethod
-    def validate_job_candidate_sourcing_queued(result: Dict[str, Any], db: Session, handler_name: str) -> None:
-        """Validate sourcing message queued for job."""
-        from app.models.message_queue import ChannelQueueItem
-
-        if not result or "job_id" not in result:
-            raise ValueError(f"Invalid result: {result}")
-
-        job_id = result.get("job_id")
-
-        try:
-            message = db.query(ChannelQueueItem).filter(
-                ChannelQueueItem.type.ilike('%source%'),
-                ChannelQueueItem.payload.contains(f'"job_id": "{job_id}"')
-            ).first()
-
-            if not message:
-                raise ValueError(f"No sourcing message queued for job {job_id}")
-
-            logger.info(f"✅ {handler_name} validated: sourcing queued")
-
-        except ValueError:
-            raise
-
-        except Exception as e:
-            logger.error(f"[{handler_name}] RETRYABLE error: {e}", exc_info=True)
-            raise RuntimeError(f"Database error: {str(e)}") from e
-
-    @staticmethod
-    def validate_flash_recruitment_started(result: Dict[str, Any], db: Session, handler_name: str) -> None:
-        """Validate flash recruiter queued engagement messages."""
-        from app.models.message_queue import ChannelQueueItem
-
-        if not result or "job_id" not in result:
-            raise ValueError(f"Invalid result: {result}")
-
-        job_id = result.get("job_id")
-
-        try:
-            messages = db.query(ChannelQueueItem).filter(
-                ChannelQueueItem.type.ilike('%engage%'),
-                ChannelQueueItem.payload.contains(f'"job_id": "{job_id}"')
-            ).count()
-
-            if messages == 0:
-                raise ValueError(f"No engagement messages queued for job {job_id}")
-
-            logger.info(f"✅ {handler_name} validated: {messages} engagement messages queued")
 
         except ValueError:
             raise
@@ -872,8 +540,8 @@ class ValidateHandlersFactory:
 
     @staticmethod
     def validate_ops_alert_notification_sent(result: Dict[str, Any], db: Session, handler_name: str) -> None:
-        """Validate ops alert notification queued."""
-        from app.models.message_queue import ChannelQueueItem
+        """Validate the ops alert Task record (OpsAlertHandler returns its id as alert_id) exists."""
+        from app.models.task import Task
 
         if not result or "alert_id" not in result:
             raise ValueError(f"Invalid result: {result}")
@@ -881,15 +549,11 @@ class ValidateHandlersFactory:
         alert_id = result.get("alert_id")
 
         try:
-            message = db.query(ChannelQueueItem).filter(
-                ChannelQueueItem.type.ilike('%alert%'),
-                ChannelQueueItem.payload.contains(f'"alert_id": "{alert_id}"')
-            ).first()
+            task = db.query(Task).filter(Task.id == alert_id).first()
+            if not task:
+                raise ValueError(f"Ops alert task {alert_id} not found")
 
-            if not message:
-                raise ValueError(f"Alert notification not queued for {alert_id}")
-
-            logger.info(f"✅ {handler_name} validated: alert queued")
+            logger.info(f"✅ {handler_name} validated: ops alert task {alert_id} created")
 
         except ValueError:
             raise

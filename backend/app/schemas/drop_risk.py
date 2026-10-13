@@ -1,4 +1,3 @@
-from app.core.logging import logger
 """Pydantic Schemas -- S-060/HRMS-0460 Drop Risk Prediction."""
 from datetime import datetime
 import logging

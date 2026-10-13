@@ -1,10 +1,8 @@
 """Training, Certification, and Partner-specific dashboards."""
-import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from app.core.logging import logger
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.visibility import partner_choices, resolve_dashboard_partner, should_bypass_bu_filter
@@ -12,9 +10,7 @@ from app.models.user import Users
 from app.services.training_certification_service import (
     get_buddy_program_overview,
     get_certification_summary,
-    get_employee_training_status,
     get_training_pipeline_status,
-    get_next_training_steps,
     get_open_positions,
     get_core_certified_employees,
 )
@@ -27,14 +23,26 @@ router = APIRouter(prefix="/dashboards", tags=["Dashboards"])
 
 
 # ============================================================================
-# Troy's Partner Dashboard (Current Demand, Pipeline, Certifications, Buddy, Core Certified)
+# Partner Dashboard (Current Demand, Pipeline, Certifications, Buddy, Core Certified)
 # ============================================================================
 
+def _heads_label(db, business_unit_id: int):
+    """'<head> (BX-US), <head> (BX-IN)' -- the BU's head in each company, or None."""
+    from app.models.location import Location
+    from app.services.bu_leadership import location_heads
+
+    rows = location_heads(db, business_unit_id)
+    if not rows:
+        return None
+    names = {loc.id: loc.name for loc in db.query(Location).filter(Location.id.in_(list(rows)))}
+    return ", ".join(sorted(f"{(r.head.UserName or r.head.UserEmail)} ({names.get(c, c)})" for c, r in rows.items()))
+
+
 @router.get(
-    "/troy-partner",
+    "/partner",
     dependencies=[Depends(require_resource_permission("partner-dashboard", "view"))]
 )
-def get_troy_partner_dashboard(
+def get_partner_dashboard(
     partner_user_id: Optional[str] = Query(default=None, description="Org-level users choose a partner"),
     business_unit_id: Optional[int] = Query(default=None, description="Narrow the operational sections to one of the partner's BUs"),
     year: Optional[int] = Query(default=None, description="Fiscal year (default: current)"),
@@ -97,8 +105,8 @@ def get_troy_partner_dashboard(
         "partner": {"user_id": partner.UserID, "name": partner.UserName or partner.UserEmail},
         "partners": partner_choices(db) if should_bypass_bu_filter(current_user) else None,
         "fy_label": fy_info(db, year, tenant_id)["label"],
-        "business_units": [{"id": bu.id, "name": bu.display_name or bu.name,
-                            "head": (bu.manager.UserName or bu.manager.UserEmail) if bu.manager else None}
+        # heads are per company: "Name (company), ..." for each BU
+        "business_units": [{"id": bu.id, "name": bu.display_name or bu.name, "head": _heads_label(db, bu.id)}
                            for bu in bus],
         "business_unit_id": business_unit_id,
         "totals": totals,

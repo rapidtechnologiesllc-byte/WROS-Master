@@ -2,8 +2,7 @@ from datetime import date, datetime
 import logging
 from typing import Optional
 
-from pydantic import BaseModel
-from app.core.logging import logger
+from pydantic import BaseModel, ConfigDict, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +16,17 @@ class OpportunityCreateRequest(BaseModel):
     currency: str = "USD"
     revenue_value_native: Optional[int] = None
     owner_employee_id: Optional[str] = None
-    client_owner_id: Optional[str] = None
+    client_owner_id: Optional[str] = None  # a user (users.UserID); defaults to the caller
     expected_close_date: Optional[date] = None
     stage: str = "QUALIFICATION"
+    # What is being sold (stored in opportunity_profiles)
+    service: Optional[str] = None
+    guidewire_module: Optional[str] = None
+    client_type: Optional[str] = None
+    pricing_model: Optional[str] = None
+
+    # an unknown field is a screen/API mismatch: reject it instead of silently dropping data
+    model_config = ConfigDict(extra="forbid")
 
 class OpportunityItem(BaseModel):
     id: str
@@ -29,6 +36,10 @@ class OpportunityItem(BaseModel):
     owner_name: Optional[str] = None
     client_owner_id: Optional[str] = None
     client_owner_name: Optional[str] = None
+    service: Optional[str] = None
+    guidewire_module: Optional[str] = None
+    client_type: Optional[str] = None
+    pricing_model: Optional[str] = None
     stage: str
     revenue_value_usd_cents: int
     revenue_value_native: Optional[int]
@@ -72,6 +83,18 @@ class RoleDemandFromOpportunityRequest(BaseModel):
     quantity: int
     duration_hours: int
     billing_rate_usd_cents: int
+
+    @field_validator("work_location")
+    @classmethod
+    def _work_location(cls, value: str) -> str:
+        """Remote / onsite / hybrid (the jobs table only stores these); refused here with a
+        clear message instead of failing in the database."""
+        from app.models.user import JOB_WORK_LOCATIONS
+
+        normalised = (value or "").strip().upper()
+        if normalised not in JOB_WORK_LOCATIONS:
+            raise ValueError(f"work_location must be one of {', '.join(JOB_WORK_LOCATIONS)}")
+        return normalised
 
 class RoleDemandFromOpportunityResponse(BaseModel):
     id: str

@@ -2,7 +2,6 @@
 S-434 -- Org-wide Task Dashboard.
 ==================================================================
 Prefix: /tasks
-import logging
 Tag:    tasks
 
 Internal-employees-only surface (any authenticated Users row, not
@@ -18,32 +17,32 @@ GET  /tasks/my-day/scheduled  -- open follow-ups due in the next 30 days
 GET  /tasks/update-options     -- choices for the Log update form
 GET  /tasks/{id}/updates       -- updates on this task (and the tasks it follows up)
 POST /tasks/{id}/updates       -- log what was done + next action (creates the follow-up task)
-POST /tasks/{id}/reassign-suggest   -- mark self/another user unavailable, suggest today's reassignments
-POST /tasks/reassignments/{id}/approve
-POST /tasks/reassignments/{id}/reject
 """
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
-from app.models.task import Task, TaskReassignmentRequest
+from app.core.visibility import is_org_level_user
+from app.models.task import Task
 from app.models.user import Users
-from app.schemas.task import (
-    MarkUnavailableRequest, ReassignmentApproveRequest, TaskCreateRequest, TaskResponse, TaskUpdateRequest,
-)
+from app.schemas.task import TaskCreateRequest, TaskResponse, TaskUpdateRequest
 from app.services.task_activity_service import activity_to_dict, list_task_updates, log_task_update, update_options
-from app.services.task_assignment_service import (
-    approve_reassignment, reject_reassignment, suggest_todays_reassignments,
-)
 from app.services.task_service import (
     complete_task, confirm_urgent_task, create_task, get_daily_task_list, get_scheduled_tasks, get_upcoming_urgent_tasks,
 )
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
-def _get_task_or_404(db: Session, task_id: int) -> Task:
-    task = db.query(Task).filter(Task.id == task_id).first()
+def _get_task_or_404(db: Session, task_id: int, user: Users) -> Task:
+    """A task the caller may act on: one assigned to or created by them; an org-level role
+    template (RoleTemplate.org_level_access) may act on any task of the tenant. Anyone else's
+    task is 404, the same answer as a task that does not exist."""
+    query = db.query(Task).filter(Task.id == task_id, or_(Task.tenant_id.is_(None), Task.tenant_id == user.tenant_id))
+    if not is_org_level_user(user):
+        query = query.filter(or_(Task.assigned_to_user_id == user.UserID, Task.created_by_user_id == user.UserID))
+    task = query.first()
     if not task:
         raise HTTPException(status_code=404, detail=f"Task #{task_id} not found.")
     return task
@@ -84,7 +83,7 @@ def task_update_options():
     dependencies=[Depends(require_resource_permission("my-tasks", "view"))]
 )
 def get_task_updates(task_id: int, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
-    task = _get_task_or_404(db, task_id)
+    task = _get_task_or_404(db, task_id, current_user)
     return {"task_id": task.id, "updates": [activity_to_dict(a) for a in list_task_updates(db, task)]}
 
 @router.post(
@@ -96,7 +95,7 @@ def post_task_update(
     task_id: int, body: TaskUpdateRequest,
     current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db),
 ):
-    task = _get_task_or_404(db, task_id)
+    task = _get_task_or_404(db, task_id, current_user)
     try:
         activity = log_task_update(
             db, task, current_user,
@@ -133,7 +132,7 @@ def create_task_endpoint(
     dependencies=[Depends(require_resource_permission("my-tasks", "create"))]
 )
 def confirm_urgent(task_id: int, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
-    task = _get_task_or_404(db, task_id)
+    task = _get_task_or_404(db, task_id, current_user)
     return confirm_urgent_task(db, task)
 
 @router.post(
@@ -142,6 +141,6 @@ def confirm_urgent(task_id: int, current_user: Users = Depends(get_current_inter
     dependencies=[Depends(require_resource_permission("my-tasks", "create"))]
 )
 def complete(task_id: int, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
-    task = _get_task_or_404(db, task_id)
+    task = _get_task_or_404(db, task_id, current_user)
     return complete_task(db, task)
 

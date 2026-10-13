@@ -1,5 +1,4 @@
 """
-import logging
 Executive Signal & Culture Agent -- org-health rollup.
 
 Real correction, 2026-08-04 (see app.models.executive_signal's module

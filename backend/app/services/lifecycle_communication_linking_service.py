@@ -1,6 +1,5 @@
 """
 EPIC-14/S-435 (HRMS-1408) -- Candidate & Employee Lifecycle
-import logging
 Communication Linking.
 
 Real ask, Avinash 2026-08-05: HR/recruiter emails to a candidate

@@ -4,7 +4,6 @@ boundary as the existing employee self-service timesheet: whoever is
 logged in logs their OWN expense -- `logged_by_user_id` is always
 resolved from the authenticated caller, never a caller-supplied field
 (Avinash: "the expense is logged by employee so they need to login to
-import logging
 their portal and add their expense").
 
 BU attribution is derived from the logger's own business_unit_id at
@@ -117,13 +116,10 @@ def _get_employee_manager(db: Session, employee_user: Users) -> Optional[Users]:
     if not org_node or not org_node.parent_id:
         return None
 
-    # Get the parent node (manager's org node)
-    manager_node = db.query(OrgNode).filter(OrgNode.id == org_node.parent_id).first()
-    if not manager_node or not manager_node.user_id:
-        return None
-
-    # Return the manager user
-    return db.query(Users).filter(Users.UserID == manager_node.user_id).first()
+    # The manager is the person sitting in the parent seat (Users.org_node_id); OrgNode
+    # itself has no user column
+    return db.query(Users).filter(Users.org_node_id == org_node.parent_id,
+                                  Users.tenant_id == employee_user.tenant_id).first()
 
 def _create_manager_approval_task(db: Session, expense: ExpenseRecord, employee_user: Users) -> None:
     """PRIORITY-3: Create a Task for the manager to approve the expense.
@@ -158,45 +154,51 @@ def _create_manager_approval_task(db: Session, expense: ExpenseRecord, employee_
     )
 
 def _finance_assignee(db: Session, tenant_id: Optional[int]) -> Optional[Users]:
-    """Picks a Finance-role user to assign the "mark as paid" Task to.
-    Deterministic (lowest UserID) rather than round-robin -- this is a
-    single low-volume approval queue, not a high-throughput ticket
-    system that needs load balancing.
+    """The Finance person the "mark as paid" Task goes to: the most junior invoice approver
+    (Finance at Senior Manager level or above, by role template -- app.core.authority), the
+    same people who approve invoices. None when the firm has no one in that seat yet: the
+    task is then visible org-wide (never an administrator bypass -- paying is Finance's call)."""
+    from app.services.invoice_service import invoice_approvers
 
-    Zero-hardcoding: Finance users identified by 'payroll_access' attribute,
-    not by hardcoded 'Finance' role name."""
+    approvers = invoice_approvers(db, tenant_id)
+    return approvers[0] if approvers else None
 
-    # Find all users with finance-level permissions (payroll access)
-    all_users = db.query(Users)
-    if tenant_id is not None:
-        all_users = all_users.filter(Users.tenant_id == tenant_id)
-    all_users = all_users.order_by(Users.UserID).all()
+def can_review_as_manager(db: Session, expense: ExpenseRecord, user: Users) -> bool:
+    """The manager the approval task was assigned to, or anyone with finance
+    (revenue view) authority. Never the person who logged it."""
+    from app.models.task import Task
+    from app.services.role_template_permission_service import RoleTemplatePermissionService as perms
 
-    # Filter to only users with payroll_access or revenue.view_pnl permission
-    finance_users = [u for u in all_users if u]
-    return finance_users[0] if finance_users else None
+    if user.UserID == expense.logged_by_user_id:
+        return False
+    assigned = db.query(Task).filter(Task.expense_id == expense.id, Task.status != "COMPLETED",
+                                     Task.assigned_to_user_id == user.UserID).first()
+    return assigned is not None or perms.has_permission(db, user.UserID, "revenue", "view", user.tenant_id)
+
+
+def _close_open_tasks(db: Session, expense: ExpenseRecord) -> None:
+    from app.models.task import Task
+    from app.services.task_service import complete_task
+
+    for task in db.query(Task).filter(Task.expense_id == expense.id, Task.status != "COMPLETED").all():
+        complete_task(db, task)
+
 
 def approve_manager_step(db: Session, expense: ExpenseRecord, *, approved_by: str) -> ExpenseRecord:
-    """PRIORITY-3: Manager approval step in the expense workflow.
-
-    Called when the manager approves the expense via the Task interface.
-    After manager approval, the expense is submitted to Finance for review.
-
-    Flow:
-    1. Employee logs (manager_approval_status = PENDING)
-    2. Manager approves (manager_approval_status = APPROVED) â† THIS FUNCTION
-    3. Finance reviews (payment_status changes)
-    4. Finance marks as REIMBURSED
-    """
+    """Manager approval: the expense now counts as a cost in the P&L and moves to
+    Finance for payment. Closes the manager's approval task."""
     if expense.manager_approval_status != "PENDING":
         raise ExpenseValidationError(
             f"Expense {expense.id} manager approval must be PENDING, not {expense.manager_approval_status}"
         )
+    if approved_by == expense.logged_by_user_id:
+        raise ExpenseValidationError("You can't approve your own expense.")
 
     expense.manager_approval_status = "APPROVED"
     expense.manager_approved_by = approved_by
     expense.manager_approved_at = datetime.utcnow()
     db.add(expense)
+    _close_open_tasks(db, expense)
     db.commit()
     db.refresh(expense)
 
@@ -204,6 +206,24 @@ def approve_manager_step(db: Session, expense: ExpenseRecord, *, approved_by: st
         f"[ExpenseService] Manager approval completed for expense {expense.id} "
         f"(approved by {approved_by}), now ready for Finance review"
     )
+    return expense
+
+
+def reject_manager_step(db: Session, expense: ExpenseRecord, *, rejected_by: str) -> ExpenseRecord:
+    """Manager rejection: the expense never counts in the P&L."""
+    if expense.manager_approval_status != "PENDING":
+        raise ExpenseValidationError(
+            f"Expense {expense.id} manager approval must be PENDING, not {expense.manager_approval_status}"
+        )
+    if rejected_by == expense.logged_by_user_id:
+        raise ExpenseValidationError("You can't review your own expense.")
+    expense.manager_approval_status = "REJECTED"
+    expense.manager_approved_by = rejected_by
+    expense.manager_approved_at = datetime.utcnow()
+    db.add(expense)
+    _close_open_tasks(db, expense)
+    db.commit()
+    db.refresh(expense)
     return expense
 
 def approve_expense(db: Session, expense: ExpenseRecord, *, approved_by: str) -> ExpenseRecord:
@@ -266,6 +286,7 @@ def _create_mark_paid_task(db: Session, expense: ExpenseRecord) -> None:
         priority="MEDIUM",
         tenant_id=expense.tenant_id,
         assigned_to_user_id=assignee.UserID if assignee else None,
+        visibility_scope="ASSIGNEE_MANAGER_DEPARTMENT" if assignee else "ORG_WIDE",
         expense_id=expense.id,
     )
 

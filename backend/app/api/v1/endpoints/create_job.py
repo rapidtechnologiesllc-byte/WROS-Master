@@ -1,25 +1,20 @@
 import json
-import os
 from datetime import datetime, date
-import logging
 from typing import Optional, List
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Header, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from app.core.bu_scope import candidate_scope_filter, ensure_candidate_visible
+from app.core.data_scope import bu_filter, ensure_assignable, job_filter, visible_job_or_404
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.logging import logger
 from app.core.rate_limiter import rate_limit
-from app.core.csrf_protection import generate_csrf_token
-from app.services.ai_conversation_service import run_auto_assign_ai_agent_in_background
 from app.services.candidate_service import find_duplicate_candidate
 from app.services.message_queue_service import MessageQueueService
-from app.services.ready_for_opportunity_service import scan_new_job_for_matches
 from app.models.user import Jobs
-from app.models.business_unit import BusinessUnit
 from app.models.candidate import (
-    Candidate,
     CandidateEducationForm,
     CandidateExperienceForm,
     CandidateStatus,
@@ -33,16 +28,13 @@ from app.schemas.user import (
     AllJobsResponse, DeleteResponse,
     LinkedInPostRequest, LinkedInPostResponse,
     JobApproveResponse,
-    CandidateJobAssignRequest, CandidateJobSummary, CandidatesByJobResponse,
 )
 from app.schemas.candidate import (
     EducationEntry, ExperienceEntry, JobApplicationResponse
 )
-from app.models.candidate import Candidate
 from app.models.user import Users
-from app.models.role_template import RoleTemplate
 
-from app.utils.uniq_id_generator import user_id_generator, job_id_generator
+from app.utils.uniq_id_generator import job_id_generator
 
 from app.tools.job_description_generator import generate_job_description_with_state
 from app.api.v1.endpoints.documents import _upload_document_helper
@@ -51,24 +43,16 @@ from app.models.agent_execution_log import AgentExecutionLog
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
-# ---------------------------------------------------------------------------
-# Auto-approval logic
-# ---------------------------------------------------------------------------
 
-# Roles that can publish jobs immediately - no approval workflow needed
-AUTO_APPROVE_ROLES = {"super user", "super admin", "bu head", "hiring manager"}
+def _jobs_in_scope(db: Session, user):
+    """Jobs the caller may see: their own tenant, and -- unless their role template is
+    org-level -- only their business units' jobs plus jobs not yet assigned to a BU
+    (CEO 2026-10-12, app.core.data_scope)."""
+    return db.query(Jobs).filter(
+        (Jobs.tenant_id == user.tenant_id) | Jobs.tenant_id.is_(None),
+        bu_filter(db, user, Jobs.business_unit_id),
+    )
 
-def _can_auto_approve_job(user) -> bool:
-    """
-    Returns True if the user's role allows immediate job publishing.
-    Checks the RBAC role first, then falls back to the legacy UserRole string.
-    """
-    role_name = ""
-    if user.role_template and user.role_template.name:
-        role_name = user.role_template.name
-    elif user.UserRole:
-        role_name = user.UserRole
-    return role_name.lower() in AUTO_APPROVE_ROLES
 
 @router.post(
     "/generate_job_description",
@@ -256,10 +240,10 @@ def get_all_jobs(
     Returns:
         AllJobsResponse with list of all jobs and total count
     """
-    # HRMS-0109 -- scoped to the caller's own tenant, never all tenants' jobs.
+    # HRMS-0109 -- scoped to the caller's own tenant and business units, never all jobs.
     # Filter out soft-deleted jobs
-    jobs = db.query(Jobs).filter(
-        (Jobs.is_deleted == False) | (Jobs.is_deleted.is_(None)),
+    jobs = _jobs_in_scope(db, user).filter(
+        (Jobs.is_deleted == False) | (Jobs.is_deleted.is_(None)),  # noqa: E712
         (Jobs.deleted_at.is_(None))
     ).all()
     
@@ -303,6 +287,7 @@ def get_all_jobs(
 )
 def get_active_jobs(
     db: Session = Depends(get_db),
+    user = Depends(get_current_internal_user),
 ):
     """
     Get all jobs with status 'active' or 'public'.
@@ -314,7 +299,7 @@ def get_active_jobs(
     Returns:
         AllJobsResponse with list of active/public jobs and total count
     """
-    jobs = db.query(Jobs).filter(
+    jobs = _jobs_in_scope(db, user).filter(
         Jobs.jobStatus.in_(["active", "public"])
     ).all()
 
@@ -379,9 +364,9 @@ def filter_jobs(
     - **company_name**: partial / exact match on company name
     - **job_location**: partial / exact match on job location
     """
-    # HRMS-0109 -- scope to the caller's tenant before any of the
-    # optional filters below narrow it further.
-    query = db.query(Jobs)
+    # HRMS-0109 -- scope to the caller's tenant and business units before any of the
+    # optional filters below narrow it further: picking another BU yields nothing.
+    query = _jobs_in_scope(db, user)
 
     if business_unit is not None:
         query = query.filter(Jobs.business_unit_id == business_unit)
@@ -452,10 +437,10 @@ def get_my_jobs(
 
     my_id = user.UserID
     
-    # Check if user is a BU Head
-    is_bu_head = False
-    if user.role_template and user.role_template.name == "BU Head":
-        is_bu_head = True
+    # BU leaders (role template hierarchy level) see every job in the business units they
+    # partner, head (in any company) or belong to -- by business unit, never by location
+    from app.core import authority
+    from app.services.bu_leadership import led_business_units
 
     # Build the OR conditions
     filters = [
@@ -463,16 +448,16 @@ def get_my_jobs(
         Jobs.hiringManagerID == my_id,
         Jobs.contactPerson == my_id,
     ]
-    
-    # If the user is a BU Head, they should see all jobs belonging to their Business Unit
-    if is_bu_head and user.business_unit_id:
-        filters.append(Jobs.business_unit_id == user.business_unit_id)
 
-    jobs = (
-        db.query(Jobs)
-        .filter(or_(*filters))
-        .all()
-    )
+    if authority.is_bu_leader(db, user):
+        my_bu_ids = led_business_units(db, user)
+        if user.business_unit_id is not None:
+            my_bu_ids.add(user.business_unit_id)
+        if my_bu_ids:
+            filters.append(Jobs.business_unit_id.in_(my_bu_ids))
+
+    # still only jobs the caller may see at all (a job-details link for any of them works)
+    jobs = _jobs_in_scope(db, user).filter(or_(*filters)).all()
 
     jobs_data = [
         JobResponse(
@@ -529,12 +514,7 @@ def get_job_by_id(
         HTTPException: If job not found
     """
 
-    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
-    if not job:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Job with ID {job_id} not found"
-        )
+    job = visible_job_or_404(db, user, job_id, f"Job with ID {job_id}")
 
     contact_person_name = None
     if job.contactPerson:
@@ -637,20 +617,15 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
     if request.recuriter_id in ("string", ""):
         request.recuriter_id = None
 
-    # AUTO-DERIVE: If BU is selected but hiring_manager not provided, auto-assign from BU
+    # AUTO-DERIVE: no hiring manager given -> the head of the business unit in the client's
+    # company (BU heads are per company; BU structure, not a role name)
     if request.business_unit and not request.hiring_manager_id:
+        from app.services.bu_leadership import head_for_client
 
-        # Get Hiring Manager role from this BU
-        hiring_manager_role = db.query(RoleTemplate).filter(RoleTemplate.name == "Hiring Manager").first()
-        if hiring_manager_role:
-            potential_hm = db.query(Users).filter(
-                Users.business_unit_id == request.business_unit,
-                Users.role_template_id == hiring_manager_role.id
-            ).first()
-
-            if potential_hm:
-                request.hiring_manager_id = potential_hm.UserID
-                logger.info(f"[JobCreation] Auto-assigned Hiring Manager: {potential_hm.UserEmail} for BU: {request.business_unit}")
+        head_id = head_for_client(db, request.business_unit, request.client_id)
+        if head_id:
+            request.hiring_manager_id = head_id
+            logger.info(f"[JobCreation] Hiring manager defaulted to the head of BU {request.business_unit}")
 
     # Validate that provided user IDs actually exist
     for user_id, field_name in [
@@ -666,54 +641,9 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
                     detail=f"User '{user_id}' provided for {field_name} does not exist in the system."
                 )
 
-    # JOB APPROVAL FLOW -- DISABLED (2026-10-05, product decision: approval
-    # needs an approver assignment + Approve UI that aren't built yet).
-    # Every new job is published immediately. To re-enable, uncomment the
-    # block below and delete the two lines after it. POST /approve_job and
-    # _can_auto_approve_job() are left in place for that.
-    # # VALIDATION: Prevent BU Head from being their own Hiring Manager (separation of duties)
-    # if request.hiring_manager_id and request.business_unit:
-    #     from app.models.bu_access import BUAccess
-    #
-    #     # Get BU Head for this business unit
-    #     bu_head_role = db.query(RoleTemplate).filter(RoleTemplate.name == "BU Head").first()
-    #     if bu_head_role:
-    #         bu_head = db.query(Users).filter(
-    #             Users.role_template_id == bu_head_role.id,
-    #             Users.business_unit_id == request.business_unit
-    #         ).first()
-    #
-    #         # If hiring_manager_id is same as BU Head, reject (prevent self-approval)
-    #         if bu_head and request.hiring_manager_id == bu_head.UserID:
-    #             raise HTTPException(
-    #                 status_code=400,
-    #                 detail=f"BU Head cannot be their own Hiring Manager (separation of duties). Please assign a different hiring manager for this job."
-    #             )
-    #
-    # # Determine job status based on the creator's role
-    # if _can_auto_approve_job(user):
-    #     job_status = "active"
-    #     response_message = "Job published successfully"
-    # else:
-    #     job_status = "pending_approval"
-    #
-    #     # Check if we can assign approval to the Business Unit Head
-    #     if request.business_unit:
-    #         bu_head_role = db.query(RoleTemplate).filter(RoleTemplate.name == "BU Head").first()
-    #         if bu_head_role:
-    #             bu_head = db.query(Users).filter(
-    #                 Users.role_template_id == bu_head_role.id,
-    #                 Users.business_unit_id == request.business_unit
-    #             ).first()
-    #             if bu_head:
-    #                 approver_name = bu_head.UserName or bu_head.UserEmail
-    #                 response_message = f"Job submitted for approval. Awaiting approval from BU Head: {approver_name}"
-    #             else:
-    #                 response_message = "Job submitted for approval. A Super User must approve it before it goes live (No BU Head found for this unit)."
-    #         else:
-    #             response_message = "Job submitted for approval. A Super User or BU Head must approve it before it goes live."
-    #     else:
-    #         response_message = "Job submitted for approval. A Super User or BU Head must approve it before it goes live."
+    # Job approval is disabled (2026-10-05 product decision: no approver assignment or
+    # Approve UI yet), so every new job is published immediately. When it returns, the
+    # approver is chosen by role template (app.core.authority.is_bu_leader), never by name.
     job_status = "active"
     response_message = "Job published successfully"
 
@@ -724,6 +654,11 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
     client = resolve_job_client(db, user.tenant_id, request.client_id, request.company_name)
     business_unit_id = request.business_unit or (client.business_unit_id if client else None)
     company_name = request.company_name or (client.company_name if client else None)
+    # Business-unit scope (CEO 2026-10-12): never create a job in, or for a client of, a BU
+    # outside the caller's scope
+    ensure_assignable(db, user, business_unit_id, "job")
+    if client is not None:
+        ensure_assignable(db, user, client.business_unit_id, "job")
     if request.project_id:
         validate_job_project(db, request.project_id, client)
 
@@ -731,7 +666,7 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
     # The message handler will create the job and assign AI recruiter
     MessageQueueService.enqueue(
         task_name="job_created_flash",
-        task_id=job_id,
+        task_id=f"job_created:{job_id}",
         data={
             "job_id": job_id,
             "job_title": request.job_title,
@@ -759,30 +694,6 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
         tenant_id=user.tenant_id,
     )
 
-    # Create job object for response (frontend UI needs immediate feedback)
-    job = Jobs(
-        jobID=job_id,
-        jobTitle=request.job_title,
-        jobDescription=request.job_description,
-        jobSkills=request.job_skills,
-        jobExperience=request.job_experience,
-        jobLocation=request.job_location,
-        jobCreatedAt=datetime.now(),
-        companyType=request.company_type,
-        companyName=company_name,
-        contactPerson=request.contact_person,
-        jobStatus=job_status,
-        noOfPositions=request.no_of_positions,
-        startDate=request.start_date,
-        hiringManagerID=request.hiring_manager_id,
-        recuriterID=request.recuriter_id,
-        business_unit_id=business_unit_id,
-        client_id=client.id if client else None,
-        project_id=request.project_id,
-        billing_rate_usd_cents=request.billing_rate_usd_cents,
-        department_id=request.department_id,
-        salaryRange=request.salary_range
-    )
 
     # Wire SLM: Store job metadata for continuous learning
     try:
@@ -847,12 +758,7 @@ def approve_job(
     if not x_csrf_token or not validate_csrf_token(x_csrf_token):
         raise HTTPException(status_code=403, detail="Invalid or missing CSRF token")
 
-    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
-    if not job:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Job '{job_id}' not found"
-        )
+    job = visible_job_or_404(db, user, job_id, f"Job '{job_id}'")
 
     if job.jobStatus != "pending_approval":
         raise HTTPException(
@@ -880,7 +786,9 @@ def approve_job(
     from app.services.job_approval_workflow_service import handle_job_approval
     approval_result = handle_job_approval(db, job, user, send_emails=True)
 
-    background_tasks.add_task(scan_new_job_for_matches, db, job)
+    from app.services.recruiting_service import start_recruiting
+
+    start_recruiting(job, "approved")  # the recruiter run nudges watchers and sources the pool
 
     approver_name = user.UserName or user.UserEmail
     recruiter_msg = f" Assigned to recruiter: {approval_result.get('recruiter_name', 'N/A')}" if approval_result.get('recruiter_name') else ""
@@ -913,13 +821,20 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
     Raises:
         HTTPException: If job not found
     """
-    # Find the job
-    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
-    if not job:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Job with ID {job_id} not found"
-        )
+    # Find the job -- another business unit's job is "not found" (CEO 2026-10-12)
+    job = visible_job_or_404(db, user, job_id, f"Job with ID {job_id}")
+
+    # ...and it cannot be moved into a BU, or onto a client of a BU, outside the caller's
+    # scope. Checked before any field changes.
+    if request.business_unit is not None:
+        ensure_assignable(db, user, request.business_unit, "job")
+    new_client = None
+    if request.client_id:
+        new_client = resolve_job_client(db, user.tenant_id, request.client_id, None)
+    elif request.client_id is None and request.company_name is not None:
+        new_client = resolve_job_client(db, user.tenant_id, None, request.company_name)
+    if new_client is not None:
+        ensure_assignable(db, user, new_client.business_unit_id, "job")
 
     # Status is never edited directly: it is set at creation (approval flow
     # is currently disabled, so new jobs are active) and by POST /approve_job.
@@ -949,11 +864,10 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
     if request.company_name is not None:
         job.companyName = request.company_name
     if request.client_id is None and request.company_name is not None:
-        # Renamed without an explicit client pick: re-match the name
-        matched = resolve_job_client(db, user.tenant_id, None, request.company_name)
-        job.client_id = matched.id if matched else None
+        # Renamed without an explicit client pick: re-match the name (resolved above)
+        job.client_id = new_client.id if new_client else None
     if request.client_id is not None:
-        client = resolve_job_client(db, user.tenant_id, request.client_id, None) if request.client_id else None
+        client = new_client if request.client_id else None
         job.client_id = client.id if client else None
         if client:
             job.companyName = client.company_name
@@ -965,6 +879,12 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
         if request.project_id:
             validate_job_project(db, request.project_id, job.client)
         job.project_id = request.project_id or None
+    elif job.project_id and (request.client_id is not None or request.company_name is not None):
+        # the client changed but the project did not: it must still be this client's project
+        from app.models.client import Client
+
+        validate_job_project(db, job.project_id,
+                             db.query(Client).filter(Client.id == job.client_id).first() if job.client_id else None)
     if request.contact_person is not None:
         job.contactPerson = request.contact_person
     if request.no_of_positions is not None:
@@ -1047,14 +967,15 @@ def delete_job(job_id: str, db: Session = Depends(get_db), user = Depends(get_cu
     Raises:
         HTTPException: If job not found
     """
-    # Find the job
-    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
-    if not job:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Job with ID {job_id} not found"
-        )
-    
+    # Find the job -- another business unit's job is "not found" (CEO 2026-10-12)
+    job = visible_job_or_404(db, user, job_id, f"Job with ID {job_id}")
+
+    from app.services.job_lifecycle_service import JobHasHistory, assert_deletable
+
+    try:
+        assert_deletable(db, job_id)
+    except JobHasHistory as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     db.delete(job)
     db.commit()
 
@@ -1102,14 +1023,9 @@ def post_job_on_linkedin(
     Raises:
         HTTPException: If job not found
     """
-    # Validate that the job exists
-    job = db.query(Jobs).filter(Jobs.jobID == request.job_id).first()
-    if not job:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Job with ID {request.job_id} not found"
-        )
-    
+    # Validate that the job exists and is in the caller's business-unit scope
+    job = visible_job_or_404(db, user, request.job_id, f"Job with ID {request.job_id}")
+
     # Generate a mock LinkedIn post ID (simulating LinkedIn's response)
     import random
     import string
@@ -1337,21 +1253,13 @@ async def apply_for_job(
     # 2026-08-05 real fix: must NOT pass this request's own `db` (or ORM
     # objects bound to it) into a BackgroundTask -- the session is closed
     # before the task runs. See ats.run_ats_scoring_in_background()'s own
-    # docstring; same convention as run_auto_assign_ai_agent_in_background
-    # below.
+    # docstring.
     try:
         from app.api.v1.endpoints.ats import run_ats_scoring_in_background
         background_tasks.add_task(run_ats_scoring_in_background, candidate_id, job.jobID)
-    except Exception:
-        pass  # ATS failure must never block an application submission
-
-    # 14. HRMS-0401: assign the AI recruiter automatically.
-    # Tenant scoping removed (single-company deployment) -- function uses default tenant_id=1.
-    # Skips gracefully (logged, not raised) if assignment fails.
-    # 2026-08-05 real fix: must NOT pass this request's own `db` into a
-    # BackgroundTask -- it's closed before the task runs. See
-    # run_auto_assign_ai_agent_in_background()'s own docstring.
-    background_tasks.add_task(run_auto_assign_ai_agent_in_background, candidate_id)
+    except Exception as exc:
+        # ATS failure must never block an application submission -- but it is logged
+        logger.error(f"[JOB_APPLY] Could not schedule ATS scoring for {candidate_id}: {exc}", exc_info=True)
 
     return JobApplicationResponse(
         status="Success",
@@ -1366,8 +1274,8 @@ async def apply_for_job(
 
 from app.models.candidate import CandidateJobApplication
 from app.schemas.user import (
-    JobApplicationCreate, JobApplicationStatusUpdate,
-    JobApplicationEntry, CandidateJobsResponse, JobCandidatesMultiResponse,
+    JobApplicationCreate, JobApplicationEntry,
+    CandidateJobsResponse, JobCandidatesMultiResponse,
 )
 
 @router.post(
@@ -1391,13 +1299,9 @@ def create_job_application(
     - Returns **409** if the candidate is already assigned to this job.
     - Returns **404** if the job or candidate does not exist.
     """
-    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
-    if not job:
-        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
-
-    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
-    if not candidate:
-        raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found")
+    # both records must be in the caller's business-unit scope (404 otherwise)
+    job = visible_job_or_404(db, user, job_id, f"Job '{job_id}'")
+    ensure_candidate_visible(db, candidate_id, user)
 
     # Duplicate check
     existing = db.query(CandidateJobApplication).filter(
@@ -1453,8 +1357,9 @@ def remove_job_application(
 ):
     """
     Remove the assignment between a candidate and a job (many-to-many).
-    Returns **404** if the assignment does not exist.
+    Returns **404** if the assignment does not exist (or the job is another BU's).
     """
+    visible_job_or_404(db, user, job_id, f"Job '{job_id}'")
     application = db.query(CandidateJobApplication).filter(
         CandidateJobApplication.candidate_id == candidate_id,
         CandidateJobApplication.job_id == job_id,
@@ -1499,12 +1404,11 @@ def get_job_applications(
     Return all candidates linked to this job via the many-to-many table.
     Optionally filter by ``application_status``.
     """
-    job = db.query(Jobs).filter(Jobs.jobID == job_id).first()
-    if not job:
-        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+    job = visible_job_or_404(db, user, job_id, f"Job '{job_id}'")
 
     query = db.query(CandidateJobApplication).filter(
-        CandidateJobApplication.job_id == job_id
+        CandidateJobApplication.job_id == job_id,
+        candidate_scope_filter(db, user, CandidateJobApplication.candidate_id),
     )
     if application_status:
         query = query.filter(CandidateJobApplication.application_status == application_status)
@@ -1544,13 +1448,12 @@ def get_candidate_applications(
     """
     Return every job a candidate is linked to via the many-to-many table.
     """
-    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
-    if not candidate:
-        raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found")
+    candidate = ensure_candidate_visible(db, candidate_id, user)
 
     applications = (
         db.query(CandidateJobApplication)
-        .filter(CandidateJobApplication.candidate_id == candidate_id)
+        .filter(CandidateJobApplication.candidate_id == candidate_id,
+                job_filter(db, user, CandidateJobApplication.job_id))
         .order_by(CandidateJobApplication.applied_at.desc())
         .all()
     )
@@ -1586,6 +1489,4 @@ def get_candidate_applications(
 # Job Statistics Endpoint
 # ==============================================================================
 
-from sqlalchemy import func as sql_func
-from app.schemas.user import JobStatisticsResponse, ApplicationStatusCount
 

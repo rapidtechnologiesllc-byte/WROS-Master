@@ -1,5 +1,4 @@
 """
-import logging
 S-050/HRMS-0450 -- Interview Reminder Engine.
 
 interview_reminders: genuinely new table -- one row per

@@ -1,5 +1,4 @@
 """
-import logging
 S-075/HRMS-0475 -- AI Recruiter Pause & Resume Controls.
 
 Real architecture adaptation: HRMS-0466 Supervisor Agent (S-066) -- the
@@ -37,7 +36,6 @@ from typing import Dict, Optional
 
 from sqlalchemy.orm import Session
 
-from app.core.logging import logger
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.user import Users
 

@@ -11,8 +11,6 @@ import { getAllUsers } from "../../services/api/users";
 import { listBusinessUnits, departmentList } from "../../services/api/rbac";
 import { listClients } from "../../services/api/clients";
 
-const MANAGER_ROLES = ["Hiring Manager"];
-const RECRUITER_ROLES = ["Recruiter", "Recruitment Manager", "Recruitment Team Lead"];
 
 const FIlterDrawer = ({ open, onClose, filters, setFilters, onApply }) => {
   const [buOptions, setBuOptions] = useState([]);
@@ -50,16 +48,10 @@ const FIlterDrawer = ({ open, onClose, filters, setFilters, onApply }) => {
     getAllUsers()
       .then((data) => {
         const users = data || [];
-        setManagerOptions(
-          users
-            .filter((u) => MANAGER_ROLES.includes(u.user_role))
-            .map((u) => ({ label: u.user_name, value: u.user_id })),
-        );
-        setRecruiterOptions(
-          users
-            .filter((u) => RECRUITER_ROLES.includes(u.user_role))
-            .map((u) => ({ label: u.user_name, value: u.user_id })),
-        );
+        // a job's hiring manager / recruiter can be any internal user (assignments, not roles)
+        const options = users.map((u) => ({ label: u.user_name, value: u.user_id }));
+        setManagerOptions(options);
+        setRecruiterOptions(options);
       })
       .catch(() => {
         setManagerOptions([]);

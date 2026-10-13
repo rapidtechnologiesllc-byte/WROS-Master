@@ -2,7 +2,6 @@
 S-061/HRMS-0461 -- AI Activity Feed, Recruiter Copilot
 ==================================================================
 Prefix: /activity-feed
-import logging
 Tag:    activity-feed
 
 GET /activity-feed?candidate_id={optional}&severity={optional}&page=1&per_page=25
@@ -20,6 +19,7 @@ of its own.
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -28,6 +28,18 @@ from app.schemas.activity_feed import ActivityFeedResponse, MarkAllReadResponse
 from app.services.activity_feed_service import get_activity_feed, mark_all_read, mark_read
 
 router = APIRouter(prefix="/activity-feed", tags=["activity-feed"])
+
+
+def _visible_candidate_ids(db: Session, user):
+    """The candidates whose activity the caller may see -- the Org Pool plus their business
+    units' candidates (app.core.bu_scope, the one candidate rule); None for org-level users."""
+    from app.core.bu_scope import apply_bu_scope_to_candidate_query, is_bu_restricted
+    from app.models.candidate import Candidate
+
+    if not is_bu_restricted(db, user):
+        return None
+    scoped = apply_bu_scope_to_candidate_query(db, db.query(Candidate.candidateID), user).subquery()
+    return select(scoped.c.candidateID)
 
 @router.get("", response_model=ActivityFeedResponse, dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def list_activity_feed(
@@ -39,7 +51,8 @@ def list_activity_feed(
     current_user=Depends(get_current_internal_user),
 ):
     return get_activity_feed(
-        db, current_user.tenant_id or 1, candidate_id=candidate_id, severity=severity, page=page, per_page=per_page,
+        db, current_user.tenant_id, candidate_id=candidate_id, severity=severity, page=page, per_page=per_page,
+        visible_candidate_ids=_visible_candidate_ids(db, current_user),
     )
 
 @router.patch("/{activity_id}/read", dependencies=[Depends(require_resource_permission("candidates", "view"))])
@@ -53,6 +66,6 @@ def mark_activity_feed_read_all(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_internal_user),
 ):
-    count = mark_all_read(db, current_user.tenant_id or 1, current_user.UserID, candidate_id=candidate_id)
+    count = mark_all_read(db, current_user.tenant_id, current_user.UserID, candidate_id=candidate_id)
     return MarkAllReadResponse(marked_count=count)
 

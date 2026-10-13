@@ -1,3 +1,4 @@
+import FinancialOutlookPanel from "../components/FinancialOutlookPanel";
 import { useEffect, useState } from "react";
 import { AlertTriangle, DollarSign, TrendingDown, Clock, X, CheckCircle } from "lucide-react";
 import { Card, Button } from "../components/ui";
@@ -120,6 +121,9 @@ export default function CFOAgentScreen() {
       {/* Overview Tab */}
       {activeTab === "overview" && (
         <div>
+          <div className="mb-6">
+            <FinancialOutlookPanel title="Revenue & expense: plan vs actual (by business unit)" />
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50">
               <div>

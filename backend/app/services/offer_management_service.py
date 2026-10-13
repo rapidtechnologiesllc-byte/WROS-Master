@@ -3,14 +3,12 @@ HRMS-0312 -- Offer Management & Approval (Phase 3)
 Complete offer lifecycle: creation → approval → sending → acceptance → employee conversion.
 """
 from datetime import datetime, timedelta, date
-from typing import Optional, List, Dict, Any
-from decimal import Decimal
+from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from app.models.offer import Offer, OfferStatus
 from app.models.candidate import Candidate
 from app.models.user import Users, Jobs
-from app.core.logging import logger
 import logging
 import uuid
 

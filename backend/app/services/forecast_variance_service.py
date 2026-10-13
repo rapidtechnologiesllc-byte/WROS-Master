@@ -4,7 +4,6 @@ computation revenue_target_service._fy_invoice_total_for_clients()
 already established for the fiscal-year granularity (no
 analytics_fact_revenue ETL table exists anywhere in this codebase).
 Forecast is opportunity_service.calculate_weighted_forecast(), the one
-import logging
 shared calculation per HRMS-0209 BR-0209-01 -- no local recalculation.
 
 Does NOT depend on S-279/HRMS-0313 (Plan vs Execution Variance) despite
@@ -21,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.models.client import Client
 from app.models.invoice import Invoice
-from app.models.opportunity import Opportunity
+from app.models.opportunity import WON_STAGES, Opportunity
 from app.services.opportunity_service import calculate_weighted_forecast
 from app.services.revenue_target_service import status_band
 
@@ -59,7 +58,7 @@ def get_monthly_weighted_forecast(db: Session, *, client_ids: Optional[List[str]
         query = query.filter(Opportunity.client_id.in_(client_ids))
     opportunities = query.all()
     return sum(
-        o.revenue_value_usd_cents if o.stage == "WON" else calculate_weighted_forecast(o)
+        o.revenue_value_usd_cents if o.stage in WON_STAGES else calculate_weighted_forecast(o)
         for o in opportunities
     )
 

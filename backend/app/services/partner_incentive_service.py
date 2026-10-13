@@ -1,5 +1,4 @@
 """
-import logging
 Partner incentive eligibility + calculation, 2026-08-05.
 
 check_new_logo_incentive() is the one entry point -- explicitly
@@ -23,22 +22,14 @@ from app.models.business_unit import BusinessUnit
 from app.models.user import Users
 
 def get_partner_for_bu(db: Session, business_unit_id: Optional[int]) -> Optional[Users]:
-    """The 1:1 Partner-per-BU pairing from the Operating Model (Troy=
-    AXION, Curtis=PRISM) -- resolved by permissions+BU, not role name.
-
-    Zero-hardcoding: Partner identified by 'business_unit.manage' permission,
-    not by hardcoded 'Partner' role name."""
-
+    """The business unit's partner (BusinessUnit.partner_user_id) -- the one place the
+    firm records who partners a BU. Never a name, never any member of the BU."""
     if business_unit_id is None:
         return None
-
-    # Find users assigned to this BU
-    bu_users = db.query(Users).filter(
-        Users.business_unit_id == business_unit_id
-    ).all()
-
-    # Filter to those with business_unit.manage permission (Partner-level)
-    return bu_users[0] if bu_users else None
+    unit = db.query(BusinessUnit).filter(BusinessUnit.id == business_unit_id).first()
+    if unit is None or not unit.partner_user_id:
+        return None
+    return db.query(Users).filter(Users.UserID == unit.partner_user_id).first()
 
 def create_incentive_rule(
     db: Session, *, partner_user_id: str, incentive_type: str,
@@ -60,8 +51,8 @@ def check_new_logo_incentive(db: Session, client: Client) -> Optional[PartnerInc
     active NEW_LOGO_BONUS rule AND the client's MSA is signed
     (contract_start_date set -- this codebase's real proxy for that,
     see module docstring) AND at least one real invoice has been
-    issued. A Partner with no NEW_LOGO_BONUS rule row (e.g. Curtis, per
-    Avinash's explicit "not applicable to Curtis") can never trigger
+    issued. A Partner with no NEW_LOGO_BONUS rule row (a partner paid by
+    revenue share instead) can never trigger
     this, structurally -- no special-case check needed."""
     partner = get_partner_for_bu(db, client.business_unit_id)
     if partner is None:
