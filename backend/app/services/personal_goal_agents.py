@@ -26,6 +26,7 @@ from app.models.opportunity import Opportunity
 from app.models.candidate import Candidate
 from app.models.user import Users
 from app.core.logging import logger
+from app.core import roles
 from app.services.candidate_pipeline_stage import pipeline_stage_in
 
 logger = logging.getLogger(__name__)
@@ -154,7 +155,7 @@ class RecruiterGoalAgent:
 
         recruiters = db.query(Users).filter(
             Users.tenant_id == tenant_id,
-            Users.UserRole == "Recruiter"
+            Users.UserRole == roles.RECRUITER
         ).all()
 
         scoreboard = []

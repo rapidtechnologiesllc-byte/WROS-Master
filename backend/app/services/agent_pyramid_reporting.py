@@ -84,6 +84,7 @@ from app.models.project import Project
 from app.services.candidate_pipeline_stage import employee_active_allocation_ids
 from app.services.scope_helpers import opportunity_in_bu, project_in_bu
 from app.core.logging import logger
+from app.core import roles
 
 logger = logging.getLogger(__name__)
 
@@ -776,7 +777,7 @@ class CEOExecutiveDashboardAgent:
         # Get all Partners
         partners = db.query(Users).filter(
             Users.tenant_id == tenant_id,
-            Users.UserRole == "Partner"
+            Users.UserRole == roles.PARTNER
         ).all()
 
         # Generate partner reports

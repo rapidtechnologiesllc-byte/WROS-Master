@@ -1,5 +1,8 @@
 """
 Recruiter Assignment Service - Round-robin assignment of jobs to recruiters
+
+CRITICAL: Only RECRUITER role can be assigned, NOT HR Manager.
+HR Managers handle onboarding and employee management, not recruitment.
 """
 import logging
 from typing import Optional
@@ -7,7 +10,9 @@ from typing import Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core import roles
 from app.models.user import Jobs, Users
+from app.services.role_validation_service import RoleValidationService
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +20,14 @@ CLOSED_JOB_STATUSES = ("closed", "filled", "cancelled", "inactive", "deleted")
 
 
 def _recruiter_filter():
-    """Recruiters: active users whose role is a recruiter or HR manager."""
+    """Recruiters: active users with RECRUITER role ONLY (NOT HR Manager).
+
+    CRITICAL FIX: Previously included HR Managers in recruiter pool (line 20 old code).
+    This was wrong - HR Managers handle onboarding, not recruitment.
+    """
     role = func.lower(Users.UserRole)
-    return (Users.terminated_at.is_(None)) & (role.like("%recruit%") | (role == "hr manager"))
+    # Only include users with "recruiter" in their role - exclude HR Manager completely
+    return (Users.terminated_at.is_(None)) & (role.like("%recruiter%"))
 
 
 def assign_to_recruiter_roundrobin(db: Session) -> Optional[Users]:
@@ -122,12 +132,15 @@ class RecruiterAssignmentServiceForCandidates:
                         'days_active': None
                     }
 
-            # Guard 3: Find all active recruiters
+            # Guard 3: Find all active recruiters (ONLY Recruiter role, NOT HR Manager)
             recruiters = db.query(Users).filter(
                 Users.tenant_id == tenant_id,
-                Users.UserRole.ilike('%Recruiter%'),
+                Users.UserRole == roles.RECRUITER,  # Use constant, not pattern matching
                 Users.terminated_at.is_(None),
             ).all()
+
+            # Validate all recruiters have proper role_template alignment
+            recruiters = [r for r in recruiters if RoleValidationService.is_recruiter(r)]
 
             if not recruiters:
                 logger.error(f"[CandidateRecruiterAssignment] No recruiters in tenant {tenant_id}")

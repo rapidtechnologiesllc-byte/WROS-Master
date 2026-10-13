@@ -22,6 +22,7 @@ from typing import Any, Dict, Iterable, List, Optional
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core import roles
 from app.models.business_unit import BusinessUnit
 from app.models.client import Client
 from app.models.employee import Employee
@@ -201,7 +202,7 @@ class FinanceAgent:
 
         partners = db.query(Users).filter(
             Users.tenant_id == tenant_id,
-            Users.UserRole == "Partner"
+            Users.UserRole == roles.PARTNER
         ).all()
 
         results = []

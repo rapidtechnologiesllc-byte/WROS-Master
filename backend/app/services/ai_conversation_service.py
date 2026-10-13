@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from app.core.graph_auth import get_graph_token
 from app.core.llm_prompt_safety import build_safe_prompt, flag_suspicious_patterns
 from app.core.logging import logger
+from app.core import roles
 from app.models.candidate import (
     Candidate,
     CandidateInfoForm,
@@ -185,7 +186,7 @@ def run_auto_assign_ai_agent_in_background(candidate_id: str):
         # Get system admin for tenant_id (required by FK constraint)
         try:
             system_admin = db.query(Users).filter(
-                Users.UserRole == "Super User"
+                Users.UserRole == roles.SUPER_USER
             ).first()
         except Exception as e:
             logger.error(f"[Thunder] Failed to query system admin: {e}", exc_info=True)
@@ -194,7 +195,7 @@ def run_auto_assign_ai_agent_in_background(candidate_id: str):
         if not system_admin:
             try:
                 system_admin = db.query(Users).filter(
-                    Users.UserRole.ilike("%admin%")
+                    Users.UserRole == roles.ADMIN
                 ).first()
             except Exception as e:
                 logger.error(f"[Thunder] Failed to query admin by role: {e}", exc_info=True)

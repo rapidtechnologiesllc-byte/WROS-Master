@@ -23,6 +23,7 @@ from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.outreach import OutreachSequence
 from app.core.logging import logger
+from app.core import roles
 from app.services.outreach_agent_service import (
     start_outreach_sequence,
     advance_outreach_sequence,
@@ -70,13 +71,13 @@ def run_thunder_autonomous_cycle(db: Session) -> dict:
     # Get system admin user for tenant_id (required by FK constraint)
     from app.models.user import Users
     system_admin = db.query(Users).filter(
-        Users.UserRole == "Super User"
+        Users.UserRole == roles.SUPER_USER
     ).first()
 
     if not system_admin:
         # Fallback to first admin user if no super user found
         system_admin = db.query(Users).filter(
-            Users.UserRole.ilike("%admin%")
+            Users.UserRole == roles.ADMIN
         ).first()
 
     if not system_admin:
