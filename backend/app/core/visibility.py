@@ -50,7 +50,15 @@ def get_user_bu_id(user: Users) -> int | None:
     return user.business_unit_id
 
 
-def get_user_bu_ids(db, user: Users) -> set[int] | None:
+def get_user_data_scope(db, user: Users):
+    """What a BU-scoped user may see, as {business_unit_id: None (every company) | company
+    ids} -- app.services.bu_leadership. None = org-level (no filter).
+
+    - Partner of a BU: the whole BU.
+    - BU head in some companies: the BU in those companies only (CEO 2026-10-12: a head is
+      head of a location, e.g. AXION/BX-IN, and must not see AXION/BX-US).
+    - Their own BU (Users.business_unit_id) when they lead nothing in it: the whole BU,
+      as before -- membership never widens a head's location scope.
     """
     The business units a BU-scoped user may see (CEO 2026-10-12: by business unit only,
     never by location): the BUs they partner, the BUs they head in any company, and their
@@ -121,6 +129,17 @@ def resolve_dashboard_head_bu(db, user: Users, requested_bu_id: int | None) -> t
     if len(allowed) == 1 or (allowed and not should_bypass_bu_filter(user)):
         return allowed[0]["id"], allowed
     return None, allowed
+
+
+def companies_in_scope(db, user: Users, bu_id: int):
+    """The companies of one BU this user may see: None = the whole BU (org-level, partner,
+    or a plain member of the BU), else a frozenset of company ids (a BU head's)."""
+    scope = get_user_data_scope(db, user)
+    if scope is None:
+        return None
+    if bu_id not in scope:
+        return frozenset()
+    return scope[bu_id]
 
 
 def business_unit_choices(db) -> list:

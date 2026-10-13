@@ -98,7 +98,6 @@ from app.api.v1.endpoints.spartan_forecasting import router as spartan_forecasti
 from app.api.v1.endpoints.system_health import router as system_health_router
 from app.api.v1.endpoints.users_access_control import router as users_access_control_router
 from app.api.v1.endpoints.learning import router as learning_router
-from app.api.v1.endpoints.learning_transcript import router as learning_transcript_router
 from app.api.v1.endpoints.health_check import router as health_check_router
 from app.api.v1.endpoints.slm_exports import router as slm_exports_router
 from app.api.v1.endpoints.flash_queue_metrics import router as flash_queue_metrics_router
@@ -190,8 +189,6 @@ router.include_router(router=revenue_chain_router)
 router.include_router(router=public_chat_router)
 router.include_router(router=flash_router)
 router.include_router(router=whatsapp_webhook_router)
-router.include_router(router=webhooks_router)
-router.include_router(router=cascade_prediction_router)
 router.include_router(router=portal_messages_router)
 router.include_router(router=ai_recruiter_assignment_router)
 router.include_router(router=message_templates_router)

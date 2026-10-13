@@ -132,7 +132,6 @@ export const NAV_ITEMS = {
   // Super User only. Monitor parsing accuracy, manage training data, retrain model.
   slmDashboard: { path: ROUTES.SLM_DASHBOARD, label: "Resume Parser (SLM)", icon: Zap },
   slmTraining: { path: ROUTES.SLM_TRAINING, label: "SLM Training Data", icon: Database },
-  slmLearningTranscript: { path: ROUTES.SLM_LEARNING_TRANSCRIPT, label: "Learning Transcript Audit", icon: Database },
   // Phase B - Message Queue & SLM Analytics
   messageQueueMonitor: { path: "/admin/messagequeue", label: "Message Queue Monitor", icon: MessageSquareText },
   slmAnalytics: { path: "/admin/slm-dashboard", label: "SLM Analytics", icon: TrendingUp },
