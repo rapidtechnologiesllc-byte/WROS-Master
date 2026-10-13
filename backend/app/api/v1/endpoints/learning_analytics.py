@@ -16,10 +16,10 @@ from sqlalchemy import and_, desc
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_resource_permission
 from app.models.user import Users
-# from app.models.genetic_weight_population import GeneticWeightPopulation
-# from app.models.ab_test_deployment import ABTestDeployment, ABTestDecision, ABTestStageMetrics
-# from app.models.behavioral_adaptation_rules import BehavioralAdaptationRule, RuleExecution
-# from app.models.cascading_signal_log import CascadingSignalLog, CascadingSignalMetrics
+from app.models.genetic_weight_population import GeneticWeightPopulation
+from app.models.ab_test_deployment import ABTestDeployment, ABTestDecision, ABTestStageMetrics
+from app.models.behavioral_adaptation_rules import BehavioralAdaptationRule, RuleExecution
+from app.models.cascading_signal_log import CascadingSignalLog, CascadingSignalMetrics
 
 logger = logging.getLogger(__name__)
 
