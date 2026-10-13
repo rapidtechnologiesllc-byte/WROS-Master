@@ -51,19 +51,8 @@ def get_user_bu_id(user: Users) -> int | None:
 
 
 def get_user_data_scope(db, user: Users):
-    """What a BU-scoped user may see, as {business_unit_id: None (every company) | company
-    ids} -- app.services.bu_leadership. None = org-level (no filter).
-
-    - Partner of a BU: the whole BU.
-    - BU head in some companies: the BU in those companies only (CEO 2026-10-12: a head is
-      head of a location, e.g. AXION/BX-IN, and must not see AXION/BX-US).
-    - Their own BU (Users.business_unit_id) when they lead nothing in it: the whole BU,
-      as before -- membership never widens a head's location scope.
-    """
-    The business units a BU-scoped user may see (CEO 2026-10-12: by business unit only,
-    never by location): the BUs they partner, the BUs they head in any company, and their
-    own BU. None = org-level (role template org_level_access) -- no filter.
-    """
+    # What a BU-scoped user may see: the BUs they partner, the BUs they head in any company, and their
+    # own BU. None = org-level (role template org_level_access) -- no filter.
     from app.services.bu_leadership import led_business_units
 
     if should_bypass_bu_filter(user):
@@ -139,6 +128,23 @@ def companies_in_scope(db, user: Users, bu_id: int):
     if bu_id not in scope:
         return frozenset()
     return scope[bu_id]
+
+
+def get_user_bu_ids(db, user: Users) -> set[int] | None:
+    # Every BU a BU-scoped user may see: their own BU, the BUs they own as
+    # Partner, and the BUs they run as BU Head. None = org-level (no filter).
+    from app.models.business_unit import BusinessUnit
+
+    if should_bypass_bu_filter(user):
+        return None
+    ids = {
+        bu_id for (bu_id,) in db.query(BusinessUnit.id).filter(
+            (BusinessUnit.partner_user_id == user.UserID) | (BusinessUnit.manager_id == user.UserID)
+        )
+    }
+    if user.business_unit_id is not None:
+        ids.add(user.business_unit_id)
+    return ids
 
 
 def business_unit_choices(db) -> list:
