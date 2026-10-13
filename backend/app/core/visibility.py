@@ -132,8 +132,7 @@ def resolve_dashboard_head_bu(db, user: Users, requested_bu_id: int | None) -> t
 
 
 def companies_in_scope(db, user: Users, bu_id: int):
-    """The companies of one BU this user may see: None = the whole BU (org-level, partner,
-    or a plain member of the BU), else a frozenset of company ids (a BU head's)."""
+    """Get the companies in scope for a user within a specific BU."""
     scope = get_user_data_scope(db, user)
     if scope is None:
         return None
@@ -143,7 +142,7 @@ def companies_in_scope(db, user: Users, bu_id: int):
 
 
 def business_unit_choices(db) -> list:
-    """Active business units, for a dashboard's BU picker."""
+    """Active business units for a dashboard BU picker."""
     from app.models.business_unit import BusinessUnit
 
     rows = db.query(BusinessUnit).filter(BusinessUnit.active == True).order_by(BusinessUnit.name).all()  # noqa: E712
