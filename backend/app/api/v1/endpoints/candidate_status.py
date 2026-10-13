@@ -12,7 +12,7 @@ Routes:
 """
 
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -25,10 +25,9 @@ from app.models.user import CandidateAssignment, Jobs, Users
 from app.models.checklist import ChecklistTemplate, CandidateChecklist, CandidateChecklistItem
 from app.models.candidate_history import CandidateHistory
 from app.services.email_service import EmailService
-from app.services.candidate_event_bus import CandidateEventBus
 from app.services.candidate_activity_service import log_candidate_status_change
 from app.core.logging import logger
-from app.schemas.candidate import CandidateStatusUpdateRequest, CandidateStatusResponse, AllCandidateStatusResponse, StatusActionResponse, ManagerApprovalRequest
+from app.schemas.candidate import CandidateStatusUpdateRequest, CandidateStatusResponse, AllCandidateStatusResponse, StatusActionResponse
 
 router = APIRouter(prefix="/status", tags=["candidate-status"])
 
@@ -361,17 +360,8 @@ def update_candidate_status(
         except Exception as log_err:
             logger.warning(f"Failed to log status change for {candidate_id}: {log_err}, but status update succeeded")
 
-    # Emit status_changed event if pipeline status changed
-    if request.pipeline_status is not None and old_pipeline_status != request.pipeline_status:
-        try:
-            CandidateEventBus.publish_status_changed(
-                candidate_id=candidate_id,
-                old_status=old_pipeline_status,
-                new_status=request.pipeline_status,
-                reason=f"Pipeline status changed by {getattr(user, 'UserName', 'system')}"
-            )
-        except Exception as e:
-            logger.warning(f"Failed to emit status_changed event for {candidate_id}: {e}")
+    # (The status_changed event -- candidate email, Thunder pause -- is queued by the
+    # CandidateStatus hook in app.models.candidate once the change commits.)
 
     # ── Pool ownership transition: Rejected → Org Pool ────────────────────────
     if request.pipeline_status == "Rejected" and old_pipeline_status != "Rejected":

@@ -69,6 +69,12 @@ class ExpenseRecord(Base):
     description = Column(Text, nullable=True)
     receipt_ref = Column(String(300), nullable=False)  # PRIORITY-3: Receipt is mandatory
     expense_date = Column(Date, nullable=False)
+    # Attached receipt and its automatic check (app.services.expense_receipt_service):
+    # NOT_ATTACHED -> MATCHED (manager step auto-approved) | MISMATCH | UNREADABLE (manager reviews)
+    receipt_file_path = Column(String(1024), nullable=True)
+    receipt_content_type = Column(String(100), nullable=True)
+    receipt_check_status = Column(String(20), nullable=False, default="NOT_ATTACHED", server_default="NOT_ATTACHED")
+    receipt_check_detail = Column(Text, nullable=True)  # JSON: what the receipt says + why it matched or not
 
     # PRIORITY-3: Manager approval step (Employee → Manager → Finance)
     manager_approval_status = Column(

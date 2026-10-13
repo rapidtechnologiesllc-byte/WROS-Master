@@ -5,6 +5,7 @@
 // drives every read-only panel below -- pick once, see everything for
 // that BU/period, matching the "fewer clicks, more outcome" mandate.
 import { useCallback, useEffect, useState } from "react";
+import ReceiptCheck from "../components/ReceiptCheck";
 import { Wallet, DollarSign, Building2, RefreshCw, Search, Receipt, CheckCircle2 } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
 import { listBusinessUnits } from "../services/api/rbac";
@@ -592,6 +593,7 @@ export default function FinanceOperationsScreen() {
               { key: "category", header: "Category" },
               { key: "amount", header: "Amount" },
               { key: "status", header: "Status" },
+              { key: "receipt", header: "Receipt" },
               { key: "actions", header: "" },
             ]}
             rows={allExpenses.map((e) => ({
@@ -605,6 +607,7 @@ export default function FinanceOperationsScreen() {
                   {expenseStage(e).label}
                 </span>
               ),
+              receipt: <ReceiptCheck expense={e} />,
               actions:
                 e.manager_approval_status === "PENDING" || !e.manager_approval_status ? (
                   <div className="flex gap-2">

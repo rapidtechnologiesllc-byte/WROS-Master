@@ -18,11 +18,12 @@ logger = logging.getLogger(__name__)
 class CandidateStatusChangeHandler:
     """Handle candidate status transitions and update engagement."""
 
+    TIMEOUT_SECONDS = 30
     MAX_RETRIES = 3
     RETRY_DELAY_MINUTES = 15
 
     @staticmethod
-    @time_bound(timeout_seconds=15)
+    @time_bound(timeout_seconds=TIMEOUT_SECONDS)
     def process(message: Any, db: Session) -> Dict[str, Any]:
         """
         Process candidate status changes.
@@ -73,29 +74,12 @@ class CandidateStatusChangeHandler:
             if not candidate:
                 raise ValueError(f"Candidate {candidate_id} not found")
 
-            # PHASE 2: Handle status-specific actions
+            # PHASE 2: Thunder's nurture outreach stops once the candidate is in the process
+            from app.services.candidate_status_notifications import THUNDER_OFF_STATUSES, send_status_email
             actions_taken = []
-
-            if new_status == "INTERVIEW":
-                if candidate.thunder_enabled:
-                    candidate.thunder_enabled = False
-                    actions_taken.append("paused_thunder_for_interview")
-                    logger.info(f"[CandidateStatusChange] Thunder paused: interview scheduled")
-
-            elif new_status == "OFFER":
+            if new_status in THUNDER_OFF_STATUSES and candidate.thunder_enabled:
                 candidate.thunder_enabled = False
-                actions_taken.append("paused_thunder_for_offer")
-                logger.info(f"[CandidateStatusChange] Thunder paused: offer generated")
-
-            elif new_status == "JOINED":
-                candidate.thunder_enabled = False
-                actions_taken.append("marked_joined_success")
-                logger.info(f"[CandidateStatusChange] Candidate journey complete")
-
-            elif new_status == "REJECTED":
-                candidate.thunder_enabled = False
-                actions_taken.append("paused_thunder_for_rejection")
-                logger.info(f"[CandidateStatusChange] Thunder paused: rejected")
+                actions_taken.append("paused_thunder")
 
             # PHASE 3: Update status tracking
             candidate.previous_status = old_status
@@ -111,86 +95,15 @@ class CandidateStatusChangeHandler:
                 logger.error(f"[CandidateStatusChange] Commit failed: {commit_err}", exc_info=True)
                 raise RuntimeError(f"Failed to update status: {str(commit_err)}") from commit_err
 
-            # PHASE 5: Send status change notification via Email (Microsoft Graph)
-            delivery_id = None
-            delivery_channel = None
-            try:
-                if new_status in ["INTERVIEW", "OFFER", "JOINED"]:
-                    from app.services.email_service import EmailService
+            # PHASE 5: Tell the candidate (every status; wording = the stage's message template).
+            # A delivery failure raises RuntimeError so the queue retries.
+            email = send_status_email(db, candidate, new_status)
+            if email.get("sent"):
+                actions_taken.append(f"emailed:{email['template']}")
+            delivery_channel = "email" if email.get("sent") else None
+            delivery_id = email.get("template")
 
-                    candidate_name = getattr(candidate, 'candidateFirstName', 'Candidate')
-                    candidate_email = getattr(candidate, 'candidateEmail', None)
-
-                    # Email templates
-                    status_email_subjects = {
-                        "INTERVIEW": "Interview Scheduled - Your Next Step",
-                        "OFFER": "Job Offer Extended",
-                        "JOINED": "Welcome to the Team!"
-                    }
-                    status_email_bodies = {
-                        "INTERVIEW": f"""Hi {candidate_name},
-
-Great news! You have been selected to interview with our team.
-
-We are impressed with your background and would like to learn more about your qualifications and interest in the position.
-
-Our team will be in touch shortly with interview details.
-
-Best regards,
-Recruiting Team
-""",
-                        "OFFER": f"""Hi {candidate_name},
-
-Congratulations! We are pleased to extend a job offer for the position.
-
-Please check your email for the complete offer letter and next steps.
-
-Thank you for your interest in joining our team!
-
-Best regards,
-Recruiting Team
-""",
-                        "JOINED": f"""Hi {candidate_name},
-
-Welcome to the team! We are excited to have you on board.
-
-Please prepare for your first day and look out for additional onboarding instructions coming soon.
-
-If you have any questions, please don't hesitate to reach out.
-
-Best regards,
-HR Team
-"""
-                    }
-                    email_subject = status_email_subjects.get(new_status, f"Application Status Update: {new_status}")
-                    email_body = status_email_bodies.get(new_status, f"Your status has been updated to: {new_status}")
-
-                    # Send Email via Microsoft Graph
-                    if candidate_email:
-                        try:
-                            email_result = EmailService.send_email(
-                                to_email=candidate_email,
-                                subject=email_subject,
-                                body_content=email_body,
-                                is_html=True
-                            )
-
-                            if email_result.get('status') == 'skipped':
-                                logger.warning(f"[CandidateStatusChange] Email skipped to {candidate_email}: {email_result.get('reason')}")
-                            elif email_result.get('status') != 'success':
-                                logger.warning(f"[CandidateStatusChange] Email delivery failed: {email_result}")
-                            else:
-                                delivery_id = "msgraph_" + str(hash(candidate_email))
-                                delivery_channel = 'email'
-                                logger.info(f"[CandidateStatusChange] Status update sent via Email to {candidate_email}, delivery_id={delivery_id}")
-                        except Exception as email_err:
-                            logger.warning(f"[CandidateStatusChange] Email send error: {email_err}")
-                    else:
-                        logger.warning(f"[CandidateStatusChange] No email available for candidate {candidate_id}")
-            except Exception as delivery_err:
-                logger.warning(f"[CandidateStatusChange] Delivery service error (non-blocking): {delivery_err}")
-
-            logger.info(f"[CandidateStatusChange] ✅ Status change processed")
+            logger.info("[CandidateStatusChange] ✅ Status change processed")
 
             return {
                 'candidate_id': str(candidate_id),
@@ -261,7 +174,7 @@ HR Team
             except Exception as commit_err:
                 db.rollback()
                 raise RuntimeError(f"Failed to commit: {str(commit_err)}") from commit_err
-            logger.info(f"[CandidateStatusChange] ✅ Message marked COMPLETED")
+            logger.info("[CandidateStatusChange] ✅ Message marked COMPLETED")
         except ValueError:
             db.rollback()
             raise

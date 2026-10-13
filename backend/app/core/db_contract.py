@@ -14,6 +14,7 @@ Run on every backend startup to ensure data integrity.
 
 import secrets
 import string
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal, engine
 from app.models.base import Base
@@ -428,6 +429,9 @@ def _initialize_leadership_roles():
         _initialize_org_roles(db)
         _initialize_manage_role_permission_sets(db)
         _initialize_canonical_resources(db)
+        _initialize_thunder_conversation_owner(db)
+        _initialize_candidate_status_templates(db)
+        _initialize_permission_row_tenants(db)
         _initialize_pipeline_access(db)
     except Exception:
         db.rollback()
@@ -619,6 +623,60 @@ def _initialize_canonical_resources(db):
     if moved or disabled:
         invalidate_permissions()
         logger.info(f"[Contract] Canonical resources: moved {moved} grant(s)/override(s), disabled {disabled} duplicate(s)")
+
+
+def _initialize_thunder_conversation_owner(db):
+    """Engagement once created Thunder conversations as owner_type 'Thunder', which every
+    Thunder send gate refuses (only 'ai_agent' may send), so those candidates could never be
+    messaged. Hand them to the AI agent (idempotent; human-owned conversations untouched)."""
+    from app.models.candidate_ai import CandidateConversation
+    from app.services.ai_conversation_service import AI_AGENT_NAME
+
+    fixed = db.query(CandidateConversation).filter(CandidateConversation.owner_type == "Thunder") \
+        .update({CandidateConversation.owner_type: "ai_agent", CandidateConversation.owner_id: AI_AGENT_NAME},
+                synchronize_session=False)
+    db.commit()
+    if fixed:
+        logger.info(f"[Contract] Handed {fixed} Thunder-owned conversation(s) to the AI agent")
+
+
+def _initialize_candidate_status_templates(db):
+    """The template_key CHECK constraint is rebuilt from MessageTemplate's TEMPLATE_KEYS (it
+    had fallen behind: EMPLOYEE_WELCOME_EMAIL could not be saved), then every tenant gets the
+    candidate status emails seeded once (candidate_status_notifications.seed_templates)."""
+    from app.models.message_template import TEMPLATE_KEYS
+    from app.services.candidate_status_notifications import seed_templates
+
+    allowed = ", ".join("'" + key + "'" for key in TEMPLATE_KEYS)
+    db.execute(text("ALTER TABLE app_schema.message_templates DROP CONSTRAINT IF EXISTS message_template_key"))
+    db.execute(text(f"ALTER TABLE app_schema.message_templates ADD CONSTRAINT message_template_key "
+                    f"CHECK (template_key IN ({allowed}))"))
+    db.commit()
+    added = sum(seed_templates(db, tenant_id) for (tenant_id,) in db.query(Tenant.id).all())
+    db.commit()
+    if added:
+        logger.info(f"[Contract] Seeded {added} candidate status email template(s)")
+
+
+def _initialize_permission_row_tenants(db):
+    """Permission rows were written without a tenant (default 1) by older editor endpoints, so a
+    non-tenant-1 template's rows sat under tenant 1 and were never read. Move each to its
+    template's tenant unless that template already has a row for the resource there (that row
+    is the one in force; the stray one stays ignored). Idempotent; nothing deleted."""
+    moved = db.execute(text("""
+        UPDATE app_schema.role_template_permissions p
+        SET tenant_id = t.tenant_id
+        FROM app_schema.role_templates t
+        WHERE t.id = p.role_template_id AND p.tenant_id <> t.tenant_id
+          AND NOT EXISTS (SELECT 1 FROM app_schema.role_template_permissions q
+                          WHERE q.role_template_id = p.role_template_id AND q.resource_id = p.resource_id
+                            AND q.tenant_id = t.tenant_id)
+    """)).rowcount
+    db.commit()
+    if moved:
+        from app.services.role_template_permission_service import invalidate_permissions
+        invalidate_permissions()
+        logger.info(f"[Contract] Filed {moved} permission row(s) under their template's tenant")
 
 
 def _initialize_bu_location_heads(db):
@@ -1094,6 +1152,13 @@ def _run_schema_migrations():
         # the live table lacks (same create_all()-never-alters-existing-tables
         # gap as Migration 3). Discovered via a full model-vs-DB column scan.
         drifted_tables = {
+            # Expense receipts: attached file + automatic check (expense_receipt_service)
+            "expense_records": [
+                ("receipt_file_path", "VARCHAR(1024) NULL"),
+                ("receipt_content_type", "VARCHAR(100) NULL"),
+                ("receipt_check_status", "VARCHAR(20) NOT NULL DEFAULT 'NOT_ATTACHED'"),
+                ("receipt_check_detail", "TEXT NULL"),
+            ],
             # A Manage Role's permission set (CEO 2026-10-13)
             "org_roles": [
                 ("role_template_id", "INTEGER NULL REFERENCES app_schema.role_templates(id)"),

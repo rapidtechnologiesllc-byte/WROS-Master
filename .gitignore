@@ -84,3 +84,7 @@ dump.rdb
 *.bundle
 nohup.out
 __pycache__/
+
+# Expense receipts and other user uploads (UPLOAD_DIR)
+backend/uploads/
+uploads/

@@ -1,7 +1,7 @@
 // Partner/BU expense tracking API wrappers, 2026-08-05. Self-service --
 // logged_by_user_id is always resolved server-side from the caller's
 // own token, never sent from here.
-import { apiRequest } from "./client";
+import { apiFetch, apiRequest } from "./client";
 
 export const createExpense = async (payload) => {
   const { data } = await apiRequest("/expenses", {
@@ -55,4 +55,24 @@ export const getClientInvestmentPosition = async (clientId) => {
     method: "GET",
   });
   return data;
+};
+
+// Attach a receipt (image or PDF); the server reads and checks it straight away and returns the
+// updated expense (receipt_check_status MATCHED / MISMATCH / UNREADABLE)
+export const uploadExpenseReceipt = async (expenseId, file) => {
+  const body = new FormData();
+  body.append("file", file);
+  const { data } = await apiRequest(`/expenses/${expenseId}/receipt`, { method: "POST", body });
+  return data;
+};
+
+// Open the receipt in a new tab (authenticated download)
+export const openExpenseReceipt = async (expenseId) => {
+  const response = await apiFetch(`/expenses/${expenseId}/receipt`);
+  if (!response.ok) {
+    throw new Error(`Receipt download failed (HTTP ${response.status})`);
+  }
+  const url = URL.createObjectURL(await response.blob());
+  window.open(url, "_blank", "noopener");
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 };

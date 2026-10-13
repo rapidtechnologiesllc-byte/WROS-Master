@@ -109,6 +109,10 @@ class Settings:
     ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "")
     # Candidate rejection email: off until the rejection-email UX is decided (OPEN_ITEMS decision 5)
     REJECTION_EMAIL_ENABLED: bool = os.getenv("REJECTION_EMAIL_ENABLED", "false").lower() == "true"
+    # Every pipeline status change is emailed to the candidate (incl. rejection, never the reason);
+    # app.services.candidate_status_notifications. The rejection handler's own email stays behind
+    # REJECTION_EMAIL_ENABLED so a rejection is never emailed twice.
+    CANDIDATE_STATUS_EMAILS_ENABLED: bool = os.getenv("CANDIDATE_STATUS_EMAILS_ENABLED", "true").lower() == "true"
 
     # S-017/HRMS-0417 -- base URL used to build the candidate portal
     # link Thunder sends via WhatsApp/Email (/candidate/{token}).
@@ -150,6 +154,11 @@ class Settings:
     
     # File Upload Settings
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
+    # Expense receipts: a receipt whose amount and date match the entry approves the manager step
+    # automatically; anything else goes to the manager with the reasons
+    EXPENSE_RECEIPT_MAX_BYTES: int = int(os.getenv("EXPENSE_RECEIPT_MAX_BYTES", str(10 * 1024 * 1024)))
+    EXPENSE_RECEIPT_AMOUNT_TOLERANCE_PCT: float = float(os.getenv("EXPENSE_RECEIPT_AMOUNT_TOLERANCE_PCT", "2"))
+    EXPENSE_RECEIPT_DATE_TOLERANCE_DAYS: int = int(os.getenv("EXPENSE_RECEIPT_DATE_TOLERANCE_DAYS", "7"))
     MAX_UPLOAD_SIZE: int = int(os.getenv("MAX_UPLOAD_SIZE", "10485760"))  # 10MB default
     
     # Email Settings (if needed in future)
@@ -176,6 +185,13 @@ class Settings:
     THUNDER_SEND_WINDOW: str = os.getenv("THUNDER_SEND_WINDOW", "09-18")  # candidate-local hours
     THUNDER_MIN_GAP_HOURS: int = int(os.getenv("THUNDER_MIN_GAP_HOURS", "48"))
     THUNDER_NURTURE_INTERVAL_DAYS: int = int(os.getenv("THUNDER_NURTURE_INTERVAL_DAYS", "30"))
+    # Thunder first engagement (go-live 2026-10-13): every contactable candidate created in the
+    # last THUNDER_ENGAGEMENT_LOOKBACK_DAYS who is not yet in the email cadence is engaged by the
+    # thunder_engagement_sweep job. Kill switches: this flag, and the global pause on the
+    # Message Queue screen (stops every queue send at once).
+    THUNDER_ENGAGEMENT_ENABLED: bool = os.getenv("THUNDER_ENGAGEMENT_ENABLED", "true").lower() == "true"
+    THUNDER_ENGAGEMENT_LOOKBACK_DAYS: int = int(os.getenv("THUNDER_ENGAGEMENT_LOOKBACK_DAYS", "30"))
+    THUNDER_ENGAGEMENT_BATCH: int = int(os.getenv("THUNDER_ENGAGEMENT_BATCH", "50"))
 
     # Finance: invoices are emailed from this mailbox (same Graph app permissions as Thunder)
     FINANCE_MAILBOX: str = os.getenv("FINANCE_MAILBOX", "") or THUNDER_MAILBOX

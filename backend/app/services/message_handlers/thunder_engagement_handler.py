@@ -102,12 +102,17 @@ class ThunderEngagementHandler:
             if not conversation:
                 # tenant_id here is the owning user (FK users.UserID), NOT NULL: without it
                 # every new engagement crashed
+                from app.services.ai_conversation_service import AI_AGENT_NAME
                 from app.services.candidate_service import get_user_for_tenant
+                if candidate.tenant_id is None:
+                    raise ValueError(f"Candidate {candidate_id} has no tenant")
+                # owner_type 'ai_agent' is what every Thunder send gate allows
+                # (whatsapp_routing_service.is_ai_owner); 'Thunder' blocked Thunder itself
                 conversation = CandidateConversation(
-                    tenant_id=candidate.assigned_recruiter_id or get_user_for_tenant(db, candidate.tenant_id or 1),
+                    tenant_id=candidate.assigned_recruiter_id or get_user_for_tenant(db, candidate.tenant_id),
                     candidate_id=candidate_id,
-                    owner_type="Thunder",
-                    owner_id="Thunder_Autonomous",
+                    owner_type="ai_agent",
+                    owner_id=AI_AGENT_NAME,
                     status="ACTIVE",
                 )
                 db.add(conversation)
@@ -118,24 +123,20 @@ class ThunderEngagementHandler:
 
             conversation_id = conversation.id if hasattr(conversation, 'id') else str(candidate_id)
 
-            # ===== STEP 3: Check consent & send message =====
+            # ===== STEP 3: WhatsApp first touch (only when it can actually be sent) =====
+            # The email cadence started above IS the engagement. WhatsApp is added when the
+            # candidate consented, has a mobile number and a sending number is configured
+            # (THUNDER_WHATSAPP_NUMBER or the owning recruiter's number); otherwise it is skipped,
+            # never failed, so a missing WhatsApp setup can't roll back the email cadence.
+            from app.services.whatsapp_routing_service import resolve_outbound_whatsapp_number
             message_sent = False
             delivery_confirmed = False
-
-            if has_active_consent(db, candidate_id):
-                # Get SLM-generated email content if available
-                initial_message = payload.get("slm_generated_email_body")
-
-                # Fallback message if SLM didn't generate one
-                if not initial_message:
-                    candidate_name = getattr(candidate, 'candidateFirstName', 'Candidate')
-                    initial_message = f"Hi {candidate_name}, thanks for your interest! Let's explore this opportunity."
-                    logger.debug(f"[Thunder] No SLM-generated email for {candidate_id}, using fallback message")
-                else:
-                    logger.info(f"[Thunder] Using SLM-generated email for {candidate_id} ({len(initial_message)} chars)")
-
-                # TIMEOUT ENFORCEMENT: Thread-based timeout already enforced by @time_bound decorator
-                # This just calls send_thunder_message and tracks result
+            whatsapp_from = resolve_outbound_whatsapp_number(db, conversation) if (
+                candidate.candidateMobile and has_active_consent(db, candidate_id)) else None
+            if whatsapp_from:
+                initial_message = payload.get("slm_generated_email_body") or (
+                    f"Hi {getattr(candidate, 'candidateFirstName', None) or 'there'}, thanks for your interest "
+                    "in BlitzenX! I'm here to help with your application - reply any time.")
                 try:
                     send_thunder_message(
                         db=db,
@@ -143,20 +144,16 @@ class ThunderEngagementHandler:
                         candidate=candidate,
                         message_body=initial_message,
                         sender_type="ai_agent",
-                        channel="whatsapp"
+                        channel="whatsapp",
+                        auto_generated=True,
                     )
-                    message_sent = True
-                    delivery_confirmed = True
-                    logger.info(f"[Thunder] ✅ Message sent and confirmed for {candidate_id}")
-
+                    message_sent = delivery_confirmed = True
+                    logger.info(f"[Thunder] WhatsApp first touch sent to {candidate_id}")
                 except Exception as send_err:
-                    logger.error(f"[Thunder] Failed to send message to {candidate_id}: {send_err}", exc_info=True)
-                    # Fail fast - don't silently skip
+                    logger.error(f"[Thunder] WhatsApp first touch failed for {candidate_id}: {send_err}", exc_info=True)
                     raise RuntimeError(f"Failed to send Thunder message: {str(send_err)}") from send_err
             else:
-                logger.info(f"[Thunder] No consent for {candidate_id}, conversation created but no message sent")
-                message_sent = False
-                delivery_confirmed = False
+                logger.info(f"[Thunder] {candidate_id}: email cadence only (no WhatsApp consent, number or sender)")
 
             # ===== STEP 4: Commit transaction =====
             try:

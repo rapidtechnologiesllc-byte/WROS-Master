@@ -11,6 +11,12 @@ Every layer reads this service: API permission checks (has_permission), the menu
 /hr/me (get_user_permissions). Both use the same templates and the same canonical
 resource per name, so a screen the menu shows is a screen the API allows.
 
+Tenants (CEO 2026-10-13): a tenant is a parent company; its sub-companies are Companies
+(locations) inside it. Modules and resources are ONE catalog shared by every tenant (seeded once,
+under tenant 1); what a tenant's people may do is its own templates' permission rows, read under
+the template's tenant. (Filtering the catalog by the user's tenant locked every tenant but the
+first out of everything.)
+
 Resources: a name can exist more than once (legacy seeds). The canonical one is the row
 in a module of the API contract (app.contracts.api_contract) that lists that name; else
 the lowest id. Grants on legacy duplicates are moved onto the canonical row at startup
@@ -114,12 +120,12 @@ class RoleTemplatePermissionService:
 
     @staticmethod
     def get_resource_by_name(db: Session, resource_name: str, tenant_id: int = 1) -> Resource | None:
-        """The canonical enabled resource with this name (case-insensitive) in the tenant."""
+        """The canonical enabled resource with this name (case-insensitive) in the shared catalog.
+        tenant_id is accepted for older callers; the catalog is the same for every tenant."""
         if not resource_name:
             return None
         candidates = db.query(Resource).filter(
             func.lower(Resource.name) == resource_name.lower(),
-            Resource.tenant_id == tenant_id,
             Resource.enabled.is_(True),
         ).all()
         module_names = dict(db.query(Module.id, Module.name).filter(
@@ -149,10 +155,12 @@ class RoleTemplatePermissionService:
             template_ids = [t.id for t in RoleTemplatePermissionService.templates_for(db, user_id, tenant_id)]
             if not template_ids:
                 return False
-            return db.query(RoleTemplatePermission.id).filter(
+            # rows under the template's own tenant (stale rows filed under another tenant are ignored)
+            return db.query(RoleTemplatePermission.id).join(
+                RoleTemplate, RoleTemplate.id == RoleTemplatePermission.role_template_id).filter(
                 RoleTemplatePermission.role_template_id.in_(template_ids),
                 RoleTemplatePermission.resource_id == resource.id,
-                RoleTemplatePermission.tenant_id == tenant_id,
+                RoleTemplatePermission.tenant_id == RoleTemplate.tenant_id,
                 getattr(RoleTemplatePermission, field).is_(True),
             ).first() is not None
         except (AttributeError, ValueError, TypeError) as e:
@@ -211,7 +219,7 @@ class RoleTemplatePermissionService:
             raise ValueError(f"Cannot get user permissions: no role template found for user_id={user_id}")
 
         # Canonical resource per name, so this agrees with has_permission
-        resources = db.query(Resource).filter(Resource.tenant_id == tenant_id, Resource.enabled.is_(True)).all()
+        resources = db.query(Resource).filter(Resource.enabled.is_(True)).all()  # shared catalog
         module_names = dict(db.query(Module.id, Module.name))
         by_name: Dict[str, List[Resource]] = {}
         for r in resources:
@@ -220,9 +228,10 @@ class RoleTemplatePermissionService:
 
         flags: Dict[int, Dict[str, bool]] = {}
         if templates:
-            for row in db.query(RoleTemplatePermission).filter(
+            for row in db.query(RoleTemplatePermission).join(
+                    RoleTemplate, RoleTemplate.id == RoleTemplatePermission.role_template_id).filter(
                     RoleTemplatePermission.role_template_id.in_([t.id for t in templates]),
-                    RoleTemplatePermission.tenant_id == tenant_id):
+                    RoleTemplatePermission.tenant_id == RoleTemplate.tenant_id):
                 if row.resource_id not in canonical:
                     continue
                 merged = flags.setdefault(row.resource_id, {f: False for f in FLAGS})

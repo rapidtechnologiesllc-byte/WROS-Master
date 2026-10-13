@@ -41,6 +41,9 @@ class ExpenseItem(BaseModel):
     payment_status: str
     approved_by: Optional[str]
     created_at: Optional[datetime]
+    receipt_check_status: Optional[str] = None  # NOT_ATTACHED / MATCHED / MISMATCH / UNREADABLE
+    receipt_check_detail: Optional[str] = None
+    receipt_content_type: Optional[str] = None
 
     class Config:
         from_attributes = True

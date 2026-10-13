@@ -1,6 +1,5 @@
-from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, Index, Enum
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, Enum
+from sqlalchemy.orm import column_property, relationship
 import logging
 from app.models.base import Base
 
@@ -275,7 +274,8 @@ class CandidateStatus(Base):
     __tablename__ = "candidate_status"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     candidateID = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False)
-    piplineStatus = Column(String(512), nullable=True, default="Applied")
+    # active_history: the previous value is loaded on change, so the status hook knows old -> new
+    piplineStatus = column_property(Column(String(512), nullable=True, default="Applied"), active_history=True)
     status = Column(String(512), nullable=True, default="Active")
     thunder_assigned_at = Column(DateTime(timezone=True), nullable=True)
     createdAt = Column(DateTime(timezone=False), server_default=func.now())
@@ -326,3 +326,41 @@ def _sync_experience_months(mapper, connection, candidate):
 from sqlalchemy import event as _event  # noqa: E402
 _event.listen(Candidate, "before_insert", _sync_experience_months)
 _event.listen(Candidate, "before_update", _sync_experience_months)
+
+
+# Every pipeline-status change notifies the candidate once the transaction commits
+# (app.services.candidate_status_notifications). Recorded at flush, queued after commit,
+# dropped on rollback -- so every writer is covered and nothing is sent for an undone change.
+from sqlalchemy import event as _event  # noqa: E402
+from sqlalchemy import inspect as _inspect  # noqa: E402
+from sqlalchemy.orm import Session as _Session  # noqa: E402
+
+_STATUS_CHANGES_KEY = "candidate_status_changes"
+
+
+@_event.listens_for(_Session, "before_flush")
+def _record_pipeline_status_changes(session, flush_context, instances):
+    for obj in list(session.new) + list(session.dirty):
+        if not isinstance(obj, CandidateStatus) or not obj.piplineStatus:
+            continue
+        history = _inspect(obj).attrs.piplineStatus.history
+        if obj in session.new or history.has_changes():
+            old = history.deleted[0] if history.deleted else None
+            if old != obj.piplineStatus:
+                session.info.setdefault(_STATUS_CHANGES_KEY, []).append(
+                    (obj.candidateID, old, obj.piplineStatus))
+
+
+@_event.listens_for(_Session, "after_commit")
+def _queue_pipeline_status_changes(session):
+    changes = session.info.pop(_STATUS_CHANGES_KEY, None)
+    if not changes:
+        return
+    from app.services.candidate_status_notifications import queue_status_change
+    for candidate_id, old, new in changes:
+        queue_status_change(candidate_id, old, new)
+
+
+@_event.listens_for(_Session, "after_rollback")
+def _drop_pipeline_status_changes(session):
+    session.info.pop(_STATUS_CHANGES_KEY, None)

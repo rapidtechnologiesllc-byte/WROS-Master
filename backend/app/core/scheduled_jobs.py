@@ -48,6 +48,11 @@ _JOBS = (
     ScheduledJob("auto_invoicing", "app.services.invoice_automation_service:run_auto_invoicing",
                  timedelta(days=1), timeout_s=600, daily_after_utc="04:00",
                  backlog_guard="app.services.invoice_automation_service:backlog_guard"),
+    # candidate-facing: queues first engagement (email cadence) for contactable candidates not yet
+    # engaged; the cadence itself enforces send caps, window, gap and consent
+    ScheduledJob("thunder_engagement_sweep", "app.services.thunder_engagement_sweep:run_sweep",
+                 timedelta(minutes=10), timeout_s=120, sends_external=True,
+                 backlog_guard="app.services.thunder_engagement_sweep:backlog_guard"),
     ScheduledJob("birthday_drafts", "app.services.culture_agent_service:generate_birthday_drafts",
                  timedelta(days=1), timeout_s=120, daily_after_utc="03:00"),
 )

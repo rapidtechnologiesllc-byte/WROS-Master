@@ -4,6 +4,7 @@ Message Template Management API
 Endpoints for creating, editing, and managing email templates with dynamic fields.
 Templates can be edited from the UI and include placeholders like {{employee_name}}, {{department}}, etc.
 """
+from app.core.tenant_context import tenant_id_of
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -65,7 +66,7 @@ def get_template(
 
     template = TemplateService.get_template(
         db=db,
-        tenant_id=current_user.UserID,
+        tenant_id=str(tenant_id_of(current_user)),
         template_key=template_key,
         channel=channel,
     )
@@ -93,7 +94,7 @@ def create_template_version(
 
     template = TemplateService.create_template(
         db=db,
-        tenant_id=current_user.UserID,
+        tenant_id=str(tenant_id_of(current_user)),
         template_key=template_key,
         template_name=request.template_name,
         channel=request.channel,
@@ -115,7 +116,7 @@ def activate_template(
     # Verify the template belongs to the current user's tenant
     template = db.query(MessageTemplate).filter(
         MessageTemplate.id == template_id,
-        MessageTemplate.tenant_id == current_user.UserID,
+        MessageTemplate.tenant_id == str(tenant_id_of(current_user)),
     ).first()
 
     if not template:
@@ -173,5 +174,5 @@ def list_templates(
     current_user: Users = Depends(get_current_internal_user),
 ):
     """List all templates for the current tenant."""
-    templates = TemplateService.list_templates(db, current_user.UserID)
+    templates = TemplateService.list_templates(db, str(tenant_id_of(current_user)))
     return [TemplateResponse.from_orm(t) for t in templates]
