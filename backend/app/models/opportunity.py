@@ -14,7 +14,7 @@ columns and this dropdown never drift apart -- HRMS-0115 doesn't exist
 in this codebase, so this is a placeholder fixed list, not the real
 config-driven mechanism the docs describe.
 
-Same SQL-Server/SQLite-portable translation conventions as
+Same translation conventions as
 app.models.client/demand: UUID as String(36),
 Enum(native_enum=False, create_constraint=True).
 """

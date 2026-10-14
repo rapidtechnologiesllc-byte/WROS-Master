@@ -223,8 +223,7 @@ Respond with exactly this JSON shape:
                 return result
         except Exception as e:
             logger.error(f"Error: {str(e)}", exc_info=True)
-            import sys
-            print(f"LLM call failed, using fallback: {type(e).__name__}", file=sys.stderr)
+            logger.warning(f"LLM call failed, using fallback: {type(e).__name__}")
 
         return self._get_fallback_response(one_liner)
 

@@ -78,7 +78,7 @@ def _skills_list(raw):
     try:
         parsed = json.loads(raw)
     except (json.JSONDecodeError, TypeError):
-        raise ValueError("Operation failed")
+        raise ValueError("_skills_list failed")
     return parsed if isinstance(parsed, list) else []
 
 def _to_item(db: Session, employee: Employee) -> EmployeeItem:

@@ -80,7 +80,7 @@ def world(db):
                     UserPassword="h", UserRole="partner", tenant_id=1, role_template_id=role.id)
     db.add(partner)
     db.flush()
-    unit = BusinessUnit(name=f"axion-{_uid()}", display_name="Axion", partner_user_id=partner.UserID)
+    unit = BusinessUnit(tenant_id=1, name=f"axion-{_uid()}", display_name="Axion", partner_user_id=partner.UserID)
     db.add(unit)
     db.flush()
     db.add(CostRateConfig(business_unit_id=unit.id, statutory_pct=10, overhead_pct=20))
@@ -310,7 +310,7 @@ def test_payroll_is_prorated_for_a_mid_month_joiner(db, world):
 def test_accepted_offer_salary_becomes_monthly_employee_cost(db, world):
     from app.services.employee_conversion_service import monthly_salary_from_offer
 
-    candidate = Candidate(candidateID=f"CAN-{_uid()}", candidateEmail=f"c{_uid()}@x.com", candidatePassword="h")
+    candidate = Candidate(tenant_id=1, candidateID=f"CAN-{_uid()}", candidateEmail=f"c{_uid()}@x.com", candidatePassword="h")
     db.add(candidate)
     db.flush()
     db.add(Offer(id=_uid(), tenant_id=1, candidate_id=candidate.candidateID, job_id=world.job.jobID,

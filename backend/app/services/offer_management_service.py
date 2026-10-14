@@ -308,6 +308,7 @@ class OfferManagementService:
         return {
             "status": "success",
             "offer_id": offer_id,
+            "offer_status": offer.status,
             "candidate_id": candidate_id,
             "accepted_at": offer.accepted_at.isoformat(),
             "start_date": offer.expected_start_date.isoformat()
@@ -405,6 +406,7 @@ class OfferManagementService:
         return {
             "status": "success",
             "offer_id": offer_id,
+            "offer_status": offer.status,
             "retracted_at": offer.retracted_at.isoformat(),
             "reason": retraction_reason
         }

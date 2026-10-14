@@ -46,7 +46,7 @@ def pipeline(db):
     slug = f"ankurjit-singh-{uuid.uuid4().hex[:6]}"
     first, last = name_from_slug(slug)
     candidate = Candidate(
-        candidateID=f"CAN-{uuid.uuid4().hex[:10]}", candidateEmail=placeholder_email(slug),
+        tenant_id=1, candidateID=f"CAN-{uuid.uuid4().hex[:10]}", candidateEmail=placeholder_email(slug),
         candidatePassword="hashed", candidateFirstName=first, candidateLastName=last,
         linkedin_url=f"https://www.linkedin.com/in/{slug}", thunder_enabled=False,
     )
@@ -112,7 +112,7 @@ def test_last_attempt_without_contact_is_exhausted(db, pipeline):
 
 
 def test_email_owned_by_another_candidate_is_duplicate_contact(db, pipeline):
-    db.add(Candidate(candidateID=f"CAN-{uuid.uuid4().hex[:10]}", candidateEmail="hello@ankur.dev", candidatePassword="h"))
+    db.add(Candidate(tenant_id=1, candidateID=f"CAN-{uuid.uuid4().hex[:10]}", candidateEmail="hello@ankur.dev", candidatePassword="h"))
     db.commit()
     outcome, _ = _run(db, pipeline.item.id, _result(contact="hello@ankur.dev"))
     db.refresh(pipeline.candidate)

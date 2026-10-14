@@ -36,9 +36,9 @@ def _parse_skills(raw: Optional[str]) -> List[str]:
     try:
         parsed = json.loads(raw)
     except (ValueError, TypeError):
-        raise ValueError("Operation failed")
+        raise ValueError("_parse_skills failed")
     if not isinstance(parsed, list):
-        raise ValueError("Operation failed")
+        raise ValueError("_parse_skills failed")
     return [str(s).strip() for s in parsed if str(s).strip()]
 
 def get_expiring_allocations(

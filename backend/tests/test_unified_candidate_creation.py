@@ -43,7 +43,7 @@ def test_unified_wrapper_returns_message_id(db: Session):
 
     assert queue_item is not None
     assert queue_item.status == "PENDING"
-    assert queue_item.task_name == "create_candidate"
+    assert queue_item.type == "create_candidate"
 
 
 def test_idempotency_key_prevents_duplicates(db: Session):

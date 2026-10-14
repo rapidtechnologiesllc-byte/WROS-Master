@@ -239,7 +239,7 @@ def generate_desire_narrative(db: Session, profile: CandidateDesireProfile, *, l
     except Exception as exc:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[DesireProfile] Narrative generation failed for candidate {profile.candidate_id!r}: {exc}")
-        raise ValueError("Operation failed")
+        return None
 
 def generate_talking_points(db: Session, profile: CandidateDesireProfile, *, llm_call: Optional[Callable[[str], str]] = None) -> Optional[List[str]]:
     """S-350 Step 4 -- 3-5 bullet points for HR's next conversation,
@@ -277,7 +277,7 @@ def generate_talking_points(db: Session, profile: CandidateDesireProfile, *, llm
     except Exception as exc:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[DesireProfile] Talking points generation failed for candidate {profile.candidate_id!r}: {exc}")
-        raise ValueError("Operation failed")
+        return None
 
 def build_and_narrate(db: Session, tenant_id: str, candidate_id: str, *, llm_call: Optional[Callable[[str], str]] = None, now: Optional[datetime] = None) -> CandidateDesireProfile:
     profile = build_desire_profile(db, tenant_id, candidate_id, now=now)

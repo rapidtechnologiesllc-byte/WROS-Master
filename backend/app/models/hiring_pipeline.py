@@ -36,7 +36,7 @@ class HiringPipeline(Base):
 
     __table_args__ = (
         Index("ix_one_open_pipeline_per_candidate", "candidate_id", unique=True,
-              postgresql_where=text("closed_at IS NULL"), sqlite_where=text("closed_at IS NULL")),
+              postgresql_where=text("closed_at IS NULL")),
     )
 
 

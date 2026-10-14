@@ -78,7 +78,7 @@ def world(db):
         db.flush()
     seed_thunder_variants(db)
     candidate = Candidate(
-        candidateID=f"CAN-{uuid.uuid4().hex[:10]}", candidateEmail=f"ankur{uuid.uuid4().hex[:6]}@ankur.dev",
+        tenant_id=1, candidateID=f"CAN-{uuid.uuid4().hex[:10]}", candidateEmail=f"ankur{uuid.uuid4().hex[:6]}@ankur.dev",
         candidatePassword="h", candidateFirstName="Ankurjit", candidateLastName="Singh",
         candidateSkills="Python, Kafka", candidateCurrentLocation="Bengaluru", thunder_enabled=True,
         timezone="UTC",

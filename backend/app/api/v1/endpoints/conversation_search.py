@@ -47,7 +47,7 @@ def search_conversations_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    tenant_id = resolve_default_tenant_id()
+    tenant_id = resolve_default_tenant_id(db)
     if not tenant_id:
         raise HTTPException(status_code=500, detail="No tenant available to search.")
 

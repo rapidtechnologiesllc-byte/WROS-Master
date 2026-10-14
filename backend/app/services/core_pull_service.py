@@ -138,11 +138,9 @@ def log_replacement_plan(
         # Explicit, not the column's server_default -- must be directly
         # comparable to CorePullEvent.detected_at (also set explicitly, see
         # that constructor's comment) in _has_replacement_plan_since().
-        # Mixing a Python-side microsecond-precision timestamp against a
-        # SQLite server_default=func.now() value (no fractional seconds)
-        # can make a plan logged AFTER detection sort as "before" it purely
-        # from string-length differences -- same clock on both sides avoids
-        # that regardless of backend.
+        # Mixing a Python-side timestamp with a server_default=func.now()
+        # value (the transaction start time) can make a plan logged AFTER
+        # detection sort as "before" it -- same clock on both sides avoids that.
         logged_at=datetime.utcnow(),
     )
     db.add(plan)

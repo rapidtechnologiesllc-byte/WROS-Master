@@ -19,8 +19,7 @@ wiring them means touching that epic's own code, which is out of scope
 for an EPIC-04 round.
 
 DB-level INSERT-only enforcement (the doc's BR-01, via a restricted DB
-role) isn't practical to add generically across this codebase's SQLite
-test / SQL Server prod split -- enforced at the application level only:
+role) is not in place -- enforced at the application level only:
 no update/delete function exists anywhere in audit_log_service.py.
 """
 import logging
@@ -38,7 +37,7 @@ class ConversationAuditLog(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
     tenant_id = Column(
-        String(50), ForeignKey("users.UserID", ondelete="NO ACTION"), nullable=False, index=True,
+        String(50), nullable=False, index=True,  # tenant key (app.core.tenant_context)
     )
     candidate_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True,
     )

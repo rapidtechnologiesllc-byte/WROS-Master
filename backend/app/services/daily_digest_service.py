@@ -352,13 +352,14 @@ def run_daily_digest_job(db: Session) -> Dict:
                 # ("HH:MM"). This job's own cadence is 30-min, so only
                 # the hour component is honored -- same precision this
                 # check already had pre-S-077, just no longer hardcoded.
-                try:
-                    from app.services.tenant_ai_config_service import get_tenant_ai_config
-                    send_time = get_tenant_ai_config(db, tenant_id).get("digest_send_time")
-                    if send_time:
-                        digest_hour = int(str(send_time).split(":")[0])
-                except Exception:
-                    pass
+                from app.services.tenant_ai_config_service import get_tenant_ai_config
+                tenant_config = get_tenant_ai_config(db, tenant_id)
+                if tenant_config.get("digest_enabled") is False:  # the organisation switched digests off
+                    result["skipped"] += 1
+                    continue
+                send_time = tenant_config.get("digest_send_time")
+                if send_time:
+                    digest_hour = int(str(send_time).split(":")[0])
                 if local_hour != digest_hour:
                     result["skipped"] += 1
                     continue

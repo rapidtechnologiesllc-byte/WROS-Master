@@ -44,8 +44,7 @@ def get_timeline_for_entity(
     )
     if tenant_id is not None:
         query = query.filter(ActivityTimeline.tenant_id == tenant_id)
-    # id as a tiebreaker -- created_at alone can tie under load (or on
-    # SQLite, whose CURRENT_TIMESTAMP has only 1-second resolution),
+    # id as a tiebreaker -- created_at alone can tie under load,
     # and the autoincrement id is strictly monotonic with insert order.
     query = query.order_by(ActivityTimeline.created_at.desc(), ActivityTimeline.id.desc())
 

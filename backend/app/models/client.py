@@ -1,7 +1,7 @@
 """
 HRMS-0102 — Client Entity Model, Phase 2 Domain 4.
 
-Same SQL-Server/SQLite-portable translation conventions as
+Same translation conventions as
 app.models.employee: UUID as String(36), Enum(native_enum=False, create_constraint=True).
 
 HRMS-0201 ("Client Entity Management v2") is a genuine architectural

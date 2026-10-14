@@ -190,8 +190,7 @@ if __name__ == "__main__":
 
 3. Next Steps:
    a) Fix any test files with 0 tests (syntax/import errors)
-   b) Migrate legacy SQLite tests to PostgreSQL fixtures
-   c) Run full suite: pytest backend/tests -v
-   d) Generate coverage report: pytest backend/tests --cov=app --cov-report=html
+   b) Run full suite: pytest backend/tests -v
+   c) Generate coverage report: pytest backend/tests --cov=app --cov-report=html
 """)
     print("="*70)

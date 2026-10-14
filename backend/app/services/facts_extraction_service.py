@@ -187,11 +187,12 @@ def extract_facts(
         parsed = json.loads(raw)
         facts = _validate_extracted_items(parsed)
     except Exception as exc:
-        logger.error(f"Error: {str(exc)}", exc_info=True)
-        logger.warning(f"[FactsExtraction] Extraction failed for candidate {candidate.candidateID}: {exc}")
+        # Documented contract (BR-01/BR-02): extraction is best-effort and never breaks the
+        # caller's message flow; the failure is recorded on the conversation, not hidden.
+        logger.error(f"[FactsExtraction] Extraction failed for candidate {candidate.candidateID}: {exc}", exc_info=True)
         _log_extraction_event(db, conversation_id, "FACTS_EXTRACTION_FAILED", {"reason": str(exc)})
         db.commit()
-        raise ValueError("Operation failed")
+        return []
 
     for fact in facts:
         upsert_fact(

@@ -20,10 +20,8 @@ def list_modules_and_resources(
 ):
     """Get all modules with their resources for role template builder."""
 
-    modules = db.query(Module).filter(
-        Module.tenant_id == current_user.tenant_id,
-        Module.enabled == True
-    ).all()
+    # One shared catalog for every tenant (role_template_permission_service)
+    modules = db.query(Module).filter(Module.enabled == True).all()
 
     result = []
     for module in modules:

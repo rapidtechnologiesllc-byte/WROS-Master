@@ -29,6 +29,8 @@ from typing import Callable, Optional
 
 from sqlalchemy.orm import Session
 
+from app.core.tenant_context import conversation_tenant_key
+
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.demand import Demand
@@ -213,7 +215,7 @@ def _attempt_send(
             return sequence
 
             conversation = _get_or_create_conversation(
-        db, candidate, conversation_tenant_id=conversation_tenant_id or candidate.candidateID,
+        db, candidate, conversation_tenant_id=conversation_tenant_id or conversation_tenant_key(candidate.tenant_id),
     )
 
     try:

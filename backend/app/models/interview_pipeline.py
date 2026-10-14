@@ -159,6 +159,6 @@ class SubmissionInterview(Base):
         # historical, superseded rows are exempt.
         Index(
             "ix_one_current_interview_per_level", "submission_id", "level", unique=True,
-            sqlite_where=text("superseded_at IS NULL"), mssql_where=text("superseded_at IS NULL"),
+            postgresql_where=text("superseded_at IS NULL"),
         ),
     )

@@ -279,36 +279,8 @@ class OrgHierarchyValidator:
 
         except Exception as e:
             logger.error(f"Error getting valid supervisors: {e}", exc_info=True)
-            raise ValueError("Operation failed")
+            raise ValueError(f"get_valid_supervisors failed: {e}") from e
 
-    @staticmethod
-    def print_hierarchy_rules():
-        """Print the hierarchy rules for documentation"""
-        print("\n" + "=" * 80)
-        print("ORGANIZATIONAL HIERARCHY RULES (17 LEVELS + SPECIALIZATIONS)")
-        print("=" * 80)
-
-        for level in range(1, 18):
-            level_name = HIERARCHY_LEVELS[level]
-            valid_parents = get_valid_parent_levels(level)
-            parent_names = [f"{HIERARCHY_LEVELS[p]} (L{p})" for p in valid_parents]
-            parents_str = ", ".join(parent_names) if parent_names else "(top level - reports to nobody)"
-
-            print(f"\nLevel {level}: {level_name}")
-            print(f"  └─ Reports to: {parents_str}")
-
-        print("\n" + "=" * 80)
-        print("SPECIALIZATIONS:")
-        for spec in SPECIALIZATIONS:
-            print(f"  • {spec}")
-        print("\n" + "=" * 80)
-        print("RULES:")
-        print("  1. Cannot skip more than 2 levels (employee can report up max 2 levels)")
-        print("  2. Parent must be at higher level (lower hierarchy_level number)")
-        print("  3. Non-executive roles must report within same specialization")
-        print("  4. Same business unit unless parent is org-wide (Partner/CEO)")
-        print("  5. No circular reporting chains")
-        print("=" * 80 + "\n")
 
 def validate_before_employee_creation(
     session: Session,

@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from fastapi.testclient import TestClient
 
 from app.models.candidate import Candidate
+from tests import factories
 from app.models.candidate_ai import CandidateConversation
 from app.models.learning_events import LearningEvent
 from app.services.thunder_learning_integration import ThunderLearningIntegration
@@ -25,16 +26,9 @@ from app.services.thunder_delivery_outcome_handler import ThunderDeliveryOutcome
 @pytest.fixture
 def test_candidate(db: Session):
     """Create test candidate for webhook tests."""
-    candidate = Candidate(
-        candidateID=str(uuid4()),
-        candidateEmail="webhook_test@example.com",
-        candidateName="Webhook Test Candidate",
-        tenant_id="test_tenant_123",
-        seniority_level="Mid-Level",
-        current_location="New York, USA",
-        specialization="Python; AWS; DevOps",
-    )
-    db.add(candidate)
+    candidate = factories.candidate(db, candidateEmail=f"webhook-{factories.uid()}@example.com",
+                                   candidateExperience="5 years", candidateCurrentLocation="New York, USA",
+                                   candidateSkills="Python, AWS, DevOps")
     db.commit()
     return candidate
 
@@ -42,10 +36,12 @@ def test_candidate(db: Session):
 @pytest.fixture
 def test_conversation(db: Session, test_candidate):
     """Create test conversation for webhook tests."""
+    # candidate_conversations.tenant_id holds the owning user's UserID (legacy naming)
+    owner = factories.user(db)
     conversation = CandidateConversation(
-        id=uuid4(),
+        tenant_id=owner.UserID,
         candidate_id=test_candidate.candidateID,
-        conversation_status="active",
+        status="open",
     )
     db.add(conversation)
     db.commit()
@@ -158,7 +154,7 @@ class TestWebhookLearningIntegration:
 
         # Step 2: Twilio webhook arrives
         webhook_data = {
-            "MessageStatus": "read",
+            "event": "read",
             "To": "+1234567890",
             "From": "+0987654321",
             "MessageSid": "sms_456",
@@ -332,100 +328,101 @@ class TestWebhookLearningIntegration:
         assert result2["status"] in ["recorded", "duplicate"]
 
 
+TWILIO_TOKEN = "test-twilio-auth-token"
+PUBLIC_BASE = "https://hrms.example.test/api"
+
+
+@pytest.fixture
+def sendgrid_key(monkeypatch):
+    """A throwaway SendGrid signing key pair; the server is configured with its public half."""
+    import base64
+
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    private = ec.generate_private_key(ec.SECP256R1())
+    public_der = private.public_key().public_bytes(serialization.Encoding.DER,
+                                                   serialization.PublicFormat.SubjectPublicKeyInfo)
+    monkeypatch.setenv("SENDGRID_WEBHOOK_PUBLIC_KEY", base64.b64encode(public_der).decode())
+    return private
+
+
+def _sendgrid_headers(private_key, body: bytes) -> dict:
+    import base64
+    import time
+
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    timestamp = str(int(time.time()))
+    signature = private_key.sign(timestamp.encode() + body, ec.ECDSA(hashes.SHA256()))
+    return {"content-type": "application/json",
+            "X-Twilio-Email-Event-Webhook-Signature": base64.b64encode(signature).decode(),
+            "X-Twilio-Email-Event-Webhook-Timestamp": timestamp}
+
+
+@pytest.fixture
+def twilio_configured(monkeypatch):
+    monkeypatch.setenv("TWILIO_AUTH_TOKEN", TWILIO_TOKEN)
+    monkeypatch.setenv("WEBHOOK_PUBLIC_BASE_URL", PUBLIC_BASE)
+
+
+def _twilio_signature(path: str, form: dict) -> str:
+    import base64
+    import hashlib
+    import hmac
+
+    data = PUBLIC_BASE + path + "".join(f"{k}{form[k]}" for k in sorted(form))
+    return base64.b64encode(hmac.new(TWILIO_TOKEN.encode(), data.encode(), hashlib.sha1).digest()).decode()
+
+
 class TestWebhookEndpoints:
-    """Test webhook HTTP endpoints."""
+    """The HTTP endpoints: providers' signatures are the only authentication, fail closed."""
 
-    def test_sendgrid_webhook_endpoint(self, client: TestClient, db: Session, test_candidate, test_conversation):
-        """
-        Test: POST /webhooks/sendgrid endpoint.
+    def test_signed_sendgrid_webhook_is_received(self, client: TestClient, test_candidate, test_conversation,
+                                                 sendgrid_key):
+        body = json.dumps([{
+            "event": "open", "email": test_candidate.candidateEmail,
+            "timestamp": int(datetime.utcnow().timestamp()), "conversation_id": str(test_conversation.id),
+            "candidate_id": test_candidate.candidateID, "tenant_id": test_candidate.tenant_id,
+            "sg_message_id": "sg_123",
+        }]).encode()
+        response = client.post("/api/v1/webhooks/sendgrid", content=body,
+                               headers=_sendgrid_headers(sendgrid_key, body))
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == "received"
 
-        Should accept webhook, return 200 immediately, process in background.
-        """
-        # First record a prediction so there's something to match
-        ThunderLearningIntegration.record_outreach_prediction(
-            db=db,
-            tenant_id=test_candidate.tenant_id,
-            candidate=test_candidate,
-            conversation=test_conversation,
-            channel="email",
-            message_body="Test",
-            confidence_score=0.75,
-        )
+    def test_unsigned_or_forged_sendgrid_webhook_is_401(self, client: TestClient, sendgrid_key):
+        body = b'[{"event": "open"}]'
+        assert client.post("/api/v1/webhooks/sendgrid", content=body,
+                           headers={"content-type": "application/json"}).status_code == 401
+        headers = _sendgrid_headers(sendgrid_key, body)
+        assert client.post("/api/v1/webhooks/sendgrid", content=b'[{"event": "click"}]',
+                           headers=headers).status_code == 401
 
-        # Send webhook
-        webhook_payload = {
-            "events": [
-                {
-                    "event": "opened",
-                    "email": test_candidate.candidateEmail,
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "conversation_id": str(test_conversation.id),
-                    "candidate_id": test_candidate.candidateID,
-                    "tenant_id": test_candidate.tenant_id,
-                    "sg_message_id": "sg_123",
-                }
-            ]
-        }
+    def test_sendgrid_webhook_without_a_configured_key_is_503(self, client: TestClient, monkeypatch):
+        monkeypatch.delenv("SENDGRID_WEBHOOK_PUBLIC_KEY", raising=False)
+        assert client.post("/api/v1/webhooks/sendgrid", content=b"[]",
+                           headers={"content-type": "application/json"}).status_code == 503
 
-        response = client.post(
-            "/api/v1/webhooks/sendgrid",
-            json=webhook_payload,
-        )
+    def test_signed_twilio_sms_webhook_is_received(self, client: TestClient, test_candidate, test_conversation,
+                                                   twilio_configured):
+        form = {"MessageStatus": "read", "To": "+1234567890", "From": "+0987654321", "MessageSid": "sms_123",
+                "candidate_id": test_candidate.candidateID, "conversation_id": str(test_conversation.id),
+                "tenant_id": str(test_candidate.tenant_id)}
+        response = client.post("/api/v1/webhooks/twilio-sms", data=form,
+                               headers={"X-Twilio-Signature": _twilio_signature("/api/v1/webhooks/twilio-sms", form)})
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == "received"
 
-        # Should return 200 immediately (background task processes later)
+    def test_twilio_webhook_with_a_wrong_signature_is_401(self, client: TestClient, twilio_configured):
+        form = {"MessageStatus": "read", "MessageSid": "sms_9"}
+        response = client.post("/api/v1/webhooks/twilio-sms", data=form, headers={"X-Twilio-Signature": "forged"})
+        assert response.status_code == 401
+
+    def test_signed_non_json_sendgrid_payload_is_ignored_not_retried(self, client: TestClient, sendgrid_key):
+        body = b"not valid json"
+        response = client.post("/api/v1/webhooks/sendgrid", content=body,
+                               headers=_sendgrid_headers(sendgrid_key, body))
         assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "received"
-
-    def test_twilio_sms_webhook_endpoint(self, client: TestClient, db: Session, test_candidate, test_conversation):
-        """
-        Test: POST /webhooks/twilio-sms endpoint.
-
-        Twilio sends form-encoded data, not JSON.
-        """
-        # Record prediction
-        ThunderLearningIntegration.record_outreach_prediction(
-            db=db,
-            tenant_id=test_candidate.tenant_id,
-            candidate=test_candidate,
-            conversation=test_conversation,
-            channel="sms",
-            message_body="Test SMS",
-            confidence_score=0.65,
-        )
-
-        # Send webhook (Twilio uses form-encoding)
-        response = client.post(
-            "/api/v1/webhooks/twilio-sms",
-            data={
-                "MessageStatus": "read",
-                "To": "+1234567890",
-                "From": "+0987654321",
-                "MessageSid": "sms_123",
-                "Body": "OK",
-                "candidate_id": test_candidate.candidateID,
-                "conversation_id": str(test_conversation.id),
-                "tenant_id": test_candidate.tenant_id,
-            }
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "received"
-
-    def test_invalid_json_webhook(self, client: TestClient):
-        """
-        Test: Invalid JSON in webhook → gracefully ignored.
-
-        Should return 200 (not 400) so webhook provider doesn't retry.
-        """
-        response = client.post(
-            "/api/v1/webhooks/sendgrid",
-            content="not valid json",
-            headers={"content-type": "application/json"}
-        )
-
-        # Should accept (return 200) and ignore invalid payload
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "ignored"
+        assert response.json()["status"] == "ignored"

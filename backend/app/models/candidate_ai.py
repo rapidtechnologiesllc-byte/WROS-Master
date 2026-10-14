@@ -13,8 +13,9 @@ Tables:
                                 that happens inside a conversation.
 
 Tenant context:
-  tenant_id is the users.UserID (String 50) of the HR/Admin user who owns
-  this organisation — consistent with the rest of the HRMS system.
+  tenant_id is the tenant key: the tenant id as text (String 50), from
+  app.core.tenant_context.conversation_tenant_key. Never a user id -- except the
+  Test Thunder sandbox, which keys its own conversations by the tester.
 """
 
 import logging
@@ -58,11 +59,10 @@ class CandidateConversation(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    # Tenant — maps to users.UserID (the org owner / admin user)
-    # CRASH FIX #2: Changed nullable=False to prevent orphan conversations and enforce tenant isolation
+    # Tenant key: the tenant id as text (app.core.tenant_context.conversation_tenant_key); the
+    # Test Thunder sandbox keys its own conversations by the tester's UserID
     tenant_id = Column(
         String(50),
-        ForeignKey("users.UserID", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -175,7 +175,6 @@ class CandidateConversation(Base):
     )
 
     # ORM relationships
-    tenant    = relationship("Users",     foreign_keys=[tenant_id],    lazy="select")
     candidate = relationship("Candidate", foreign_keys=[candidate_id], lazy="select")
     events    = relationship(
         "ConversationEvent",
@@ -205,10 +204,9 @@ class CandidateAIAssignment(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    # Tenant — maps to users.UserID
+    # Tenant key, as on CandidateConversation
     tenant_id = Column(
         String(50),
-        ForeignKey("users.UserID", ondelete="NO ACTION"),
         nullable=False,
         index=True,
     )
@@ -243,7 +241,6 @@ class CandidateAIAssignment(Base):
     is_active = Column(Boolean, nullable=False, server_default="1")
 
     # ORM relationships
-    tenant    = relationship("Users",     foreign_keys=[tenant_id],    lazy="select")
     candidate = relationship("Candidate", foreign_keys=[candidate_id], lazy="select")
     assigner  = relationship("Users",     foreign_keys=[assigned_by],  lazy="select")
 
@@ -294,12 +291,9 @@ class ConversationEvent(Base):
         index=True,
     )
 
-    # TENANT ISOLATION: Explicit tenant_id for defense-in-depth
-    # Prevents data leakage if FK constraint is bypassed
-    # CRASH FIX #1: Remove default="1" to force explicit tenant_id, prevent silent data leakage
+    # Tenant key, inherited from the conversation when omitted (listener below)
     tenant_id = Column(
         String(50),
-        ForeignKey("users.UserID", ondelete="NO ACTION"),
         nullable=False,
         index=True
     )
@@ -332,7 +326,7 @@ def _conversation_event_inherit_tenant(mapper, connection, target):
     """tenant_id is NOT NULL with no default (deliberately: no silent '1'),
     but nearly every one of the ~85 call sites that log an event omits it,
     so those inserts failed. When omitted, inherit it from the parent
-    conversation -- the same users.UserID-valued owner key -- rather than
+    conversation -- the same tenant key -- rather than
     guessing. Still fails loudly if the conversation itself has none."""
     if target.tenant_id is None and target.conversation_id is not None:
         conversations = CandidateConversation.__table__

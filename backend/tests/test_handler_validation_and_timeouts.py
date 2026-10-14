@@ -14,7 +14,6 @@ from unittest.mock import Mock, patch, MagicMock
 from sqlalchemy.orm import Session
 
 from app.services.message_handlers.base_message_handler import time_bound, TimeoutError
-from app.services.message_handlers.candidate_creation_handler import CandidateCreationHandler
 from app.services.message_handlers.candidate_conversion_handler import CandidateConversionHandler
 from app.services.message_handlers.job_creation_flash_handler import JobCreationFlashHandler
 from app.services.message_handlers.interview_scheduled_handler import InterviewScheduledHandler
@@ -52,72 +51,6 @@ class TestTimeBinding:
 
         with pytest.raises(ValueError):
             failing_function()
-
-
-class TestCandidateCreationValidation:
-    """Test candidate_creation_handler validation before COMPLETED."""
-
-    def test_on_success_validates_result_structure(self):
-        """on_success should raise ValueError if result structure invalid."""
-        message = Mock(spec=ChannelQueueItem)
-        db = Mock(spec=Session)
-
-        # Invalid: result is not a dict
-        with pytest.raises(ValueError, match="Handler returned invalid type"):
-            CandidateCreationHandler.on_success(message, "not_a_dict", db)
-
-        # Invalid: missing required field
-        result = {"status": "success"}  # Missing candidate_id
-        with pytest.raises(ValueError, match="missing required field"):
-            CandidateCreationHandler.on_success(message, result, db)
-
-    def test_on_success_validates_database_exists(self):
-        """on_success should raise RuntimeError if candidate not in DB."""
-        from app.models.candidate import Candidate
-
-        message = Mock(spec=ChannelQueueItem)
-        message.payload = {"candidate_email": "test@example.com"}
-        message.id = "msg-123"
-
-        result = {
-            "status": "success",
-            "candidate_id": "cand-999",
-            "is_new": True
-        }
-
-        db = Mock(spec=Session)
-        db.query.return_value.filter.return_value.first.return_value = None  # Not found
-
-        with pytest.raises(RuntimeError, match="not found in database"):
-            CandidateCreationHandler.on_success(message, result, db)
-
-    def test_on_success_validates_status_record_exists(self):
-        """on_success should raise RuntimeError if status record missing."""
-        from app.models.candidate import Candidate, CandidateStatus
-
-        message = Mock(spec=ChannelQueueItem)
-        message.payload = {"candidate_email": "test@example.com"}
-        message.id = "msg-123"
-
-        result = {
-            "status": "success",
-            "candidate_id": "cand-123",
-            "is_new": True
-        }
-
-        # Mock candidate exists
-        candidate_mock = Mock(spec=Candidate)
-        candidate_mock.candidateEmail = "test@example.com"
-
-        db = Mock(spec=Session)
-        # First query finds candidate, second query finds no status
-        db.query.side_effect = [
-            Mock(filter=Mock(return_value=Mock(first=Mock(return_value=candidate_mock)))),
-            Mock(filter=Mock(return_value=Mock(first=Mock(return_value=None))))  # No status
-        ]
-
-        with pytest.raises(RuntimeError, match="Required status record missing"):
-            CandidateCreationHandler.on_success(message, result, db)
 
 
 class TestCandidateConversionValidation:
@@ -193,7 +126,8 @@ class TestJobCreationValidation:
         db = Mock(spec=Session)
         db.query.return_value.filter.return_value.first.return_value = None  # Not found
 
-        with pytest.raises(RuntimeError, match="not found in database"):
+        # missing right after creation = a handler bug: ValueError, never retried
+        with pytest.raises(ValueError, match="not found in database"):
             JobCreationFlashHandler.on_success(message, result, db)
 
 
@@ -245,36 +179,22 @@ class TestInterviewScheduledValidation:
 
 
 class TestErrorClassification:
-    """Test that errors are properly classified for retry logic."""
+    """Bad data is a ValueError (not retried); a database failure is a RuntimeError (retried)."""
 
     def test_value_error_not_retryable(self):
-        """ValueError should be non-retryable (handler bug)."""
         message = Mock(spec=ChannelQueueItem)
-        db = Mock(spec=Session)
-
-        # ValueError during validation = code bug, don't retry
+        message.id = "msg-value-error"
         with pytest.raises(ValueError):
-            CandidateCreationHandler.on_success(
-                message,
-                {"invalid": "structure"},
-                db
-            )
+            JobCreationFlashHandler.on_success(message, {"invalid": "structure"}, Mock(spec=Session))
 
     def test_runtime_error_retryable(self):
-        """RuntimeError should be retryable (DB issue)."""
         message = Mock(spec=ChannelQueueItem)
         message.id = "msg-retry-test"
-
+        message.payload = {}
         db = Mock(spec=Session)
-        db.query.return_value.filter.return_value.first.return_value = None
-
-        # RuntimeError during validation = DB issue, retry
-        with pytest.raises(RuntimeError):
-            CandidateCreationHandler.on_success(
-                message,
-                {"status": "success", "candidate_id": "cand-123", "is_new": True},
-                db
-            )
+        db.query.side_effect = ConnectionError("database unavailable")
+        with pytest.raises(RuntimeError, match="Database validation error"):
+            JobCreationFlashHandler.on_success(message, {"status": "success", "job_id": "job-1"}, db)
 
 
 class TestHandlerCompletionFlow:
@@ -289,7 +209,7 @@ class TestHandlerCompletionFlow:
 
         db = Mock(spec=Session)
 
-        CandidateCreationHandler.on_retry(
+        CandidateConversionHandler.on_retry(
             message,
             "Test error",
             db
@@ -304,9 +224,9 @@ class TestHandlerCompletionFlow:
     def test_should_retry_respects_max_retries(self):
         """should_retry should return False when max retries exceeded."""
         message = Mock(spec=ChannelQueueItem)
-        message.retry_count = CandidateCreationHandler.MAX_RETRIES
+        message.retry_count = CandidateConversionHandler.MAX_RETRIES
 
-        assert not CandidateCreationHandler.should_retry(message)
+        assert not CandidateConversionHandler.should_retry(message)
 
     def test_should_retry_respects_next_retry_at(self):
         """should_retry should return False if next_retry_at in future."""
@@ -314,7 +234,7 @@ class TestHandlerCompletionFlow:
         message.retry_count = 0
         message.next_retry_at = datetime.utcnow() + timedelta(hours=1)
 
-        assert not CandidateCreationHandler.should_retry(message)
+        assert not CandidateConversionHandler.should_retry(message)
 
     def test_should_retry_allows_ready_messages(self):
         """should_retry should return True for ready messages."""
@@ -322,7 +242,7 @@ class TestHandlerCompletionFlow:
         message.retry_count = 1
         message.next_retry_at = datetime.utcnow() - timedelta(minutes=1)
 
-        assert CandidateCreationHandler.should_retry(message)
+        assert CandidateConversionHandler.should_retry(message)
 
 
 if __name__ == "__main__":

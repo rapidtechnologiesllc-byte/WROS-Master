@@ -4,14 +4,12 @@ Several services already import the getters below (follow-up timing,
 ghosting reactivation, SLA thresholds, escalation keywords, digest time)
 and fell back to their module defaults because this module did not exist.
 
-Storage:
-- Identity / switches that already live on the engagement-tenant user row
-  (ai_agent_name, ai_agent_persona, digest_enabled, thunder_enabled) are
-  read and written there -- the services already read them from it.
-- Everything else is one JSON row of overrides in system_config
-  (key "tenant_ai_config"); a missing key means the service default.
+Storage: one JSON row of overrides per tenant in system_config (key "tenant_ai_config"),
+including the org-wide identity and switches -- Thunder's name and persona, the morning
+digest switch and the Thunder kill switch. They used to live on an arbitrary "engagement
+tenant" user row, so the kill switch saved on whoever clicked it while the pause check read a
+different user: it did not reliably stop anything. A missing key means the default below.
 """
-from app.core.tenant_context import sole_tenant_id
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -20,7 +18,8 @@ from sqlalchemy.orm import Session
 from app.core.logging import logger
 
 CONFIG_KEY = "tenant_ai_config"
-USER_FIELDS = ("ai_agent_name", "ai_agent_persona", "digest_enabled", "thunder_enabled")
+# Org-wide identity and switches (validated separately from the numeric thresholds)
+IDENTITY_FIELDS = ("ai_agent_name", "ai_agent_persona", "digest_enabled", "thunder_enabled")
 GREETING_CHANNELS = ("WHATSAPP", "EMAIL")
 
 
@@ -45,32 +44,51 @@ def _defaults() -> Dict[str, Any]:
     }
 
 
-def _row(db: Session):
+def _identity_defaults() -> Dict[str, Any]:
+    from app.services.ai_conversation_service import DEFAULT_THUNDER_DISPLAY_NAME, DEFAULT_THUNDER_PERSONA_TEXT
+
+    return {"ai_agent_name": DEFAULT_THUNDER_DISPLAY_NAME, "ai_agent_persona": DEFAULT_THUNDER_PERSONA_TEXT,
+            "digest_enabled": True, "thunder_enabled": True}
+
+
+def _tenant(db: Session, tenant_id) -> int:
+    from app.core.tenant_context import tenant_of_key
+
+    return tenant_of_key(db, tenant_id)
+
+
+def _row(db: Session, tenant: int):
     from app.models.system_config import SystemConfig
     return db.query(SystemConfig).filter(
-        SystemConfig.config_key == CONFIG_KEY, SystemConfig.business_unit_id.is_(None)
+        SystemConfig.tenant_id == tenant, SystemConfig.config_key == CONFIG_KEY,
+        SystemConfig.business_unit_id.is_(None),
     ).first()
 
 
-def _tenant_user(db: Session, tenant_id: Optional[str]):
-    from app.models.user import Users
-    if not tenant_id:
-        from app.services.ai_conversation_service import resolve_default_tenant_id
-        tenant_id = resolve_default_tenant_id()
-    return db.query(Users).filter(Users.UserID == tenant_id).first() if tenant_id else None
-
-
 def get_tenant_ai_config(db: Session, tenant_id: Optional[str] = None) -> Dict[str, Any]:
-    config = _defaults()
-    row = _row(db)
+    """The tenant's settings: defaults overlaid with what was saved. tenant_id is a tenant id
+    or an engagement-record key (app.core.tenant_context.tenant_of_key); None = the only tenant."""
+    config = {**_defaults(), **_identity_defaults()}
+    row = _row(db, _tenant(db, tenant_id))
     if row and isinstance(row.config_value, dict):
         config.update({k: v for k, v in row.config_value.items() if k in config})
-    user = _tenant_user(db, tenant_id)
-    for field in USER_FIELDS:
-        config[field] = getattr(user, field, None) if user else None
     config["updated_at"] = row.updated_at.isoformat() if row and row.updated_at else None
     config["updated_by"] = row.updated_by if row else None
     return config
+
+
+def thunder_identity(db: Session, tenant_id: Optional[str] = None) -> Dict[str, str]:
+    """Thunder's candidate-facing name and persona for the tenant -- never blank (BR-02)."""
+    config = get_tenant_ai_config(db, tenant_id)
+    defaults = _identity_defaults()
+    name = (config.get("ai_agent_name") or "").strip() or defaults["ai_agent_name"]
+    persona = (config.get("ai_agent_persona") or "").strip() or defaults["ai_agent_persona"]
+    return {"name": name, "persona": persona}
+
+
+def is_thunder_enabled(db: Session, tenant_id: Optional[str] = None) -> bool:
+    """The org-wide kill switch: False halts every automated Thunder send."""
+    return get_tenant_ai_config(db, tenant_id).get("thunder_enabled") is not False
 
 
 def update_tenant_ai_config(db: Session, updates: Dict[str, Any], changed_by: str, tenant_id: Optional[str] = None) -> Dict[str, Any]:
@@ -78,7 +96,7 @@ def update_tenant_ai_config(db: Session, updates: Dict[str, Any], changed_by: st
     from app.models.system_config import SystemConfig
 
     defaults = _defaults()
-    unknown = set(updates) - set(defaults) - set(USER_FIELDS)
+    unknown = set(updates) - set(defaults) - set(IDENTITY_FIELDS)
     if unknown:
         raise ValueError(f"Unknown setting(s): {sorted(unknown)}")
     if "greeting_channel" in updates and str(updates["greeting_channel"]).upper() not in GREETING_CHANNELS:
@@ -94,21 +112,22 @@ def update_tenant_ai_config(db: Session, updates: Dict[str, Any], changed_by: st
             raise ValueError("digest_send_time must be HH:MM")
     if "escalation_keywords" in updates and not isinstance(updates["escalation_keywords"], list):
         raise ValueError("escalation_keywords must be a list")
+    if "ai_agent_name" in updates and not str(updates["ai_agent_name"] or "").strip():
+        raise ValueError("ai_agent_name cannot be blank")
+    for key in ("digest_enabled", "thunder_enabled"):
+        if key in updates and not isinstance(updates[key], bool):
+            raise ValueError(f"{key} must be true or false")
 
-    user = _tenant_user(db, tenant_id)
-    for field in USER_FIELDS:
-        if field in updates:
-            if user is None:
-                raise ValueError("No engagement tenant user to store this setting on")
-            setattr(user, field, updates[field])
-
-    overrides = {k: v for k, v in updates.items() if k in defaults}
+    overrides = {k: v for k, v in updates.items() if k in defaults or k in IDENTITY_FIELDS}
     if "greeting_channel" in overrides:
         overrides["greeting_channel"] = str(overrides["greeting_channel"]).upper()
+    if "ai_agent_name" in overrides:
+        overrides["ai_agent_name"] = str(overrides["ai_agent_name"]).strip()
     if overrides:
-        row = _row(db)
+        tenant = _tenant(db, tenant_id)
+        row = _row(db, tenant)
         if row is None:
-            row = SystemConfig(tenant_id=sole_tenant_id(db), business_unit_id=None, config_category="AI_THRESHOLDS",
+            row = SystemConfig(tenant_id=tenant, business_unit_id=None, config_category="AI_THRESHOLDS",
                                config_key=CONFIG_KEY, config_value={})
             db.add(row)
         row.config_value = {**(row.config_value or {}), **overrides}

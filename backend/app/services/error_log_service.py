@@ -8,7 +8,7 @@ CRITICAL severity pages on-call synchronously, as part of the same
 call, not batched. No dedicated on-call role/config exists in this
 codebase yet (same real gap already flagged for HR/Buddy/RM roles
 elsewhere this session) -- pages the first Super User, same
-resolve_default_tenant_id()-style convention already established.
+resolve_default_tenant_id(db)-style convention already established.
 """
 from app.core.tenant_context import tenant_id_of
 import json
