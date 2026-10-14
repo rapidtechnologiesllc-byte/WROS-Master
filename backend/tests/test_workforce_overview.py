@@ -87,10 +87,6 @@ def _allocate(db, employee, *, line, end_date=None, via_project=False):
     db.flush()
 
 
-def _group_of(body, employee):
-    return next(g["key"] for g in body["groups"] for p in g["people"] if p["employee_id"] == employee.id)
-
-
 def test_every_employee_lands_in_exactly_one_group(db, api):
     admin = _user(db, full_access_role(db))
     in_buddy = _employee(db, "Buddy", buddy="IN_PROGRESS")
@@ -111,20 +107,41 @@ def test_every_employee_lands_in_exactly_one_group(db, api):
     db.add(EmployeeEscalation(tenant_id=1, employee_id=ready.id, reason="Late timesheets"))
     db.commit()
 
-    body = api.get("/api/v1/workforce/overview", headers=_headers(admin)).json()
+    dashboard = api.get("/api/v1/workforce/overview", headers=_headers(admin)).json()
+    assert dashboard["selection"] is None  # the dashboard carries numbers only
+    counts = {g["key"]: g["count"] for g in dashboard["groups"]}
+    assert sum(counts.values()) == dashboard["headcount"]
+
+    def people(**query):
+        r = api.get("/api/v1/workforce/overview", params=query, headers=_headers(admin))
+        assert r.status_code == 200, r.text
+        selection = r.json()["selection"]
+        return {p["employee_id"]: p for p in selection["people"]}, selection
+
     expected = {in_buddy: "BENCH_IN_BUDDY", ready: "BENCH_READY", core_ready: "BENCH_CORE_READY",
                 staff_aug: "STAFF_AUG", staff_aug_cert: "STAFF_AUG_CORE_CERTIFIED", core: "CORE", both: "CORE",
                 unknown: "UNCLASSIFIED"}
+    every = []
+    for key in counts:
+        rows, selection = people(group=key)
+        assert selection["count"] == counts[key] == len(rows)  # each number's page shows exactly that many
+        every += list(rows)
     for employee, group in expected.items():
-        assert _group_of(body, employee) == group, employee.first_name
-    every = [p["employee_id"] for g in body["groups"] for p in g["people"]]
-    assert len(every) == len(set(every)) == body["headcount"] == sum(g["count"] for g in body["groups"])
+        assert people(group=group)[0][employee.id]["group"] == group, employee.first_name
+    assert len(every) == len(set(every)) == dashboard["headcount"]
     assert exited.id not in every
 
-    person = {p["employee_id"]: p for g in body["groups"] for p in g["people"]}
-    assert person[staff_aug_cert.id]["rolling_off"] is True and person[staff_aug.id]["rolling_off"] is False
-    assert person[ready.id]["open_escalations"] == 1
-    assert body["flags"]["rolling_off"] >= 1 and body["roll_off_window_days"] == 30
+    rolling, _ = people(flag="rolling_off")
+    assert staff_aug_cert.id in rolling and staff_aug.id not in rolling
+    assert rolling[staff_aug_cert.id]["group_label"] == "Staff Aug, Core-certified"
+    escalated, _ = people(flag="open_escalations")
+    assert escalated[ready.id]["open_escalations"] == 1
+    flag_counts = {f["key"]: f["count"] for f in dashboard["flags"]}
+    assert flag_counts["rolling_off"] == len(rolling) and dashboard["roll_off_window_days"] == 30
+
+    assert api.get("/api/v1/workforce/overview?group=NOPE", headers=_headers(admin)).status_code == 404
+    assert api.get("/api/v1/workforce/overview?group=CORE&flag=rolling_off",
+                   headers=_headers(admin)).status_code == 422
 
 
 def test_scoped_to_the_viewers_business_units_and_permission(db, api):
@@ -148,7 +165,7 @@ def test_scoped_to_the_viewers_business_units_and_permission(db, api):
     no_permission = _user(db, bare)
     db.commit()
 
-    response = api.get("/api/v1/workforce/overview", headers=_headers(viewer))
+    response = api.get("/api/v1/workforce/overview?group=BENCH_READY", headers=_headers(viewer))
     assert response.status_code == 200, response.text
-    assert theirs.id not in [p["employee_id"] for g in response.json()["groups"] for p in g["people"]]
+    assert theirs.id not in [p["employee_id"] for p in response.json()["selection"]["people"]]
     assert api.get("/api/v1/workforce/overview", headers=_headers(no_permission)).status_code == 403

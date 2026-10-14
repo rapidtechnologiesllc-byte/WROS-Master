@@ -1,6 +1,6 @@
 """Pydantic schemas -- Workforce Overview (app.services.workforce_report_service)."""
 from datetime import date
-from typing import Dict, List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel
 
@@ -19,18 +19,26 @@ class WorkforcePerson(BaseModel):
     rolling_off: bool
     open_escalations: int
     notice_period: bool
+    group: str
+    group_label: str
 
 
-class WorkforceGroup(BaseModel):
+class WorkforceCount(BaseModel):
     key: str
     label: str
     description: str
     count: int
+
+
+class WorkforceSelection(WorkforceCount):
+    kind: Literal["group", "flag"]
     people: List[WorkforcePerson]
 
 
 class WorkforceOverviewResponse(BaseModel):
     headcount: int
     roll_off_window_days: int
-    groups: List[WorkforceGroup]
-    flags: Dict[str, int]
+    groups: List[WorkforceCount]
+    flags: List[WorkforceCount]
+    # the people behind one number, when ?group= or ?flag= is given
+    selection: Optional[WorkforceSelection] = None

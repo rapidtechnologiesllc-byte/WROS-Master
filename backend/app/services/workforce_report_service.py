@@ -19,7 +19,7 @@ allocation ending within ROLL_OFF_WINDOW_DAYS), open escalations, notice period.
 Batched: employees, their active allocations, the allocations' projects and clients, and open
 escalations are four queries whatever the headcount (no per-employee lookups)."""
 import logging
-from collections import Counter, defaultdict
+from collections import defaultdict
 from typing import Dict, List, Optional
 
 from sqlalchemy import func
@@ -50,6 +50,13 @@ GROUPS = (
     ("CORE", "Core (direct client)", "On a Core project; held until released."),
     ("UNCLASSIFIED", "Allocated, unclassified", "The project and client have no Core / Staff Aug type set."),
 )
+FLAGS = (
+    ("rolling_off", "Rolling off", "An active allocation ends within the roll-off window."),
+    ("open_escalations", "Open escalations", "At least one escalation not yet resolved by a Director."),
+    ("notice_period", "On notice", "Serving notice."),
+)
+GROUP_KEYS = tuple(key for key, _, _ in GROUPS)
+FLAG_KEYS = tuple(key for key, _, _ in FLAGS)
 
 
 def _group(employee: Employee, lines: List[Optional[str]]) -> str:
@@ -64,7 +71,10 @@ def _group(employee: Employee, lines: List[Optional[str]]) -> str:
     return "BENCH_CORE_READY" if employee.core_certified else "BENCH_READY"
 
 
-def workforce_overview(db: Session, user: Users) -> Dict:
+def workforce_overview(db: Session, user: Users, *, group: Optional[str] = None,
+                       flag: Optional[str] = None) -> Dict:
+    """Counts for every group and flag; the people only for the one group or flag asked for
+    (the dashboard needs numbers, each number's page needs its people)."""
     employees = (
         db.query(Employee)
         .filter(Employee.tenant_id == user.tenant_id, bu_filter(db, user, Employee.bu_id),
@@ -102,10 +112,10 @@ def workforce_overview(db: Session, user: Users) -> Dict:
     for employee in employees:
         rows = allocations.get(employee.id, [])
         lines = [line_of(a) for a in rows]
-        group = _group(employee, lines)
+        placed_in = _group(employee, lines)
         # the allocation that placed them in the group (Core first), shown on the row
         shown = next((a for a, line in zip(rows, lines) if line == CORE), None) or (rows[0] if rows else None)
-        people[group].append({
+        people[placed_in].append({
             "employee_id": employee.id,
             "candidate_id": employee.candidate_id,
             "name": f"{employee.first_name} {employee.last_name}".strip(),
@@ -121,13 +131,25 @@ def workforce_overview(db: Session, user: Users) -> Dict:
             "notice_period": employee.status == "NOTICE_PERIOD",
         })
 
-    groups = [{"key": key, "label": label, "description": description, "count": len(people[key]),
-               "people": people[key]} for key, label, description in GROUPS]
-    flags = Counter()
-    for rows in people.values():
-        for p in rows:
-            flags["rolling_off"] += p["rolling_off"]
-            flags["open_escalations"] += bool(p["open_escalations"])
-            flags["notice_period"] += p["notice_period"]
+    flagged = {key: [] for key in FLAG_KEYS}
+    for key, label, _ in GROUPS:
+        for p in people[key]:
+            row = {**p, "group": key, "group_label": label}
+            for flag_key in FLAG_KEYS:
+                if p[flag_key]:
+                    flagged[flag_key].append(row)
+
+    groups = [{"key": key, "label": label, "description": description, "count": len(people[key])}
+              for key, label, description in GROUPS]
+    flags = [{"key": key, "label": label, "description": description, "count": len(flagged[key])}
+             for key, label, description in FLAGS]
+    selection = None
+    if group:
+        meta = next(g for g in groups if g["key"] == group)
+        selection = {**meta, "kind": "group",
+                     "people": [{**p, "group": group, "group_label": meta["label"]} for p in people[group]]}
+    elif flag:
+        meta = next(f for f in flags if f["key"] == flag)
+        selection = {**meta, "kind": "flag", "people": flagged[flag]}
     return {"headcount": len(employees), "roll_off_window_days": settings.ROLL_OFF_WINDOW_DAYS,
-            "groups": groups, "flags": dict(flags)}
+            "groups": groups, "flags": flags, "selection": selection}
