@@ -210,6 +210,10 @@ class Settings:
     # An employee whose active allocation ends within this many days is rolling off and may be
     # submitted to their next client (CEO 2026-10-14)
     ROLL_OFF_WINDOW_DAYS: int = int(os.getenv("ROLL_OFF_WINDOW_DAYS", "30"))
+    # Core certification (CEO 2026-10-14): approved billable days on Staff Aug with no escalation,
+    # and how long the BU Head's approval task runs
+    CORE_CERT_BILLABLE_DAYS: int = int(os.getenv("CORE_CERT_BILLABLE_DAYS", "90"))
+    CORE_CERT_TASK_DUE_DAYS: int = int(os.getenv("CORE_CERT_TASK_DUE_DAYS", "7"))
     BU_LEADER_MIN_LEVEL: int = int(os.getenv("BU_LEADER_MIN_LEVEL", "14"))
     PARTNER_MIN_LEVEL: int = int(os.getenv("PARTNER_MIN_LEVEL", "16"))
     CEO_LEVEL: int = int(os.getenv("CEO_LEVEL", "17"))

@@ -3,10 +3,11 @@
 // Every number is a link to its own page (WorkforceSegmentScreen) listing exactly those people.
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { RefreshCw, Users, Flag } from "lucide-react";
+import { Award, RefreshCw, Users, Flag } from "lucide-react";
 import { Card, Button } from "../components/ui";
 import cx from "../utils/cx";
 import { getWorkforceOverview, toSlug } from "../services/api/workforce";
+import { getCoreCertificationRequests } from "../services/api/coreCertification";
 
 function CountTile({ to, count, label, description }) {
   return (
@@ -20,6 +21,7 @@ function CountTile({ to, count, label, description }) {
 
 export default function WorkforceOverviewScreen() {
   const [data, setData] = useState(null);
+  const [pendingCertifications, setPendingCertifications] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -27,7 +29,15 @@ export default function WorkforceOverviewScreen() {
     setLoading(true);
     setError("");
     try {
-      setData(await getWorkforceOverview());
+      const [overview, pending] = await Promise.all([
+        getWorkforceOverview(),
+        getCoreCertificationRequests("PENDING").catch((err) => {
+          console.error("[WorkforceOverview] Core certification requests unavailable:", err);
+          return null;
+        }),
+      ]);
+      setData(overview);
+      setPendingCertifications(pending ? pending.requests.length : null);
     } catch (err) {
       setError(err.message || "Failed to load the workforce overview.");
     } finally {
@@ -58,6 +68,21 @@ export default function WorkforceOverviewScreen() {
           {(data?.groups || []).map((g) => (
             <CountTile key={g.key} to={`/workforce/${toSlug(g.key)}`} count={g.count} label={g.label} description={g.description} />
           ))}
+        </div>
+      </Card>
+
+      <Card
+        title="Core certification"
+        subtitle="Buddy graduated + 90 approved billable Staff Aug days with no escalation → BU Head approval."
+        icon={<Award className="h-4 w-4" />}
+      >
+        <div className="grid gap-3 sm:grid-cols-3">
+          <CountTile
+            to="/workforce/core-certification"
+            count={pendingCertifications ?? "—"}
+            label="Awaiting BU Head decision"
+            description="Approve, or tell Flash why not and it sets up the follow-ups."
+          />
         </div>
       </Card>
 
