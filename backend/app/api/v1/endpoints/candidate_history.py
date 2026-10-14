@@ -160,6 +160,19 @@ def create_candidate_history(
 # ---------------------------------------------------------------------------
 
 @router.get(
+    "/event-types",
+    dependencies=[Depends(require_resource_permission("candidates", "view"))],
+    summary="Event types the history can hold (the History tab filter)",
+)
+def list_history_event_types() -> dict:
+    """The same list event creation validates against, so the filter offers every type that
+    can exist (it was a hardcoded copy in the frontend that lacked e.g. Candidate Added)."""
+    from app.schemas.candidate_history import VALID_EVENT_TYPES
+
+    return {"event_types": sorted(VALID_EVENT_TYPES)}
+
+
+@router.get(
     "/{candidate_id}",
     response_model=CandidateHistoryListResponse,
     dependencies=[Depends(require_resource_permission("candidates", "view"))],

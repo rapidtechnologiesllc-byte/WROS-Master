@@ -68,7 +68,7 @@ class RoleTemplate(Base):
     # False if role should be scoped to assigned Business Unit only
     org_level_access = Column(Boolean, default=False, nullable=False, server_default="false")
     # PRODUCTION SAFETY: tenant_id MUST be set, never allow None. Default to 1 (single tenant)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, server_default="1", default=1)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
     created_by = Column(String(255))  # user email who created it
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

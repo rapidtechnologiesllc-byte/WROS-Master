@@ -1,3 +1,4 @@
+from app.core.tenant_context import tenant_id_of
 from app.models.agent_execution_log import AgentExecutionLog
 from app.core.logging import logger
 """Agent Standups Dashboard - Daily aggregated view for CEO."""
@@ -27,7 +28,7 @@ def get_standups_dashboard(
     Required: admin.view (CEO/Super User only)
     """
     try:
-        tenant_id = getattr(current_user, 'TenantID', 1)
+        tenant_id = tenant_id_of(current_user)
         if not PermissionHelper.has_permission(current_user.UserID, "ceo-dashboard.view", db, tenant_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

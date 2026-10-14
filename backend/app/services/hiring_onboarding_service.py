@@ -34,7 +34,9 @@ class OnboardingError(ValueError):
 
 
 def _tenant_key(candidate: Candidate) -> str:
-    return str(candidate.tenant_id or 1)
+    if candidate.tenant_id is None:
+        raise ValueError(f"Candidate {candidate.candidateID} has no tenant")
+    return str(candidate.tenant_id)
 
 
 def queue_candidate_email(db: Session, candidate: Candidate, kind: str, ref: str) -> Optional[str]:
@@ -77,7 +79,7 @@ def start_onboarding(db: Session, pipeline) -> str:
                                        document_type=doc_type, document_label=label, is_mandatory=True))
             created += 1
     checklist_note = "no pre-joining checklist configured"
-    template_id = int(get_config_value(db, tenant_id=candidate.tenant_id or 1, key="prejoining_checklist_template_id") or 0)
+    template_id = int(get_config_value(db, tenant_id=int(_tenant_key(candidate)), key="prejoining_checklist_template_id") or 0)
     if template_id:
         template = db.query(ChecklistTemplate).filter(ChecklistTemplate.id == template_id).first()
         if template is None:

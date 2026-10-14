@@ -72,26 +72,15 @@ class RoleTemplateUpdate(BaseModel):
     permissions: List[PermissionInput] = []
 
 
-def _function(value: Optional[str]) -> str:
-    """A template's function: General or one the org knows (org_hierarchy_validator.FUNCTION_WORDS)."""
-    from app.services.org_hierarchy_validator import FUNCTION_WORDS
+def _function(db: Session, tenant_id: int, value: Optional[str]) -> str:
+    """A template's function: General or one of the tenant's active functions (Manage Functions)."""
+    from app.services.function_service import canonical_name
 
-    value = (value or "General").strip()
-    if value != "General" and value not in FUNCTION_WORDS:
-        raise HTTPException(status_code=422,
-                            detail=f"Function must be General or one of {sorted(FUNCTION_WORDS)}")
-    return value
+    try:
+        return canonical_name(db, tenant_id, value)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
-class RoleTemplateResponse(BaseModel):
-    id: int
-    name: str
-    display_name: str
-    description: Optional[str]
-    is_system: bool
-    permissions: List[dict]
-
-    class Config:
-        from_attributes = True
 
 def _owner_role(db: Session, template_id: int):
     """{id, name, hierarchy_level} of the Manage Role whose permission set this is, else None."""
@@ -124,12 +113,12 @@ def _canonical_resource(db: Session, name: str, tenant_id: int) -> Resource:
     "/functions",
     dependencies=[Depends(require_resource_permission("role-templates", "view"))]
 )
-def list_functions():
-    """Functions an add-on can be for. A person's department names their function, and the
-    user form suggests the add-on whose function matches it."""
-    from app.services.org_hierarchy_validator import FUNCTION_WORDS
+def list_functions(db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)):
+    """Functions an add-on can be for: General plus the tenant's active functions (Manage
+    Functions). The user form suggests the add-on whose function is the person's function."""
+    from app.services.function_service import function_names
 
-    return {"functions": ["General", *FUNCTION_WORDS.keys()]}
+    return {"functions": function_names(db, tenant_id_of(current_user))}
 
 
 @router.get(
@@ -254,7 +243,7 @@ def create_role_template(
         name=data.name,
         display_name=data.display_name,
         description=data.description,
-        specialization=_function(data.specialization),
+        specialization=_function(db, current_user.tenant_id, data.specialization),
         is_system=False,
         tenant_id=current_user.tenant_id,
         created_by=current_user.UserEmail
@@ -332,7 +321,7 @@ def update_role_template(
             template.description = data.description
             logger.info("[PUT] Updated description")
         if data.specialization is not None:
-            function = _function(data.specialization)
+            function = _function(db, template.tenant_id, data.specialization)
             if function != "General" and _owner_role(db, template.id):
                 raise HTTPException(status_code=400, detail="A role's permissions apply to everyone holding the role; "
                                                             "a function belongs on a function add-on")

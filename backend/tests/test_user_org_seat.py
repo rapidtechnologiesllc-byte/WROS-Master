@@ -39,8 +39,8 @@ def firm(db):
     us, india = Location(tenant_id=1, name=f"BX-US-{uid()}"), Location(tenant_id=1, name=f"BX-IN-{uid()}")
     db.add_all([us, india])
     db.flush()
-    db.add_all([BusinessUnitCompany(business_unit_id=w.bu_a.id, company_id=us.id),
-                BusinessUnitCompany(business_unit_id=w.bu_a.id, company_id=india.id)])
+    db.add_all([BusinessUnitCompany(tenant_id=1, business_unit_id=w.bu_a.id, company_id=us.id),
+                BusinessUnitCompany(tenant_id=1, business_unit_id=w.bu_a.id, company_id=india.id)])
     ceo = db.query(OrgNode).filter(OrgNode.tenant_id == 1, OrgNode.hierarchy_level == 17,
                                    OrgNode.active.is_(True)).first() \
         or create_org_node(db, tenant_id=1, name="CEO seat", hierarchy_level=17, specialization="General")
@@ -79,7 +79,7 @@ def test_existing_user_without_a_seat_is_connected_from_the_edit_form(db, api, f
 
 def test_india_head_reporting_to_us_partner_sees_the_bu_not_another_bu(db, api, firm):
     head = person(db, firm.partner_role, "India head")
-    db.add(BusinessUnitLocationHead(business_unit_id=firm.bu_a.id, company_id=firm.india.id,
+    db.add(BusinessUnitLocationHead(tenant_id=1, business_unit_id=firm.bu_a.id, company_id=firm.india.id,
                                     head_user_id=head.UserID))
     db.commit()
     api.put(firm.org_user, f"/api/v1/hr/users/{head.UserID}", json={

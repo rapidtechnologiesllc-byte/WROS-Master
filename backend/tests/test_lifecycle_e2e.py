@@ -88,7 +88,7 @@ def world(db):
                     UserPassword="x", UserRole="partner", tenant_id=1, role_template_id=admin_role.id)
     db.add_all([admin, partner])
     db.flush()
-    unit = BusinessUnit(name=f"axion-{_uid()}", display_name="Axion", partner_user_id=partner.UserID)
+    unit = BusinessUnit(tenant_id=1, name=f"axion-{_uid()}", display_name="Axion", partner_user_id=partner.UserID)
     db.add(unit)
     db.flush()
     db.add(CostRateConfig(business_unit_id=unit.id, statutory_pct=10, overhead_pct=20))

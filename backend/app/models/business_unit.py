@@ -18,7 +18,7 @@ class BusinessUnit(Base):
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     # PRODUCTION SAFETY: tenant_id MUST be set, never allow None. Default to 1
     # All new business units get tenant_id from creator's tenant (fallback to 1)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, server_default="1", default=1, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
     # Basic info
     name = Column(String(512), nullable=False, index=True)
@@ -54,7 +54,7 @@ class BusinessUnitCompany(Base):
     __table_args__ = (UniqueConstraint("business_unit_id", "company_id", name="uq_business_unit_company"),)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, server_default="1", default=1, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     business_unit_id = Column(Integer, ForeignKey("business_units.id", ondelete="CASCADE"), nullable=False, index=True)
     company_id = Column(String(512), ForeignKey("locations.id", ondelete="CASCADE"), nullable=False, index=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -69,7 +69,7 @@ class BusinessUnitLocationHead(Base):
     __table_args__ = (UniqueConstraint("business_unit_id", "company_id", name="uq_bu_location_head"),)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, server_default="1", default=1, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     business_unit_id = Column(Integer, ForeignKey("business_units.id", ondelete="CASCADE"), nullable=False, index=True)
     company_id = Column(String(512), ForeignKey("locations.id", ondelete="CASCADE"), nullable=False, index=True)
     head_user_id = Column(String(512), ForeignKey("users.UserID", ondelete="CASCADE"), nullable=False, index=True)

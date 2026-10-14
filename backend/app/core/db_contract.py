@@ -3,7 +3,7 @@ Database Contract - Ensures database is properly initialized on startup.
 
 This module guarantees:
 1. All tables exist (schema creation)
-2. Required tenants exist (tenant_id=1)
+2. A primary tenant (parent company) exists
 3. RBAC modules and resources exist
 4. Default admin role template exists
 5. Admin user exists with proper permissions
@@ -123,19 +123,30 @@ def _initialize_thunder_variants():
     finally:
         db.close()
 
+def primary_tenant_id(db) -> int:
+    """The first tenant (parent company) -- owner of the shared module/resource catalog and of
+    the bootstrap admin accounts. Looked up, never assumed to be id 1."""
+    tenant_id = db.query(Tenant.id).order_by(Tenant.id).limit(1).scalar()
+    if tenant_id is None:
+        raise RuntimeError("No tenant exists - _initialize_tenant must run first")
+    return tenant_id
+
+
 def _initialize_tenant():
-    """Ensure tenant_id=1 (BlitzenX) exists."""
+    """Make sure a parent company (tenant) exists: on an empty database create one named
+    PRIMARY_TENANT_NAME. Every tenant is a parent company; its sub-companies are Companies
+    (locations) inside it and take its tenant id."""
     from sqlalchemy import text
     db = SessionLocal()
     try:
-        tenant = db.query(Tenant).filter(Tenant.id == 1).first()
+        tenant = db.query(Tenant).order_by(Tenant.id).first()
         if not tenant:
-            tenant = Tenant(id=1, name="BlitzenX")
+            tenant = Tenant(name=settings.PRIMARY_TENANT_NAME)
             db.add(tenant)
             db.commit()
-            logger.info("[Contract] Created tenant: BlitzenX (id=1)")
+            logger.info(f"[Contract] Created primary tenant: {tenant.name} (id={tenant.id})")
         else:
-            logger.info("[Contract] Tenant exists: BlitzenX (id=1)")
+            logger.info(f"[Contract] Primary tenant: {tenant.name} (id={tenant.id})")
 
         # Explicit-PK inserts don't advance Postgres's identity sequence, so
         # the next auto-generated tenant would also try to use id=1 and hit
@@ -166,6 +177,8 @@ def _initialize_rbac():
     try:
         # Import the authoritative API contract
         from app.contracts.api_contract import MODULES_AND_RESOURCES
+
+        catalog_tenant = primary_tenant_id(db)  # one shared module/resource catalog
 
         # Define display names for modules (can enhance as needed)
         module_display_names = {
@@ -200,7 +213,7 @@ def _initialize_rbac():
                     name=module_name,
                     display_name=display_name,
                     enabled=True,
-                    tenant_id=1
+                    tenant_id=catalog_tenant
                 )
                 db.add(module)
                 db.flush()
@@ -224,7 +237,7 @@ def _initialize_rbac():
                         name=resource_name,
                         display_name=resource_name.replace("_", " ").title(),
                         enabled=True,
-                        tenant_id=1
+                        tenant_id=catalog_tenant
                     )
                     db.add(resource)
                     logger.info(f"[Contract] Created resource: {module_name}/{resource_name}")
@@ -240,15 +253,17 @@ def _initialize_rbac():
             ('Ops', 'Operations', 'Operations team - receives system alerts and diagnostics'),
         ]
 
-        for role_name, display_name, description in role_template_configs:
-            role_template = db.query(RoleTemplate).filter(RoleTemplate.name == role_name).first()
+        for (tenant_id,) in db.query(Tenant.id).all():  # every parent company gets the system roles
+          for role_name, display_name, description in role_template_configs:
+            role_template = db.query(RoleTemplate).filter(RoleTemplate.name == role_name,
+                                                          RoleTemplate.tenant_id == tenant_id).first()
             if not role_template:
                 role_template = RoleTemplate(
                     name=role_name,
                     display_name=display_name,
                     description=description,
                     is_system=True,
-                    tenant_id=1
+                    tenant_id=tenant_id
                 )
                 db.add(role_template)
                 db.flush()
@@ -381,10 +396,10 @@ LEADERSHIP_ROLES = {
 }
 
 
-def ensure_role(db, name: str, spec: dict) -> bool:
-    """Create one LEADERSHIP_ROLES-style role template with its permissions if missing.
-    Existing roles are never touched (the Role Templates editor owns them)."""
-    if db.query(RoleTemplate).filter(RoleTemplate.name == name).first():
+def ensure_role(db, name: str, spec: dict, tenant_id: int) -> bool:
+    """Create one LEADERSHIP_ROLES-style role template with its permissions in the tenant if
+    missing. Existing roles are never touched (the Role Templates editor owns them)."""
+    if db.query(RoleTemplate).filter(RoleTemplate.name == name, RoleTemplate.tenant_id == tenant_id).first():
         return False
     from app.services.role_template_permission_service import canonical_resource
 
@@ -396,7 +411,7 @@ def ensure_role(db, name: str, spec: dict) -> bool:
     role = RoleTemplate(
         name=name, display_name=spec["display_name"], description=spec["description"],
         hierarchy_level=spec["hierarchy_level"], org_level_access=spec["org_level_access"],
-        specialization=spec.get("specialization", "General"), is_system=False, tenant_id=1,
+        specialization=spec.get("specialization", "General"), is_system=False, tenant_id=tenant_id,
     )
     db.add(role)
     db.flush()
@@ -407,7 +422,7 @@ def ensure_role(db, name: str, spec: dict) -> bool:
             if resource is None:
                 raise RuntimeError(f"Role {name}: unknown resource {resource_name!r}")
             db.add(RoleTemplatePermission(
-                role_template_id=role.id, resource_id=resource.id, tenant_id=1,
+                role_template_id=role.id, resource_id=resource.id, tenant_id=tenant_id,
                 can_view=True, can_create=mode == "vce", can_edit=mode == "vce", can_delete=False,
             ))
             granted += 1
@@ -420,8 +435,9 @@ def _initialize_leadership_roles():
     """Create the Partner, BU Head, Finance Manager and Employee role templates if missing (idempotent)."""
     db = SessionLocal()
     try:
-        for name, spec in LEADERSHIP_ROLES.items():
-            ensure_role(db, name, spec)
+        for (tenant_id,) in db.query(Tenant.id).all():
+            for name, spec in LEADERSHIP_ROLES.items():
+                ensure_role(db, name, spec, tenant_id)
         _move_converted_employees_off_user_role(db)
         _initialize_role_authority(db)
         _initialize_bu_location_heads(db)
@@ -432,6 +448,9 @@ def _initialize_leadership_roles():
         _initialize_thunder_conversation_owner(db)
         _initialize_candidate_status_templates(db)
         _initialize_permission_row_tenants(db)
+        _initialize_functions(db)
+        _initialize_company_codes(db)
+        _initialize_user_template_tenants(db)
         _initialize_pipeline_access(db)
     except Exception:
         db.rollback()
@@ -679,6 +698,71 @@ def _initialize_permission_row_tenants(db):
         logger.info(f"[Contract] Filed {moved} permission row(s) under their template's tenant")
 
 
+def _initialize_company_codes(db):
+    """Every company gets its number inside its tenant (code "<tenant>-<n>"), in order of
+    creation; numbers are never reused or renumbered. Idempotent."""
+    from app.models.location import Location
+
+    numbered = 0
+    for (tenant_id,) in db.query(Tenant.id).all():
+        companies = db.query(Location).filter(Location.tenant_id == tenant_id).order_by(Location.created_at, Location.id).all()
+        top = max((c.company_seq or 0 for c in companies), default=0)
+        for company in companies:
+            if company.company_seq is None:
+                top += 1
+                company.company_seq = top
+                numbered += 1
+    db.commit()
+    db.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_locations_tenant_company_seq "
+                    "ON app_schema.locations (tenant_id, company_seq) WHERE company_seq IS NOT NULL"))
+    db.commit()
+    if numbered:
+        logger.info(f"[Contract] Numbered {numbered} compan(y/ies) inside their tenant")
+
+
+def _initialize_functions(db):
+    """A tenant with no functions yet gets the standard list once (Manage Functions owns it
+    afterwards: renames and retirements are never undone)."""
+    import uuid as _uuid
+
+    from app.models.org_structure import Department
+    from app.services.org_hierarchy_validator import FUNCTION_WORDS
+
+    added = 0
+    for (tenant_id,) in db.query(Tenant.id).all():
+        if db.query(Department.id).filter(Department.tenant_id == tenant_id).first():
+            continue
+        for name in FUNCTION_WORDS:
+            db.add(Department(id=str(_uuid.uuid4()), tenant_id=tenant_id, name=name, active=True))
+            added += 1
+    db.commit()
+    if added:
+        logger.info(f"[Contract] Seeded {added} standard function(s)")
+
+
+def _initialize_user_template_tenants(db):
+    """A user holding another tenant's template (possible before add-ons were validated) has
+    no add-on their tenant can show or edit. Move them to the same-named template of their own
+    tenant when one exists (same access by construction); otherwise leave and log."""
+    moved = 0
+    for user in db.query(Users).join(RoleTemplate, RoleTemplate.id == Users.role_template_id) \
+            .filter(RoleTemplate.tenant_id != Users.tenant_id).all():
+        current = db.get(RoleTemplate, user.role_template_id)
+        own = db.query(RoleTemplate).filter(RoleTemplate.tenant_id == user.tenant_id,
+                                            RoleTemplate.name == current.name).first()
+        if own is None:
+            logger.warning(f"[Contract] {user.UserID} holds template {current.id} of tenant {current.tenant_id}; "
+                           f"no {current.name!r} template in tenant {user.tenant_id} - fix on the Users screen")
+            continue
+        user.role_template_id = own.id
+        moved += 1
+    db.commit()
+    if moved:
+        from app.services.role_template_permission_service import invalidate_permissions
+        invalidate_permissions()
+        logger.info(f"[Contract] Moved {moved} user(s) to their own tenant's template")
+
+
 def _initialize_bu_location_heads(db):
     """BU heads are per company (BusinessUnitLocationHead). Carry any old single
     BusinessUnit.manager_id over once (idempotent: it is cleared after the move)."""
@@ -737,7 +821,7 @@ def _initialize_admin_user():
                 UserRole="Admin",
                 UserName="Admin User",
                 role_template_id=admin_role.id,
-                tenant_id=1,
+                tenant_id=primary_tenant_id(db),
                 timezone="Asia/Kolkata",
                 password_reset_required=True
             )
@@ -748,9 +832,9 @@ def _initialize_admin_user():
             updated = False
 
             if not admin_user.tenant_id:
-                admin_user.tenant_id = 1
+                admin_user.tenant_id = primary_tenant_id(db)
                 updated = True
-                logger.info("[Contract] Updated admin user with default tenant_id=1")
+                logger.info("[Contract] Updated admin user with the primary tenant")
 
             if not admin_user.role_template_id:
                 admin_user.role_template_id = admin_role.id
@@ -772,7 +856,7 @@ def _initialize_admin_user():
                     display_name="Super Administrator",
                     description="Super admin role with full system access",
                     is_system=True,
-                    tenant_id=1
+                    tenant_id=primary_tenant_id(db)
                 )
                 db.add(super_admin_role)
                 db.flush()
@@ -785,7 +869,7 @@ def _initialize_admin_user():
                 UserRole="SuperUser",
                 UserName="Super User",
                 role_template_id=super_admin_role.id,
-                tenant_id=1,
+                tenant_id=primary_tenant_id(db),
                 timezone="Asia/Kolkata",
                 password_reset_required=False,
                 mfa_enabled=False
@@ -798,9 +882,9 @@ def _initialize_admin_user():
             updated = False
 
             if not superuser.tenant_id:
-                superuser.tenant_id = 1
+                superuser.tenant_id = primary_tenant_id(db)
                 updated = True
-                logger.info("[Contract] Updated superuser with default tenant_id=1")
+                logger.info("[Contract] Updated superuser with the primary tenant")
 
             if not superuser.role_template_id:
                 super_admin_role = db.query(RoleTemplate).filter(RoleTemplate.name == "Super Admin").first()
@@ -1224,6 +1308,8 @@ def _run_schema_migrations():
             "locations": [
                 ("state", "VARCHAR(512) NULL"),
                 ("parent_company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE RESTRICT"),
+                # Company code "<tenant>-<n>" (Location.company_seq)
+                ("company_seq", "INTEGER NULL"),
             ],
             "intercompany_settlements": [
                 ("business_unit_id", "INTEGER NULL REFERENCES app_schema.business_units(id) ON DELETE SET NULL"),
@@ -1282,6 +1368,18 @@ def _run_schema_migrations():
                 ("upload_sequence", "INTEGER NULL"),
             ],
         }
+        # No tenant default anywhere: every row names its tenant (it once silently became 1)
+        for table_name in ("business_units", "business_unit_companies", "business_unit_location_heads",
+                           "candidates", "candidate_rejections", "candidate_rejection_reasons", "locations",
+                           "role_templates", "system_modules", "system_module_permissions",
+                           "thunder_monthly_highlights"):
+            try:
+                db.execute(text(f"ALTER TABLE app_schema.{table_name} ALTER COLUMN tenant_id DROP DEFAULT"))
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                if "does not exist" not in str(e).lower():
+                    raise
         for table_name, columns in drifted_tables.items():
             for column_name, column_def in columns:
                 try:

@@ -104,7 +104,7 @@ class Candidate(Base):
     submission_bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     associated_bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     # Multi-tenant isolation: tenant_id must be set, never allow None
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, server_default="1", default=1, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     submission_timestamp = Column(DateTime, nullable=True)  # When candidate was submitted to BU
     thunder_enabled = Column(Boolean, nullable=False, default=True, server_default="1")  # Enable/disable Thunder autonomous processing
 

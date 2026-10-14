@@ -68,7 +68,7 @@ def test_sales_payroll_is_the_sales_function_not_a_title(db):
     from app.core.db_contract import _initialize_org_positions
 
     _initialize_org_positions(db)  # what startup seeds; a fresh test database has none
-    unit = BusinessUnit(name=f"BU-{uid()}", display_name="BU")
+    unit = BusinessUnit(tenant_id=1, name=f"BU-{uid()}", display_name="BU")
     bizdev = Department(id=f"D-{uid()}", tenant_id=1, name=f"Business Development {uid()}")
     db.add_all([unit, bizdev])
     db.flush()

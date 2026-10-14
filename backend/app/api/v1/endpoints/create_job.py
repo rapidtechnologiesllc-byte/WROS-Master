@@ -1157,6 +1157,7 @@ async def apply_for_job(
         candidate, message_id = queue_and_wait_for_candidate(
             db=db,
             email=email,
+            tenant_id=job.tenant_id,
             first_name=first_name,
             last_name=last_name,
             mobile=phone,

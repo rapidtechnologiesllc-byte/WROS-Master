@@ -5,6 +5,7 @@ Implements idempotent candidate creation through message queue.
 - Logs all events via history API
 - 5 retry attempts with 30-minute intervals
 """
+from app.core.tenant_context import sole_tenant_id
 from app.services.slm_service import SLMService
 from app.services.candidate_service import create_candidate as create_candidate_safe
 import logging
@@ -75,7 +76,7 @@ class CandidateCreationHandler:
             # Extract and validate tenant_id using centralized validation
             # This eliminates duplication across all handlers and services
             from app.services.candidate_service import validate_and_normalize_tenant_id
-            raw_tenant_id = payload.get("tenant_id", 1)
+            raw_tenant_id = payload.get("tenant_id") or getattr(message, "tenant_id", None) or sole_tenant_id(db)
             tenant_id = validate_and_normalize_tenant_id(db, raw_tenant_id)
             logger.info(f"[Handler] Using tenant_id={tenant_id} for candidate")
 
@@ -452,7 +453,7 @@ Recruiting Team
                         'email_type': 'FIRST_ENGAGEMENT',
                         'subject': f'Welcome {candidate_first_name}! Your Application is Received',
                         'body': f'Hi {candidate_first_name},\n\nThank you for applying! We have received your application and will review it shortly.\n\nBest regards,\nBlitzenX Team',
-                        'tenant_id': payload.get('tenant_id', 1),
+                        'tenant_id': tenant_id,
                     }
                 )
                 logger.info(f"[Handler] ✅ Queued first engagement email for {candidate_id}")
@@ -595,7 +596,7 @@ Recruiting Team
                                 'subject': f'Welcome {candidate_first_name}! Your Application is Received',
                                 'body': f'Hi {candidate_first_name},\n\nThank you for applying! We have received your application and will review it shortly.\n\nBest regards,\nBlitzenX Team',
                                 'is_html': False,
-                                'tenant_id': healed_payload.get('tenant_id', 1),
+                                'tenant_id': healed_payload.get('tenant_id') or tenant_id,
                             }
                         )
                         logger.info(f"[Handler] ✅ Queued email for healed candidate {candidate_id}")
@@ -737,7 +738,7 @@ Recruiting Team
                 logger.info(f"[Handler] ✅ Email verified: {candidate.candidateEmail}")
 
             # 3. VERIFY TENANT ASSIGNMENT
-            expected_tenant = payload.get("tenant_id", 1)
+            expected_tenant = payload.get("tenant_id") or getattr(message, "tenant_id", None) or sole_tenant_id(db)
             if isinstance(expected_tenant, int):
                 from app.models.user import Users
                 user = db.query(Users).filter(Users.tenant_id == expected_tenant).first()

@@ -52,7 +52,7 @@ class ReferralAccessControl:
 
         # Admin and Workforce Manager see everything
         user = db.query(Users).filter(Users.UserID == user_id).first()
-        tenant_id = (user.tenant_id or 1) if user else 1
+        tenant_id = user.tenant_id if user else None
         if PermissionHelper.has_any_permission(user_id, ["admin-settings.edit", "revenue.edit"], db, tenant_id):
             return True
 
@@ -72,7 +72,7 @@ class ReferralAccessControl:
         try:
             # Admin and Finance see ALL referrals
             user = db.query(Users).filter(Users.UserID == user_id).first()
-            tenant_id = (user.tenant_id or 1) if user else 1
+            tenant_id = user.tenant_id if user else None
             if PermissionHelper.has_any_permission(user_id, ["admin-settings.edit", "revenue.edit"], db, tenant_id):
                 referrals = db.query(EmployeeReferral).all()
             # BU Head/Partner and HR Manager see only their BU's referrals
@@ -118,7 +118,7 @@ class ReferralAccessControl:
         try:
             # Admin and Finance see ALL bonuses for payment processing
             user = db.query(Users).filter(Users.UserID == user_id).first()
-            tenant_id = (user.tenant_id or 1) if user else 1
+            tenant_id = user.tenant_id if user else None
             if PermissionHelper.has_any_permission(user_id, ["admin-settings.edit", "revenue.edit"], db, tenant_id):
                 bonuses = db.query(ReferralBonus).all()
             # BU Head/Partner and HR Manager see only their BU's bonuses
@@ -163,7 +163,7 @@ class ReferralAccessControl:
 
         # Only admin, finance, and manager-level and above can see job stats
         user = db.query(Users).filter(Users.UserID == user_id).first()
-        tenant_id = (user.tenant_id or 1) if user else 1
+        tenant_id = user.tenant_id if user else None
         can_view_stats = PermissionHelper.has_any_permission(
             user_id,
             ["admin-settings.edit", "revenue.edit", "business-units.edit", "employees.edit"],

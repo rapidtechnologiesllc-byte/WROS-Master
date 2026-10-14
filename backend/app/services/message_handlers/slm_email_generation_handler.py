@@ -12,6 +12,7 @@ Implements async two-phase processing:
 - Phase 2: SLM handler → Generate email → Update to READY_TO_SEND
 - Phase 3: Thunder handler → Send the generated email
 """
+from app.core.tenant_context import sole_tenant_id
 import logging
 from typing import Dict, Any
 from sqlalchemy.orm import Session
@@ -26,8 +27,10 @@ logger = logging.getLogger(__name__)
 class SLMEmailGenerationHandler:
     """Generates personalized candidate welcome emails using SLM + Gemini"""
 
+    TIMEOUT_SECONDS = 15
+
     @staticmethod
-    @time_bound(timeout_seconds=15)
+    @time_bound(timeout_seconds=TIMEOUT_SECONDS)
     def process(message: Any, db: Session) -> Dict[str, Any]:
         """
         Process message: Generate personalized email content for candidate.
@@ -162,7 +165,7 @@ class SLMEmailGenerationHandler:
                             upsert_fact(
                                 db=db,
                                 candidate_id=candidate_id,
-                                tenant_id=candidate.tenant_id or 1,
+                                tenant_id=candidate.tenant_id if candidate.tenant_id is not None else sole_tenant_id(db),
                                 fact_category='SALARY',
                                 fact_key='expected_salary',
                                 fact_value=expected_salary,
@@ -180,7 +183,7 @@ class SLMEmailGenerationHandler:
                             upsert_fact(
                                 db=db,
                                 candidate_id=candidate_id,
-                                tenant_id=candidate.tenant_id or 1,
+                                tenant_id=candidate.tenant_id if candidate.tenant_id is not None else sole_tenant_id(db),
                                 fact_category='PREFERENCE',
                                 fact_key='location_preference',
                                 fact_value=location,
@@ -203,7 +206,7 @@ class SLMEmailGenerationHandler:
                             upsert_fact(
                                 db=db,
                                 candidate_id=candidate_id,
-                                tenant_id=candidate.tenant_id or 1,
+                                tenant_id=candidate.tenant_id if candidate.tenant_id is not None else sole_tenant_id(db),
                                 fact_category='SKILL',
                                 fact_key='primary_skills',
                                 fact_value=skills_str,
@@ -221,7 +224,7 @@ class SLMEmailGenerationHandler:
                             upsert_fact(
                                 db=db,
                                 candidate_id=candidate_id,
-                                tenant_id=candidate.tenant_id or 1,
+                                tenant_id=candidate.tenant_id if candidate.tenant_id is not None else sole_tenant_id(db),
                                 fact_category='MOTIVATOR',
                                 fact_key='experience_level',
                                 fact_value=str(experience_text),
@@ -239,7 +242,7 @@ class SLMEmailGenerationHandler:
                             upsert_fact(
                                 db=db,
                                 candidate_id=candidate_id,
-                                tenant_id=candidate.tenant_id or 1,
+                                tenant_id=candidate.tenant_id if candidate.tenant_id is not None else sole_tenant_id(db),
                                 fact_category='EMPLOYER',
                                 fact_key='recruitment_source',
                                 fact_value=source,

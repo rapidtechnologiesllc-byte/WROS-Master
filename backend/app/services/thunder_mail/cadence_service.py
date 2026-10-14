@@ -3,6 +3,7 @@
 Silence never ends a cadence: after the 4 active touches a candidate moves to
 monthly NURTURE indefinitely. Only an opt-out or a hostile reply stops it.
 """
+from app.core.tenant_context import sole_tenant_id
 import html
 import logging
 import re
@@ -59,7 +60,7 @@ def enqueue_once(task_name: str, task_id: str, data: Dict, tenant_id: Optional[i
         check.close()
     try:
         MessageQueueService.enqueue(task_name=task_name, task_id=task_id, data=data,
-                                    delay_seconds=delay_seconds, tenant_id=int(tenant_id or 1))
+                                    delay_seconds=delay_seconds, tenant_id=tenant_id)
         return True
     except RuntimeError as exc:
         check = SessionLocal()
@@ -162,7 +163,7 @@ def nurture_content(db: Session, candidate: Candidate, when: datetime) -> Option
     None when there is nothing new, so no empty email is sent."""
     jobs = matching_open_jobs(db, candidate)
     highlight = db.query(ThunderMonthlyHighlight).filter_by(
-        tenant_id=candidate.tenant_id or 1, month=f"{when:%Y-%m}").first()
+        tenant_id=candidate.tenant_id if candidate.tenant_id is not None else sole_tenant_id(db), month=f"{when:%Y-%m}").first()
     if not jobs and highlight is None:
         return None
     items = "".join(

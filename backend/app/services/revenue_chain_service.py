@@ -337,6 +337,7 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
 
     org = section(lines, sum(b["bench_cost_usd_cents"] for b in bench_rows.values()),
                   [m for b in bench_rows.values() for m in b["missing"]], sum(e["amount"] for e in expenses))
+    by_company = _company_pnl(db, lines, staff, costs, delivery_by_employee, expenses, start, end, tenant_id)
     return {
         "start": start.isoformat(), "end": end.isoformat(), **org,
         "pending_expenses_usd_cents": pending_expenses,
@@ -344,7 +345,71 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
         "by_partner": rollup("partner_user_id", 0, partner_names),
         "by_business_unit": rollup("business_unit_id", 1, bu_names),
         "by_client": sorted(by_client.values(), key=lambda r: r["earned_usd_cents"], reverse=True),
+        "by_company": by_company,
     }
+
+
+def _company_pnl(db: Session, lines: List[Dict], staff, costs, delivery_by_employee: Dict[str, int],
+                 expenses: List[Dict], start: date, end: date, tenant_id: Optional[int]) -> List[Dict]:
+    """Each company's (legal entity's) own P&L; the parent company (tenant) owns the org-wide one.
+
+      revenue          earned on the clients the company contracts (Client.contracting_company_id)
+      delivery cost    hours of the company's own employees (Employee.company_id), on any client
+      bench cost       its employees' paid-but-unbilled time
+      expenses         client expenses on its clients
+      intercompany     settlements: revenue for the receiving company, cost for the paying one;
+                       they cancel out at org level, so the org P&L is unchanged
+    Work that can't be attributed to a company stays with the parent ("Group", key None)."""
+    from app.models.client import Client
+    from app.models.intercompany_ledger import IntercompanySettlement
+    from app.models.location import Location
+
+    companies = db.query(Location).all() if tenant_id is None else \
+        db.query(Location).filter(Location.tenant_id == tenant_id).all()
+    by_name = {c.name.strip().lower(): c.id for c in companies}
+    by_name.update({c.company_code.lower(): c.id for c in companies if c.company_code})
+    client_company = dict(db.query(Client.id, Client.contracting_company_id))
+    employee_company = {e.id: e.company_id for e in staff}
+    rows: Dict = defaultdict(lambda: {"revenue": 0, "delivery": 0, "bench": 0, "expense": 0,
+                                      "ic_revenue": 0, "ic_cost": 0, "complete": True})
+    for line in lines:
+        rows[client_company.get(line["client_id"])]["revenue"] += line.get("earned_usd_cents") or 0
+        owner = rows[employee_company.get(line["employee_id"])]
+        if line["cost_usd_cents"] is None:
+            owner["complete"] = False
+        else:
+            owner["delivery"] += line["cost_usd_cents"]
+    for employee in staff:
+        payroll = costs.period(employee, start, end)
+        if payroll is None:
+            rows[employee.company_id]["complete"] = False
+            continue
+        rows[employee.company_id]["bench"] += max(0, payroll - delivery_by_employee.get(employee.id, 0))
+    for e in expenses:
+        rows[client_company.get(e["key"][2]) if e["key"][2] else None]["expense"] += e["amount"]
+    settlements = db.query(IntercompanySettlement).filter(
+        IntercompanySettlement.settlement_date >= start, IntercompanySettlement.settlement_date <= end)
+    if tenant_id is not None:
+        settlements = settlements.filter(IntercompanySettlement.tenant_id == tenant_id)
+    for s in settlements.all():
+        rows[by_name.get((s.to_entity or "").strip().lower())]["ic_revenue"] += s.amount_usd_cents
+        rows[by_name.get((s.from_entity or "").strip().lower())]["ic_cost"] += s.amount_usd_cents
+
+    names = {c.id: (c.name, c.company_code) for c in companies}
+    out = []
+    for key, r in rows.items():
+        revenue = r["revenue"] + r["ic_revenue"]
+        cost = r["delivery"] + r["bench"] + r["expense"] + r["ic_cost"]
+        out.append(_with_margin({
+            "key": key, "name": names.get(key, ("Group (parent company)", None))[0],
+            "company_code": names.get(key, (None, None))[1],
+            "revenue_usd_cents": revenue, "external_revenue_usd_cents": r["revenue"],
+            "intercompany_revenue_usd_cents": r["ic_revenue"], "intercompany_cost_usd_cents": r["ic_cost"],
+            "delivery_cost_usd_cents": r["delivery"], "bench_cost_usd_cents": r["bench"],
+            "expense_cost_usd_cents": r["expense"], "total_cost_usd_cents": cost,
+            "cost_data_complete": r["complete"],
+        }, revenue, cost, r["complete"]))
+    return sorted(out, key=lambda r: (r["key"] is None, -r["revenue_usd_cents"]))
 
 
 def _expenses(db: Session, start: date, end: date, tenant_id: Optional[int], units: Dict,

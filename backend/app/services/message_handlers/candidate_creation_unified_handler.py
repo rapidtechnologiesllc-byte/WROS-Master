@@ -4,6 +4,7 @@ Process queued candidate creation requests.
 This is the ONLY place where create_candidate() actually runs.
 """
 
+from app.core.tenant_context import sole_tenant_id
 import logging
 from typing import Dict, Any, Optional
 from datetime import date, datetime
@@ -146,7 +147,7 @@ class CandidateCreationUnifiedHandler:
         last_name = payload.get('candidate_last_name')
         mobile = payload.get('candidate_mobile')
         source = payload.get('candidate_source', 'unknown')
-        tenant_id = payload.get('tenant_id', 1)
+        tenant_id = payload.get('tenant_id') or getattr(message, 'tenant_id', None) or sole_tenant_id(db)
 
         if not all([email, first_name, last_name]):
             raise ValueError("Missing required fields: email, first_name, last_name")

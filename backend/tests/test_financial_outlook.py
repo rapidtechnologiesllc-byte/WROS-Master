@@ -54,7 +54,7 @@ def world(db):
                     UserRole="x", tenant_id=1, role_template_id=role.id)
     db.add(partner)
     db.flush()
-    unit = BusinessUnit(name=f"bu-{_uid()}", display_name="BU", partner_user_id=partner.UserID)
+    unit = BusinessUnit(tenant_id=1, name=f"bu-{_uid()}", display_name="BU", partner_user_id=partner.UserID)
     db.add(unit)
     db.flush()
     db.add(CostRateConfig(business_unit_id=unit.id, statutory_pct=10, overhead_pct=20))
@@ -160,7 +160,7 @@ def test_endpoint_scopes_by_role_template(db, world):
         return {"Authorization": "Bearer " + create_access_token(
             {"sub": user.UserID, "type": "user", "tenant_id": 1, "role_template_id": user.role_template_id})}
 
-    other_unit = BusinessUnit(name=f"bu-{_uid()}", display_name="Other")
+    other_unit = BusinessUnit(tenant_id=1, name=f"bu-{_uid()}", display_name="Other")
     db.add(other_unit)
     db.flush()
     scoped_role = full_access_role(db)

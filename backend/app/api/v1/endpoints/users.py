@@ -739,15 +739,11 @@ def create_user_with_roles(
         if request.parent_node_id:
             raise HTTPException(status_code=400, detail="The CEO reports to no one")
     if request.department_id:
-        department = db.query(Department).filter(
-            Department.id == request.department_id,
-            Department.tenant_id == current_user.tenant_id,
-        ).first()
-        if not department:
-            raise HTTPException(status_code=400, detail="Department not found")
-        # Org-wide departments (no BU) fit any business unit
-        if request.business_unit_id and department.business_unit_id and department.business_unit_id != request.business_unit_id:
-            raise HTTPException(status_code=400, detail="Department does not belong to the selected business unit")
+        from app.services.function_service import active_function_or_error
+        try:
+            active_function_or_error(db, current_user.tenant_id, request.department_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
     if request.location_id:
         location = db.query(Location).filter(
@@ -899,6 +895,11 @@ def update_user(
         ensure_assignable(db, current_user, request.business_unit_id, "user")
         target.business_unit_id = request.business_unit_id
     if request.department_id is not None:
+        from app.services.function_service import active_function_or_error
+        try:
+            active_function_or_error(db, target.tenant_id, request.department_id or None)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
         target.department_id = request.department_id or None
 
     # Org-chart seat: created when the user has none, moved when they do. Only the seat

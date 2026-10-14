@@ -78,7 +78,7 @@ def invalidate_permissions() -> None:
 class RoleTemplatePermissionService:
 
     @staticmethod
-    def get_user_role(db: Session, user_id: str, tenant_id: int = 1) -> RoleTemplate | None:
+    def get_user_role(db: Session, user_id: str, tenant_id: Optional[int] = None) -> RoleTemplate | None:
         """The user's function add-on template (users.role_template_id), enabled, in the tenant."""
         user = db.query(Users).filter(Users.UserID == user_id).first()
         if not user or not user.role_template_id:
@@ -104,7 +104,7 @@ class RoleTemplatePermissionService:
         ).first()
 
     @staticmethod
-    def templates_for(db: Session, user_id: str, tenant_id: int = 1) -> List[RoleTemplate]:
+    def templates_for(db: Session, user_id: str, tenant_id: Optional[int] = None) -> List[RoleTemplate]:
         """[Manage Role permission set, function add-on] -- whichever exist."""
         user = db.query(Users).filter(Users.UserID == user_id).first()
         if user is None:
@@ -119,7 +119,7 @@ class RoleTemplatePermissionService:
         return out
 
     @staticmethod
-    def get_resource_by_name(db: Session, resource_name: str, tenant_id: int = 1) -> Resource | None:
+    def get_resource_by_name(db: Session, resource_name: str, tenant_id: Optional[int] = None) -> Resource | None:
         """The canonical enabled resource with this name (case-insensitive) in the shared catalog.
         tenant_id is accepted for older callers; the catalog is the same for every tenant."""
         if not resource_name:
@@ -133,7 +133,7 @@ class RoleTemplatePermissionService:
         return canonical_resource(candidates, module_names)
 
     @staticmethod
-    def has_permission(db: Session, user_id: str, resource_name: str, action: str, tenant_id: int = 1) -> bool:
+    def has_permission(db: Session, user_id: str, resource_name: str, action: str, tenant_id: Optional[int] = None) -> bool:
         """May the user perform action ('view' | 'create' | 'edit' | 'delete') on the resource?
 
         A personal override on the resource decides outright; otherwise any of the user's
@@ -168,23 +168,23 @@ class RoleTemplatePermissionService:
             return False
 
     @staticmethod
-    def can_view(db: Session, user_id: str, resource_name: str, tenant_id: int = 1) -> bool:
+    def can_view(db: Session, user_id: str, resource_name: str, tenant_id: Optional[int] = None) -> bool:
         return RoleTemplatePermissionService.has_permission(db, user_id, resource_name, "view", tenant_id)
 
     @staticmethod
-    def can_create(db: Session, user_id: str, resource_name: str, tenant_id: int = 1) -> bool:
+    def can_create(db: Session, user_id: str, resource_name: str, tenant_id: Optional[int] = None) -> bool:
         return RoleTemplatePermissionService.has_permission(db, user_id, resource_name, "create", tenant_id)
 
     @staticmethod
-    def can_edit(db: Session, user_id: str, resource_name: str, tenant_id: int = 1) -> bool:
+    def can_edit(db: Session, user_id: str, resource_name: str, tenant_id: Optional[int] = None) -> bool:
         return RoleTemplatePermissionService.has_permission(db, user_id, resource_name, "edit", tenant_id)
 
     @staticmethod
-    def can_delete(db: Session, user_id: str, resource_name: str, tenant_id: int = 1) -> bool:
+    def can_delete(db: Session, user_id: str, resource_name: str, tenant_id: Optional[int] = None) -> bool:
         return RoleTemplatePermissionService.has_permission(db, user_id, resource_name, "delete", tenant_id)
 
     @staticmethod
-    def get_user_permissions(db: Session, user_id: str, tenant_id: int = 1) -> dict:
+    def get_user_permissions(db: Session, user_id: str, tenant_id: Optional[int] = None) -> dict:
         """{resource_name: {can_view, can_create, can_edit, can_delete, display_name, overridden}}
         for every resource the user has any right on. Same rules as has_permission.
         Cached in-process (permission_cache, 5-min TTL); a circuit breaker returns {} if the
@@ -209,7 +209,7 @@ class RoleTemplatePermissionService:
         return permissions
 
     @staticmethod
-    def _fetch_user_permissions_internal(db: Session, user_id: str, tenant_id: int = 1) -> dict:
+    def _fetch_user_permissions_internal(db: Session, user_id: str, tenant_id: Optional[int] = None) -> dict:
         if not user_id:
             raise ValueError("Cannot get user permissions: user_id is required")
         templates = RoleTemplatePermissionService.templates_for(db, user_id, tenant_id)

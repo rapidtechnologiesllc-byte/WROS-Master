@@ -65,6 +65,8 @@ outside the supported intents gets an explicit "I can't answer that
 yet" instead of an invented answer -- "strict mode," per Avinash's own
 words, same "no fake success" principle as the rest of this codebase.
 """
+from app.core.tenant_context import tenant_id_of
+from app.core.tenant_context import sole_tenant_id
 import logging
 import json
 import re
@@ -312,7 +314,7 @@ def _extract_keywords(text: str) -> List[str]:
     tokens = re.findall(r"[A-Za-z][A-Za-z0-9+.#]*", text or "")
     return [t for t in tokens if len(t) > 1 and t.lower() not in _STOPWORDS]
 
-def find_candidates_for_job(db: Session, job_id: str, *, top_n: int = MAX_CANDIDATES_RETURNED, tenant_id: int = 1, user_bu_id: Optional[int] = None) -> List[Dict]:
+def find_candidates_for_job(db: Session, job_id: str, *, top_n: int = MAX_CANDIDATES_RETURNED, tenant_id: Optional[int] = None, user_bu_id: Optional[int] = None) -> List[Dict]:
     """
     Find candidates matching a job's structured skill requirements using AND/OR boolean logic.
     AND mode: all mandatory skills required
@@ -398,7 +400,7 @@ def find_candidates_for_job(db: Session, job_id: str, *, top_n: int = MAX_CANDID
 
     return matched[:top_n]
 
-def find_matching_candidates(db: Session, query_text: str, *, top_n: int = MAX_CANDIDATES_RETURNED, tenant_id: int = 1, user_bu_id: Optional[int] = None) -> List[Dict]:
+def find_matching_candidates(db: Session, query_text: str, *, top_n: int = MAX_CANDIDATES_RETURNED, tenant_id: Optional[int] = None, user_bu_id: Optional[int] = None) -> List[Dict]:
     """
     Real keyword-overlap search over the real Candidates table (skills,
     job title, experience text) -- not a fabricated ranking. Every
@@ -469,7 +471,7 @@ def find_matching_candidates(db: Session, query_text: str, *, top_n: int = MAX_C
         for c, score in scored[:top_n]
     ]
 
-def get_candidate_status_summary(db: Session, name_query: str, *, tenant_id: int = 1, user_bu_id: Optional[int] = None) -> Dict:
+def get_candidate_status_summary(db: Session, name_query: str, *, tenant_id: Optional[int] = None, user_bu_id: Optional[int] = None) -> Dict:
     """
     Real lookup by name against the real Candidates + CandidateStatus
     tables. Returns {"matches": [...]} -- zero, one, or several real
@@ -1016,7 +1018,7 @@ def classify_with_ai(db: Session, message: str, *, history: Optional[List[Dict]]
         f"Intents:\n{intents}")
     user_prompt = (f"Recent conversation:\n{recent}\n\n" if recent else "") + f"Question: {message}"
     try:
-        raw = call_llm(db, str(tenant_id or 1), None, "flash_intent", "v1", system_prompt, user_prompt, 80, 0.0,
+        raw = call_llm(db, str(tenant_id if tenant_id is not None else sole_tenant_id(db)), None, "flash_intent", "v1", system_prompt, user_prompt, 80, 0.0,
                        llm_call=llm_call or _ai_llm_call, sleep_fn=lambda _seconds: None)
         parsed = json.loads(re.sub(r"^```(?:json)?|```$", "", raw.strip()).strip())
     except Exception as exc:
@@ -1098,7 +1100,7 @@ def answer_internal_query(
         if not query:
             return {"intent": intent, "reply": UNSUPPORTED_QUERY_MESSAGE}
         # ISOLATION FIX: Pass tenant_id + user_bu_id for data isolation
-        tenant_id = getattr(current_user, 'tenant_id', 1) if current_user else 1
+        tenant_id = tenant_id_of(current_user)
         user_bu_id = getattr(current_user, 'business_unit_id', None) if current_user else None
         results = find_matching_candidates(db, query, tenant_id=tenant_id, user_bu_id=user_bu_id)
         return {"intent": intent, "reply": _format_sourcing_reply(query, results)}
@@ -1107,7 +1109,7 @@ def answer_internal_query(
         if not query:
             return {"intent": intent, "reply": UNSUPPORTED_QUERY_MESSAGE}
         # ISOLATION FIX: Pass tenant_id + user_bu_id for data isolation
-        tenant_id = getattr(current_user, 'tenant_id', 1) if current_user else 1
+        tenant_id = tenant_id_of(current_user)
         user_bu_id = getattr(current_user, 'business_unit_id', None) if current_user else None
         status = get_candidate_status_summary(db, query, tenant_id=tenant_id, user_bu_id=user_bu_id)
         return {"intent": intent, "reply": _format_status_reply(query, status["matches"])}

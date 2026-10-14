@@ -112,10 +112,7 @@ export default function DeliveryCenterFormPage() {
       setActionError('Company name is required');
       return;
     }
-    if (formData.center_type !== 'HQ' && !formData.parent_company_id) {
-      setActionError('Pick the parent company this subsidiary belongs to');
-      return;
-    }
+    // Every company reports to the holding company; a parent company is optional
 
     setSaving(true);
     try {

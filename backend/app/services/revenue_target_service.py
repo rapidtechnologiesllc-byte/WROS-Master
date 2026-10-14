@@ -9,6 +9,7 @@ nonexistent analytics_fact_revenue S-267/S-242's own docs cite --
 confirmed absent from this codebase, same call already made for the
 Forecast vs Actual story.
 """
+from app.core.tenant_context import tenant_id_of
 import logging
 from datetime import datetime
 from typing import List, Optional
@@ -124,7 +125,7 @@ def set_partner_goal(
     """CEO-only, enforced via RBAC permission system.
     Users must have admin.manage or revenue.manage permission to set partner goals."""
 
-    tenant_id = getattr(created_by_user, 'TenantID', 1) if created_by_user else 1
+    tenant_id = tenant_id_of(created_by_user)
     has_permission = (
         PermissionHelper.has_permission(created_by_user.UserID, "admin-settings.edit", db, tenant_id) or
         PermissionHelper.has_permission(created_by_user.UserID, "revenue.edit", db, tenant_id)

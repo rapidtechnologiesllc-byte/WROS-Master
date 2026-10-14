@@ -249,10 +249,10 @@ def _make_head(db, user):
     from app.models.business_unit import BusinessUnit, BusinessUnitLocationHead
     from app.models.location import Location
 
-    unit, company = BusinessUnit(name=f"bu-{_uid()}", display_name="BU"), Location(tenant_id=1, name=f"co-{_uid()}")
+    unit, company = BusinessUnit(tenant_id=1, name=f"bu-{_uid()}", display_name="BU"), Location(tenant_id=1, name=f"co-{_uid()}")
     db.add_all([unit, company])
     db.flush()
-    db.add(BusinessUnitLocationHead(business_unit_id=unit.id, company_id=company.id, head_user_id=user.UserID))
+    db.add(BusinessUnitLocationHead(tenant_id=1, business_unit_id=unit.id, company_id=company.id, head_user_id=user.UserID))
     db.flush()
 
 

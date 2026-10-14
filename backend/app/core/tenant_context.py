@@ -106,6 +106,18 @@ def get_tenant_scoped_query(db: Session, model, current_user: Users) -> Query:
         )
     return db.query(model).filter(model.tenant_id == current_user.tenant_id)
 
+def sole_tenant_id(db) -> int:
+    """The tenant to use when a record or message carries none: the ONLY tenant, when exactly
+    one exists (production today). With several tenants there is no safe guess, so this
+    raises instead of silently picking tenant 1."""
+    from app.models.tenant import Tenant
+
+    ids = [tid for (tid,) in db.query(Tenant.id).limit(2).all()]
+    if len(ids) != 1:
+        raise ValueError(f"No tenant on this record and {len(ids)} tenants exist - pass the tenant explicitly")
+    return ids[0]
+
+
 def tenant_id_of(user) -> int:
     """The authenticated user's tenant_id. Fails closed (403) for an account with no
     tenant -- never a default tenant, so data can't land in or leak from tenant 1."""

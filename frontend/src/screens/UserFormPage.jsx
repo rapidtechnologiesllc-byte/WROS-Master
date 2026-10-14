@@ -151,20 +151,21 @@ export default function UserFormPage() {
     apiRequest('/org/departments')
       .then(res => {
         const all = Array.isArray(res.data) ? res.data : [];
-        setDepartments(all.filter(d => !d.business_unit_id || String(d.business_unit_id) === String(formData.business_unit_id)));
+        // Functions are org-wide; retired ones can't be picked
+        setDepartments(all.filter(d => d.active !== false));
       })
       .catch(err => {
-        console.error('[UserFormPage] Failed to load departments:', err);
-        setActionError(`Could not load departments: ${err.message}`);
+        console.error('[UserFormPage] Failed to load functions:', err);
+        setActionError(`Could not load functions: ${err.message}`);
       });
   }, [formData.business_unit_id]);
 
   // The add-on for a department's function (Recruitment department -> the Recruitment add-on),
   // when exactly one enabled add-on is for that function
   const suggestedAddon = (departmentId) => {
-    const fn = departments.find(d => String(d.id) === String(departmentId))?.function;
-    if (!fn || fn === 'General') return null;
-    const matches = roleTemplates.filter(t => t.specialization === fn);
+    const fn = departments.find(d => String(d.id) === String(departmentId))?.name;
+    if (!fn) return null;
+    const matches = roleTemplates.filter(t => (t.specialization || '').toLowerCase() === fn.toLowerCase());
     return matches.length === 1 ? { fn, template: matches[0] } : null;
   };
   const suggestion = suggestedAddon(formData.department_id);
@@ -193,6 +194,9 @@ export default function UserFormPage() {
   // of the organization and reports to no one.
   const normalise = (title) => (title || '').trim().toLowerCase();
   const roleFor = (title) => roles.find((r) => normalise(r.name) === normalise(title));
+  // Nobody changes their own role or access (the server refuses it too)
+  const isSelf = mode === 'edit'
+    && (localStorage.getItem('hrms_user_email') || '').toLowerCase() === (formData.user_email || '').toLowerCase();
   const selectedRole = roleFor(formData.job_title);
   const titleChanged = normalise(formData.job_title) !== normalise(originalTitle);
   const seatLevel = (mode === 'edit' && hasSeat && !titleChanged)
@@ -417,7 +421,7 @@ export default function UserFormPage() {
                 // a new level means a new set of eligible supervisors
                 setFormData(prev => ({ ...prev, job_title: title, parent_node_id: '' }));
               }}
-              disabled={saving}
+              disabled={saving || isSelf}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
             >
               <option value="">Select Job Title</option>
@@ -485,7 +489,7 @@ export default function UserFormPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Function</label>
                 <select
                   value={formData.department_id || ''}
                   onChange={(e) => {
@@ -498,13 +502,13 @@ export default function UserFormPage() {
                   disabled={saving}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
                 >
-                  <option value="">No department</option>
+                  <option value="">No function</option>
                   {departments.map(dept => (
                     <option key={dept.id} value={dept.id}>{dept.business_unit_name ? `${dept.name} · ${dept.business_unit_name}` : dept.name}</option>
                   ))}
                 </select>
                 {departments.length === 0 && (
-                  <p className="text-xs text-gray-500 mt-1">No departments yet - add them under Organizational Hierarchy → Manage Departments.</p>
+                  <p className="text-xs text-gray-500 mt-1">No functions yet - add them under Organizational Hierarchy → Manage Functions.</p>
                 )}
               </div>
               <div>
@@ -515,7 +519,7 @@ export default function UserFormPage() {
                   disabled={saving}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
                 >
-                  <option value="">Select company (BX-US / BX-IN)</option>
+                  <option value="">Select company</option>
                   {deliveryCenters.map(dc => (
                     <option key={dc.id} value={dc.id}>{dc.name}</option>
                   ))}
@@ -531,7 +535,7 @@ export default function UserFormPage() {
             <select
               value={String(formData.role_template_id || '')}
               onChange={handleRoleTemplateChange}
-              disabled={saving || mode === 'edit'}
+              disabled={saving || isSelf}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
               required
             >
@@ -549,7 +553,7 @@ export default function UserFormPage() {
             </p>
             {suggestion && String(suggestion.template.id) !== String(formData.role_template_id) && (
               <p className="text-xs text-amber-700 mt-1">
-                Their department is {suggestion.fn}; the {suggestion.fn} add-on is "{suggestion.template.name}".
+                Their function is {suggestion.fn}; the {suggestion.fn} add-on is "{suggestion.template.name}".
               </p>
             )}
           </div>

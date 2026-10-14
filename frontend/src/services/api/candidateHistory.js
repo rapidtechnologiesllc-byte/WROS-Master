@@ -17,7 +17,11 @@ export const HISTORY_EVENT_TYPES = Object.freeze({
   CUSTOM: "Custom",
 });
 
-export const HISTORY_EVENT_TYPE_OPTIONS = Object.values(HISTORY_EVENT_TYPES);
+// The filter's options come from the backend (the list event creation validates against)
+export const getHistoryEventTypes = async () => {
+  const { data } = await apiRequest("/history/event-types", { method: "GET" });
+  return data?.event_types || [];
+};
 
 const buildQueryString = (params = {}) => {
   const searchParams = new URLSearchParams();

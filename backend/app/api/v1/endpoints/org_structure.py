@@ -308,11 +308,12 @@ def delete_org_node_endpoint(
     return {"status": "deleted", "id": org_node_id}
 
 class DepartmentRequest(BaseModel):
+    """A function (Recruitment, HR, Finance ...): app.services.function_service."""
     name: str
-    # Departments are org-wide routing groups; a BU only for a BU-specific team
-    business_unit_id: Optional[int] = None
+    business_unit_id: Optional[int] = None  # legacy: functions are org-wide
     description: Optional[str] = None
     cost_center_code: Optional[str] = None
+    active: Optional[bool] = None  # False retires the function, True restores it
 
 def _department_response(dept: Department, tenant_id: int, db: Session) -> DepartmentResponse:
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
@@ -346,11 +347,12 @@ def create_department_endpoint(
 
     duplicate = db.query(Department).filter(
         Department.tenant_id == tenant_id,
-        Department.business_unit_id == request.business_unit_id,
-        Department.name == request.name.strip(),
+        func.lower(Department.name) == request.name.strip().lower(),
     ).first()
     if duplicate:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A department with this name already exists")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail=f"A function named {duplicate.name!r} already exists"
+                                   + ("" if duplicate.active else " (retired - restore it instead)"))
 
     dept = Department(
         id=str(uuid.uuid4()),
@@ -397,10 +399,30 @@ def update_department_endpoint(
             _tenant_business_unit(db, request.business_unit_id, tenant_id)
         dept.business_unit_id = request.business_unit_id
 
-    dept.name = request.name.strip()
+    new_name = request.name.strip()
+    if new_name.lower() != dept.name.lower() and db.query(Department.id).filter(
+            Department.tenant_id == tenant_id, func.lower(Department.name) == new_name.lower(),
+            Department.id != dept.id).first():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"A function named {new_name!r} already exists")
+    if request.active is False and dept.active:
+        holders = db.query(Users).filter(Users.department_id == dept.id, Users.terminated_at.is_(None)).count()
+        if holders:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                                detail=f"{holders} people have the {dept.name} function - give them another one first, then retire it")
+    if new_name != dept.name:
+        # add-on templates for this function follow the rename
+        from app.models.role_template import RoleTemplate
+        db.query(RoleTemplate).filter(RoleTemplate.tenant_id == tenant_id,
+                                      func.lower(RoleTemplate.specialization) == dept.name.lower()) \
+            .update({RoleTemplate.specialization: new_name}, synchronize_session=False)
+    dept.name = new_name
     dept.description = request.description
     dept.cost_center_code = request.cost_center_code
+    if request.active is not None:
+        dept.active = request.active
     db.commit()
+    from app.services.role_template_permission_service import invalidate_permissions
+    invalidate_permissions()
     db.refresh(dept)
     return _department_response(dept, tenant_id, db)
 

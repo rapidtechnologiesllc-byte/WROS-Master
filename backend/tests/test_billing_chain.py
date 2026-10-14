@@ -59,7 +59,7 @@ def _world(db, *, partner=True, currency="USD", contact=True):
         db.flush()
     unit = None
     if partner:
-        unit = BusinessUnit(name=f"bu-{_uid()}", display_name="BU")
+        unit = BusinessUnit(tenant_id=1, name=f"bu-{_uid()}", display_name="BU")
         db.add(unit)
         db.flush()
     client = Client(tenant_id=1, company_name=f"Client {_uid()}", business_unit_id=unit.id if unit else None,

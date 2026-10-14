@@ -74,7 +74,7 @@ def is_thunder_paused(db: Session) -> bool:
     return bool(row is not None and row.config_value is True)
 
 
-def set_thunder_paused(db: Session, paused: bool, *, changed_by: Optional[str] = None, tenant_id: int = 1) -> bool:
+def set_thunder_paused(db: Session, paused: bool, *, changed_by: Optional[str] = None, tenant_id: Optional[int] = None) -> bool:
     """Turn the global pause on/off (upsert; caller-independent commit)."""
     from app.models.system_config import SystemConfig
     row = _global_pause_row(db)

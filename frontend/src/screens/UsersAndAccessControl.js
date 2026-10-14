@@ -896,7 +896,7 @@ function OrganizationalHierarchySection() {
   const [submittingNode, setSubmittingNode] = useState(false);
 
   const [showDepartments, setShowDepartments] = useState(false);
-  const [deptForm, setDeptForm] = useState({ name: "", business_unit_id: "" });
+  const [deptForm, setDeptForm] = useState({ name: "", description: "" });
   const [editingDept, setEditingDept] = useState(null);
 
   // Roles: the job titles people hold and the org level each one sits at
@@ -1031,15 +1031,31 @@ function OrganizationalHierarchySection() {
     try {
       await apiRequest(editingDept ? `/org/departments/${editingDept.id}` : "/org/departments", {
         method: editingDept ? "PUT" : "POST",
-        // No business unit = an org-wide department (HR, Recruitment, Finance ...)
-        body: JSON.stringify({ name: form.name.trim(), business_unit_id: form.business_unit_id ? Number(form.business_unit_id) : null }),
+        // Functions are org-wide (HR, Recruitment, Finance ...)
+        body: JSON.stringify({ name: form.name.trim(), description: form.description || null }),
       });
-      setActionSuccess(editingDept ? "Department updated" : "Department added");
+      setActionSuccess(editingDept ? "Function updated" : "Function added");
       setEditingDept(null);
-      setDeptForm({ name: "", business_unit_id: "" });
+      setDeptForm({ name: "", description: "" });
       loadAll();
     } catch (err) {
-      setActionError(err?.message || "Failed to save department");
+      setActionError(err?.message || "Failed to save function");
+    }
+  };
+
+  // Retire (hide from pickers; blocked while people hold it) or restore a function
+  const handleFunctionActive = async (dept, active) => {
+    setActionError(null);
+    try {
+      await apiRequest(`/org/departments/${dept.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ name: dept.name, description: dept.description || null, active }),
+      });
+      setActionSuccess(`${dept.name} ${active ? "restored" : "retired"}`);
+      loadAll();
+    } catch (err) {
+      console.error("[ManageFunctions] Failed to change function status:", err);
+      setActionError(err?.message || "Failed to change function status");
     }
   };
 
@@ -1077,14 +1093,14 @@ function OrganizationalHierarchySection() {
   };
 
   const handleDeleteDepartment = async (dept) => {
-    if (!(await confirmDialog(`Delete department ${dept.name}?`, { danger: true }))) return;
+    if (!(await confirmDialog(`Delete function ${dept.name}?`, { danger: true }))) return;
     setActionError(null);
     try {
       await apiRequest(`/org/departments/${dept.id}`, { method: "DELETE" });
-      setActionSuccess("Department deleted");
+      setActionSuccess("Function deleted");
       loadAll();
     } catch (err) {
-      setActionError(err?.message || "Failed to delete department");
+      setActionError(err?.message || "Failed to delete function");
     }
   };
 
@@ -1174,7 +1190,7 @@ function OrganizationalHierarchySection() {
           onClick={() => setShowDepartments(true)}
           className="flex items-center gap-2 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium"
         >
-          Manage Departments
+          Manage Functions
         </button>
         {canManageRoles && (
           <button
@@ -1188,9 +1204,9 @@ function OrganizationalHierarchySection() {
 
       {!loading && (
         <div className="rounded-lg border border-gray-200 p-4">
-          <h4 className="text-sm font-semibold text-gray-900 mb-2">Departments ({departments.length})</h4>
+          <h4 className="text-sm font-semibold text-gray-900 mb-2">Functions ({departments.length})</h4>
           {departments.length === 0 ? (
-            <p className="text-sm text-gray-500">No departments yet. Departments are the groups tasks and approvals are routed to (HR, Recruitment, Finance ...). Use "Manage Departments" to add them.</p>
+            <p className="text-sm text-gray-500">No functions yet. Departments are the groups tasks and approvals are routed to (HR, Recruitment, Finance ...). Use "Manage Functions" to add them.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {departments.map(dept => (
@@ -1261,7 +1277,7 @@ function OrganizationalHierarchySection() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Function</label>
                 <select
                   value={nodeForm.department_id}
                   onChange={(e) => setNodeForm(f => ({ ...f, department_id: e.target.value, parent_id: "" }))}
@@ -1275,7 +1291,7 @@ function OrganizationalHierarchySection() {
               </div>
             </div>
             <p className="text-xs text-gray-500">
-              Department is the team tasks and approvals are routed to; the seat's function (Finance, HR ...) follows from it.
+              The function (Finance, HR ...) tasks and approvals route to.
             </p>
             {nodeLevel > 0 && nodeLevel < 17 && (
               <div>
@@ -1408,20 +1424,23 @@ function OrganizationalHierarchySection() {
       )}
 
       {showDepartments && (
-        <SimpleModal isOpen={true} onClose={() => { setShowDepartments(false); setEditingDept(null); }} title="Manage Departments">
+        <SimpleModal isOpen={true} onClose={() => { setShowDepartments(false); setEditingDept(null); }} title="Manage Functions">
           <div className="space-y-3 max-h-80 overflow-y-auto">
             {departments.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-4">No departments yet</p>
+              <p className="text-sm text-gray-500 text-center py-4">No functions yet</p>
             ) : (
               departments.map(dept => (
-                <div key={dept.id} className="flex items-center justify-between bg-gray-50 p-3 rounded border border-gray-200">
+                <div key={dept.id} className={`flex items-center justify-between p-3 rounded border ${dept.active === false ? "bg-white border-dashed border-gray-300 opacity-70" : "bg-gray-50 border-gray-200"}`}>
                   <div>
                     <span className="text-sm font-medium text-gray-900">{dept.name}</span>
-                    <span className="ml-2 text-xs text-gray-500">{dept.business_unit_name || "Org-wide"}</span>
+                    {dept.active === false && <span className="ml-2 text-xs text-gray-500">Retired</span>}
                   </div>
                   <div className="flex gap-2">
+                    <button onClick={() => handleFunctionActive(dept, dept.active === false)} className="text-xs text-gray-600 hover:underline">
+                      {dept.active === false ? "Restore" : "Retire"}
+                    </button>
                     <button
-                      onClick={() => setEditingDept({ id: dept.id, name: dept.name, business_unit_id: dept.business_unit_id ? String(dept.business_unit_id) : "" })}
+                      onClick={() => setEditingDept({ id: dept.id, name: dept.name, description: dept.description || "" })}
                       className="p-1 text-blue-600 hover:bg-blue-50 rounded"
                       aria-label={`Edit ${dept.name}`}
                     >
@@ -1448,21 +1467,9 @@ function OrganizationalHierarchySection() {
               onChange={(e) => editingDept
                 ? setEditingDept(d => ({ ...d, name: e.target.value }))
                 : setDeptForm(d => ({ ...d, name: e.target.value }))}
-              placeholder="Department name"
+              placeholder="Function name (e.g. Recruitment)"
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-bx-orange"
             />
-            <select
-              value={(editingDept || deptForm).business_unit_id}
-              onChange={(e) => editingDept
-                ? setEditingDept(d => ({ ...d, business_unit_id: e.target.value }))
-                : setDeptForm(d => ({ ...d, business_unit_id: e.target.value }))}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-bx-orange"
-            >
-              <option value="">Org-wide (all business units)</option>
-              {businessUnits.map(bu => (
-                <option key={bu.id} value={bu.id}>{bu.display_name || bu.name}</option>
-              ))}
-            </select>
             <div className="flex gap-2 justify-end">
               {editingDept && (
                 <button type="button" onClick={() => setEditingDept(null)} className="px-3 py-1 text-xs text-gray-700 border border-gray-300 rounded hover:bg-gray-50">
@@ -1474,7 +1481,7 @@ function OrganizationalHierarchySection() {
                 className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60"
                 disabled={!(editingDept || deptForm).name.trim()}
               >
-                {editingDept ? "Save" : "Add Department"}
+                {editingDept ? "Save" : "Add Function"}
               </button>
             </div>
           </form>
@@ -1495,6 +1502,7 @@ const DELIVERY_CENTERS_PATH = '/api/v1/api/admin/users-access-control/delivery-c
 function LocationsSection() {
   const navigate = useNavigate();
   const [deliveryCenters, setDeliveryCenters] = useState([]);
+  const [parentCompany, setParentCompany] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
@@ -1508,6 +1516,7 @@ function LocationsSection() {
       setLoading(true);
       const res = await apiRequest(DELIVERY_CENTERS_PATH);
       setDeliveryCenters(res.data?.delivery_centers || []);
+      setParentCompany(res.data?.parent_company || null);
       setLoadError(null);
     } catch (err) {
       console.error("[LocationsSection] Failed to load companies:", err);
@@ -1580,13 +1589,13 @@ function LocationsSection() {
             <div key={dc.id} className="border border-gray-200 rounded-lg p-4 flex items-start justify-between hover:bg-gray-50">
               <div className="flex-1">
                 <div className="flex items-center gap-3">
-                  <h4 className="font-semibold text-gray-900">{dc.name}</h4>
+                  <h4 className="font-semibold text-gray-900">{dc.name}{dc.company_code ? <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600">ID {dc.company_code}</span> : null}</h4>
                   <span className={`px-2 py-1 rounded text-xs font-medium ${
                     dc.center_type === "HQ"
                       ? "bg-purple-100 text-purple-800"
                       : "bg-blue-100 text-blue-800"
                   }`}>
-                    {dc.center_type === "HQ" ? "Parent company" : `Subsidiary of ${dc.parent_company_name || "?"}`}
+                    {`Reports to ${dc.parent_company_name || (parentCompany ? `${parentCompany.name} (holding, ID ${parentCompany.company_code})` : "the holding company")}`}
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-4 mt-2 text-sm text-gray-600">

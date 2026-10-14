@@ -26,7 +26,7 @@ def queue_and_wait_for_candidate(
     first_name: str,
     last_name: str,
     *,
-    tenant_id: int = 1,
+    tenant_id: Optional[int] = None,
     source: str = "unknown",
     mobile: Optional[str] = None,
     linkedin_url: Optional[str] = None,

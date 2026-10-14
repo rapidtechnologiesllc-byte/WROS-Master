@@ -165,6 +165,32 @@ export default function PnlScreen() {
         </Card>
       ) : null}
 
+      {report?.by_company?.length ? (
+        <Card
+          title="By company"
+          subtitle="The parent company owns the org-wide P&L above (all companies together). Each company's own P&L: income on the clients it contracts, cost of the people it employs, and intercompany charges (which cancel out at org level)."
+        >
+          <Table
+            columns={[
+              {
+                key: "name",
+                header: "Company",
+                cell: (r) => (
+                  <span>
+                    {r.name}
+                    {r.company_code ? <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">{r.company_code}</span> : null}
+                  </span>
+                ),
+              },
+              { key: "ic_rev", header: "Intercompany income", cell: (r) => usd(r.intercompany_revenue_usd_cents) },
+              { key: "ic_cost", header: "Intercompany cost", cell: (r) => usd(r.intercompany_cost_usd_cents) },
+              ...MONEY_COLUMNS.filter((c) => !["collected", "unbilled"].includes(c.key)),
+            ]}
+            rows={report.by_company}
+          />
+        </Card>
+      ) : null}
+
       {report ? (
         <>
           <Card title="By business unit">

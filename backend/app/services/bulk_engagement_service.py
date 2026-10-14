@@ -118,7 +118,7 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
                 email=email,
                 first_name=first_name,
                 last_name=last_name,
-                tenant_id=int(tenant_id) if tenant_id else 1,
+                tenant_id=int(tenant_id) if tenant_id else None,  # enqueue resolves a missing tenant
                 source='bulk_csv_import',
                 mobile=(row.get("phone") or "").strip() or None,
                 created_by_user_id=recruiter_id,

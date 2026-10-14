@@ -10,6 +10,7 @@ codebase yet (same real gap already flagged for HR/Buddy/RM roles
 elsewhere this session) -- pages the first Super User, same
 resolve_default_tenant_id()-style convention already established.
 """
+from app.core.tenant_context import tenant_id_of
 import json
 import logging
 import traceback
@@ -36,7 +37,7 @@ def _page_on_call(db: Session, error: ErrorLog) -> None:
     all_users = db.query(Users).order_by(Users.UserID.asc()).all()
     on_call = None
     for user in all_users:
-        tenant_id = getattr(user, 'TenantID', 1)
+        tenant_id = tenant_id_of(user)
         if PermissionHelper.has_permission(user.UserID, "admin-settings.edit", db, tenant_id):
             on_call = user
             break

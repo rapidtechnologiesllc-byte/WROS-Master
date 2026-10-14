@@ -2,6 +2,8 @@
 Admin endpoints for certification and KPI management.
 Prefix: /admin/certifications
 """
+from app.core.dependencies import get_current_internal_user
+from app.core.tenant_context import tenant_id_of
 from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
@@ -62,6 +64,7 @@ class KPITargetResponse(BaseModel):
 def create_certification(
     request: CertificationRequest,
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_internal_user),
 ):
     """Create a new certification template."""
     # Check if cert_code already exists
@@ -79,7 +82,7 @@ def create_certification(
         level=request.level,
         validity_months=request.validity_months,
         is_core_certification=request.is_core_certification,
-        tenant_id=1,  # Default tenant
+        tenant_id=tenant_id_of(current_user),
     )
     db.add(cert)
     db.commit()
@@ -106,6 +109,7 @@ def list_certifications(db: Session = Depends(get_db)):
 def assign_kpi_target(
     request: KPITargetRequest,
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_internal_user),
 ):
     """Assign a certification target to an employee."""
     # Verify employee exists
@@ -133,7 +137,7 @@ def assign_kpi_target(
         target_date=request.target_date,
         weight=request.weight,
         status="PENDING",
-        tenant_id=1,
+        tenant_id=tenant_id_of(current_user),
     )
     db.add(target)
     db.commit()
@@ -152,6 +156,10 @@ def recalculate_employee_kpi_score(db: Session, employee_id: str, business_unit_
 
     if not targets:
         return
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    if employee is None or employee.tenant_id is None:
+        raise ValueError(f"Employee {employee_id} has no tenant")
+    employee_tenant_id = employee.tenant_id
 
     # Calculate certification score
     total_weight = sum(t.weight for t in targets)
@@ -168,7 +176,7 @@ def recalculate_employee_kpi_score(db: Session, employee_id: str, business_unit_
         score = EmployeeKPIScore(
             employee_id=employee_id,
             business_unit_id=business_unit_id,
-            tenant_id=1,
+            tenant_id=employee_tenant_id,
         )
         db.add(score)
 

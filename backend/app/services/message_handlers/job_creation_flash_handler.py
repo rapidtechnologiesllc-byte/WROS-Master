@@ -1,4 +1,5 @@
 """Job Creation Flash Handler - Queue-driven job creation with atomic validation."""
+from app.core.tenant_context import sole_tenant_id
 import logging
 from typing import Dict, Any
 from sqlalchemy.orm import Session
@@ -124,7 +125,7 @@ class JobCreationFlashHandler:
                     hiringManagerID=hiring_manager_id,
                     recuriterID=payload.get('recuriter_id') or payload.get('recruiter_id'),
                     business_unit_id=business_unit_id,
-                    tenant_id=payload.get('tenant_id') or message.tenant_id or 1,
+                    tenant_id=payload.get('tenant_id') or message.tenant_id or sole_tenant_id(db),
                     department_id=payload.get('department_id'),
                     salaryRange=salary_range,
                     client_id=payload.get('client_id'),

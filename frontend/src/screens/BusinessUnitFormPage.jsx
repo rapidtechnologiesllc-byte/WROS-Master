@@ -219,7 +219,7 @@ function BusinessUnitForm() {
           <div>
             <div className="block text-sm font-medium text-gray-700 mb-1">Companies</div>
             {companies.length === 0 ? (
-              <p className="text-xs text-gray-500">No companies yet. Add BX-US / BX-IN under the Companies tab first.</p>
+              <p className="text-xs text-gray-500">No companies yet. Add them under the Companies tab first.</p>
             ) : (
               <div className="flex flex-wrap gap-4">
                 {companies.map((c) => (

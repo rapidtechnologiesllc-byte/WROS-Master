@@ -154,6 +154,10 @@ class Settings:
     
     # File Upload Settings
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
+    # Name of the parent company created on an empty database (the primary tenant)
+    PRIMARY_TENANT_NAME: str = os.getenv("PRIMARY_TENANT_NAME", "BlitzenX")
+    # Tenant the public website chat creates candidates in (empty = the only tenant)
+    PUBLIC_CHAT_TENANT_ID: Optional[int] = int(os.getenv("PUBLIC_CHAT_TENANT_ID")) if os.getenv("PUBLIC_CHAT_TENANT_ID") else None
     # Expense receipts: a receipt whose amount and date match the entry approves the manager step
     # automatically; anything else goes to the manager with the reasons
     EXPENSE_RECEIPT_MAX_BYTES: int = int(os.getenv("EXPENSE_RECEIPT_MAX_BYTES", str(10 * 1024 * 1024)))

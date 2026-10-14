@@ -29,7 +29,7 @@ class MessageQueueService:
         trace_id: Optional[str] = None,  # HIGH FIX #4: Correlation ID for tracing
         idempotency_key: Optional[str] = None,
         status: Optional[str] = None,  # Allow overriding default status (e.g., 'WAITING_FOR_SLM')
-        tenant_id: int = 1  # PHASE 2: Tenant context for delivery_factory routing (default: BlitzenX)
+        tenant_id: Optional[int] = None  # delivery routing: given, else data["tenant_id"], else the only tenant
     ) -> Dict[str, Any]:
         """Queue a task to custom message queue. Uses database as primary store."""
         if not task_name:
@@ -38,6 +38,17 @@ class MessageQueueService:
 
         data = data or {}
         task_id = task_id or str(uuid4())
+        if tenant_id is None:
+            tenant_id = data.get("tenant_id")
+        if tenant_id is None:
+            from app.core.database import SessionLocal
+            from app.core.tenant_context import sole_tenant_id
+            lookup = SessionLocal()
+            try:
+                tenant_id = sole_tenant_id(lookup)
+            finally:
+                lookup.close()
+        tenant_id = int(tenant_id)
         trace_id = trace_id or str(uuid4())  # Generate trace_id if not provided
         data['__trace_id'] = trace_id  # Embed trace_id in payload for propagation
 

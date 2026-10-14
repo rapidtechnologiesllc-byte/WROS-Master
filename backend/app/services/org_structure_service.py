@@ -95,6 +95,17 @@ DEFAULT_POSITIONS = [
         "approves_workflows": None,
         "rbac_role_name": "senior_consultant"
     },
+    {
+        "rank": 10,
+        # Levels 1-4 (Intern, Associate, Senior Associate, Consultant) sit here
+        # (org_hierarchy_validator.LEVEL_POSITION_CODES); without it no one at those
+        # levels could be placed in the org chart
+        "name": "Consultant",
+        "description": "Consultant - individual contributor (Intern to Consultant)",
+        "approves_to_rank": 7,  # Same approver as a Senior Consultant
+        "approves_workflows": None,
+        "rbac_role_name": "consultant"
+    },
 ]
 
 def init_default_positions(db: Session) -> dict:

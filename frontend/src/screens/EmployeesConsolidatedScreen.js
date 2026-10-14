@@ -240,7 +240,7 @@ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
 
           <div className="border-t pt-4">
             <h3 className="font-semibold mb-1">Company &amp; Business Unit</h3>
-            <p className="text-xs text-gray-500 mb-3">Headcount is counted by employer company (BX-US / BX-IN) and business unit.</p>
+            <p className="text-xs text-gray-500 mb-3">Headcount is counted by employer company and business unit.</p>
             <div className="grid grid-cols-2 gap-4 mb-3">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Company (employer)</label>

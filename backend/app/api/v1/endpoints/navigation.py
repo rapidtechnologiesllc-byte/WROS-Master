@@ -80,7 +80,9 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
             tenant_id = tenant_id_of(current_user)
         else:
             user_id = current_user.get("sub")
-            tenant_id = current_user.get("tenant_id", 1)
+            tenant_id = current_user.get("tenant_id")
+            if tenant_id is None:
+                raise HTTPException(status_code=403, detail="User is not assigned to a tenant")
 
         if not user_id:
             raise HTTPException(status_code=401, detail="User not identified")

@@ -99,18 +99,23 @@ def is_director(db: Session, user: Optional[Users]) -> bool:
 
 
 def in_function(db: Session, user: Optional[Users], function: str) -> bool:
-    """The role template's specialization is the function (Finance, Recruitment ...), or the
-    user's department is one of that function (whole-word match:
-    app.services.org_hierarchy_validator). Never by job title or legacy role text."""
+    """One of the person's templates is for the function (specialization), or the person
+    belongs to it (users.department_id -> the managed function). Names match exactly
+    (case-insensitive) or by whole word, so a function renamed "Talent Acquisition" still counts
+    as Recruitment (app.services.org_hierarchy_validator). Never by job title or role text."""
     from app.services.org_hierarchy_validator import function_of_department_name
+
+    def matches(name):
+        return bool(name) and (name.strip().lower() == function.lower()
+                               or function_of_department_name(name) == function)
 
     templates = templates_of(db, user)
     if not templates:
         return False
-    if any(function_of_department_name(t.specialization) == function for t in templates):
+    if any(matches(t.specialization) for t in templates):
         return True
     department = getattr(user, "department", None)
-    return department is not None and function_of_department_name(department.name) == function
+    return department is not None and department.active and matches(department.name)
 
 
 def in_finance(db: Session, user: Optional[Users]) -> bool:

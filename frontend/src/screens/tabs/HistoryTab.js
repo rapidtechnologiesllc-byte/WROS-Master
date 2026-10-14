@@ -18,7 +18,7 @@ import {
   getCandidateHistory,
   getLatestCandidateHistory,
   HISTORY_EVENT_TYPES,
-  HISTORY_EVENT_TYPE_OPTIONS,
+  getHistoryEventTypes,
 } from "../../services/api/candidateHistory";
 
 const getEventIcon = (eventType) => {
@@ -134,9 +134,19 @@ export default function HistoryTab({ candidateId }) {
     events: [],
   });
   const [selectedEventType, setSelectedEventType] = useState("");
+  const [eventTypeOptions, setEventTypeOptions] = useState([]);
+
   const [searchText, setSearchText] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  useEffect(() => {
+    getHistoryEventTypes()
+      .then(setEventTypeOptions)
+      .catch((err) => {
+        console.error("[HistoryTab] Failed to load event types:", err);
+        setErrorMessage(`Could not load the event type filter: ${err.message}`);
+      });
+  }, []);
   const [latestEvent, setLatestEvent] = useState(null);
 
   const fetchHistory = useCallback(async () => {
@@ -282,7 +292,7 @@ export default function HistoryTab({ candidateId }) {
             className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-700 outline-none transition focus:border-gray-500"
           >
             <option value="">All event types</option>
-            {HISTORY_EVENT_TYPE_OPTIONS.map((type) => (
+            {eventTypeOptions.map((type) => (
               <option key={type} value={type}>
                 {type}
               </option>

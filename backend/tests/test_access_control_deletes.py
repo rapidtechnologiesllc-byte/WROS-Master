@@ -45,7 +45,7 @@ def test_a_business_unit_in_use_says_why_and_an_empty_one_goes(db, api, world):
     assert used.status_code == 409 and "1 job" in used.json()["detail"]
 
     from app.models.business_unit import BusinessUnit
-    empty = BusinessUnit(name=f"BU-empty-{uid()}", display_name="Empty")
+    empty = BusinessUnit(tenant_id=1, name=f"BU-empty-{uid()}", display_name="Empty")
     db.add(empty)
     db.commit()
     assert api.delete(world.org_user, f"/api/v1/rbac/business-units/{empty.id}").status_code == 200

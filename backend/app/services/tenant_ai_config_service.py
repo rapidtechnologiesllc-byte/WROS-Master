@@ -11,6 +11,7 @@ Storage:
 - Everything else is one JSON row of overrides in system_config
   (key "tenant_ai_config"); a missing key means the service default.
 """
+from app.core.tenant_context import sole_tenant_id
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -107,7 +108,7 @@ def update_tenant_ai_config(db: Session, updates: Dict[str, Any], changed_by: st
     if overrides:
         row = _row(db)
         if row is None:
-            row = SystemConfig(tenant_id=1, business_unit_id=None, config_category="AI_THRESHOLDS",
+            row = SystemConfig(tenant_id=sole_tenant_id(db), business_unit_id=None, config_category="AI_THRESHOLDS",
                                config_key=CONFIG_KEY, config_value={})
             db.add(row)
         row.config_value = {**(row.config_value or {}), **overrides}

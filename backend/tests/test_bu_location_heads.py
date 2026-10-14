@@ -72,8 +72,8 @@ def firm(db):
     db.add_all([us, india])
     db.flush()
     partner_role, head_role, ceo_role = _role(db, 16), _role(db, 14), _role(db, 17)
-    axion = BusinessUnit(name=f"AXION-{_uid()}", display_name="AXION")
-    nexus = BusinessUnit(name=f"NEXUS-{_uid()}", display_name="NEXUS")
+    axion = BusinessUnit(tenant_id=1, name=f"AXION-{_uid()}", display_name="AXION")
+    nexus = BusinessUnit(tenant_id=1, name=f"NEXUS-{_uid()}", display_name="NEXUS")
     db.add_all([axion, nexus])
     db.flush()
     for bu in (axion, nexus):
@@ -121,7 +121,7 @@ def test_job_routing_follows_the_clients_company(db, firm):
 
 
 def test_revenue_and_clients_follow_the_business_unit(db, firm):
-    other = BusinessUnit(name=f"OTHER-{_uid()}", display_name="OTHER")
+    other = BusinessUnit(tenant_id=1, name=f"OTHER-{_uid()}", display_name="OTHER")
     db.add(other)
     db.flush()
     clients = {}
@@ -151,8 +151,8 @@ def test_revenue_and_clients_follow_the_business_unit(db, firm):
 
 
 def test_old_single_head_is_carried_into_each_company_once(db, firm):
-    prism = BusinessUnit(name=f"PRISM-{_uid()}", display_name="PRISM", manager_id=firm.india_head.UserID)
-    lonely = BusinessUnit(name=f"SOLO-{_uid()}", display_name="SOLO", manager_id=firm.india_head.UserID)
+    prism = BusinessUnit(tenant_id=1, name=f"PRISM-{_uid()}", display_name="PRISM", manager_id=firm.india_head.UserID)
+    lonely = BusinessUnit(tenant_id=1, name=f"SOLO-{_uid()}", display_name="SOLO", manager_id=firm.india_head.UserID)
     db.add_all([prism, lonely])
     db.flush()
     db.add(BusinessUnitCompany(tenant_id=1, business_unit_id=prism.id, company_id=firm.india.id))

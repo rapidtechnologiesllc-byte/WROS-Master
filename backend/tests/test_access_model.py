@@ -231,3 +231,28 @@ def test_changing_a_role_set_needs_manage_roles_rights_and_writes_the_tenant(db,
     row = db.query(RoleTemplatePermission).filter_by(role_template_id=role.role_template_id,
                                                      resource_id=resource(db, "jobs").id).one()
     assert row.tenant_id == 1 and row.can_view
+
+
+def test_every_org_level_has_a_seeded_position():
+    """Each level (1-17) maps to a position seeded at startup; a missing one ('consultant')
+    made it impossible to save anyone at levels 1-4."""
+    from app.services.org_hierarchy_validator import LEVEL_POSITION_CODES
+    from app.services.org_structure_service import DEFAULT_POSITIONS
+
+    assert set(LEVEL_POSITION_CODES.values()) <= {p["rbac_role_name"] for p in DEFAULT_POSITIONS}
+    # every entry has the same fields (a missing NOT NULL one, e.g. rank, crashes startup)
+    assert len({frozenset(p) for p in DEFAULT_POSITIONS}) == 1
+    assert sorted(p["rank"] for p in DEFAULT_POSITIONS) == list(range(len(DEFAULT_POSITIONS)))
+
+
+def test_startup_schema_list_has_no_duplicate_tables():
+    """A repeated key in db_contract's drifted_tables silently drops the earlier columns."""
+    import ast
+    import collections
+    import pathlib
+
+    src = (pathlib.Path(__file__).resolve().parent.parent / "app" / "core" / "db_contract.py").read_text(encoding="utf-8")
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", None) == "drifted_tables":
+            keys = [k.value for k in node.value.keys]
+            assert not [k for k, c in collections.Counter(keys).items() if c > 1]
