@@ -371,6 +371,8 @@ def reject_chat(db: Session, request: CoreCertificationRequest, user: Users, mes
         state = {}
         return reply("Cancelled. The request stays pending.", done=True)
     step = state.get("step")
+    if step is not None and not text:  # the page was reloaded: pick up where the discussion stopped
+        return reply("Picking up where we left off. " + _current_question(state, name))
     if step is None:
         state = {"step": "reason"}
         return reply(f"Why are you not approving {name}'s Core certification?")
@@ -409,6 +411,22 @@ def reject_chat(db: Session, request: CoreCertificationRequest, user: Users, mes
                      "and who owns it (me, manager or employee)?")
     state["step"] = "confirm"
     return reply(_summary(state, employee, user))
+
+
+def _current_question(state: Dict, name: str) -> str:
+    step = state.get("step")
+    if step == "reason":
+        return f"Why are you not approving {name}'s Core certification?"
+    recap = f"Reason: \"{state['reason']}\". "
+    if step == "criteria":
+        return recap + ("What needs to be checked again before the next review, and in how many days "
+                        "(e.g. client feedback 30 days owner manager)?")
+    index = _next_missing(state) if state.get("items") else None
+    if step == "details" and index is not None:
+        return recap + (f"In how many days should '{state['items'][index]['criterion']}' be re-checked, "
+                        "and who owns it (me, manager or employee)?")
+    criteria = ", ".join(f"{i['criterion']} ({i['days']} days)" for i in state.get("items", []))
+    return recap + f"Planned follow-ups: {criteria}. Reply yes to create them, or name the criteria again to change them."
 
 
 def _finalize(db: Session, request: CoreCertificationRequest, employee: Employee, user: Users, state: Dict) -> Dict:

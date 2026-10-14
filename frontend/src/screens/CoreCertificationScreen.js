@@ -154,7 +154,16 @@ function PendingRow({ request, onChanged }) {
         )}
       </div>
       {error ? <div className="mt-2 text-xs text-rose-700">{error}</div> : null}
-      {rejecting ? <FlashRejectChat request={request} onDone={onChanged} /> : null}
+      {rejecting ? (
+        <FlashRejectChat
+          request={request}
+          onDone={() => {
+            // a cancel leaves the request pending: the row must offer Approve / Reject again
+            setRejecting(false);
+            onChanged();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

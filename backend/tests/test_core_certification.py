@@ -294,3 +294,22 @@ def test_partner_dashboard_counts_the_approved_certification(db, org):
     db.flush()
     names = [row["name"] for row in get_core_certified_employees(db, org.unit.id)]
     assert f"Ravi {e.last_name}" in names
+
+
+def test_a_reloaded_page_picks_the_discussion_up_where_it_stopped(db, org, api):
+    e, request = _pending(db, org)
+    _chat(api, request, org.head, "")
+    _chat(api, request, org.head, "Weak client feedback this quarter")
+    _chat(api, request, org.head, "client feedback, communication 15")
+    resumed = _chat(api, request, org.head, "")["reply"]  # the page reloads and opens the chat again
+    assert resumed.startswith("Picking up where we left off.")
+    assert "Weak client feedback this quarter" in resumed and "'client feedback'" in resumed
+    assert "Here is the plan" in _chat(api, request, org.head, "30")["reply"]
+
+
+def test_a_long_follow_up_is_visible_to_its_owner(db, org, api):
+    e, request = _pending(db, org)
+    for message in ("", "Needs a Guidewire certification first", "Guidewire certification 60 days", "yes"):
+        _chat(api, request, org.head, message)
+    scheduled = api.get("/api/v1/tasks/my-day/scheduled", headers=_h(org.head)).json()
+    assert any("Guidewire certification" in t["title"] for t in scheduled)  # due in 60 days

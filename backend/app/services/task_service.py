@@ -178,18 +178,22 @@ def get_upcoming_urgent_tasks(db: Session, *, assigned_to_user_id: str, now: Opt
         (Task.due_date.is_(None)) | (Task.due_date >= tomorrow_start),
     ).order_by(Task.due_date.asc().nullslast()).all()
 
-def get_scheduled_tasks(db: Session, *, assigned_to_user_id: str, now: Optional[datetime] = None, days: int = 30) -> List[Task]:
-    """Open non-urgent tasks due after today (e.g. follow-ups scheduled
-    from a task update), so the next actions are visible before their day."""
+def get_scheduled_tasks(db: Session, *, assigned_to_user_id: str, now: Optional[datetime] = None,
+                        days: Optional[int] = None) -> List[Task]:
+    """Open non-urgent tasks due after today, soonest first, so the next actions are visible
+    before their day. No horizon by default: an open task its owner cannot see anywhere is lost
+    (a 45-day Core certification follow-up was hidden by the old 30-day window); `days` limits it."""
     now = now or datetime.utcnow()
     tomorrow_start = _start_of_today(now) + timedelta(days=1)
-    return db.query(Task).filter(
+    query = db.query(Task).filter(
         Task.assigned_to_user_id == assigned_to_user_id,
         Task.status.in_(("NEW", "IN_PROGRESS", "ON_HOLD")),
         Task.priority != "URGENT",
         Task.due_date >= tomorrow_start,
-        Task.due_date < tomorrow_start + timedelta(days=days),
-    ).order_by(Task.due_date.asc()).all()
+    )
+    if days is not None:
+        query = query.filter(Task.due_date < tomorrow_start + timedelta(days=days))
+    return query.order_by(Task.due_date.asc()).all()
 
 def complete_task(db: Session, task: Task) -> Task:
     task.status = "COMPLETED"
