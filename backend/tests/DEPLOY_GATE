@@ -25,3 +25,4 @@ tests/test_expense_receipts.py
 tests/test_submissions_api.py
 tests/test_submission_interview_pipeline.py
 tests/test_allocation_and_timesheet.py
+tests/test_workforce_overview.py

@@ -100,7 +100,24 @@ function ExternalRow({ submission, onChanged }) {
   );
 }
 
-function ExternalTab({ loading, submissions, options, onChanged }) {
+// Sub-tabs by delivery model (Core / Staff Aug), built from the types the jobs and submissions
+// actually carry; rows whose client has no type set get their own "Not set" tab.
+const NOT_SET = "__none__";
+const lineKey = (row) => row.delivery_line || NOT_SET;
+
+function lineTabs(jobs, submissions) {
+  const seen = new Map();
+  [...jobs, ...submissions].forEach((row) => {
+    if (!seen.has(lineKey(row))) seen.set(lineKey(row), row.delivery_line_label || "Not set");
+  });
+  return [{ key: "", label: "All" }].concat([...seen].map(([key, label]) => ({ key, label })));
+}
+
+function ExternalTab({ loading, submissions: allSubmissions, options: allOptions, onChanged }) {
+  const [line, setLine] = useState("");
+  const tabs = useMemo(() => lineTabs(allOptions.jobs, allSubmissions), [allOptions.jobs, allSubmissions]);
+  const submissions = line ? allSubmissions.filter((s) => lineKey(s) === line) : allSubmissions;
+  const options = { ...allOptions, jobs: line ? allOptions.jobs.filter((j) => lineKey(j) === line) : allOptions.jobs };
   const [demandId, setDemandId] = useState("");
   const [candidateId, setCandidateId] = useState("");
   const [readiness, setReadiness] = useState(null);
@@ -152,6 +169,28 @@ function ExternalTab({ loading, submissions, options, onChanged }) {
           {notice}
         </div>
       ) : null}
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        {tabs.map((t) => {
+          const count = t.key ? allSubmissions.filter((s) => lineKey(s) === t.key).length : allSubmissions.length;
+          return (
+            <button
+              key={t.key || "all"}
+              type="button"
+              onClick={() => {
+                setLine(t.key);
+                setDemandId("");
+              }}
+              className={cx(
+                "rounded-full border px-3 py-1 text-xs font-semibold",
+                line === t.key ? "border-gray-900 bg-gray-900 text-white" : "text-gray-700 hover:border-gray-500",
+              )}
+            >
+              {t.label} ({count})
+            </button>
+          );
+        })}
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Select label="Client job" value={demandId} onChange={setDemandId} options={jobOptions} disabled={loading} />

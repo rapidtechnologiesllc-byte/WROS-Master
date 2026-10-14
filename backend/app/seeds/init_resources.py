@@ -56,6 +56,8 @@ RESOURCE_ROUTES = {
     "convert-to-employee": "/hiring-pipeline",
     "utilization-dashboard": "/utilization-dashboard",
     "resource-forecast": "/forecast",
+    # bench / Staff Aug / Core: where every employee stands (CEO 2026-10-14)
+    "employee-in-bench": "/workforce",
     # Sales
     "clients": "/client-management",
     "opportunities": "/opportunity-pipeline",
@@ -122,6 +124,7 @@ NAV_LABELS = {
     "kpi-dashboard": "KPI Dashboard",
     "htd-intake": "HTD Intake",
     "my-tasks": "My Tasks",
+    "employee-in-bench": "Workforce Overview",
 }
 
 # Resources whose page is a tab of another page (Users & Access Control):
