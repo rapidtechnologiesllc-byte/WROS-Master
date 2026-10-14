@@ -37,7 +37,6 @@ from typing import Dict, Optional
 from sqlalchemy.orm import Session
 
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
-from app.models.user import Users
 
 # Step 4's 6A field spec's four duration options ("24h / 48h / 1 week /
 # Until I manually resume") -- "until manually resume" is simply
@@ -94,8 +93,8 @@ def is_thunder_paused_for_conversation(db: Session, conversation: CandidateConve
     checked in addition to, regardless of -- the per-candidate flag."""
     if conversation.is_thunder_paused:
         return True
-    tenant_user = db.query(Users).filter(Users.UserID == conversation.tenant_id).first()
-    return bool(tenant_user is not None and tenant_user.thunder_enabled is False)
+    from app.services.tenant_ai_config_service import is_thunder_enabled
+    return not is_thunder_enabled(db, conversation.tenant_id)
 
 def raise_if_thunder_paused(db: Session, conversation: CandidateConversation) -> None:
     if is_thunder_paused_for_conversation(db, conversation):

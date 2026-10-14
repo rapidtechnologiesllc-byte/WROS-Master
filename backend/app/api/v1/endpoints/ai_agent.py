@@ -5,9 +5,9 @@ Prefix: /ai-agent
 Tag:    ai-agent
 
 Routes:
-  POST   /ai-agent/assign
-      Assign AI agent to a candidate. Checks missing fields, sends email,
-      opens a conversation thread.
+  GET    /ai-agent/memory/{candidate_id}
+  PATCH  /ai-agent/memory/{candidate_id}/facts/{fact_id}
+      Thunder's memory of the candidate, and a recruiter's correction of one fact.
 
   GET    /ai-agent/missing-fields/{candidate_id}
       Dry-run: preview which fields are missing for a candidate.
@@ -24,9 +24,6 @@ Routes:
   GET    /ai-agent/conversations/{candidate_id}
       Return the full conversation thread (all conversations + events)
       for a candidate — used by the HR UI to display the dialogue timeline.
-
-  GET    /ai-agent/conversations/{candidate_id}/active
-      Return only the single active (open / awaiting) conversation + events.
 
   POST   /ai-agent/conversations/{conversation_id}/send
       Manually send a message to the candidate; transfers ownership to
@@ -50,28 +47,19 @@ Routes:
   DELETE /ai-agent/assign/{candidate_id}
       Deactivate the AI agent assignment for a candidate.
 
-  GET    /ai-agent/candidates/{candidate_id}/audit-log
-      Compliance-grade audit trail of conversation actions (S-076).
-
-  GET    /ai-agent/messages/{event_id}/explanation
-      Why Thunder sent this specific message (S-064). 404 if the
-      message has no explanation (recruiter-sent or templated).
-
-  GET    /ai-agent/candidates/{candidate_id}/thunder-explanation-log
-      Full, immutable history of every explained Thunder decision (S-064).
 """
 from datetime import datetime as _datetime
 
-from typing import List, Optional
+from typing import List
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user, require_resource_permission, require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.core.webhook_auth import require_webhook_secret_or_internal_user
 from app.models.candidate import Candidate
 from app.models.candidate_ai import (
@@ -79,39 +67,27 @@ from app.models.candidate_ai import (
     CandidateConversation,
     ConversationEvent,
 )
-from app.models.conversation_audit_log import ConversationAuditLog
 from app.models.user import Users
 from app.schemas.candidate_memory import CandidateMemoryResponse, MemoryFactCorrectionRequest, MemoryFactItem
 from app.schemas.ai_agent import (
-    AIAgentAssignRequest,
-    AIAgentAssignResponse,
     AIAssignmentOut,
-    AuditLogEntryOut,
-    AuditLogResponse,
     ConversationOwnershipResponse,
     ConversationThreadResponse,
     ConversationThreadItem,
-    ConversationEventOut,
     EmailReplyWebhookRequest,
     MissingFieldItem,
     MissingFieldsResponse,
     ProcessReplyResponse,
-    InboxMessageItem,
-    InboxResponse,
     PauseThunderRequest,
     SendMessageRequest,
     SendMessageResponse,
     ThunderPauseResponse,
 )
 from app.services.ai_conversation_service import (
-    assign_ai_agent,
     get_conversation_thread,
     get_missing_fields,
     process_candidate_reply,
-    read_all_inbox,
-    read_inbox_by_email,
     resolve_default_tenant_id,
-    SERVICE_MAILBOX,
 )
 from app.services.audit_log_service import log_audit_event
 from app.services.thunder_pause_service import pause_thunder, resume_thunder
@@ -226,7 +202,7 @@ def get_candidate_memory(
 
     try:
         _get_candidate_or_404(candidate_id, db)
-        tenant_id = resolve_default_tenant_id()
+        tenant_id = resolve_default_tenant_id(db)
 
         try:
             memory = get_memory(db, candidate_id, tenant_id)
@@ -289,7 +265,7 @@ def correct_candidate_memory_fact(
     from app.services.candidate_memory_service import FactNotFound, correct_fact
 
     _get_candidate_or_404(candidate_id, db)
-    tenant_id = resolve_default_tenant_id()
+    tenant_id = resolve_default_tenant_id(db)
     try:
         fact = correct_fact(db, candidate_id, tenant_id, fact_id, body.fact_value, corrected_by=current_user.UserID)
     except FactNotFound as exc:
@@ -883,34 +859,5 @@ def deactivate_agent(
     }
 
 # ===========================================================================
-# GET /ai-agent/inbox
-# ===========================================================================
-
-
-def _inbox_not_implemented():
-    """Service-mailbox reading has no implementation yet (read_all_inbox /
-    read_inbox_by_email are placeholders that return nothing)."""
-    raise HTTPException(
-        status_code=501,
-        detail="Reading the service mailbox is not implemented yet.",
-    )
-
-
-# ===========================================================================
-# GET /ai-agent/inbox/by-email
-# ===========================================================================
-
-
-# ===========================================================================
 # GET /ai-agent/candidates/{candidate_id}/audit-log
 # ===========================================================================
-
-
-# ===========================================================================
-# GET /ai-agent/messages/{event_id}/explanation
-# GET /ai-agent/candidates/{candidate_id}/thunder-explanation-log
-# ===========================================================================
-
-from app.schemas.thunder_explanation import ExplanationLogResponse, MessageExplanationResponse
-from app.services.thunder_explanation_service import get_explanation_log, get_message_explanation
-

@@ -1,7 +1,7 @@
 """
 HRMS-0103 — Demand / Job Requisition Management, Phase 2 Domain 2/4.
 
-Same SQL-Server/SQLite-portable translation conventions as
+Same translation conventions as
 app.models.employee/client.
 
 Note: this is a genuinely new entity, distinct from the existing `Jobs`

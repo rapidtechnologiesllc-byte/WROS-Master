@@ -138,3 +138,30 @@ async def require_tenant_id(
     reading a tenant id from request input.
     """
     return tenant_id_of(current_user)
+
+
+# Candidate-engagement records (candidate_conversations, candidate_ai_assignments and the
+# Thunder tables keyed the same way) carry their tenant as text in a String column. The key is
+# the tenant's id as text -- never a user id, never a literal.
+def conversation_tenant_key(tenant_id) -> str:
+    """The engagement-record key for a tenant id (int or numeric text)."""
+    if tenant_id is None or str(tenant_id).strip() == "":
+        raise ValueError("A tenant is required for a candidate engagement record")
+    return str(int(tenant_id))
+
+
+def tenant_of_key(db, key) -> int:
+    """The tenant id behind an engagement-record key. A numeric key is the tenant id itself; a
+    non-numeric one is a staff UserID (the Test Thunder sandbox keys its conversations by the
+    tester) and resolves to that user's tenant."""
+    if key is None or str(key).strip() == "":
+        return sole_tenant_id(db)
+    text = str(key).strip()
+    if text.isdigit():
+        return int(text)
+    from app.models.user import Users
+
+    tenant_id = db.query(Users.tenant_id).filter(Users.UserID == text).scalar()
+    if tenant_id is None:
+        raise ValueError(f"Engagement key {text!r} is neither a tenant id nor a user with a tenant")
+    return tenant_id

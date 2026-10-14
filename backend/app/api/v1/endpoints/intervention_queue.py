@@ -31,12 +31,12 @@ class ResolveRequest(BaseModel):
 
 @router.get("", dependencies=[Depends(require_resource_permission("intervention-queue", "view"))])
 def list_queue(status: Optional[str] = None, db: Session = Depends(get_db)):
-    return {"items": get_queue(db, resolve_default_tenant_id(), status=status)}
+    return {"items": get_queue(db, resolve_default_tenant_id(db), status=status)}
 
 
 @router.get("/summary", dependencies=[Depends(require_resource_permission("intervention-queue", "view"))])
 def queue_summary(db: Session = Depends(get_db)):
-    return get_queue_summary(db, resolve_default_tenant_id())
+    return get_queue_summary(db, resolve_default_tenant_id(db))
 
 
 @router.post("/{queue_item_id}/take-over")
@@ -46,7 +46,7 @@ def take_over(
     current_user: Users = Depends(require_resource_permission("intervention-queue", "edit")),
 ):
     try:
-        return take_over_queue_item(db, queue_item_id, resolve_default_tenant_id(), current_user.UserID)
+        return take_over_queue_item(db, queue_item_id, resolve_default_tenant_id(db), current_user.UserID)
     except QueueItemNotFound as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -59,6 +59,6 @@ def resolve(
     current_user: Users = Depends(require_resource_permission("intervention-queue", "edit")),
 ):
     try:
-        return mark_resolved(db, queue_item_id, resolve_default_tenant_id(), current_user.UserID, body.resolution_note)
+        return mark_resolved(db, queue_item_id, resolve_default_tenant_id(db), current_user.UserID, body.resolution_note)
     except QueueItemNotFound as e:
         raise HTTPException(status_code=404, detail=str(e))

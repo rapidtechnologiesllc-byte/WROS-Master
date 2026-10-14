@@ -10,8 +10,7 @@ no conversation_messages table exists).
 BR-03 ("only one ACTIVE campaign per candidate") is enforced at the
 application layer (query-then-check in start_campaign(), same pattern
 CandidateMemoryFact's is_active uniqueness already uses this round),
-not a DB partial/filtered unique index -- simpler and portable across
-the SQLite test target and the real MSSQL database.
+not a DB partial unique index.
 
 Real, deliberate architectural overlap, flagged not hidden: this is
 now the THIRD near-identical "capped multi-touch, stop-on-reply,

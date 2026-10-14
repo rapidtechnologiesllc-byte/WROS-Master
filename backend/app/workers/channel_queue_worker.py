@@ -83,4 +83,4 @@ def process_channel_queue(batch_size: int = 10) -> dict:
 
 if __name__ == "__main__":
     result = process_channel_queue()
-    print(f"Channel queue worker result: {result}")
+    logger.info(f"Channel queue worker result: {result}")

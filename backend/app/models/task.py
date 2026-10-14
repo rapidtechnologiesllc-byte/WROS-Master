@@ -18,8 +18,7 @@ partition numbering, visibility, or round-robin scope.
 
 Org-wide Task # is just the autoincrement primary key itself -- no
 separate counter table needed; a single Integer IDENTITY/autoincrement
-column is already a real, atomic, monotonic, org-wide sequence in both
-SQLite and SQL Server.
+column is already a real, atomic, monotonic, org-wide sequence.
 """
 import logging
 import uuid

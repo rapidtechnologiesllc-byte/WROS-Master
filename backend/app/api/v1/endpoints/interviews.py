@@ -1011,6 +1011,33 @@ def get_interview_panel(
     )
 
 @router.get(
+    "/flash-calibration",
+    dependencies=[Depends(require_resource_permission("interviews", "view"))],
+    summary="Panel vs Flash: how often Flash's match score agreed with the panel's decision",
+)
+def flash_calibration(db: Session = Depends(get_db), user=Depends(get_current_internal_user)):
+    """Completed interviews the caller may see: agreement rate and every disagreement."""
+    from app.core.config import settings
+    from app.services.interview_calibration_service import calibration_summary
+
+    interviews = db.query(Interview).filter(_interview_scope(db, user),
+                                            Interview.feedback_status == "Completed").all()
+    return calibration_summary(db, interviews, settings.FLASH_ADVANCE_SCORE)
+
+
+@router.get(
+    "/{interview_id}/flash-comparison",
+    dependencies=[Depends(require_resource_permission("interviews", "view"))],
+    summary="Panel vs Flash for one interview",
+)
+def flash_comparison(interview_id: int, db: Session = Depends(get_db), user=Depends(get_current_internal_user)):
+    from app.core.config import settings
+    from app.services.interview_calibration_service import compare_interview
+
+    return compare_interview(db, _visible_interview_or_404(db, user, interview_id), settings.FLASH_ADVANCE_SCORE)
+
+
+@router.get(
     "/panels",
     response_model=List[InterviewPanelWithDetails],
     dependencies=[Depends(require_resource_permission("interviews", "view"))],

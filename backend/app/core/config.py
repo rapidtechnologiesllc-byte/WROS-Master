@@ -154,6 +154,8 @@ class Settings:
     
     # File Upload Settings
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
+    # Panel vs Flash calibration: Flash "advances" a candidate whose job match score is at least this
+    FLASH_ADVANCE_SCORE: int = int(os.getenv("FLASH_ADVANCE_SCORE", "60"))
     # Name of the parent company created on an empty database (the primary tenant)
     PRIMARY_TENANT_NAME: str = os.getenv("PRIMARY_TENANT_NAME", "BlitzenX")
     # Tenant the public website chat creates candidates in (empty = the only tenant)

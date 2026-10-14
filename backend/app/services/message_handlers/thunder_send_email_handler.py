@@ -63,7 +63,11 @@ class ThunderSendEmailHandler:
             logger.info(f"[ThunderSend] superseded candidate={candidate_id} step={step} plan={state.next_step}")
             return _done("superseded", candidate_id, step)
 
-        # validation 2: permission to contact
+        # validation 2: permission to contact -- the organisation's Thunder kill switch first
+        # (deferred, not dropped: the step goes out when Thunder is switched back on)
+        from app.services.tenant_ai_config_service import is_thunder_enabled
+        if not is_thunder_enabled(db, candidate.tenant_id):
+            raise DeliveryDeferred("Thunder is switched off for this organisation", now + timedelta(hours=1))
         if cadence.email_consent_revoked(db, candidate_id):
             cadence.stop(db, state, candidate, "email consent revoked")
             db.commit()

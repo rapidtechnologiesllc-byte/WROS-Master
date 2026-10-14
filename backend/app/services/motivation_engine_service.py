@@ -151,7 +151,7 @@ def detect_trigger(db: Session, tenant_id: str, candidate_id: str, *, now: Optio
             logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[MotivationEngine] Could not resolve journey stage for {candidate_id!r}: {exc}")
 
-    raise ValueError("Operation failed")
+    raise ValueError("detect_trigger failed")
 
 # ---------------------------------------------------------------------------
 # Message generation
@@ -252,7 +252,7 @@ def send_motivation_message(db: Session, candidate: Candidate, trigger_type: str
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[MotivationEngine] Send failed for candidate {candidate.candidateID!r}: {exc}")
         db.rollback()
-        raise ValueError("Operation failed")
+        raise ValueError(f"send_motivation_message failed: {exc}") from exc
 
     outcome = MotivationOutcome(
         tenant_id=conversation.tenant_id, candidate_id=candidate.candidateID, trigger_type=trigger_type,

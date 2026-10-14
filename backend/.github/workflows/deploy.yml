@@ -105,7 +105,7 @@ jobs:
              git checkout main && \
              git reset --hard origin/main && \
              python3 -m pip install --break-system-packages -r requirements.txt && \
-             python3 -m alembic upgrade head 2>/dev/null || echo \"Migrations skipped or failed (expected for SQLite)\"'"
+             python3 -m alembic upgrade head'"
 
       - name: Restart Python backend service
         run: |

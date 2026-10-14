@@ -56,9 +56,9 @@ def _router(reply):
 
 
 def test_ai_routes_phrasings_the_rules_miss(db, user, monkeypatch):
-    assert flash_service.classify_internal_query("anyone free who knows kafka?")["intent"] == "unknown"
+    assert flash_service.classify_internal_query("got a spare kafka person?")["intent"] == "unknown"
     monkeypatch.setattr(flash_service, "_ai_llm_call", _router(json.dumps({"intent": "bench_availability", "query": "kafka"})))
-    result = flash_service.answer_internal_query(db, "anyone free who knows kafka?", current_user=user)
+    result = flash_service.answer_internal_query(db, "got a spare kafka person?", current_user=user)
     assert result["intent"] == "bench_availability"
 
 

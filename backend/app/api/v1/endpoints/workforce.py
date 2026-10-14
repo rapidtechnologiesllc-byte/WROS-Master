@@ -8,7 +8,7 @@ Where every employee stands between the bench, Staff Aug and Core (CEO 2026-10-1
 the groups add up to headcount (app.services.workforce_report_service). Scoped like the
 Employees screen: the caller's tenant and business units.
 
-Auth: the employee-in-bench permission (Workforce module).
+Auth: the workforce-overview permission (Workforce module).
 
 Routes:
   GET  /workforce/overview                  counts per group and flag (the dashboard)
@@ -32,7 +32,7 @@ router = APIRouter(prefix="/workforce", tags=["workforce"])
 @router.get(
     "/overview",
     dependencies=[
-        Depends(require_resource_permission("employee-in-bench", "view")),
+        Depends(require_resource_permission("workforce-overview", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=WorkforceOverviewResponse,

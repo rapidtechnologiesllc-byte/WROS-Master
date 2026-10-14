@@ -16,6 +16,9 @@ from fastapi.testclient import TestClient
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Token signing needs a secret; tests never use the real one.
+os.environ.setdefault("JWT_SECRET", "test-only-jwt-secret-not-used-anywhere-else-000000")
+
 # PostgreSQL ONLY configuration. TEST_DATABASE_URL wins over DATABASE_URL so a
 # developer's .env (which points at wros_dev) can never be the test target.
 DATABASE_URL = os.getenv("TEST_DATABASE_URL") or os.getenv(

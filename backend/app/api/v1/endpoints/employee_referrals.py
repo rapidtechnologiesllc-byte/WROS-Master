@@ -46,25 +46,10 @@ def get_all_referrals(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    """
-    Get all referrals visible to this user (role-based filtering).
-
-    **Visibility rules:**
-    - CEO: All referrals
-    - Workforce Manager: All referrals
-    - BU Head/Partner: Their BU's referrals only
-    - HR Manager: Their BU's referrals only
-    - Finance: All referrals
-    - Employee: Only their own referrals
-    """
-
-    user_bu = current_user.business_unit_id
-
-    referrals = ReferralAccessControl.get_referrals_for_user(
-        db,
-        current_user.UserID,
-        user_bu,
-    )
+    """Referrals visible to this user, inside their tenant: everything for org-level role
+    templates and finance, their business units' for people who manage staff, else their own
+    (app.services.referral_access_control)."""
+    referrals = ReferralAccessControl.get_referrals_for_user(db, current_user)
 
     return {
         "status": "retrieved",

@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import jwt
 import bcrypt
@@ -12,8 +12,6 @@ ALGORITHM = "HS256"
 # PRODUCTION SAFETY: JWT_SECRET MUST be set via environment variable
 # No default fallback allowed - forces explicit configuration
 SECRET_KEY = os.getenv("JWT_SECRET")
-# Never print any part of the secret: these lines end up in log files and CI output
-print(f"[SECURITY-INIT] JWT_SECRET {'set' if SECRET_KEY else 'NOT SET'}, length={len(SECRET_KEY) if SECRET_KEY else 0}")
 if not SECRET_KEY:
     raise ValueError(
         "🚨 FATAL: JWT_SECRET environment variable not set.\n"
@@ -58,9 +56,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
             raise ValueError("tenant_id is REQUIRED in token payload - cannot proceed without it")
 
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": int(expire.timestamp())})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -69,9 +67,9 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Create JWT refresh token using HS256 with longer expiration"""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+        expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": int(expire.timestamp()), "type": "refresh"})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -82,7 +80,7 @@ def verify_token(token: str):
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
     except jwt.InvalidTokenError:
-        raise ValueError("Operation failed")
+        raise ValueError("verify_token failed")
 
 def decode_access_token(token: str):
     """Decode JWT token for use in dependencies"""
@@ -95,7 +93,7 @@ def decode_access_token(token: str):
             detail="Token expired"
         )
     except jwt.InvalidTokenError as e:
-        logging.error(f"[JWT-ERROR] Token decode failed: {str(e)}, token_len={len(token)}, secret_len={len(SECRET_KEY) if SECRET_KEY else 0}")
+        logging.error(f"[JWT-ERROR] Token decode failed: {str(e)}, token_len={len(token)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token"

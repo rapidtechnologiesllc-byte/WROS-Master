@@ -14,8 +14,7 @@ Processors read items from channel queues and execute the actual delivery:
 - SIGNATURE: Request e-signatures
 """
 import logging
-from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from sqlalchemy.orm import Session
 
@@ -58,38 +57,20 @@ class ChannelProcessors:
                 ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
                 return False
 
-            # Extract email details from payload
             subject = payload.get("subject", "BlitzenX HRMS Notification")
-            body = payload.get("body", "")
-            html_body = payload.get("html_body") or payload.get("body", "")
+            content = payload.get("html_body") or payload.get("body", "")
+            is_html = bool(payload.get("html_body") or payload.get("is_html"))
 
-            # Attempt actual email delivery via Microsoft Graph
-            logger.info(f"Sending email via Microsoft Graph: {recipient}")
+            # Sent from the HRMS service mailbox (EmailService); an app-only Graph token has no
+            # "/me", so the previous /me/sendMail call could never succeed
             try:
-                response = EmailService._graph_post(
-                    endpoint="https://graph.microsoft.com/v1.0/me/sendMail",
-                    payload={
-                        "message": {
-                            "subject": subject,
-                            "body": {
-                                "contentType": "HTML" if payload.get("is_html") else "text",
-                                "content": html_body,
-                            },
-                            "toRecipients": [{"emailAddress": {"address": recipient}}],
-                            "isReadReceiptRequested": False,
-                        },
-                        "saveToSentItems": "true",
-                    },
-                    access_token=EmailService._get_token(),
-                )
-
-                # Email sent successfully (Graph API returns 202)
-                logger.info(f"EMAIL sent successfully: {item_id} to {recipient}")
-                result = DeliveryStatus.success(
-                    delivery_id=item_id,
-                    provider="microsoft_graph",
-                )
-                ChannelQueueService.mark_completed(item_id, db, result=result)
+                outcome = EmailService.send_email(to_email=recipient, subject=subject, body_content=content,
+                                                  is_html=is_html)
+                if isinstance(outcome, dict) and outcome.get("status") == "skipped":
+                    raise RuntimeError(outcome.get("reason") or "email sending is not configured")
+                logger.info(f"EMAIL sent: {item_id} to {recipient}")
+                ChannelQueueService.mark_completed(
+                    item_id, db, result=DeliveryStatus.success(delivery_id=item_id, provider="microsoft_graph"))
                 return True
 
             except Exception as send_error:
@@ -123,7 +104,7 @@ class ChannelProcessors:
         Process WHATSAPP channel - send WhatsApp message via Twilio.
 
         CRITICAL: Message is only marked COMPLETED after successful delivery.
-        Currently uses mock delivery for testing.
+        Not yet wired to a provider: such messages fail with a clear reason.
 
         Args:
             item_id: Unique channel queue item ID
@@ -153,24 +134,12 @@ class ChannelProcessors:
                 ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
                 return False
 
-            # MOCK DELIVERY: Log and simulate successful send
-            # In production: Replace with Twilio/MessageBird API call
-            logger.info(f"MOCK: Sending WhatsApp to {recipient}: {message_text[:50]}...")
-
-            # Simulate delivery (in real implementation, this would be API call)
-            delivery_id = f"whatsapp-mock-{item_id[:8]}"
-
-            result = {
-                "status": "success",
-                "delivery_id": delivery_id,
-                "provider": "twilio_mock",
-                "recipient": recipient,
-                "timestamp": str(datetime.utcnow()),
-            }
-
-            ChannelQueueService.mark_completed(item_id, db, result=result)
-            logger.info(f"WHATSAPP sent successfully (mock): {item_id} to {recipient}")
-            return True
+            # No provider is wired for this channel: fail clearly instead of reporting a send
+            # that never happened (this used to mark the message COMPLETED as a mock).
+            error_msg = "WhatsApp delivery through the channel queue is not yet configured (Thunder sends WhatsApp through whatsapp_routing_service)"
+            logger.error(f"WHATSAPP not sent - {error_msg}: {item_id}")
+            ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+            return False
 
         except Exception as e:
             logger.error(f"Failed to process WHATSAPP: {e}", exc_info=True)
@@ -214,22 +183,12 @@ class ChannelProcessors:
                 ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
                 return False
 
-            # MOCK DELIVERY: Log and simulate successful send
-            # In production: Replace with Twilio API call
-            logger.info(f"MOCK: Sending SMS to {recipient}: {message_text[:50]}...")
-
-            delivery_id = f"sms-mock-{item_id[:8]}"
-            result = {
-                "status": "success",
-                "delivery_id": delivery_id,
-                "provider": "twilio_mock",
-                "recipient": recipient,
-                "timestamp": str(datetime.utcnow()),
-            }
-
-            ChannelQueueService.mark_completed(item_id, db, result=result)
-            logger.info(f"SMS sent successfully (mock): {item_id} to {recipient}")
-            return True
+            # No provider is wired for this channel: fail clearly instead of reporting a send
+            # that never happened (this used to mark the message COMPLETED as a mock).
+            error_msg = "SMS delivery is not yet configured"
+            logger.error(f"SMS not sent - {error_msg}: {item_id}")
+            ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+            return False
 
         except Exception as e:
             logger.error(f"Failed to process SMS: {e}", exc_info=True)
@@ -273,22 +232,12 @@ class ChannelProcessors:
                 ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
                 return False
 
-            # MOCK DELIVERY: Log and simulate successful send
-            # In production: Replace with Slack API call
-            logger.info(f"MOCK: Sending Slack to {recipient}: {message_text[:50]}...")
-
-            delivery_id = f"slack-mock-{item_id[:8]}"
-            result = {
-                "status": "success",
-                "delivery_id": delivery_id,
-                "provider": "slack_api_mock",
-                "recipient": recipient,
-                "timestamp": str(datetime.utcnow()),
-            }
-
-            ChannelQueueService.mark_completed(item_id, db, result=result)
-            logger.info(f"SLACK sent successfully (mock): {item_id} to {recipient}")
-            return True
+            # No provider is wired for this channel: fail clearly instead of reporting a send
+            # that never happened (this used to mark the message COMPLETED as a mock).
+            error_msg = "Slack delivery is not yet configured"
+            logger.error(f"SLACK not sent - {error_msg}: {item_id}")
+            ChannelQueueService.mark_failed(item_id, error_msg, should_retry=False, db=db)
+            return False
 
         except Exception as e:
             logger.error(f"Failed to process SLACK: {e}", exc_info=True)

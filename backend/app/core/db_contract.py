@@ -324,11 +324,11 @@ LEADERSHIP_ROLES = {
         "permissions": {
             "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
                     "activity-feed", "ask-flash", "candidates", "jobs", "submissions", "interviews", "clients",
-                    "opportunities", "proposals", "pipeline-management", "demand-confirmation", "goals"],
+                    "opportunities", "pipeline-management", "demand-confirmation", "goals"],
             # LinkedIn Pipeline is a sub-page of the candidates resource (init_resources), not a resource
             "v": ["offer-letters", "employees", "allocations", "utilization-dashboard", "resource-forecast",
-                  "employee-in-bench", "projects", "resources", "invoices", "forecasts", "revenue",
-                  "executive-revenue-dashboard", "kpi-dashboard", "analytics", "partner-dashboard",
+                  "workforce-overview", "projects", "resources", "invoices", "forecasts", "revenue",
+                  "executive-revenue-dashboard", "analytics", "partner-dashboard",
                   "partner-dashboard-view", "bu-head-dashboard", "bu-head-dashboard-view", "business-units",
                   "delivery-centers", "organizational-hierarchy", "ask-thunder"],
         },
@@ -344,7 +344,7 @@ LEADERSHIP_ROLES = {
                     "allocations", "timesheets", "projects", "resources", "opportunities", "demand-confirmation",
                     "pipeline-management", "clients"],
             "v": ["offer-letters", "employees", "onboarding", "utilization-dashboard", "resource-forecast",
-                  "employee-in-bench", "invoices", "forecasts", "revenue", "goals", "kpi-dashboard",
+                  "workforce-overview", "invoices", "forecasts", "revenue", "goals",
                   "bu-head-dashboard", "bu-head-dashboard-view", "business-units", "delivery-centers",
                   "organizational-hierarchy", "ask-thunder"],
         },
@@ -361,9 +361,9 @@ LEADERSHIP_ROLES = {
         "permissions": {
             "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
                     "activity-feed", "ask-flash", "invoices", "invoice-management", "expenses", "revenue",
-                    "finance-operations", "forecasts", "budget-management", "payroll"],
+                    "finance-operations", "forecasts", "payroll"],
             "v": ["clients", "projects", "allocations", "timesheets", "employees", "reports",
-                  "executive-revenue-dashboard", "kpi-dashboard", "analytics", "business-units",
+                  "executive-revenue-dashboard", "analytics", "business-units",
                   "opportunities", "pipeline-management"],
         },
     },
@@ -377,7 +377,7 @@ LEADERSHIP_ROLES = {
         "org_level_access": False,
         "permissions": {
             "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
-                    "activity-feed", "ask-flash", "clients", "opportunities", "proposals", "pipeline-management"],
+                    "activity-feed", "ask-flash", "clients", "opportunities", "pipeline-management"],
             "v": ["demand-confirmation", "projects", "jobs", "business-units"],
         },
     },
@@ -445,12 +445,16 @@ def _initialize_leadership_roles():
         _initialize_org_roles(db)
         _initialize_manage_role_permission_sets(db)
         _initialize_canonical_resources(db)
+        _initialize_contract_catalog_only(db)
         _initialize_thunder_conversation_owner(db)
         _initialize_candidate_status_templates(db)
         _initialize_submission_violation_types(db)
         _initialize_permission_row_tenants(db)
         _initialize_functions(db)
         _initialize_company_codes(db)
+        _initialize_partial_unique_indexes(db)
+        _initialize_engagement_tenant_keys(db)
+        _initialize_thunder_identity_config(db)
         _initialize_user_template_tenants(db)
         _initialize_pipeline_access(db)
     except Exception:
@@ -645,6 +649,44 @@ def _initialize_canonical_resources(db):
         logger.info(f"[Contract] Canonical resources: moved {moved} grant(s)/override(s), disabled {disabled} duplicate(s)")
 
 
+def _initialize_contract_catalog_only(db):
+    """The role editor offers exactly the API contract's modules and resources. Anything else
+    (legacy seeds, resources retired from the contract because no page or check used them) is
+    disabled -- reversible, nothing deleted; re-enabled automatically if it returns to the
+    contract. No permission check can rely on a disabled resource: tests/test_authority.py
+    guards that every checked permission is in the contract."""
+    from app.contracts.api_contract import MODULES_AND_RESOURCES
+
+    changed = 0
+    modules = {m.id: m for m in db.query(Module).all()}
+    for module in modules.values():
+        wanted = module.name in MODULES_AND_RESOURCES
+        if bool(module.enabled) != wanted:
+            module.enabled = wanted
+            changed += 1
+    for resource in db.query(Resource).all():
+        module = modules.get(resource.module_id)
+        wanted = bool(module) and resource.name in MODULES_AND_RESOURCES.get(module.name, ())
+        if not wanted and resource.enabled:
+            resource.enabled = False
+            changed += 1
+        elif wanted and not resource.enabled and _is_canonical(db, resource, modules):
+            resource.enabled = True
+            changed += 1
+    db.commit()
+    if changed:
+        from app.services.role_template_permission_service import invalidate_permissions
+        invalidate_permissions()
+        logger.info(f"[Contract] Catalog: {changed} module/resource(s) enabled or disabled to match the contract")
+
+
+def _is_canonical(db, resource, modules) -> bool:
+    from app.services.role_template_permission_service import canonical_resource
+
+    group = db.query(Resource).filter(Resource.name == resource.name, Resource.tenant_id == resource.tenant_id).all()
+    return canonical_resource(group, {mid: m.name for mid, m in modules.items()}).id == resource.id
+
+
 def _initialize_thunder_conversation_owner(db):
     """Engagement once created Thunder conversations as owner_type 'Thunder', which every
     Thunder send gate refuses (only 'ai_agent' may send), so those candidates could never be
@@ -731,6 +773,119 @@ def _initialize_company_codes(db):
     db.commit()
     if numbered:
         logger.info(f"[Contract] Numbered {numbered} compan(y/ies) inside their tenant")
+
+
+def _initialize_engagement_tenant_keys(db):
+    """Candidate-engagement tables key their tenant as text. That key is the tenant id
+    (app.core.tenant_context.conversation_tenant_key); writers had drifted to arbitrary user ids
+    (the tenant's first user, the assigned recruiter, even the candidate's own id) while readers
+    looked for the tenant, so dashboards saw nothing. Idempotent:
+      - drop foreign keys from these tenant_id columns to users (the key is not a user);
+      - conversation_events.tenant_id is text with no default (no hard-coded tenant);
+      - every text tenant_id on a candidate-scoped table is set to the candidate's tenant,
+        except the Test Thunder sandbox (keyed by the tester on purpose). Each table runs in a
+        savepoint: a uniqueness clash is logged with the table name and that table is left as is.
+    """
+    from sqlalchemy import String
+
+    from app.services.thunder_service import TEST_CANDIDATE_ID_PREFIX
+
+    tables = [t for t in Base.metadata.tables.values()
+              if "tenant_id" in t.c and isinstance(t.c.tenant_id.type, String)]
+    for table in tables:
+        for (name,) in db.execute(text(
+            "SELECT con.conname FROM pg_constraint con "
+            "JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY (con.conkey) "
+            "WHERE con.contype = 'f' AND con.conrelid = to_regclass(:tbl) AND att.attname = 'tenant_id' "
+            "AND con.confrelid = to_regclass('app_schema.users')"), {"tbl": f"app_schema.{table.name}"}).all():
+            db.execute(text(f'ALTER TABLE app_schema."{table.name}" DROP CONSTRAINT "{name}"'))
+            logger.info(f"[Contract] Dropped {table.name}.{name}: tenant_id is a tenant key, not a user")
+    events_type = db.execute(text(
+        "SELECT data_type FROM information_schema.columns WHERE table_schema = 'app_schema' "
+        "AND table_name = 'conversation_events' AND column_name = 'tenant_id'")).scalar()
+    if events_type and events_type != "character varying":
+        db.execute(text("ALTER TABLE app_schema.conversation_events ALTER COLUMN tenant_id TYPE VARCHAR(50) "
+                        "USING tenant_id::text"))
+    if events_type:
+        db.execute(text("ALTER TABLE app_schema.conversation_events ALTER COLUMN tenant_id DROP DEFAULT"))
+    db.commit()
+
+    rekeyed = {}
+    for table in tables:
+        if "candidate_id" not in table.c:
+            continue
+        savepoint = db.begin_nested()
+        try:
+            count = db.execute(text(
+                f'UPDATE app_schema."{table.name}" AS t SET tenant_id = c.tenant_id::text '
+                f'FROM app_schema.candidates AS c WHERE c."candidateID" = t.candidate_id '
+                f"AND c.tenant_id IS NOT NULL AND t.tenant_id IS DISTINCT FROM c.tenant_id::text "
+                f"AND t.candidate_id NOT LIKE :sandbox"), {"sandbox": f"{TEST_CANDIDATE_ID_PREFIX}%"}).rowcount
+            savepoint.commit()
+            if count:
+                rekeyed[table.name] = count
+        except Exception as exc:
+            savepoint.rollback()
+            logger.error(f"[Contract] Could not re-key {table.name} to the candidate's tenant "
+                         f"(left unchanged): {exc}")
+    events = db.execute(text(
+        "UPDATE app_schema.conversation_events AS e SET tenant_id = c.tenant_id "
+        "FROM app_schema.candidate_conversations AS c WHERE c.id = e.conversation_id "
+        "AND e.tenant_id IS DISTINCT FROM c.tenant_id")).rowcount
+    if events:
+        rekeyed["conversation_events"] = events
+    db.commit()
+    if rekeyed:
+        logger.info(f"[Contract] Engagement records keyed by their candidate's tenant: {rekeyed}")
+
+
+def _initialize_thunder_identity_config(db):
+    """Thunder's name and persona are tenant settings (tenant_ai_config_service). A value an
+    admin saved before lived on a user row: carry it into the tenant's configuration once, so
+    nothing configured is lost. The kill switch is not carried over (it never worked from a user
+    row, and Thunder is live). Idempotent: a tenant that already has the setting keeps it."""
+    from app.models.system_config import SystemConfig
+    from app.services.tenant_ai_config_service import CONFIG_KEY, update_tenant_ai_config
+
+    for (tenant_id,) in db.query(Tenant.id).all():
+        row = db.query(SystemConfig).filter(SystemConfig.tenant_id == tenant_id, SystemConfig.config_key == CONFIG_KEY,
+                                            SystemConfig.business_unit_id.is_(None)).first()
+        saved = (row.config_value or {}) if row else {}
+        carry = {}
+        for field in ("ai_agent_name", "ai_agent_persona"):
+            if saved.get(field):
+                continue
+            value = db.query(getattr(Users, field)).filter(Users.tenant_id == tenant_id, getattr(Users, field).isnot(None),
+                                                           getattr(Users, field) != "").order_by(Users.UserID).limit(1).scalar()
+            if value:
+                carry[field] = value
+        if carry:
+            update_tenant_ai_config(db, carry, changed_by=None, tenant_id=tenant_id)
+            logger.info(f"[Contract] Tenant {tenant_id}: Thunder {sorted(carry)} carried into the tenant AI configuration")
+
+
+def _initialize_partial_unique_indexes(db):
+    """A partial unique index declared on a model (postgresql_where) must be partial in the
+    database too. create_all never alters an existing index, so one created before its WHERE was
+    declared stays a full unique index and blocks legitimate rows (a second interview at a level
+    after the first was superseded; re-opening a resolved intervention). Rebuild any such index
+    from the model. Relaxing a constraint cannot conflict with existing rows. Idempotent."""
+
+    rebuilt = []
+    for table in Base.metadata.tables.values():
+        for index in table.indexes:
+            if index.dialect_options["postgresql"].get("where") is None:
+                continue
+            row = db.execute(text("SELECT indexdef FROM pg_indexes WHERE schemaname = :s AND indexname = :n"),
+                             {"s": table.schema or "app_schema", "n": index.name}).first()
+            if row is None or " WHERE " in row[0]:
+                continue
+            db.execute(text(f'DROP INDEX IF EXISTS "{table.schema or "app_schema"}"."{index.name}"'))
+            db.commit()
+            index.create(bind=engine)
+            rebuilt.append(index.name)
+    if rebuilt:
+        logger.info(f"[Contract] Rebuilt as partial unique indexes: {', '.join(rebuilt)}")
 
 
 def _initialize_functions(db):
@@ -1750,4 +1905,4 @@ def _widen_short_varchar_columns(db: Session):
 if __name__ == "__main__":
     # Can be run manually to verify/initialize database
     initialize_database()
-    print("✅ Database contract initialized")
+    logger.info("✅ Database contract initialized")

@@ -81,7 +81,7 @@ from app.models.candidate import Candidate, CandidateStatus
 from app.models.employee import Employee
 from app.models.business_unit import BusinessUnit
 from app.models.resource_management import BenchPoolEntry
-from app.models.user import Users
+from app.models.user import Jobs, Users
 from app.services.ar_followup_service import scan_overdue_invoices
 from app.services.pnl_service import get_bu_pnl, get_org_pnl_summary
 from app.services.task_service import get_daily_task_list
@@ -94,6 +94,7 @@ INTENT_AR_AGING = "ar_aging"
 INTENT_MY_TASKS = "my_tasks"
 INTENT_JOB_CREATE = "job_create"
 INTENT_MY_TIMESHEETS = "my_timesheets"
+INTENT_PIPELINE_SUMMARY = "pipeline_summary"
 INTENT_UNKNOWN = "unknown"
 
 # What the AI router may choose (it never answers -- every answer is a real DB lookup)
@@ -106,6 +107,7 @@ AI_INTENTS = {
     INTENT_MY_TASKS: "the asker's own tasks (query: empty)",
     INTENT_MY_TIMESHEETS: "the asker's own timesheets or hours (query: empty)",
     INTENT_JOB_CREATE: "create or open a new job (query: the job description)",
+    INTENT_PIPELINE_SUMMARY: "how many candidates are at each hiring stage, optionally for one client (query: client name, may be empty)",
 }
 
 UNSUPPORTED_QUERY_MESSAGE = (
@@ -190,30 +192,35 @@ class ThunderQueryClassificationFailed(Exception):
 # patterns are checked most-specific-first so no category can shadow
 # another (e.g. "who's on the bench for the Java project" should hit
 # BENCH_AVAILABILITY, not SOURCING, even though both mention "Java").
-_FINANCE_PNL_PATTERN = re.compile(r"\b(margin|p\s*&\s*l|pnl|p\s+and\s+l|profit\w*)\b", re.IGNORECASE)
+_FINANCE_PNL_PATTERN = re.compile(
+    r"\b(margin|p\s*&\s*l|pnl|p\s+and\s+l|profit\w*|financials?|financially|revenue|making\s+money)\b", re.IGNORECASE)
 _AR_AGING_PATTERN = re.compile(
     r"(overdue|unpaid).{0,20}?invoices?|invoices?.{0,20}?(overdue|unpaid)|"
     r"accounts?\s+receivable|\bar\s+aging\b|who\s+owes",
     re.IGNORECASE,
 )
 _MY_TIMESHEETS_PATTERN = re.compile(r"\bmy\s+(time\s*sheets?|hours)\b|\b(did|have)\s+i\s+(submit|log)", re.IGNORECASE)
-_MY_TASKS_PATTERN = re.compile(r"\bmy\s+(open\s+)?tasks?\b|\bmy\s+plate\b|\bdue\s+today\b|\bmy\s+to.?do\b", re.IGNORECASE)
+_MY_TASKS_PATTERN = re.compile(
+    r"\bmy\s+(open\s+)?tasks?\b|\bmy\s+plate\b|\bdue\s+today\b|\bmy\s+to.?do\b|"
+    r"\bwhat\s+(do|should)\s+i\s+(need\s+to\s+)?(do|work\s+on)\b|\bon\s+my\s+(list|plate)\b", re.IGNORECASE)
 _BENCH_PATTERN = re.compile(
-    r"\bbench\b|who.{0,4}s\s+free\b|who\s+is\s+free\b|available\s+(employee|developer|engineer|resource)",
+    r"\bbench\b|who.{0,4}s\s+free\b|\b(who|anyone|anybody|someone|somebody)\s+(is\s+)?free\b|"
+    r"\bavailable\b.{0,30}\b(employees?|developers?|engineers?|resources?|consultants?|people|staff|testers?|analysts?)\b",
     re.IGNORECASE,
 )
 _CANDIDATE_STATUS_PATTERN = re.compile(
-    r"how\W{0,4}s?\s+is\b.{0,60}\bdoing\b|status\s+(on|of)\b|pipeline\s+status\b",
+    r"how\W{0,4}s?\s+is\b.{0,60}\bdoing\b|status\s+(on|of)\b|pipeline\s+status\b|"
+    r"\bwhere\s+is\b.{0,40}\b(process|pipeline|hiring|interview)|\b(any\s+)?updates?\s+on\b",
     re.IGNORECASE,
 )
 _SOURCING_PATTERN = re.compile(
     r"\b(find|source)\s+me\b|need\s+a\s+candidate\b|candidate\s+for\b|looking\s+for\s+(a|an|someone)\b|"
     r"\bdo\s+(you|we)\s+have\b|\bdo\s+we\s+have\s+any\b|\bany\s+candidates?\b|\bis\s+there\s+a\s+candidate\b|"
-    r"\bwho\s+(do\s+we\s+have|has)\b",
+    r"\bwho\s+(do\s+we\s+have|has|can\s+do|knows)\b|\bcandidates?\s+(with|who\s+know)\b",
     re.IGNORECASE,
 )
 _JOB_CREATE_PATTERN = re.compile(
-    r"\b(create|post|open)\s+(a|an|new)?\s*(job|role|position)\b|"
+    r"\b(create|post|open)\s+(a|an|new)?\s*(job|role|position|req|requisition)\b|"
     r"\bneed\s+to\s+(create|post|open)\s+(a|an)?\s*(job|role|position)\b|"
     r"\b(hire|hiring|recruiting)\s+for\b",
     re.IGNORECASE,
@@ -224,7 +231,18 @@ _JOB_CREATE_PATTERN = re.compile(
 # doing"). Excludes single common sentence-starters that happen to be
 # capitalized (How/What/Who/etc.) by requiring the match not be the very
 # first word of the message.
-_PROPER_NOUN_PATTERN = re.compile(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b")
+# Capitalised words, including all-caps names such as business units ("AXION")
+_PROPER_NOUN_PATTERN = re.compile(r"\b[A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,2}\b")
+_BENCH_WORDS_PATTERN = re.compile(
+    r"\b(bench|available|free|who|whos|is|on|the|show|list|me|any|anyone|anybody|someone|somebody|knows?|people|staff|"
+    r"employees?|developers?|engineers?|resources?|consultants?|testers?|analysts?)\b|\bwho's\b",
+    re.IGNORECASE,
+)
+_PIPELINE_SUMMARY_PATTERN = re.compile(
+    r"\bhow\s+many\s+candidates\b|\bcandidates\s+(are\s+)?(in|at)\s+(the\s+)?\w+\s+stage\b|"
+    r"\bwhat.{0,4}s?\s+the\s+pipeline\b|\bpipeline\s+(for|of|summary)\b|\bhiring\s+funnel\b",
+    re.IGNORECASE,
+)
 _SENTENCE_STARTERS = {"How", "What", "Who", "Is", "Are", "Does", "Do", "Can", "Please"}
 _PRONOUN_PATTERN = re.compile(r"\b(her|him|them|she|he|they|that\s+(person|candidate))\b", re.IGNORECASE)
 # Temporal/filler words that aren't in _STOPWORDS (those are shared with
@@ -284,8 +302,14 @@ def classify_internal_query(message: str, *, history: Optional[List[Dict]] = Non
     if _MY_TIMESHEETS_PATTERN.search(text):
         return {"intent": INTENT_MY_TIMESHEETS, "query": ""}
 
+    if _PIPELINE_SUMMARY_PATTERN.search(text):
+        client = re.search(r"\b(?:client|for)\s+([A-Z][\w&.-]*(?:\s+[A-Z][\w&.-]*){0,3})", text)
+        return {"intent": INTENT_PIPELINE_SUMMARY, "query": client.group(1).strip() if client else ""}
+
     if _BENCH_PATTERN.search(text):
-        keywords = _extract_keywords(_NOISE_WORD_PATTERN.sub("", _BENCH_PATTERN.sub("", text)))
+        # keep the skill words ("QA"), drop only the bench/availability wording around them
+        stripped = _BENCH_WORDS_PATTERN.sub(" ", text)
+        keywords = _extract_keywords(_NOISE_WORD_PATTERN.sub("", stripped))
         return {"intent": INTENT_BENCH_AVAILABILITY, "query": " ".join(keywords)}
 
     # A pronoun ("her"/"him"/etc.) combined with a status-ish word
@@ -1058,6 +1082,47 @@ def _format_my_timesheets_reply(result: Dict) -> str:
     return "Your recent timesheets:\n" + "\n".join(lines)
 
 
+def get_pipeline_summary(db: Session, user: Users, client_query: str = "") -> Dict:
+    """Candidates per hiring stage the user may see (same business-unit scope as the candidate
+    screens), optionally only those on one client's jobs."""
+    from sqlalchemy import func as sql_func
+
+    from app.core.bu_scope import apply_bu_scope_to_candidate_query
+    from app.models.candidate import CandidateStatus
+    from app.models.client import Client
+
+    query = db.query(Candidate).filter(Candidate.tenant_id == tenant_id_of(user))
+    query = apply_bu_scope_to_candidate_query(db, query, user)
+    client = None
+    if client_query:
+        client = db.query(Client).filter(Client.tenant_id == tenant_id_of(user),
+                                         sql_func.lower(Client.company_name).like(f"%{client_query.lower()}%")).first()
+        if client is None:
+            return {"client_query": client_query, "client": None, "stages": {}, "total": 0}
+        job_ids = [j for (j,) in db.query(Jobs.jobID).filter(Jobs.client_id == client.id)]
+        query = query.filter(Candidate.job_id.in_(job_ids or [""]))
+    ids = [c for (c,) in query.with_entities(Candidate.candidateID)]
+    stages: Dict[str, int] = {}
+    if ids:
+        for stage, count in (db.query(CandidateStatus.piplineStatus, sql_func.count(CandidateStatus.id))
+                             .filter(CandidateStatus.candidateID.in_(ids))
+                             .group_by(CandidateStatus.piplineStatus).all()):
+            stages[stage or "Not started"] = count
+    return {"client_query": client_query, "client": client.company_name if client else None,
+            "stages": stages, "total": len(ids)}
+
+
+def _format_pipeline_summary(result: Dict) -> str:
+    if result["client_query"] and result["client"] is None:
+        return f"I couldn't find a client matching \"{result['client_query']}\"."
+    scope = f" for {result['client']}" if result["client"] else ""
+    if not result["total"]:
+        return f"There are no candidates in the pipeline{scope} that you can see."
+    lines = [f"Pipeline{scope}: {result['total']} candidate(s)."]
+    lines += [f"- {stage}: {count}" for stage, count in sorted(result["stages"].items(), key=lambda kv: -kv[1])]
+    return "\n".join(lines)
+
+
 def answer_internal_query(
     db: Session, message: str, *, current_user: Optional[Users] = None, history: Optional[List[Dict]] = None, conversation_state: Optional[Dict] = None,
 ) -> Dict:
@@ -1113,6 +1178,11 @@ def answer_internal_query(
         user_bu_id = getattr(current_user, 'business_unit_id', None) if current_user else None
         status = get_candidate_status_summary(db, query, tenant_id=tenant_id, user_bu_id=user_bu_id)
         return {"intent": intent, "reply": _format_status_reply(query, status["matches"])}
+
+    if intent == INTENT_PIPELINE_SUMMARY:
+        if current_user is None:
+            return {"intent": intent, "reply": UNSUPPORTED_QUERY_MESSAGE}
+        return {"intent": intent, "reply": _format_pipeline_summary(get_pipeline_summary(db, current_user, query))}
 
     if intent == INTENT_BENCH_AVAILABILITY:
         # Unlike SOURCING/CANDIDATE_STATUS, an empty query is valid here

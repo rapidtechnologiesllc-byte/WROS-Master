@@ -174,9 +174,12 @@ def end_allocation(
         # employee hold more than one ACTIVE allocation at once; ending
         # just one of several shouldn't bench them (status OR bench_pool)
         # while another is still live.
+        # Exclude this allocation by id: sessions don't autoflush, so the database still has
+        # it ACTIVE and it would always count as "another" live allocation.
         still_has_active = db.query(EmployeeAllocation).filter(
             EmployeeAllocation.employee_id == employee.id,
             EmployeeAllocation.status == "ACTIVE",
+            EmployeeAllocation.id != allocation.id,
         ).first()
         if not still_has_active:
             transition_employee_status(

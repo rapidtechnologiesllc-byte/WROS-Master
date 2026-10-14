@@ -41,10 +41,11 @@ class EmployeeReferralService:
                 "referral_bonus": referral_bonus_amount_usd_cents / 100,  # Convert to dollars
             }
 
-        except Exception as e:
-            logger.error(f"Error: {str(e)}", exc_info=True)
+        except Exception:
+
             db.rollback()
-            return {"status": "error", "message": str(e)}
+
+            raise
 
     @staticmethod
     def send_referral_emails_for_job(
@@ -73,7 +74,8 @@ class EmployeeReferralService:
                 db.commit()
 
             # Prepare email data
-            referral_link_base = f"https://blitzenx.com/referral/add-candidate"
+            from app.core.config import settings
+            referral_link_base = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/referral/add-candidate"
             referral_email_data = []
 
             for employee in employees:
@@ -100,9 +102,11 @@ class EmployeeReferralService:
                 "message": f"Ready to send {len(referral_email_data)} referral emails",
             }
 
-        except Exception as e:
-            logger.error(f"Error: {str(e)}", exc_info=True)
-            return {"status": "error", "message": str(e)}
+        except Exception:
+
+            db.rollback()
+
+            raise
 
     @staticmethod
     def record_referral(
@@ -137,10 +141,9 @@ class EmployeeReferralService:
 
             db.add(referral)
 
-            # Update job referral settings
             if settings:
                 settings.total_referrals_received += 1
-                db.commit()
+            db.commit()  # the referral is saved whether or not the job has referral settings
 
             return {
                 "status": "recorded",
@@ -151,10 +154,11 @@ class EmployeeReferralService:
                 "bonus_potential": bonus_amount / 100,
             }
 
-        except Exception as e:
-            logger.error(f"Error: {str(e)}", exc_info=True)
+        except Exception:
+
             db.rollback()
-            return {"status": "error", "message": str(e)}
+
+            raise
 
     @staticmethod
     def link_candidate_to_referral(
@@ -217,10 +221,9 @@ class EmployeeReferralService:
                 "referral_status": referral.referral_status,
             }
 
-        except Exception as e:
-            logger.error(f"Error linking candidate to referral: {str(e)}", exc_info=True)
+        except Exception:
             db.rollback()
-            return {"status": "error", "message": str(e)}
+            raise
 
     @staticmethod
     def update_referral_status(
@@ -260,10 +263,11 @@ class EmployeeReferralService:
                 "new_status": new_status,
             }
 
-        except Exception as e:
-            logger.error(f"Error: {str(e)}", exc_info=True)
+        except Exception:
+
             db.rollback()
-            return {"status": "error", "message": str(e)}
+
+            raise
 
     @staticmethod
     def mark_bonus_paid(
@@ -304,10 +308,11 @@ class EmployeeReferralService:
                 "paid_via": paid_via,
             }
 
-        except Exception as e:
-            logger.error(f"Error: {str(e)}", exc_info=True)
+        except Exception:
+
             db.rollback()
-            return {"status": "error", "message": str(e)}
+
+            raise
 
     @staticmethod
     def get_pending_bonuses(db: Session) -> List[Dict[str, Any]]:
@@ -364,10 +369,11 @@ class EmployeeReferralService:
                 "finance_notified": notification_sent,
             }
 
-        except Exception as e:
-            logger.error(f"Error: {str(e)}", exc_info=True)
+        except Exception:
+
             db.rollback()
-            return {"status": "error", "message": str(e)}
+
+            raise
 
     @staticmethod
     def notify_employee_about_bonus(
@@ -410,10 +416,11 @@ class EmployeeReferralService:
                 "message": f"Employee {employee.email} notified about ${bonus.bonus_amount_usd_cents / 100:.2f} referral bonus",
             }
 
-        except Exception as e:
-            logger.error(f"Error: {str(e)}", exc_info=True)
+        except Exception:
+
             db.rollback()
-            return {"status": "error", "message": str(e)}
+
+            raise
 
     @staticmethod
     def get_referral_stats_for_job(db: Session, job_id: str) -> Dict[str, Any]:
@@ -444,6 +451,8 @@ class EmployeeReferralService:
                 "bonuses_paid": sum(r.referral_bonus_amount_usd_cents for r in hired_referrals if r.bonus_paid) / 100,
             }
 
-        except Exception as e:
-            logger.error(f"Error: {str(e)}", exc_info=True)
-            return {"status": "error", "message": str(e)}
+        except Exception:
+
+            db.rollback()
+
+            raise

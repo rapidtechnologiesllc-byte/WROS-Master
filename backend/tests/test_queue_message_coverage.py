@@ -10,7 +10,6 @@ APP_DIR = pathlib.Path(__file__).resolve().parents[1] / "app"
 # Producers that can never actually enqueue (dead path or invalid enqueue() kwargs)
 UNREACHABLE = {
     "create_thunder_outreach": "job_created_orchestrator is never imported",
-    "send_email": "enqueue() called with unsupported channel_type kwarg (TypeError before queueing)",
 }
 
 

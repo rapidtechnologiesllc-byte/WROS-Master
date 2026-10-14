@@ -57,7 +57,7 @@ RESOURCE_ROUTES = {
     "utilization-dashboard": "/utilization-dashboard",
     "resource-forecast": "/forecast",
     # bench / Staff Aug / Core: where every employee stands (CEO 2026-10-14)
-    "employee-in-bench": "/workforce",
+    "workforce-overview": "/workforce",
     # Sales
     "clients": "/client-management",
     "opportunities": "/opportunity-pipeline",
@@ -121,10 +121,9 @@ NAV_LABELS = {
     "api-keys": "API Keys",
     "slm-dashboard": "SLM Dashboard",
     "bi-explorer": "BI Explorer",
-    "kpi-dashboard": "KPI Dashboard",
     "htd-intake": "HTD Intake",
     "my-tasks": "My Tasks",
-    "employee-in-bench": "Workforce Overview",
+    "workforce-overview": "Workforce Overview",
 }
 
 # Resources whose page is a tab of another page (Users & Access Control):
@@ -143,7 +142,7 @@ NAV_TAB_RESOURCES = {"role-templates", "business-units", "delivery-centers", "or
 def init_modules_and_resources(db: Session, tenant_id: int = 1):
     """Create all Module and Resource records."""
 
-    print(f"Creating modules and resources for tenant_id={tenant_id}...")
+    logger.info(f"Creating modules and resources for tenant_id={tenant_id}...")
 
     resource_count = 0
 
@@ -165,9 +164,9 @@ def init_modules_and_resources(db: Session, tenant_id: int = 1):
             )
             db.add(module)
             db.flush()  # Get the module ID
-            print(f"  + Module: {module_name}")
+            logger.info(f"  + Module: {module_name}")
         else:
-            print(f"  OK Module: {module_name} already exists")
+            logger.info(f"  OK Module: {module_name} already exists")
 
         # Create resources for this module
         for resource_name in resource_names:
@@ -178,7 +177,7 @@ def init_modules_and_resources(db: Session, tenant_id: int = 1):
             ).first()
 
             if existing:
-                print(f"    OK Resource: {resource_name}")
+                logger.info(f"    OK Resource: {resource_name}")
                 continue
 
             # Use custom route if defined, otherwise use default /{resource_name}
@@ -195,16 +194,16 @@ def init_modules_and_resources(db: Session, tenant_id: int = 1):
             )
             db.add(resource)
             resource_count += 1
-            print(f"    + Resource: {resource_name} -> {route_path}")
+            logger.info(f"    + Resource: {resource_name} -> {route_path}")
 
     db.commit()
-    print(f"\nCreated {resource_count} resources\n")
+    logger.info(f"\nCreated {resource_count} resources\n")
     return resource_count
 
 def make_personal_resources_mandatory(db: Session, tenant_id: int = 1):
     """Make Personal resources (dashboard, my-tasks, etc.) mandatory for all users."""
 
-    print("Making Personal resources mandatory for all users...")
+    logger.info("Making Personal resources mandatory for all users...")
 
     # Get all role templates
     all_roles = db.query(RoleTemplate).filter(
@@ -212,7 +211,7 @@ def make_personal_resources_mandatory(db: Session, tenant_id: int = 1):
         RoleTemplate.enabled == True
     ).all()
 
-    print(f"  Found {len(all_roles)} role templates")
+    logger.info(f"  Found {len(all_roles)} role templates")
 
     # Get Personal module
     personal_module = db.query(Module).filter(
@@ -221,7 +220,7 @@ def make_personal_resources_mandatory(db: Session, tenant_id: int = 1):
     ).first()
 
     if not personal_module:
-        print("  ERROR: Personal module not found!")
+        logger.info("  ERROR: Personal module not found!")
         return 0
 
     # Get all Personal resources
@@ -231,7 +230,7 @@ def make_personal_resources_mandatory(db: Session, tenant_id: int = 1):
         Resource.enabled == True
     ).all()
 
-    print(f"  Found {len(personal_resources)} Personal resources")
+    logger.info(f"  Found {len(personal_resources)} Personal resources")
 
     count = 0
     for role in all_roles:
@@ -261,7 +260,7 @@ def make_personal_resources_mandatory(db: Session, tenant_id: int = 1):
                     count += 1
 
     db.commit()
-    print(f"  Granted Personal resource access to all roles ({count} new permissions)\n")
+    logger.info(f"  Granted Personal resource access to all roles ({count} new permissions)\n")
     return count
 
 def main():
@@ -275,23 +274,23 @@ def main():
         # Step 2: Make Personal resources mandatory for all users
         mandatory_count = make_personal_resources_mandatory(db, tenant_id=1)
 
-        print("=" * 70)
-        print("SUCCESS: Resource Initialization Complete!")
-        print("=" * 70)
-        print(f"Resources created: {resource_count}")
-        print(f"Personal resources made mandatory: {mandatory_count}")
-        print("\nAll users now have mandatory access to Personal resources:")
-        print("  - Dashboard")
-        print("  - My Tasks")
-        print("  - My Timesheet")
-        print("  - My Expenses")
-        print("  - My Referrals")
-        print("\nRole template permissions are configured in the database, not seeded here.")
-        print("=" * 70)
+        logger.info("=" * 70)
+        logger.info("SUCCESS: Resource Initialization Complete!")
+        logger.info("=" * 70)
+        logger.info(f"Resources created: {resource_count}")
+        logger.info(f"Personal resources made mandatory: {mandatory_count}")
+        logger.info("\nAll users now have mandatory access to Personal resources:")
+        logger.info("  - Dashboard")
+        logger.info("  - My Tasks")
+        logger.info("  - My Timesheet")
+        logger.info("  - My Expenses")
+        logger.info("  - My Referrals")
+        logger.info("\nRole template permissions are configured in the database, not seeded here.")
+        logger.info("=" * 70)
 
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
-        print(f"ERROR: {str(e)}")
+        logger.info(f"ERROR: {str(e)}")
         db.rollback()
         import traceback
         traceback.print_exc()

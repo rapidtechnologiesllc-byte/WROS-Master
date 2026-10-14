@@ -521,7 +521,7 @@ class SLMService:
             }
             db: Database session
 
-        Returns: slm_decision_id for audit trail
+        Returns: slm_decision_id for the audit trail, or None when it could not be recorded
         """
         try:
             if not db or not message_id or not slm_analysis:
@@ -555,7 +555,11 @@ class SLMService:
             decision.handler_completed_at = datetime.utcnow()
 
             # Record business impact with accountability
+            # The standard fields, plus everything else the handler recorded (an audit record
+            # keeps what it is given -- it used to drop interview dates, salaries, ...)
             decision.business_impact = {
+                **{k: v for k, v in business_impact.items() if k not in ('90_day_plan', 'can_be_reversed',
+                                                                        'override_conditions')},
                 'candidate_affected': business_impact.get('candidate_affected', False),
                 'candidate_id': business_impact.get('candidate_id'),
                 'candidates_affected_count': business_impact.get('candidates_affected_count', 1),
@@ -577,7 +581,7 @@ class SLMService:
 
             # Record accountability
             decision.accountability = {
-                'decision_maker': f"SLM:confidence_{slm_analysis.get('confidence', 0):.2f}",
+                'decision_maker': f"SLM:confidence_{(slm_analysis.get('confidence') or 0):.2f}",
                 'can_be_reversed': business_impact.get('can_be_reversed', True),
                 'override_conditions': business_impact.get('override_conditions', []),
                 'audit_trail': [
@@ -609,6 +613,7 @@ class SLMService:
             return decision_id
 
         except Exception as e:
+            # Non-blocking for the handler, but never a made-up decision id: None = not recorded
             logger.error(f"Failed to record SLM outcome: {e}", exc_info=True)
-            # Non-blocking - don't raise
-            return str(uuid.uuid4())
+            db.rollback()
+            return None

@@ -98,9 +98,9 @@ def _parse_skills(raw: Optional[str]) -> List[str]:
     try:
         parsed = json.loads(raw)
     except (json.JSONDecodeError, TypeError):
-        raise ValueError("Operation failed")
+        raise ValueError("_parse_skills failed")
     if not isinstance(parsed, list):
-        raise ValueError("Operation failed")
+        raise ValueError("_parse_skills failed")
     return [str(s).strip().lower() for s in parsed if str(s).strip()]
 
 def skill_match_score(employee_skills_raw: Optional[str], demand_required_skills_raw: Optional[str]) -> float:

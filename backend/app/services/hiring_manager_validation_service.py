@@ -344,42 +344,8 @@ class HiringManagerValidationService:
         Returns:
             Dict with status and next_step
         """
-        # Look for decision question (typically final yes/no/maybe question)
-        final_decision = responses.get("q_004") or responses.get("final_decision")
-
-        if final_decision and str(final_decision).lower() in ["yes", "approved", "true", "1"]:
-            return {
-                "status": HMValidationStatus.APPROVED,
-                "next_step": "schedule_interview"
-            }
-        elif final_decision and str(final_decision).lower() in ["no", "rejected", "false", "0"]:
-            return {
-                "status": HMValidationStatus.REJECTED,
-                "next_step": "return_to_pool"
-            }
-        elif final_decision and str(final_decision).lower() in ["maybe", "uncertain", "escalate"]:
-            return {
-                "status": HMValidationStatus.MAYBE,
-                "next_step": "escalate_for_review"
-            }
-        elif decision_score and decision_score <= 4:
-            # Low score = rejection
-            return {
-                "status": HMValidationStatus.REJECTED,
-                "next_step": "return_to_pool"
-            }
-        elif decision_score and decision_score >= 8:
-            # High score = approval
-            return {
-                "status": HMValidationStatus.APPROVED,
-                "next_step": "schedule_interview"
-            }
-        else:
-            # Ambiguous = escalate for review
-            return {
-                "status": HMValidationStatus.MAYBE,
-                "next_step": "escalate_for_review"
-            }
+        # One decision rule for the endpoint and the recorded response (_determine_decision)
+        return self._determine_decision(responses, decision_score, None, db)
 
     def _determine_decision(
         self,
@@ -415,7 +381,7 @@ class HiringManagerValidationService:
                     "status": HMValidationStatus.REJECTED,
                     "next_step": "return_to_pool"
                 }
-            elif final_str in ["maybe", "uncertain", "escalate", "2", "maybe"]:
+            elif final_str in ["maybe", "uncertain", "escalate", "2"]:
                 return {
                     "status": HMValidationStatus.MAYBE,
                     "next_step": "escalate_for_review"
@@ -480,7 +446,7 @@ class HiringManagerValidationService:
 
         except Exception as e:
             logger.error(f"Failed to schedule interview: {str(e)}")
-            raise ValueError("Operation failed")
+            raise ValueError(f"schedule_interview_after_approval failed: {e}") from e
 
     async def return_candidate_to_pool(
         self,
@@ -640,4 +606,4 @@ class HiringManagerValidationService:
 
         except Exception as e:
             logger.error(f"Failed to get validation stats: {str(e)}")
-            raise ValueError("Operation failed")
+            raise ValueError(f"get_validation_stats failed: {e}") from e

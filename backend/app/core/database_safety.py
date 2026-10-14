@@ -7,7 +7,6 @@ Raises errors if production credentials are detected outside of CI/CD environmen
 
 import logging
 import os
-import sys
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -49,7 +48,6 @@ def is_local_database(database_url: str) -> bool:
         "127.0.0.1",
         "wros_dev",
         "wros_test",
-        ".sqlite",
     ]
 
     return any(indicator in url_lower for indicator in local_indicators)
@@ -118,11 +116,10 @@ def validate_database_url(database_url: Optional[str] = None) -> str:
 
     # Warn if development database URL contains unusual patterns
     if environment == "development" and not is_local_database(database_url):
-        print(
+        logger.warning(
             f"⚠️  WARNING: Development database URL looks unusual:\n"
             f"   {database_url}\n"
-            f"   Expected: localhost or 127.0.0.1",
-            file=sys.stderr
+            f"   Expected: localhost or 127.0.0.1"
         )
 
     return database_url

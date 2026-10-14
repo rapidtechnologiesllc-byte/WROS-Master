@@ -94,8 +94,7 @@ GraphCreateEventCall = Callable[[str, str, str, str, str, str, list], str]
 
 def _as_utc(dt: datetime) -> datetime:
     """SubmissionInterview.scheduled_at is a plain DateTime column
-    (BR-01 stores it in UTC, but SQLite/older drivers can round-trip it
-    naive) -- always treat a naive value as UTC, never local."""
+    (BR-01 stores it in UTC, and it round-trips naive) -- always treat a naive value as UTC, never local."""
     if dt.tzinfo is None:
         return dt.replace(tzinfo=dt_timezone.utc)
     return dt.astimezone(dt_timezone.utc)

@@ -11,6 +11,7 @@ from uuid import uuid4
 from sqlalchemy.orm import Session
 
 from app.models.candidate import Candidate
+from tests import factories
 from app.models.candidate_ai import CandidateConversation
 from app.models.learning_events import LearningEvent
 from app.services.thunder_learning_integration import ThunderLearningIntegration
@@ -21,16 +22,9 @@ from app.services.learning_event_collector import LearningEventCollector
 @pytest.fixture
 def test_candidate(db: Session):
     """Create test candidate for learning tests."""
-    candidate = Candidate(
-        candidateID=str(uuid4()),
-        candidateEmail="learning_test@example.com",
-        candidateName="Learning Test Candidate",
-        tenant_id="test_tenant_123",
-        seniority_level="Mid-Level",
-        current_location="New York, USA",
-        specialization="Python; AWS; DevOps",
-    )
-    db.add(candidate)
+    candidate = factories.candidate(db, candidateEmail=f"learning-{factories.uid()}@example.com",
+                                   candidateExperience="5 years", candidateCurrentLocation="New York, USA",
+                                   candidateSkills="Python, AWS, DevOps")
     db.commit()
     return candidate
 
@@ -38,10 +32,12 @@ def test_candidate(db: Session):
 @pytest.fixture
 def test_conversation(db: Session, test_candidate):
     """Create test conversation for learning tests."""
+    # candidate_conversations.tenant_id holds the owning user's UserID (legacy naming)
+    owner = factories.user(db)
     conversation = CandidateConversation(
-        id=uuid4(),
+        tenant_id=owner.UserID,
         candidate_id=test_candidate.candidateID,
-        conversation_status="active",
+        status="open",
     )
     db.add(conversation)
     db.commit()
@@ -278,20 +274,10 @@ class TestThunderLearningIntegration:
     def test_segment_inference(self):
         """Test: Segment inference from candidate profile."""
 
-        candidate = Candidate(
-            candidateID="test_123",
-            candidateName="Test User",
-            candidateEmail="test@example.com",
-            seniority_level="Senior",
-            current_location="San Francisco, USA",
-            specialization="Python; Kubernetes; Cloud Architecture",
-        )
-
-        segment = ThunderLearningIntegration._infer_segment(candidate)
-
-        # Should infer: senior_us_python (or similar)
-        assert "senior" in segment.lower()
-        assert "us" in segment.lower() or "san" in segment.lower()
+        candidate = Candidate(total_experience_months=9 * 12, candidateCurrentLocation="San Francisco, USA",
+                              candidateSkills="Python, Kubernetes, Cloud Architecture")
+        assert ThunderLearningIntegration._infer_segment(candidate) == "senior_san-francisco_python"
+        assert ThunderLearningIntegration._infer_segment(Candidate()) == "unknown"
 
     def test_get_outreach_confidence_baseline(self, db: Session, test_candidate):
         """Test: Baseline confidence when no learning yet."""
@@ -314,11 +300,12 @@ class TestThunderLearningMetrics:
         """Test: Collect 50 outcomes for batch analysis."""
 
         # Create 50 prediction/outcome pairs
+        owner = factories.user(db)
         for i in range(50):
             conversation = CandidateConversation(
-                id=uuid4(),
+                tenant_id=owner.UserID,
                 candidate_id=test_candidate.candidateID,
-                conversation_status="active",
+                status="open",
             )
             db.add(conversation)
             db.flush()

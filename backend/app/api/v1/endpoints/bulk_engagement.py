@@ -45,7 +45,7 @@ async def bulk_import(file: UploadFile, db: Session = Depends(get_db), current_u
     if not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be a .csv file.")
     raw = (await file.read()).decode("utf-8-sig", errors="replace")
-    tenant_id = resolve_default_tenant_id()
+    tenant_id = resolve_default_tenant_id(db)
     try:
         return import_candidates_from_csv(db, raw, current_user.UserID, tenant_id)
     except CsvMissingRequiredColumn as exc:
@@ -55,7 +55,7 @@ async def bulk_import(file: UploadFile, db: Session = Depends(get_db), current_u
 
 @router.post("/candidates/bulk-engage", response_model=BulkEngageResponse, dependencies=[Depends(require_resource_permission("candidates", "edit"))])
 def bulk_engage(payload: BulkEngageRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)):
-    tenant_id = resolve_default_tenant_id()
+    tenant_id = resolve_default_tenant_id(db)
     try:
         result = launch_bulk_engagement(db, payload.candidate_ids, current_user.UserID, tenant_id)
     except BulkTooLarge as exc:

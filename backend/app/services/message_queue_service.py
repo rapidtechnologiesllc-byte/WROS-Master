@@ -3,7 +3,6 @@ import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
 from uuid import uuid4
-import random
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +12,10 @@ QUEUE_TYPE_EMAIL = 'EMAIL_QUEUE'
 
 DEFAULT_DELAY_SECONDS = 0
 QUEUE_ITEM_RETRY_COUNT_INITIAL = 0
+
+
+# Queue items that have not finished yet (an idempotency key matches these, not finished ones)
+IN_FLIGHT_STATUSES = ("PENDING", "SCHEDULED", "PROCESSING", "WAITING_FOR_SLM")
 
 
 class MessageQueueService:
@@ -89,6 +92,18 @@ class MessageQueueService:
             # If not provided, generate one from task_id (ensures at least basic idempotency)
             if not idempotency_key:
                 idempotency_key = f"{task_name}:{task_id}"
+
+            # The same request while an earlier one is still in flight is the same message: return
+            # it instead of queueing a duplicate (a double-clicked "Add candidate", a retried API
+            # call). Once that message has finished, the same key queues again normally.
+            existing = (db.query(ChannelQueueItem)
+                        .filter(ChannelQueueItem.idempotency_key == idempotency_key,
+                                ChannelQueueItem.status.in_(IN_FLIGHT_STATUSES))
+                        .order_by(ChannelQueueItem.created_at.asc()).first())
+            if existing is not None:
+                logger.info(f"[QUEUE] {task_name}: duplicate of in-flight {existing.id} ({idempotency_key}) -- not queued again")
+                return {"status": "queued", "task_id": existing.id, "message_id": existing.message_id or existing.id,
+                        "queue_item_id": existing.id, "deduplicated": True}
 
             # Create queue item in database
             queue_item = ChannelQueueItem(

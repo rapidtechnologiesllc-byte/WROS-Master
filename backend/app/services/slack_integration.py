@@ -7,7 +7,7 @@ import logging
 import json
 import os
 from typing import Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import requests
 
 logger = logging.getLogger(__name__)
@@ -90,7 +90,7 @@ class SlackIntegration:
                             }
                         ],
                         "footer": "BlitzenX Production Monitor",
-                        "ts": int(datetime.utcnow().timestamp())
+                        "ts": int(datetime.now(timezone.utc).timestamp())
                     }
                 ]
             }

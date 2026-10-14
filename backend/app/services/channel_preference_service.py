@@ -47,9 +47,8 @@ def detect_channel_preference(db: Session, conversation: CandidateConversation) 
             ConversationEvent.conversation_id == conversation.id,
             ConversationEvent.event_type == "candidate_reply",
         )
-        # Tiebreak on id, not just created_at -- SQLite's CURRENT_TIMESTAMP
-        # is only second-granular, so a burst of events within the same
-        # second would otherwise sort unpredictably.
+        # Tiebreak on id, not just created_at -- events written in the same
+        # transaction share now(), so a burst would otherwise sort unpredictably.
         .order_by(ConversationEvent.created_at.desc(), ConversationEvent.id.desc())
         .limit(20)
         .all()

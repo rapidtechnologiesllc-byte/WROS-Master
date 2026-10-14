@@ -1,13 +1,9 @@
 """
 HRMS-0101 (+ 0101-REV) — Employee Entity Model, Phase 2 Domain 3.
 
-Translated from the requirements doc's PostgreSQL-flavored spec to this
-codebase's actual stack (SQL Server in production, SQLite in tests):
+Translated from the requirements doc's spec:
   - `id UUID PK` -> String(36) storing str(uuid.uuid4()), not the
-    Postgres-native UUID type or MSSQL's UNIQUEIDENTIFIER -- a plain
-    string round-trips identically on both backends, which matters
-    since every test in this codebase runs against throwaway SQLite,
-    never the real database.
+    Postgres-native UUID type, matching every other string id in the schema.
   - Native ENUM columns -> SQLAlchemy Enum(..., native_enum=False, create_constraint=True),
     which renders as VARCHAR + CHECK constraint on both backends
     instead of relying on Postgres-only native enum types.

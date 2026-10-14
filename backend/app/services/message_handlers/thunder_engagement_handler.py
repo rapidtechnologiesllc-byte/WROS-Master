@@ -103,13 +103,13 @@ class ThunderEngagementHandler:
                 # tenant_id here is the owning user (FK users.UserID), NOT NULL: without it
                 # every new engagement crashed
                 from app.services.ai_conversation_service import AI_AGENT_NAME
-                from app.services.candidate_service import get_user_for_tenant
+                from app.core.tenant_context import conversation_tenant_key
                 if candidate.tenant_id is None:
                     raise ValueError(f"Candidate {candidate_id} has no tenant")
                 # owner_type 'ai_agent' is what every Thunder send gate allows
                 # (whatsapp_routing_service.is_ai_owner); 'Thunder' blocked Thunder itself
                 conversation = CandidateConversation(
-                    tenant_id=candidate.assigned_recruiter_id or get_user_for_tenant(db, candidate.tenant_id),
+                    tenant_id=conversation_tenant_key(candidate.tenant_id),
                     candidate_id=candidate_id,
                     owner_type="ai_agent",
                     owner_id=AI_AGENT_NAME,

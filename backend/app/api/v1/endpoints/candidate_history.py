@@ -208,7 +208,7 @@ def get_candidate_history(
 
     total = query.count()
     events = (
-        query.order_by(CandidateHistory.event_at.desc())
+        query.order_by(CandidateHistory.event_at.desc(), CandidateHistory.id.desc())
         .offset(skip)
         .limit(limit)
         .all()
@@ -250,7 +250,7 @@ def get_latest_candidate_history(
     events = (
         db.query(CandidateHistory)
         .filter(CandidateHistory.candidateID == candidate_id)
-        .order_by(CandidateHistory.event_at.desc())
+        .order_by(CandidateHistory.event_at.desc(), CandidateHistory.id.desc())
         .limit(n)
         .all()
     )

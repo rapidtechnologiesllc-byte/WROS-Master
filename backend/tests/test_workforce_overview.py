@@ -154,7 +154,7 @@ def test_scoped_to_the_viewers_business_units_and_permission(db, api):
                         org_level_access=False, enabled=True)
     db.add(role)
     db.flush()
-    resource = db.query(Resource).filter_by(tenant_id=1, name="employee-in-bench").one()
+    resource = db.query(Resource).filter_by(tenant_id=1, name="workforce-overview").one()
     db.add(RoleTemplatePermission(role_template_id=role.id, resource_id=resource.id, tenant_id=1,
                                   can_view=True, can_create=False, can_edit=False, can_delete=False))
     viewer = _user(db, role)

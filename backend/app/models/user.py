@@ -397,11 +397,6 @@ class UserCustomPermission(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Ensure only one override per user+resource
-    __table_args__ = (
-        {"sqlite_autoincrement": True},
-    )
-
     # Relationships
     user = relationship("Users", foreign_keys=[user_id])
     resource = relationship("Resource", foreign_keys=[resource_id])
