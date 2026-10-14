@@ -47,7 +47,13 @@ Verification method for every fix: pyflakes over `backend/app` (0 undefined name
 | Expense receipts | Done | Receipt upload (image/PDF) read by Gemini and checked against amount (2%, min $1) and date (7 days): match -> manager step auto-approved; mismatch/unreadable -> manager with reasons; Finance still approves payment. |
 | Pending jobs (decision 4) | Closed | No jobs exist in prod (0) and none are pending in dev; approval routing already goes BU head -> org-level approver. |
 | **DNS (open, user)** | **Open** | `hrms.blitzenx.com` has no record in the Cloudflare zone (NXDOMAIN); the server itself is healthy. Add `A hrms 46.224.149.7`. |
-| CI deploy gate | **205/205 pass** | Locally against `wros_test` (177 + 10 in `tests/test_access_model.py` + 7 in `tests/test_access_control_deletes.py`, both added to the gate lists). Was 163 pass / 14 fail on both `main` and the deployed commit. |
+| Deploy `430b672a` (2026-10-14) | Done | Functions replace departments (managed list, add/rename/retire; 8 seeded in prod); holding company = tenant BlitzenX (ID 1), companies numbered BX-US `1-1`, BX-IN `1-2`, all report to the holding; company P&L under the org P&L; tenant never assumed (primary tenant looked up, model/DB defaults removed, ~60 fallbacks + `TenantID` bugs fixed); edit-user fixes (Consultant position seeded, add-on editable); History filter from backend. DB backup `pre-deploy-20261014-001838.dump`. |
+| P1-5 | Done | See above. |
+| P2-6 | Closed (obsolete) | The Identity section no longer exists; government IDs are uploaded as documents in the candidate portal. |
+| P2-7 | Done | History filter options come from the backend (adds Candidate Added). |
+| **Company dimension across the system** | **Design, waiting on decisions** | `docs/COMPANY_MODEL_DESIGN.md`: jobs/offers/invoices/opportunities carry the company (derived), automatic intercompany charges; 4 decisions (markup, invoicing entity, BX-Canada/currency, per-company letterhead). |
+| **Still open** | Open | P2-4 Flash intent classifier, P2-5 mailbox reader + panel-vs-Flash (501), P2-8 grantable resources without a page, P2-3 SQLite test suite; ops needing sudo (worker service, log rotation, monitoring, backup drill). **User actions:** DNS record in the right Cloudflare zone, shut SQL Server (public 1433, leaked password), revoke old Gemini/Azure secrets, WhatsApp/Twilio credentials, fill role permissions and add-on functions. |
+| CI deploy gate | **207/207 pass** | Locally against `wros_test` (177 + 10 in `tests/test_access_model.py` + 7 in `tests/test_access_control_deletes.py`, both added to the gate lists). Was 163 pass / 14 fail on both `main` and the deployed commit. |
 | Tests | **In progress (P2-3)** | Both conftests refuse any database not named `*_test` (they drop the schema) and pin the psycopg2 driver. 188 test files still build SQLite engines, which cannot hold `app_schema` models. |
 
 ### Built, not wired (agents to switch on, not delete)
