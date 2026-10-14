@@ -2,7 +2,7 @@
 
 **Built:** 2026-10-13 by validating ~430 unique documents and the 346 open GitHub issues against `main` (`a91e408d`).
 **Rule:** an item is listed only if it was checked against the current code. Status documents that only made claims were archived (see `archive/README.md`).
-**Production:** `hrms.blitzenx.com` runs `0bcb2d6e` (last successful deploy, 2026-10-12 22:50). Everything on `main` after that has **not** been tested or deployed. See P0-1.
+**Production:** `hrms.blitzenx.com` runs `cc13565f` (deployed 2026-10-14 over SSH; the whole backend suite passes as the gate).
 
 Other live documents: `HANDOFF.md` (deploy procedure, prod state) · `docs/OPEN_REQUIREMENTS_BACKLOG.md` (246 open backlog stories) · `CLAUDE.md` (rules) · `LOCAL_DEVELOPMENT.md`, `DEVELOPER_ONBOARDING.md` (setup).
 
@@ -52,6 +52,7 @@ Verification method for every fix: pyflakes over `backend/app` (0 undefined name
 | P2-6 | Closed (obsolete) | The Identity section no longer exists; government IDs are uploaded as documents in the candidate portal. |
 | P2-7 | Done | History filter options come from the backend (adds Candidate Added). |
 | **Company dimension across the system** | **Design, waiting on decisions** | `docs/COMPANY_MODEL_DESIGN.md`: jobs/offers/invoices/opportunities carry the company (derived), automatic intercompany charges; 4 decisions (markup, invoicing entity, BX-Canada/currency, per-company letterhead). |
+| Deploy `cc13565f` (2026-10-14) | Done | Everything below, deployed over SSH. DB backup `pre-deploy-20261014-053825.dump`. Prod startup: 24 catalog entries aligned to the contract, both partial indexes rebuilt, 2 conversations + 1 metrics row re-keyed to the candidate's tenant, all systems ready, health 200. Frontend unchanged since `430b672a`. |
 | P2-4 Flash | Done | More realistic phrasings route (finance, tasks, bench incl. "anyone free who knows X", status, sourcing, requisitions, all-caps names); new pipeline summary (stage counts, BU-scoped, optionally per client). `tests/test_flash_intents.py`. |
 | P2-5 Panel vs Flash | Done | `GET /interviews/flash-calibration` (agreement rate, every disagreement) and `/interviews/{id}/flash-comparison`; threshold `FLASH_ADVANCE_SCORE` (60). The dead mailbox stub is gone (mail is read by the Thunder poll). |
 | P2-8 | Done | 15 resources no page or check used left the API contract; startup disables (reversible) anything not in the contract. |
