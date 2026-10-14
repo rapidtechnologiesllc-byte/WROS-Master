@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { FileText, AlertCircle, CheckCircle, X } from "lucide-react";
 import { Button, Card } from "../components/ui";
-import { getAllJobs, submitCandidateToJob } from "../services/api/jobs";
+import { assignJob, getAllJobs, submitCandidateToJob } from "../services/api/jobs";
+import { getSubmissionReadiness } from "../services/api/submissions";
 import { getUserDetails, createHrAssignment } from "../services/api/users";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
 import {
@@ -118,6 +119,23 @@ const CandidateAssignJobModalBody = ({
   const [contactPersonOptions, setContactPersonOptions] = useState([]);
   const [actionError, setActionError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
+  // What this button does for the candidate now (CEO 2026-10-14): before the bench they are
+  // submitted to the job (the hiring pipeline starts); a bench employee is submitted to the
+  // client; anyone else sees what blocks them. Re-checked whenever the job or candidate changes.
+  const [readiness, setReadiness] = useState(null);
+  useEffect(() => {
+    let live = true;
+    setReadiness(null);
+    if (!candidateId || !selectedJobId) return undefined;
+    getSubmissionReadiness(candidateId, selectedJobId)
+      .then((r) => live && setReadiness(r))
+      .catch((err) => live && setActionError(`Could not check the candidate: ${err.message}`));
+    return () => {
+      live = false;
+    };
+  }, [candidateId, selectedJobId]);
+  const submitsToClient = readiness?.action === "SUBMIT_TO_CLIENT";
+  const actionLabel = submitsToClient ? "Submit to Client" : "Submit to Job";
 
   const jobOptions = useMemo(() => {
     return jobs?.map((job) => {
@@ -391,15 +409,14 @@ const CandidateAssignJobModalBody = ({
     setActionSuccess(null);
     try {
       setIsAssigning(true);
-      // Call the correct /submissions endpoint
-      const result = await submitCandidateToJob(
-        candidateId,
-        selectedJobId,
-      );
-      if (result?.response?.status === 200 || result?.data?.id) {
+      // a bench employee goes to the client; anyone before the bench goes onto the job
+      const result = submitsToClient
+        ? await submitCandidateToJob(candidateId, selectedJobId)
+        : { response: await assignJob(selectedJobId, candidateId, {}) };
+      if (result?.response?.ok || result?.data?.id) {
         const performedBy =
           localStorage?.getItem?.("hrms_user_name") || "HR User";
-        const historyNote = `Candidate submitted to ${
+        const historyNote = `Candidate submitted to ${submitsToClient ? "the client for " : ""}${
           selectedJob?.title || selectedJob?.job_title || "selected job"
         }.`;
         const appliedDateTime =
@@ -421,7 +438,7 @@ const CandidateAssignJobModalBody = ({
             hr2_id: "",
           });
         }
-        setActionSuccess("Job submitted successfully ✅");
+        setActionSuccess(submitsToClient ? "Submitted to the client ✅" : "Submitted to the job ✅");
         await onAssignSuccess?.();
         onClose?.();
         return;
@@ -442,7 +459,7 @@ const CandidateAssignJobModalBody = ({
     >
       <div className="my-4 w-full max-w-7xl xl:my-0">
         <Card
-          title="Submit Job"
+          title={actionLabel}
           icon={<FileText className="h-4 w-4" />}
           bodyClassName="p-0"
           right={
@@ -802,12 +819,18 @@ const CandidateAssignJobModalBody = ({
                 Cancel
               </Button>
 
+              {readiness?.blockers?.length ? (
+                <div className="mr-auto max-w-xl text-xs text-amber-800">
+                  {readiness.blockers.map((b) => b.message).join(" ")}
+                </div>
+              ) : null}
               <Button
                 variant="primary"
                 onClick={handleSaveJob}
-                disabled={isAssigning || !selectedJobId}
+                disabled={isAssigning || !selectedJobId || !readiness || readiness.action === "NONE"
+                  || readiness.blockers.length > 0}
               >
-                {isAssigning ? "Saving..." : "Save"}
+                {isAssigning ? "Saving..." : actionLabel}
               </Button>
             </div>
           </div>

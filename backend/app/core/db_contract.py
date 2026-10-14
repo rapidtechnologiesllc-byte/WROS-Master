@@ -447,6 +447,7 @@ def _initialize_leadership_roles():
         _initialize_canonical_resources(db)
         _initialize_thunder_conversation_owner(db)
         _initialize_candidate_status_templates(db)
+        _initialize_submission_violation_types(db)
         _initialize_permission_row_tenants(db)
         _initialize_functions(db)
         _initialize_company_codes(db)
@@ -675,6 +676,18 @@ def _initialize_candidate_status_templates(db):
     db.commit()
     if added:
         logger.info(f"[Contract] Seeded {added} candidate status email template(s)")
+
+
+def _initialize_submission_violation_types(db):
+    """The violation_type CHECK constraint is rebuilt from VIOLATION_TYPES (create_all never
+    alters an existing table: the client-submission gates of 2026-10-14 added types). Idempotent."""
+    from app.models.submission import VIOLATION_TYPES
+
+    allowed = ", ".join("'" + kind + "'" for kind in VIOLATION_TYPES)
+    db.execute(text("ALTER TABLE app_schema.submission_violations DROP CONSTRAINT IF EXISTS submission_violation_type"))
+    db.execute(text(f"ALTER TABLE app_schema.submission_violations ADD CONSTRAINT submission_violation_type "
+                    f"CHECK (violation_type IN ({allowed}))"))
+    db.commit()
 
 
 def _initialize_permission_row_tenants(db):

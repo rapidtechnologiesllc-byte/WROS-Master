@@ -66,7 +66,9 @@ ALLOWED_STATUS_TRANSITIONS = {
     # their Buddy Program run (buddy_program_status is a separate field).
     "ACTIVE": {"BENCH", "ALLOCATED", "ON_LEAVE", "NOTICE_PERIOD", "SPECIALITY_READY", "PERFORMANCE_MANAGED"},
     "ON_LEAVE": {"ACTIVE"},
-    "BENCH": {"ALLOCATED", "NOTICE_PERIOD"},
+    # The hiring pipeline puts every new employee on the BENCH (BGV cleared, joined), where
+    # they run the Buddy Program: graduating or exiting it must be reachable from here too.
+    "BENCH": {"ALLOCATED", "NOTICE_PERIOD", "SPECIALITY_READY", "PERFORMANCE_MANAGED"},
     "ALLOCATED": {"BENCH", "ON_LEAVE", "NOTICE_PERIOD"},
     "NOTICE_PERIOD": {"EXITED"},
     "EXITED": set(),  # terminal

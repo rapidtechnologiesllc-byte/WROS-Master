@@ -111,7 +111,7 @@ def _make_employee(db, tenant, candidate, status="BENCH", **overrides):
 
 def _make_eligible_candidate_and_employee(db, tenant, candidate_id="C-001", status="BENCH"):
     candidate = _make_candidate(db, tenant, candidate_id=candidate_id)
-    employee = _make_employee(db, tenant, candidate, status=status)
+    employee = _make_employee(db, tenant, candidate, status=status, buddy_program_status="GRADUATED")
     # an employee from before the hiring pipeline still needs a cleared BGV for a client (CEO 2026-10-10)
     db.add(BackgroundVerification(tenant_id=tenant.id, candidate_id=candidate.candidateID, status="PASSED"))
     db.commit()
@@ -200,13 +200,13 @@ def test_all_three_gate_failures_reported_together(db_session, base_fixtures):
 
     errors = {b["error"] for b in exc_info.value.blockers}
     assert errors == {"EXPERIENCE_INELIGIBLE", "MARKET_PROFILE_SUBMISSION_BLOCKED", "C2C_NOT_ACCEPTED",
-                      "PIPELINE_INCOMPLETE"}
-    # the pipeline blocker is recorded in hiring_pipeline_events, the three compliance gates here
+                      "JOB_EXPERIENCE_SHORT", "PIPELINE_INCOMPLETE"}  # 48 months also misses the job's 5 years
+    # the pipeline blocker is recorded in hiring_pipeline_events, the four compliance gates here
 
     violations = db_session.query(SubmissionViolation).filter(
         SubmissionViolation.candidate_id == candidate.candidateID
     ).all()
-    assert len(violations) == 3
+    assert len(violations) == 4
 
 def test_eligible_candidate_submission_succeeds_and_opens_demand(db_session, base_fixtures):
     tenant, client, demand = base_fixtures

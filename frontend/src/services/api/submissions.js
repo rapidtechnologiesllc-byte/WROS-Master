@@ -41,3 +41,18 @@ export const recordClientResponse = async (submissionId, newStatus, clientFeedba
   });
   return data;
 };
+
+// Internal submissions: market candidates on jobs, moving through the hiring pipeline to the bench.
+export const getInternalSubmissions = async () => {
+  const { data } = await apiRequest("/submissions/internal", { method: "GET" });
+  return data;
+};
+
+// What the candidate's submit button does now (SUBMIT_TO_JOB / SUBMIT_TO_CLIENT / NONE) and why.
+export const getSubmissionReadiness = async (candidateId, demandId) => {
+  const query = demandId ? `?demand_id=${encodeURIComponent(demandId)}` : "";
+  const { data } = await apiRequest(`/submissions/readiness/${encodeURIComponent(candidateId)}${query}`, {
+    method: "GET",
+  });
+  return data;
+};

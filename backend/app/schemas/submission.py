@@ -36,14 +36,26 @@ class SubmissionBlocker(BaseModel):
     error: str
     message: str
 
+class StatusOption(BaseModel):
+    value: str
+    label: str
+
 class SubmissionItem(BaseModel):
     id: str
     demand_id: str
     demand_job_title: str
     client_name: Optional[str] = None
+    # CORE (direct client) or SPECIALITY (staff augmentation): the job's project, else its client
+    delivery_line: Optional[str] = None
     candidate_id: str
+    # the employee's own status now (BENCH again after a rejection or a roll-off)
+    employee_status: Optional[str] = None
     candidate_name: str
     status: str
+    status_label: Optional[str] = None
+    # the client responses that may be recorded next (ALLOWED_SUBMISSION_TRANSITIONS)
+    next_statuses: List[StatusOption] = []
+    delivery_line_label: Optional[str] = None
     submitted_at: Optional[datetime] = None
     client_feedback: Optional[str] = None
     client_response_at: Optional[datetime] = None
@@ -64,6 +76,8 @@ class SubmissionJobOption(BaseModel):
     client_name: str
     status: str
     business_unit_id: Optional[int] = None
+    delivery_line: Optional[str] = None
+    delivery_line_label: Optional[str] = None
 
 class SubmissionCandidateOption(BaseModel):
     id: str
@@ -81,6 +95,34 @@ class SubmissionOptionsResponse(BaseModel):
     in the caller's scope. Eligibility is still decided by POST /submissions."""
     jobs: List[SubmissionJobOption]
     candidates: List[SubmissionCandidateOption]
+
+class InternalSubmissionItem(BaseModel):
+    """A market candidate put on a job, on the way to the bench (the hiring pipeline)."""
+    application_id: int
+    candidate_id: str
+    candidate_name: str
+    job_id: str
+    job_title: str
+    client_name: Optional[str] = None
+    delivery_line: Optional[str] = None
+    delivery_line_label: Optional[str] = None
+    applied_at: Optional[datetime] = None
+    stage: Optional[str] = None
+    blockers: List[str] = []
+
+class InternalSubmissionListResponse(BaseModel):
+    submissions: List[InternalSubmissionItem]
+
+class SubmissionReadinessResponse(BaseModel):
+    """What the candidate profile's submit button does now (CEO 2026-10-14):
+    SUBMIT_TO_JOB -- not an employee yet: put them on a job (the hiring pipeline starts);
+    SUBMIT_TO_CLIENT -- a bench employee clear of every client gate;
+    NONE -- an employee who cannot go to a client yet; blockers say why."""
+    candidate_id: str
+    stage: Optional[str] = None
+    is_employee: bool
+    action: Literal["SUBMIT_TO_JOB", "SUBMIT_TO_CLIENT", "NONE"]
+    blockers: List[SubmissionBlocker]
 
 class SubmissionViolationItem(BaseModel):
     id: str

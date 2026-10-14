@@ -49,7 +49,22 @@ ALLOWED_SUBMISSION_TRANSITIONS = {
     "WITHDRAWN": set(),           # terminal
 }
 
-VIOLATION_TYPES = ("NO_MARKET_PROFILE", "EXPERIENCE_INELIGIBLE", "C2C_NOT_ACCEPTED")
+# the CHECK constraint on submission_violations.violation_type is rebuilt from this tuple at
+# startup (app.core.db_contract._initialize_submission_violation_types)
+# what the screens show for each status (PLACED: the employee started at the client)
+SUBMISSION_STATUS_LABELS = {
+    "SUBMITTED": "Client submitted", "SHORTLISTED": "Shortlisted",
+    "CLIENT_INTERVIEW_REQUESTED": "Interview requested", "OFFER_EXTENDED": "Offer",
+    "PLACED": "Started", "REJECTED_BY_CLIENT": "Rejected", "WITHDRAWN": "Withdrawn",
+}
+
+VIOLATION_TYPES = (
+    "NO_MARKET_PROFILE", "EXPERIENCE_INELIGIBLE", "C2C_NOT_ACCEPTED",
+    # CEO 2026-10-14: direct client submission needs the bench, Core certification for Core
+    # clients, the job's own minimum experience and no open escalation
+    "NOT_ON_BENCH", "BUDDY_NOT_GRADUATED", "OPEN_ESCALATION", "CORE_CERTIFICATION_REQUIRED",
+    "JOB_EXPERIENCE_SHORT",
+)
 
 logger = logging.getLogger(__name__)
 

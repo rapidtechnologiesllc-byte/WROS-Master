@@ -6,9 +6,11 @@ Employee as Bench, extended with bench_periods history) + S-247/S-248
 
 import logging
 from datetime import date, datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
+
+from app.models.employee_escalation import ESCALATION_SEVERITIES
 
 logger = logging.getLogger(__name__)
 
@@ -173,3 +175,25 @@ class BenchCostSummaryItem(BaseModel):
 class BenchCostSummaryResponse(BaseModel):
     employees: List[BenchCostSummaryItem]
     total_running_cost_usd_cents: int
+
+class EscalationCreateRequest(BaseModel):
+    reason: str = Field(..., min_length=3)
+    severity: Literal[ESCALATION_SEVERITIES] = "MEDIUM"
+
+class EscalationResolveRequest(BaseModel):
+    resolution_note: str = Field(..., min_length=3)
+
+class EscalationItem(BaseModel):
+    id: str
+    employee_id: str
+    reason: str
+    severity: str
+    status: str
+    raised_by_user_id: Optional[str] = None
+    raised_at: Optional[datetime] = None
+    resolved_by_user_id: Optional[str] = None
+    resolved_at: Optional[datetime] = None
+    resolution_note: Optional[str] = None
+
+class EscalationListResponse(BaseModel):
+    escalations: List[EscalationItem]

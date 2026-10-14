@@ -53,6 +53,7 @@ from app.schemas.core_pull import (
     ReplacementPlanResponse,
     SpecialtyPoolStatusResponse,
 )
+from app.services.deployment_readiness_service import EmployeeNotDeployable
 from app.services.core_pull_service import (
     CorePullOverrideForbidden,
     InvalidOverrideJustification,
@@ -156,6 +157,8 @@ def execute_event(
         )
     except SpecialtyPoolBelowMinimum as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+    except EmployeeNotDeployable as exc:
+        raise HTTPException(status_code=409, detail=f"Cannot Core-Pull: {exc}")
     except (ActionBlocked, ActionDelayed) as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except ValueError as exc:

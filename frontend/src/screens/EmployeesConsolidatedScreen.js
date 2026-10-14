@@ -4,34 +4,27 @@
 // Tab 2: Allocations (manage employee allocations, assign to projects)
 // Tab 3: Resources (skill matrix, availability heatmap)
 
-import { useEffect, useState } from "react";
-import { Users, Briefcase, Grid3x3, UserPlus, ArrowRightLeft, RefreshCw, AlertCircle, CheckCircle2, Search } from "lucide-react";
-import { Card, Button, Input, Select, TextArea, StatusBadge } from "../components/ui";
+import { useCallback, useEffect, useState } from "react";
+import { Users, Briefcase, Grid3x3, UserPlus, RefreshCw, AlertCircle } from "lucide-react";
+import { Card, Button, StatusBadge } from "../components/ui";
 import cx from "../utils/cx";
-import { getAllEmployees, createEmployee, markEmployeeOnBench, removeEmployeeFromBench, updateEmployeeCertifications, updateEmployeeOrganization } from "../services/api/employees";
+import {
+  getAllEmployees,
+  getEmployeeEscalations,
+  raiseEmployeeEscalation,
+  resolveEmployeeEscalation,
+  updateEmployeeCertifications,
+  updateEmployeeOrganization,
+} from "../services/api/employees";
 import { apiRequest } from "../services/api/client";
+import { getAllocations, endAllocation } from "../services/api/allocations";
+import AllocationForm from "../components/AllocationForm";
+import { confirmDialog } from "../utils/dialogs";
 
 // Our companies (Users & Access Control > Companies) and business units
 const COMPANIES_PATH = "/api/v1/api/admin/users-access-control/delivery-centers";
 const loadOrgOptions = () => Promise.all([apiRequest(COMPANIES_PATH), apiRequest("/rbac/business-units")])
   .then(([c, b]) => ({ companies: c.data?.delivery_centers || [], businessUnits: b.data?.business_units || [] }));
-import { getAllocations, endAllocation } from "../services/api/allocations";
-import AllocationForm from "../components/AllocationForm";
-import { confirmDialog } from "../utils/dialogs";
-
-const EMPLOYMENT_TYPES = [
-  { value: "INTERN", label: "Intern" },
-  { value: "PERMANENT", label: "Full Time" },
-  { value: "CONTRACT", label: "Contract" },
-];
-
-const BENCH_REASONS = [
-  { value: "PROJECT_ENDED", label: "Project Ended" },
-  { value: "PROJECT_DELAYED", label: "Project Delayed" },
-  { value: "NEWLY_JOINED", label: "Newly Joined" },
-  { value: "BETWEEN_PROJECTS", label: "Between Projects" },
-  { value: "OTHER", label: "Other" },
-];
 
 function EmployeeListTab() {
   const [employees, setEmployees] = useState([]);
@@ -146,6 +139,106 @@ function EmployeeListTab() {
   );
 }
 
+// Escalations (CEO 2026-10-14): an open one keeps the employee away from every client, Core and
+// Staff Aug alike, until a Director or above resolves it with a note. The API decides who may
+// resolve; a refusal is shown, not hidden.
+function EscalationsPanel({ employeeId }) {
+  const [rows, setRows] = useState([]);
+  const [reason, setReason] = useState("");
+  const [severity, setSeverity] = useState("MEDIUM");
+  const [notes, setNotes] = useState({});
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const data = await getEmployeeEscalations(employeeId);
+      setRows(data?.escalations || []);
+    } catch (err) {
+      console.error("[Escalations] Failed to load:", err);
+      setMessage(`Failed to load escalations: ${err.message}`);
+    }
+  }, [employeeId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const run = async (action, done) => {
+    setBusy(true);
+    setMessage("");
+    try {
+      await action();
+      done();
+      await load();
+    } catch (err) {
+      setMessage(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="border-t pt-4">
+      <h3 className="font-semibold mb-1">Escalations</h3>
+      <p className="text-xs text-gray-500 mb-3">An open escalation blocks every client submission and deployment.</p>
+      {message ? <div className="mb-2 text-xs text-rose-700">{message}</div> : null}
+      <div className="space-y-2 mb-3">
+        {rows.length === 0 ? <div className="text-sm text-gray-500">No escalations</div> : null}
+        {rows.map((e) => (
+          <div key={e.id} className={cx("rounded border p-2 text-sm", e.status === "OPEN" ? "bg-rose-50" : "bg-gray-50")}>
+            <div className="font-semibold">
+              {e.status} · {e.severity}
+            </div>
+            <div className="text-gray-700">{e.reason}</div>
+            {e.status === "OPEN" ? (
+              <div className="mt-2 flex gap-2">
+                <input
+                  value={notes[e.id] || ""}
+                  onChange={(ev) => setNotes((prev) => ({ ...prev, [e.id]: ev.target.value }))}
+                  placeholder="Resolution note (Director and above)"
+                  className="flex-1 rounded border px-2 py-1 text-sm"
+                />
+                <Button
+                  size="sm"
+                  disabled={busy || !(notes[e.id] || "").trim()}
+                  onClick={() => run(() => resolveEmployeeEscalation(e.id, notes[e.id].trim()),
+                    () => setNotes((prev) => ({ ...prev, [e.id]: "" })))}
+                >
+                  Resolve
+                </Button>
+              </div>
+            ) : (
+              <div className="text-xs text-gray-500 mt-1">Resolved: {e.resolution_note}</div>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input
+          value={reason}
+          onChange={(ev) => setReason(ev.target.value)}
+          placeholder="Reason for the escalation"
+          className="flex-1 rounded border px-2 py-1 text-sm"
+        />
+        <select value={severity} onChange={(ev) => setSeverity(ev.target.value)} className="rounded border px-2 py-1 text-sm">
+          {["LOW", "MEDIUM", "HIGH"].map((level) => (
+            <option key={level} value={level}>{level}</option>
+          ))}
+        </select>
+        <Button
+          size="sm"
+          variant="danger"
+          disabled={busy || reason.trim().length < 3}
+          onClick={() => run(() => raiseEmployeeEscalation(employeeId, { reason: reason.trim(), severity }), () => setReason(""))}
+        >
+          Raise
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
   const [allocations, setAllocations] = useState([]);
   const [loadingAllocs, setLoadingAllocs] = useState(true);
@@ -173,11 +266,7 @@ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
     }
   };
 
-  useEffect(() => {
-    loadAllocations();
-  }, [employee.id]);
-
-  const loadAllocations = async () => {
+  const loadAllocations = useCallback(async () => {
     setLoadingAllocs(true);
     try {
       const data = await getAllocations();
@@ -187,7 +276,11 @@ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
     } finally {
       setLoadingAllocs(false);
     }
-  };
+  }, [employee.id]);
+
+  useEffect(() => {
+    loadAllocations();
+  }, [loadAllocations]);
 
   const saveCertifications = async () => {
     setSaving(true);
@@ -303,6 +396,8 @@ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
               {saving ? "Saving..." : "Save Certification"}
             </Button>
           </div>
+
+          <EscalationsPanel employeeId={employee.id} />
 
           <div className="border-t pt-4">
             <h3 className="font-semibold mb-3">Current Allocations</h3>

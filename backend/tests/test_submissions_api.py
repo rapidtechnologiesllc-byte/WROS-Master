@@ -4,7 +4,7 @@ Submissions screen (nav: Submissions) and the candidate profile's "Submit Job" m
 post here. Only a bench employee with 5+ years, W2 and a passed BGV reaches a client.
 """
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from unittest.mock import patch
 
 import pytest
@@ -19,6 +19,7 @@ from app.models.candidate_ownership import POOL_BU, CandidateOwnership
 from app.models.client import Client
 from app.models.demand import Demand
 from app.models.employee import Employee
+from app.models.employee_allocation import EmployeeAllocation
 from app.models.role_template import Resource, RoleTemplate, RoleTemplatePermission
 from app.models.submission import Submission, SubmissionViolation
 from app.models.tenant import Tenant
@@ -47,8 +48,10 @@ def client(db):
     from app.main import app
 
     app.dependency_overrides[get_db] = lambda: db
-    # status emails are queued on their own connection; the queue is not under test here
-    with patch("app.services.thunder_mail.cadence_service.enqueue_once", return_value=True):
+    # status emails and job-application events are queued on their own connection; the queue
+    # is not under test here
+    with patch("app.services.thunder_mail.cadence_service.enqueue_once", return_value=True), \
+            patch("app.api.v1.endpoints.create_job.MessageQueueService.enqueue", return_value=None):
         yield TestClient(app)
     app.dependency_overrides.clear()
 
@@ -66,7 +69,7 @@ def _headers(user):
         {"sub": user.UserID, "type": "user", "tenant_id": 1, "role_template_id": user.role_template_id})}
 
 
-def _candidate(db, *, employee_status=None, bgv="PASSED", months=72, employment_type="W2_FULLTIME"):
+def _candidate(db, *, employee_status=None, bgv="PASSED", months=72, employment_type="W2_FULLTIME", buddy="GRADUATED"):
     candidate = Candidate(candidateID=f"CAN-{_uid()}", candidateEmail=f"c{_uid()}@example.com", candidatePassword="x",
                           candidateFirstName="Sam", candidateLastName="Lee", tenant_id=1,
                           total_experience_months=months, employment_type=employment_type)
@@ -74,7 +77,8 @@ def _candidate(db, *, employee_status=None, bgv="PASSED", months=72, employment_
     db.flush()
     if employee_status:
         db.add(Employee(tenant_id=1, candidate_id=candidate.candidateID, first_name="Sam", last_name="Lee",
-                        email=f"e{_uid()}@blitzenx.com", joining_date=date(2025, 1, 1), status=employee_status))
+                        email=f"e{_uid()}@blitzenx.com", joining_date=date(2025, 1, 1), status=employee_status,
+                        buddy_program_status=buddy))
     if bgv:
         db.add(BackgroundVerification(tenant_id=1, candidate_id=candidate.candidateID, status=bgv))
     db.flush()
@@ -184,10 +188,10 @@ def test_submit_to_unknown_job_is_404(client, world):
     assert resp.status_code == 404
 
 
-def _role(db, grants, org_level=True):
+def _role(db, grants, org_level=True, level=16):
     """A role holding exactly `grants` ({resource: (view, create, edit)}), e.g. the seeded Partner:
     submissions view/create/edit, resources view only."""
-    role = RoleTemplate(tenant_id=1, name=f"role-{_uid()}", display_name="Partner", hierarchy_level=16,
+    role = RoleTemplate(tenant_id=1, name=f"role-{_uid()}", display_name="Partner", hierarchy_level=level,
                         org_level_access=org_level, enabled=True)
     db.add(role)
     db.flush()
@@ -297,3 +301,165 @@ def test_options_respect_tenant_and_business_unit_scope(client, world, db):
 
     body = client.get("/api/v1/submissions/options", headers=_headers(admin)).json()
     assert bu_job.id in {j["id"] for j in body["jobs"]} and other_tenant_job.id not in {j["id"] for j in body["jobs"]}
+
+
+# --------------------------------------------------------------------------- CEO 2026-10-14 gates
+# Staff Aug (SPECIALITY) and Core (direct client, CORE): new hires prove themselves on Staff Aug,
+# then are Core-certified and moved to Core. Both need Buddy graduated and no open escalation.
+
+def _job(db, client_, **kw):
+    job = Demand(tenant_id=1, client_id=client_.id, job_title=kw.pop("title", "Role"), min_experience_years=5.0,
+                 work_location="REMOTE", status="OPEN", **kw)
+    db.add(job)
+    db.flush()
+    return job
+
+
+def _client(db, line):
+    c = Client(tenant_id=1, company_name=f"{line} {_uid()}", line_type=line)
+    db.add(c)
+    db.flush()
+    return c
+
+
+def _allocate(db, candidate, client_, job, end_date=None):
+    employee = db.query(Employee).filter_by(candidate_id=candidate.candidateID).one()
+    db.add(EmployeeAllocation(tenant_id=1, employee_id=employee.id, demand_id=job.id, client_id=client_.id,
+                              start_date=date.today() - timedelta(days=60), end_date=end_date, status="ACTIVE"))
+    employee.status = "ALLOCATED"
+    db.flush()
+    return employee
+
+
+def _errors(resp):
+    return {b["error"] for b in resp.json()["detail"]}
+
+
+def test_buddy_not_graduated_blocks_both_models(client, world, db):
+    admin, _, job, _ = world
+    fresh_hire = _candidate(db, employee_status="BENCH", buddy="NOT_STARTED")
+    db.commit()
+    resp = _submit(client, admin, job, fresh_hire)
+    assert resp.status_code == 422 and "BUDDY_NOT_GRADUATED" in _errors(resp)
+
+
+def test_core_job_needs_core_certification_staff_aug_does_not(client, world, db):
+    admin, _, _, bench = world
+    core_job, staff_aug_job = _job(db, _client(db, "CORE")), _job(db, _client(db, "SPECIALITY"))
+    db.commit()
+    resp = _submit(client, admin, core_job, bench)
+    assert resp.status_code == 422 and _errors(resp) == {"CORE_CERTIFICATION_REQUIRED"}
+    assert _submit(client, admin, staff_aug_job, bench).status_code == 200
+
+    db.query(Employee).filter_by(candidate_id=bench.candidateID).update(
+        {"core_certified": True, "core_certified_date": date.today()})
+    db.commit()
+    assert _submit(client, admin, core_job, bench).status_code == 200
+
+
+def test_open_escalation_blocks_until_a_director_resolves_it(client, world, db):
+    admin, _, job, bench = world
+    employee = db.query(Employee).filter_by(candidate_id=bench.candidateID).one()
+    raised = client.post(f"/api/v1/employees/{employee.id}/escalations", headers=_headers(admin),
+                         json={"reason": "Client complaint about delivery", "severity": "HIGH"})
+    assert raised.status_code == 201, raised.text
+    resp = _submit(client, admin, job, bench)
+    assert resp.status_code == 422 and "OPEN_ESCALATION" in _errors(resp)
+
+    manager = _user(db, _role(db, {"employees": (True, True, True)}, level=9))  # Senior Manager: below Director
+    director = _user(db, _role(db, {"employees": (True, True, True)}, level=11))
+    db.commit()
+    url = f"/api/v1/employees/escalations/{raised.json()['id']}/resolve"
+    assert client.post(url, headers=_headers(manager), json={"resolution_note": "Discussed"}).status_code == 403
+    assert client.post(url, headers=_headers(director), json={"resolution_note": ""}).status_code == 422
+    resolved = client.post(url, headers=_headers(director), json={"resolution_note": "Resolved with client"})
+    assert resolved.status_code == 200 and resolved.json()["resolved_by_user_id"] == director.UserID
+    assert client.post(url, headers=_headers(director), json={"resolution_note": "Again"}).status_code == 409
+    listed = client.get(f"/api/v1/employees/{employee.id}/escalations", headers=_headers(admin)).json()
+    assert [e["status"] for e in listed["escalations"]] == ["RESOLVED"]
+    assert _submit(client, admin, job, bench).status_code == 200
+
+
+def test_core_allocation_holds_the_employee_until_rolling_off(client, world, db):
+    admin, _, _, bench = world
+    core_client = _client(db, "CORE")
+    _allocate(db, bench, core_client, _job(db, core_client), end_date=date.today() + timedelta(days=90))
+    next_job = _job(db, _client(db, "SPECIALITY"))
+    db.commit()
+    resp = _submit(client, admin, next_job, bench)
+    assert resp.status_code == 422 and _errors(resp) == {"NOT_ON_BENCH"}
+
+    db.query(EmployeeAllocation).filter_by(client_id=core_client.id).update(
+        {"end_date": date.today() + timedelta(days=20)})  # rolling off within 30 days
+    db.commit()
+    assert _submit(client, admin, next_job, bench).status_code == 200
+
+
+def test_staff_aug_employee_can_be_moved_to_core_but_not_to_more_staff_aug(client, world, db):
+    admin, _, _, bench = world
+    staff_aug = _client(db, "SPECIALITY")
+    employee = _allocate(db, bench, staff_aug, _job(db, staff_aug))  # no end date: not rolling off
+    employee.core_certified, employee.core_certified_date = True, date.today()
+    core_job, other_staff_aug_job = _job(db, _client(db, "CORE")), _job(db, _client(db, "SPECIALITY"))
+    db.commit()
+    resp = _submit(client, admin, other_staff_aug_job, bench)
+    assert resp.status_code == 422 and _errors(resp) == {"NOT_ON_BENCH"}
+    assert _submit(client, admin, core_job, bench).status_code == 200
+
+
+def test_job_minimum_experience_on_top_of_the_five_year_floor(client, world, db):
+    admin, acme, _, bench = world  # 72 months
+    senior_job = Demand(tenant_id=1, client_id=acme.id, job_title="Architect", min_experience_years=8.0,
+                        work_location="REMOTE", status="OPEN")
+    db.add(senior_job)
+    db.commit()
+    resp = _submit(client, admin, senior_job, bench)
+    assert resp.status_code == 422 and _errors(resp) == {"JOB_EXPERIENCE_SHORT"}
+
+
+def test_readiness_drives_the_profile_button(client, world, db):
+    admin, _, job, bench = world
+    market = _candidate(db, bgv=None)
+    junior = _candidate(db, bgv=None, months=30)
+    not_graduated = _candidate(db, employee_status="BENCH", buddy="IN_PROGRESS")
+    db.commit()
+
+    def readiness(candidate):
+        r = client.get(f"/api/v1/submissions/readiness/{candidate.candidateID}?demand_id={job.id}",
+                       headers=_headers(admin))
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    assert (readiness(market)["action"], readiness(market)["blockers"]) == ("SUBMIT_TO_JOB", [])
+    assert readiness(junior)["action"] == "SUBMIT_TO_JOB" and readiness(junior)["blockers"][0]["error"] == \
+        "EXPERIENCE_INELIGIBLE"
+    blocked = readiness(not_graduated)
+    assert blocked["action"] == "NONE" and [b["error"] for b in blocked["blockers"]] == ["BUDDY_NOT_GRADUATED"]
+    assert readiness(bench)["action"] == "SUBMIT_TO_CLIENT"
+
+
+def test_submit_to_job_enforces_the_five_year_rule_and_lists_internally(client, world, db):
+    admin, acme, job, _ = world
+    market, junior = _candidate(db, bgv=None), _candidate(db, bgv=None, months=30)
+    db.commit()
+    url = "/api/v1/jobs/{}/applications/{}"
+    assert client.post(url.format(job.id, junior.candidateID), headers=_headers(admin), json={}).status_code == 422
+    assert client.post(url.format(job.id, market.candidateID), headers=_headers(admin), json={}).status_code == 201
+
+    internal = client.get("/api/v1/submissions/internal", headers=_headers(admin)).json()["submissions"]
+    row = next(r for r in internal if r["candidate_id"] == market.candidateID)
+    assert (row["job_id"], row["client_name"], row["stage"]) == (job.id, acme.company_name, "SCREEN")
+    assert all(r["candidate_id"] != junior.candidateID for r in internal)
+
+
+def test_external_rows_show_delivery_line_and_employee_status(client, world, db):
+    admin, acme, job, bench = world
+    acme.line_type = "SPECIALITY"
+    db.commit()
+    sid = _submit(client, admin, job, bench).json()["id"]
+    row = next(s for s in client.get("/api/v1/submissions", headers=_headers(admin)).json()["submissions"]
+               if s["id"] == sid)
+    assert (row["delivery_line"], row["delivery_line_label"], row["employee_status"]) == \
+        ("SPECIALITY", "Staff Aug", "BENCH")
+    assert row["status_label"] == "Client submitted"
+    assert [n["label"] for n in row["next_statuses"]] == ["Shortlisted", "Interview requested", "Rejected", "Withdrawn"]

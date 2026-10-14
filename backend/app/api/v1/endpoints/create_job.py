@@ -1299,7 +1299,14 @@ def create_job_application(
     """
     # both records must be in the caller's business-unit scope (404 otherwise)
     job = visible_job_or_404(db, user, job_id, f"Job '{job_id}'")
-    ensure_candidate_visible(db, candidate_id, user)
+    candidate = ensure_candidate_visible(db, candidate_id, user)
+    # the 5-year rule applies at every step, the way into a job pipeline included (CEO)
+    from app.services.submission_service import ExperienceIneligible, assert_experience_eligible
+
+    try:
+        assert_experience_eligible(candidate, "submit the candidate to a job")
+    except ExperienceIneligible as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
     # Duplicate check
     existing = db.query(CandidateJobApplication).filter(

@@ -7,22 +7,19 @@ never get a timesheet; 0902's BR-02 rejected-returns-to-draft and
 import logging
 BR-03 approved-is-immutable).
 
-Throwaway SQLite -- never the real database.
+Runs on the Postgres test schema (tests/conftest.py), rolled back per test.
 """
-import os
-import tempfile
 from datetime import date, timedelta
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session
 
-from app.models.base import Base
 from app.models.tenant import Tenant
 from app.models.client import Client
 from app.models.demand import Demand, DemandHistory
 from app.models.employee import Employee, EmployeeEmploymentHistory
 from app.models.employee_allocation import EmployeeAllocation
+from app.models.employee_escalation import EmployeeEscalation
 from app.models.resource_management import (
     AllocationConflictLogEntry,
     BenchPeriod,
@@ -35,9 +32,10 @@ from app.models.user import Users
 from app.services.employee_allocation_service import (
     allocate_employee_to_project,
     end_allocation,
-    BuddyProgramNotGraduated,
     EmployeeAlreadyAllocated,
 )
+from app.services.deployment_readiness_service import EmployeeNotDeployable
+from tests.hiring_fixtures import full_access_role
 from app.services.timesheet_service import (
     create_weekly_draft,
     upsert_entries,
@@ -54,23 +52,17 @@ from app.services.timesheet_service import (
 )
 
 @pytest.fixture()
-def db_session():
-    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
-    os.close(fd)
-    engine = create_engine(f"sqlite:///{db_path}")
-    Base.metadata.create_all(engine, tables=[
-        Tenant.__table__, Client.__table__, Demand.__table__, DemandHistory.__table__,
-        Employee.__table__, EmployeeEmploymentHistory.__table__, Users.__table__,
-        EmployeeAllocation.__table__, Timesheet.__table__, TimesheetEntry.__table__,
-        BenchPoolEntry.__table__, BenchPeriod.__table__, EmployeeUtilizationMetric.__table__, AllocationConflictLogEntry.__table__,
-    ])
-    session = sessionmaker(bind=engine)()
+def db_session(test_db_engine):
+    """The real Postgres schema (tests/conftest.py), rolled back after each test."""
+    connection = test_db_engine.connect()
+    outer = connection.begin()
+    session = Session(bind=connection, join_transaction_mode="create_savepoint")
     try:
         yield session
     finally:
         session.close()
-        engine.dispose()
-        os.remove(db_path)
+        outer.rollback()
+        connection.close()
 
 def _monday_of(d: date) -> date:
     return d - timedelta(days=d.weekday())
@@ -95,9 +87,12 @@ def base_fixtures(db_session):
 
     employee = Employee(
         tenant_id=tenant.id, first_name="Sam", last_name="Lee", email="sam@blitzenx.com",
-        joining_date=date(2025, 1, 1), status="BENCH",
+        joining_date=date(2025, 1, 1), status="BENCH", buddy_program_status="GRADUATED",
     )
     db_session.add(employee)
+    # the resource manager who approves timesheets (timesheets.approved_by is a users FK)
+    db_session.add(Users(UserID="U-RM", UserRole="RM", UserEmail="rm@blitzenx.com", UserPassword="h",
+                         tenant_id=tenant.id, role_template_id=full_access_role(db_session, tenant.id).id))
     db_session.commit()
 
     return tenant, client, demand, employee
@@ -137,7 +132,7 @@ def test_allocation_blocked_while_buddy_program_in_progress(db_session, base_fix
     db_session.add(employee)
     db_session.commit()
 
-    with pytest.raises(BuddyProgramNotGraduated):
+    with pytest.raises(EmployeeNotDeployable):
         allocate_employee_to_project(db_session, tenant_id=tenant.id, employee=employee, demand=demand)
 
 def test_allocation_blocked_while_buddy_program_extended(db_session, base_fixtures):
@@ -146,7 +141,7 @@ def test_allocation_blocked_while_buddy_program_extended(db_session, base_fixtur
     db_session.add(employee)
     db_session.commit()
 
-    with pytest.raises(BuddyProgramNotGraduated):
+    with pytest.raises(EmployeeNotDeployable):
         allocate_employee_to_project(db_session, tenant_id=tenant.id, employee=employee, demand=demand)
 
 def test_allocation_allowed_once_graduated(db_session, base_fixtures):
@@ -159,15 +154,38 @@ def test_allocation_allowed_once_graduated(db_session, base_fixtures):
     db_session.commit()
     assert employee.status == "ALLOCATED"
 
-def test_allocation_allowed_when_never_enrolled_in_buddy_program(db_session, base_fixtures):
-    """Scoping decision: NOT_STARTED (the model default) does not block --
-    only IN_PROGRESS/EXTENDED do. See employee_allocation_service's own
-    module-level note on why this isn't a blanket gate."""
+def test_allocation_blocked_when_never_enrolled_in_buddy_program(db_session, base_fixtures):
+    """CEO 2026-10-14: Buddy GRADUATED is required for any client deployment; NOT_STARTED
+    (the model default, and most employees from before the pipeline) blocks too."""
     tenant, client, demand, employee = base_fixtures
-    assert employee.buddy_program_status == "NOT_STARTED"
-
-    allocate_employee_to_project(db_session, tenant_id=tenant.id, employee=employee, demand=demand)
+    employee.buddy_program_status = "NOT_STARTED"
     db_session.commit()
+
+    with pytest.raises(EmployeeNotDeployable) as exc_info:
+        allocate_employee_to_project(db_session, tenant_id=tenant.id, employee=employee, demand=demand)
+    assert [b["error"] for b in exc_info.value.blockers] == ["BUDDY_NOT_GRADUATED"]
+
+def test_allocation_blocked_by_an_open_escalation(db_session, base_fixtures):
+    tenant, client, demand, employee = base_fixtures
+    db_session.add(EmployeeEscalation(tenant_id=tenant.id, employee_id=employee.id, reason="Client complaint"))
+    db_session.commit()
+
+    with pytest.raises(EmployeeNotDeployable) as exc_info:
+        allocate_employee_to_project(db_session, tenant_id=tenant.id, employee=employee, demand=demand)
+    assert [b["error"] for b in exc_info.value.blockers] == ["OPEN_ESCALATION"]
+
+def test_core_client_needs_a_core_certified_employee(db_session, base_fixtures):
+    tenant, client, demand, employee = base_fixtures
+    client.line_type = "CORE"
+    db_session.commit()
+
+    with pytest.raises(EmployeeNotDeployable) as exc_info:
+        allocate_employee_to_project(db_session, tenant_id=tenant.id, employee=employee, demand=demand)
+    assert [b["error"] for b in exc_info.value.blockers] == ["CORE_CERTIFICATION_REQUIRED"]
+
+    employee.core_certified, employee.core_certified_date = True, date(2026, 1, 1)
+    db_session.commit()
+    allocate_employee_to_project(db_session, tenant_id=tenant.id, employee=employee, demand=demand)
     assert employee.status == "ALLOCATED"
 
 def test_end_allocation_returns_employee_to_bench(db_session, base_fixtures):
@@ -371,7 +389,7 @@ def test_bulk_approve_mixed_results(db_session, base_fixtures):
 
     employee2 = Employee(
         tenant_id=tenant.id, first_name="Ann", last_name="Ng", email="ann@blitzenx.com",
-        joining_date=date(2025, 1, 1), status="BENCH",
+        joining_date=date(2025, 1, 1), status="BENCH", buddy_program_status="GRADUATED",
     )
     db_session.add(employee2)
     db_session.commit()

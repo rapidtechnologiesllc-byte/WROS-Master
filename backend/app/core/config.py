@@ -205,6 +205,9 @@ class Settings:
     # org_hierarchy_validator.HIERARCHY_LEVELS). app.core.authority reads these.
     SENIOR_MANAGER_MIN_LEVEL: int = int(os.getenv("SENIOR_MANAGER_MIN_LEVEL", "9"))
     DIRECTOR_MIN_LEVEL: int = int(os.getenv("DIRECTOR_MIN_LEVEL", "11"))
+    # An employee whose active allocation ends within this many days is rolling off and may be
+    # submitted to their next client (CEO 2026-10-14)
+    ROLL_OFF_WINDOW_DAYS: int = int(os.getenv("ROLL_OFF_WINDOW_DAYS", "30"))
     BU_LEADER_MIN_LEVEL: int = int(os.getenv("BU_LEADER_MIN_LEVEL", "14"))
     PARTNER_MIN_LEVEL: int = int(os.getenv("PARTNER_MIN_LEVEL", "16"))
     CEO_LEVEL: int = int(os.getenv("CEO_LEVEL", "17"))

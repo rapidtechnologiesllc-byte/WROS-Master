@@ -137,6 +137,20 @@ def test_candidate_to_partner_and_org_pnl(db, api, world):
     assert employee.base_salary_usd_cents == round(CTC_INR / FX * 100 / 12)
     assert employee.status == "BENCH"  # on the bench: no client yet
 
+    # Buddy Program graduated before any client (CEO 2026-10-14); the bench is where it runs
+    record = ok(client.post("/api/v1/buddy-program/records", headers=admin_h, json={
+        "employee_id": employee.id, "buddy_engineer_user_id": world["admin"].UserID,
+        "program_start_date": (MONDAY - timedelta(days=30)).isoformat(),
+        "expected_end_date": (MONDAY - timedelta(days=1)).isoformat()}))
+    ok(client.post(f"/api/v1/buddy-program/records/{record['id']}/graduate", headers=admin_h,
+                   json={"notes": "All KPIs met"}))
+    db.refresh(employee)
+    assert (employee.buddy_program_status, employee.status) == ("GRADUATED", "SPECIALITY_READY")
+    # the job is on a Core project: Core certification first. No API grants it yet (who may
+    # certify is with the CEO); set as the certification record would.
+    employee.core_certified, employee.core_certified_date = True, MONDAY - timedelta(days=2)
+    db.commit()
+
     # submitted to the client's job, client interviews and selects
     sub = ok(client.post("/api/v1/submissions", headers=admin_h, json={
         "demand_id": world["job"].jobID, "candidate_id": world["candidate"].candidateID}))
@@ -225,7 +239,7 @@ def _user_of(db, employee):
 def test_allocation_to_a_job_without_a_client_is_a_clear_422(db, api, world):
     client, _ = api
     world["job"].client_id = None
-    employee = Employee(tenant_id=1, first_name="B", last_name="E", email=f"b{_uid()}@x.com",
+    employee = Employee(buddy_program_status="GRADUATED", core_certified=True, core_certified_date=date(2026, 1, 1), tenant_id=1, first_name="B", last_name="E", email=f"b{_uid()}@x.com",
                         joining_date=TODAY - timedelta(days=60), status="ACTIVE", bu_id=world["unit"].id)
     db.add(employee)
     db.commit()

@@ -22,3 +22,6 @@ tests/test_access_model.py
 tests/test_access_control_deletes.py
 tests/test_candidate_autonomy.py
 tests/test_expense_receipts.py
+tests/test_submissions_api.py
+tests/test_submission_interview_pipeline.py
+tests/test_allocation_and_timesheet.py

@@ -65,3 +65,25 @@ export const updateEmployeeCertifications = async (employeeId, certifications) =
   });
   return data;
 };
+
+// Escalations: an open one keeps the employee away from every client; a Director resolves it.
+export const getEmployeeEscalations = async (employeeId) => {
+  const { data } = await apiRequest(`/employees/${employeeId}/escalations`, { method: "GET" });
+  return data;
+};
+
+export const raiseEmployeeEscalation = async (employeeId, { reason, severity }) => {
+  const { data } = await apiRequest(`/employees/${employeeId}/escalations`, {
+    method: "POST",
+    body: JSON.stringify({ reason, severity }),
+  });
+  return data;
+};
+
+export const resolveEmployeeEscalation = async (escalationId, resolutionNote) => {
+  const { data } = await apiRequest(`/employees/escalations/${escalationId}/resolve`, {
+    method: "POST",
+    body: JSON.stringify({ resolution_note: resolutionNote }),
+  });
+  return data;
+};

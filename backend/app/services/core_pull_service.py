@@ -29,6 +29,7 @@ from app.models.employee import Employee, EmployeeEngineHistory
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.core_pull import CorePullEvent, SpecialtyPoolReplacementPlan
 from app.models.user import Users
+from app.services.deployment_readiness_service import assert_deployable
 from app.services.notification_service import send_notification
 from app.services.orchestration_router_service import evaluate_action_intent
 
@@ -241,10 +242,11 @@ def execute_core_pull(
 ) -> CorePullEvent:
     """
     CorePullEngine.execute() -- same-day, no negotiation. Not
-    allocate_employee_to_project()'s normal gate: BuddyProgramNotGraduated
-    and EmployeeAlreadyAllocated don't apply here (this employee is
-    already Core-Certified, and holding an active Speciality allocation
-    is the very thing being transferred, not a conflict to block on).
+    allocate_employee_to_project(): EmployeeAlreadyAllocated doesn't apply
+    (holding an active Speciality allocation is the very thing being
+    transferred, not a conflict to block on). The deployment gates do (CEO
+    2026-10-14: Core Pull is not exempt): Buddy graduated, no open
+    escalation, Core-certified for the Core client -- EmployeeNotDeployable.
 
     speciality_rm/bu_head: caller-supplied, best-effort notifications --
     this codebase has no RM/BU-Head roster resolution built (same posture
@@ -264,6 +266,8 @@ def execute_core_pull(
         db.query(EmployeeAllocation).filter(EmployeeAllocation.id == event.speciality_allocation_id).first()
     )
     core_demand = db.query(Demand).filter(Demand.id == event.core_demand_id).first()
+
+    assert_deployable(db, employee, core_demand)
 
     guard = check_specialty_pool_guard(db, employee)
     if guard["below_minimum"] and not _has_replacement_plan_since(db, employee.id, since=event.detected_at):
