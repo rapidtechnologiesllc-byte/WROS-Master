@@ -1,7 +1,6 @@
 """
 Proves HRMS-0711 (Client Submission Pipeline) and HRMS-0706 (Interview
 Panel Assignment) -- the piece connecting Demand -> Candidate ->
-import logging
 Employee.
 
 Covers the hard-block compliance gates this session decided to build
@@ -11,17 +10,14 @@ NOT test the Director+BU Head override workflow or the 3/5-strike
 violation-escalation cascade -- neither is built, by design (see
 app.services.submission_service's module docstring).
 
-Throwaway SQLite -- never the real database.
+Runs on the Postgres test schema (tests/conftest.py), rolled back per test.
 """
-import os
-import tempfile
 from datetime import date
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session
 
-from app.models.base import Base
+from app.models.background_verification import BackgroundVerification
 from app.models.tenant import Tenant
 from app.models.client import Client
 from app.models.demand import Demand, DemandHistory
@@ -30,6 +26,8 @@ from app.models.employee import Employee
 from app.models.user import Users
 from app.models.submission import Submission, SubmissionViolation
 from app.models.interview_pipeline import DemandInterviewPanel, SubmissionInterview
+from app.services import client_onboarding_service
+from tests.hiring_fixtures import full_access_role
 
 from app.services.submission_service import (
     check_experience_eligibility,
@@ -55,23 +53,17 @@ from app.services.interview_service import (
 )
 
 @pytest.fixture()
-def db_session():
-    fd, db_path = tempfile.mkstemp(suffix=".sqlite3")
-    os.close(fd)
-    engine = create_engine(f"sqlite:///{db_path}")
-    Base.metadata.create_all(engine, tables=[
-        Tenant.__table__, Client.__table__, Demand.__table__, DemandHistory.__table__,
-        Candidate.__table__, Employee.__table__, Users.__table__,
-        Submission.__table__, SubmissionViolation.__table__,
-        DemandInterviewPanel.__table__, SubmissionInterview.__table__,
-    ])
-    session = sessionmaker(bind=engine)()
+def db_session(test_db_engine):
+    """The real Postgres schema (tests/conftest.py), rolled back after each test."""
+    connection = test_db_engine.connect()
+    outer = connection.begin()
+    session = Session(bind=connection, join_transaction_mode="create_savepoint")
     try:
         yield session
     finally:
         session.close()
-        engine.dispose()
-        os.remove(db_path)
+        outer.rollback()
+        connection.close()
 
 @pytest.fixture()
 def base_fixtures(db_session):
@@ -120,6 +112,9 @@ def _make_employee(db, tenant, candidate, status="BENCH", **overrides):
 def _make_eligible_candidate_and_employee(db, tenant, candidate_id="C-001", status="BENCH"):
     candidate = _make_candidate(db, tenant, candidate_id=candidate_id)
     employee = _make_employee(db, tenant, candidate, status=status)
+    # an employee from before the hiring pipeline still needs a cleared BGV for a client (CEO 2026-10-10)
+    db.add(BackgroundVerification(tenant_id=tenant.id, candidate_id=candidate.candidateID, status="PASSED"))
+    db.commit()
     return candidate, employee
 
 # ---------------------------------------------------------------------------
@@ -204,7 +199,9 @@ def test_all_three_gate_failures_reported_together(db_session, base_fixtures):
         create_submission(db_session, tenant_id=tenant.id, demand=demand, candidate=candidate)
 
     errors = {b["error"] for b in exc_info.value.blockers}
-    assert errors == {"EXPERIENCE_INELIGIBLE", "MARKET_PROFILE_SUBMISSION_BLOCKED", "C2C_NOT_ACCEPTED"}
+    assert errors == {"EXPERIENCE_INELIGIBLE", "MARKET_PROFILE_SUBMISSION_BLOCKED", "C2C_NOT_ACCEPTED",
+                      "PIPELINE_INCOMPLETE"}
+    # the pipeline blocker is recorded in hiring_pipeline_events, the three compliance gates here
 
     violations = db_session.query(SubmissionViolation).filter(
         SubmissionViolation.candidate_id == candidate.candidateID
@@ -218,7 +215,7 @@ def test_eligible_candidate_submission_succeeds_and_opens_demand(db_session, bas
 
     submission = create_submission(
         db_session, tenant_id=tenant.id, demand=demand, candidate=candidate,
-        submitted_by_user_id="U1",
+        submitted_by_user_id=None,
     )
     db_session.commit()
 
@@ -283,6 +280,9 @@ def test_placed_status_increments_demand_positions_filled(db_session, base_fixtu
 
     update_client_response(db_session, submission, "CLIENT_INTERVIEW_REQUESTED")
     update_client_response(db_session, submission, "OFFER_EXTENDED")
+    # PLACED only once the client confirmed a start date (client onboarding)
+    client_onboarding_service.confirm_start(db_session, client_onboarding_service.for_submission(
+        db_session, submission.id), date.today(), confirmed_by="test")
     update_client_response(db_session, submission, "PLACED")
     db_session.commit()
 
@@ -294,7 +294,8 @@ def test_placed_status_increments_demand_positions_filled(db_session, base_fixtu
 # ---------------------------------------------------------------------------
 
 def _make_interviewer(db, tenant, email, wros_user_id="U-INT-1", status="ACTIVE"):
-    user = Users(UserID=wros_user_id, UserRole="RECRUITER", UserEmail=f"{wros_user_id}@blitzenx.com", UserPassword="h")
+    user = Users(UserID=wros_user_id, UserRole="RECRUITER", UserEmail=f"{wros_user_id}@blitzenx.com", UserPassword="h",
+                 tenant_id=tenant.id, role_template_id=full_access_role(db, tenant.id).id)
     db.add(user)
     db.commit()
     emp = Employee(
@@ -345,8 +346,7 @@ def test_get_assigned_interviewer_picks_least_loaded(db_session, base_fixtures):
     db_session.commit()
 
     # Load interviewer A up with a pending interview first.
-    other_candidate = _make_candidate(db_session, tenant, candidate_id="C-002")
-    _make_employee(db_session, tenant, other_candidate, status="BENCH")
+    other_candidate, _ = _make_eligible_candidate_and_employee(db_session, tenant, candidate_id="C-002")
     other_submission = create_submission(db_session, tenant_id=tenant.id, demand=demand, candidate=other_candidate)
     db_session.commit()
     create_interview(db_session, tenant_id=tenant.id, submission=other_submission, level="L1", panel=panel_a)

@@ -41,6 +41,7 @@ from app.services.employee_allocation_service import (
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.bu_scope import candidate_scope_filter, ensure_candidate_visible
@@ -48,6 +49,8 @@ from app.core.data_scope import job_filter, visible_job_or_404
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.candidate import Candidate
+from app.models.client import Client
+from app.models.employee import Employee
 from app.models.demand import Demand
 from app.models.submission import Submission, SubmissionViolation
 from app.models.user import Users
@@ -55,12 +58,18 @@ from app.schemas.submission import (
     ClientResponseRequest,
     CreateSubmissionRequest,
     SubmissionItem,
+    SubmissionCandidateOption,
+    SubmissionJobOption,
     SubmissionListResponse,
+    SubmissionOptionsResponse,
     SubmissionViolationItem,
     SubmissionViolationListResponse,
 )
 from app.services.submission_service import (
+    MARKET_PROFILE_ALLOWED_EMPLOYEE_STATUSES,
     DemandNotOpenForSubmission,
+    check_employment_type_rule,
+    check_experience_eligibility,
     DuplicateSubmission,
     InvalidSubmissionTransition,
     SubmissionComplianceError,
@@ -88,10 +97,12 @@ def _to_item(db: Session, submission: Submission) -> SubmissionItem:
         f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip()
         if candidate else "(unknown candidate)"
     )
+    client = db.query(Client).filter(Client.id == submission.client_id).first()
     return SubmissionItem(
         id=submission.id,
         demand_id=submission.demand_id,
         demand_job_title=demand.job_title if demand else "(unknown demand)",
+        client_name=client.company_name if client else None,
         candidate_id=submission.candidate_id,
         candidate_name=candidate_name or "(unnamed candidate)",
         status=submission.status,
@@ -174,10 +185,73 @@ def list_submissions(
     submissions = query.order_by(Submission.submitted_at.desc()).all()
     return SubmissionListResponse(submissions=[_to_item(db, s) for s in submissions])
 
+def _candidate_issues(candidate: Candidate) -> list:
+    experience = check_experience_eligibility(candidate)
+    employment_type = check_employment_type_rule(candidate)
+    return [result["message"] for result in (experience, employment_type)
+            if not (result.get("is_eligible") or result.get("allowed"))]
+
+
+@router.get(
+    "/options",
+    dependencies=[
+        Depends(require_resource_permission("submissions", "view")),
+        Depends(get_current_internal_user),
+    ],
+    response_model=SubmissionOptionsResponse,
+    summary="Jobs and candidates the Submissions screen can pick from",
+)
+def submission_options(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Open client jobs and bench/active/allocated employees' candidates in the caller's scope,
+    with the jobs' BU, the candidates' BU lock, experience and employment type so the screen can
+    say why a pair would be blocked. Job scope matches POST: the caller's business units plus
+    jobs not yet assigned to one. The compliance gates still run on POST /submissions."""
+    jobs = (
+        db.query(Demand, Client.company_name)
+        .join(Client, Client.id == Demand.client_id)
+        .filter(
+            or_(Demand.tenant_id == current_user.tenant_id, Demand.tenant_id.is_(None)),
+            Demand.demand_status.in_(("OPEN", "IN_PROGRESS")),
+            job_filter(db, current_user, Demand.jobID),
+        )
+        .order_by(Client.company_name, Demand.jobTitle)
+        .all()
+    )
+    candidates = (
+        db.query(Candidate, Employee.status)
+        .join(Employee, Employee.candidate_id == Candidate.candidateID)
+        .filter(
+            Employee.status.in_(MARKET_PROFILE_ALLOWED_EMPLOYEE_STATUSES),
+            candidate_scope_filter(db, current_user, Candidate.candidateID),
+        )
+        .order_by(Candidate.candidateFirstName, Candidate.candidateLastName)
+        .all()
+    )
+    return SubmissionOptionsResponse(
+        jobs=[
+            SubmissionJobOption(id=job.id, job_title=job.job_title or "(untitled job)", client_id=job.client_id,
+                                client_name=client_name, status=job.status, business_unit_id=job.business_unit_id)
+            for job, client_name in jobs
+        ],
+        candidates=[
+            SubmissionCandidateOption(
+                id=c.candidateID,
+                name=f"{c.candidateFirstName or ''} {c.candidateLastName or ''}".strip() or c.candidateID,
+                employee_status=status, total_experience_months=c.total_experience_months,
+                employment_type=c.employment_type, submission_bu_id=c.submission_bu_id,
+                issues=_candidate_issues(c),
+            )
+            for c, status in candidates
+        ],
+    )
+
 @router.get(
     "/violations",
     dependencies=[
-        Depends(require_resource_permission("resources", "view")),
+        Depends(require_resource_permission("submissions", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=SubmissionViolationListResponse,
@@ -208,7 +282,7 @@ def list_violations(
 @router.post(
     "/{submission_id}/client-response",
     dependencies=[
-        Depends(require_resource_permission("resources", "edit")),
+        Depends(require_resource_permission("submissions", "edit")),
         Depends(get_current_internal_user),
     ],
     response_model=SubmissionItem,

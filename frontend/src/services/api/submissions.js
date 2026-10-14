@@ -22,6 +22,13 @@ export const getSubmissions = async (demandId) => {
   return data;
 };
 
+// Open client jobs and bench/active/allocated employees in the caller's scope; each
+// candidate carries the experience / employment-type issues that would block it.
+export const getSubmissionOptions = async () => {
+  const { data } = await apiRequest("/submissions/options", { method: "GET" });
+  return data;
+};
+
 export const getSubmissionViolations = async () => {
   const { data } = await apiRequest("/submissions/violations", { method: "GET" });
   return data;

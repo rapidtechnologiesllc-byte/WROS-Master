@@ -1,16 +1,28 @@
-// HRMS-0711 Client Submission Pipeline. No Demand/Candidate picker
-// exists yet in this app for this flow, so entry is by ID -- same
-// pattern/rationale as DemandConfirmationScreen.
-import { useEffect, useState } from "react";
+// HRMS-0711 Client Submission Pipeline: submit a bench employee to an open
+// client job. The pickers come from GET /submissions/options (scoped like the
+// list); every compliance gate still runs on POST /submissions.
+import { useEffect, useMemo, useState } from "react";
 import { Send, RefreshCw, AlertTriangle } from "lucide-react";
-import { Card, Button, Input } from "../components/ui";
+import { Card, Button, Select } from "../components/ui";
 import cx from "../utils/cx";
 import {
   submitCandidate,
   getSubmissions,
+  getSubmissionOptions,
   getSubmissionViolations,
   recordClientResponse,
 } from "../services/api/submissions";
+
+const jobLabel = (job) => `${job.client_name} — ${job.job_title} (${job.status.replace(/_/g, " ")})`;
+
+const candidateLabel = (candidate, job) => {
+  const notes = [candidate.employee_status, ...(candidate.issues || [])];
+  // a candidate already submitted by one business unit can't be submitted by another
+  if (job?.business_unit_id && candidate.submission_bu_id && candidate.submission_bu_id !== job.business_unit_id) {
+    notes.push("locked to another business unit");
+  }
+  return `${candidate.name} — ${notes.join(" · ")}`;
+};
 
 const NEXT_STATUS_OPTIONS = {
   SUBMITTED: ["SHORTLISTED", "CLIENT_INTERVIEW_REQUESTED", "REJECTED_BY_CLIENT", "WITHDRAWN"],
@@ -41,7 +53,10 @@ function SubmissionRow({ submission, onChanged }) {
     <tr className="hover:bg-gray-50">
       <td className="px-4 py-3 text-gray-900">
         <div className="font-semibold">{submission.candidate_name}</div>
-        <div className="text-xs text-gray-500">→ {submission.demand_job_title}</div>
+        <div className="text-xs text-gray-500">
+          → {submission.client_name ? `${submission.client_name} — ` : ""}
+          {submission.demand_job_title}
+        </div>
       </td>
       <td className="px-4 py-3 text-xs text-gray-700">{submission.status}</td>
       <td className="px-4 py-3">
@@ -69,6 +84,7 @@ export default function SubmissionsScreen() {
   const [candidateId, setCandidateId] = useState("");
   const [submissions, setSubmissions] = useState([]);
   const [violations, setViolations] = useState([]);
+  const [options, setOptions] = useState({ jobs: [], candidates: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -76,31 +92,45 @@ export default function SubmissionsScreen() {
   const load = async () => {
     setLoading(true);
     setError("");
-    try {
-      const [subsRes, violRes] = await Promise.all([getSubmissions(), getSubmissionViolations()]);
-      setSubmissions(subsRes?.submissions || []);
-      setViolations(violRes?.violations || []);
-    } catch (err) {
-      setError(err.message || "Failed to load submissions.");
-    } finally {
-      setLoading(false);
+    // settled, not all: one failing call must not blank the others
+    const [subsRes, optionsRes, violRes] = await Promise.allSettled([
+      getSubmissions(),
+      getSubmissionOptions(),
+      getSubmissionViolations(),
+    ]);
+    if (subsRes.status === "fulfilled") setSubmissions(subsRes.value?.submissions || []);
+    if (optionsRes.status === "fulfilled") {
+      setOptions({ jobs: optionsRes.value?.jobs || [], candidates: optionsRes.value?.candidates || [] });
     }
+    if (violRes.status === "fulfilled") setViolations(violRes.value?.violations || []);
+    const failed = [subsRes, optionsRes, violRes].filter((r) => r.status === "rejected");
+    if (failed.length) {
+      setError(failed.map((r) => r.reason?.message || "Request failed.").join(" "));
+    }
+    setLoading(false);
   };
 
   useEffect(() => {
     load();
   }, []);
 
+  const selectedJob = useMemo(() => options.jobs.find((j) => j.id === demandId), [options.jobs, demandId]);
+  const jobOptions = [{ value: "", label: options.jobs.length ? "Select a client job" : "No open client jobs" }]
+    .concat(options.jobs.map((j) => ({ value: j.id, label: jobLabel(j) })));
+  const candidateOptions = [
+    { value: "", label: options.candidates.length ? "Select a bench employee" : "No bench employees" },
+  ].concat(options.candidates.map((c) => ({ value: c.id, label: candidateLabel(c, selectedJob) })));
+
   const handleSubmit = async () => {
-    if (!demandId.trim() || !candidateId.trim()) {
-      setError("Demand ID and Candidate ID are both required.");
+    if (!demandId || !candidateId) {
+      setError("Select a client job and a candidate.");
       return;
     }
     setError("");
     setNotice("");
     try {
-      await submitCandidate({ demandId: demandId.trim(), candidateId: candidateId.trim() });
-      setNotice("Candidate submitted.");
+      await submitCandidate({ demandId, candidateId });
+      setNotice("Candidate submitted to the client.");
       setCandidateId("");
       await load();
     } catch (err) {
@@ -114,7 +144,7 @@ export default function SubmissionsScreen() {
     <div className="grid gap-4">
       <Card
         title="Client Submissions"
-        subtitle="Submit a candidate to a demand -- experience, market-profile (employee status), and employment-type compliance gates all run before it's created."
+        subtitle="Submit a bench employee to an open client job. The 5-year experience, employee-status, W2, background-check and hiring-pipeline gates all run before it's created."
         icon={<Send className="h-4 w-4" />}
         right={
           <Button variant="ghost" onClick={load} disabled={loading}>
@@ -134,11 +164,17 @@ export default function SubmissionsScreen() {
         ) : null}
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Input label="Demand ID" value={demandId} onChange={setDemandId} placeholder="demand UUID" />
-          <Input label="Candidate ID" value={candidateId} onChange={setCandidateId} placeholder="candidate ID" />
+          <Select label="Client job" value={demandId} onChange={setDemandId} options={jobOptions} disabled={loading} />
+          <Select
+            label="Candidate"
+            value={candidateId}
+            onChange={setCandidateId}
+            options={candidateOptions}
+            disabled={loading}
+          />
         </div>
         <div className="mt-3">
-          <Button variant="primary" onClick={handleSubmit}>
+          <Button variant="primary" onClick={handleSubmit} disabled={loading || !demandId || !candidateId}>
             <Send className="h-4 w-4" /> Submit Candidate
           </Button>
         </div>
@@ -147,7 +183,7 @@ export default function SubmissionsScreen() {
           <table className="w-full text-left text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-xs font-semibold text-gray-700">Candidate / Demand</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-700">Candidate / Client Job</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-700">Status</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-700">Client Response</th>
               </tr>

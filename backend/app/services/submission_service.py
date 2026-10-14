@@ -223,6 +223,10 @@ def create_submission(
         raise DemandNotOpenForSubmission(
             f"Cannot submit to demand in status '{demand.status}' -- must be OPEN or IN_PROGRESS."
         )
+    if not demand.client_id:  # submissions.client_id is NOT NULL: a client submission needs a client
+        raise DemandNotOpenForSubmission(
+            f"Job {demand.id} has no client. Set the client on the job before submitting a candidate."
+        )
 
     # BU Scoping: Check if candidate is already locked to a different BU
     if hasattr(candidate, 'submission_bu_id') and candidate.submission_bu_id:

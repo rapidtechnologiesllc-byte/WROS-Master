@@ -208,9 +208,9 @@ export const submitCandidateToJob = async (candidate_id, job_id) => {
       method: "POST",
       body: JSON.stringify({
         candidate_id: candidate_id,
-        demand_id: job_id || job_id, // job_id is the demand_id in this context
+        demand_id: job_id, // a job is the demand a client submission targets
         submission_rank: 1,
-        source: "hrms",
+        source: "INTERNAL", // submissions.source allows INTERNAL or SUBVENDOR only
       }),
     },
   );
