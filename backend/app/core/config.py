@@ -190,6 +190,11 @@ class Settings:
     FLASH_SMALL_LLM_TIMEOUT_S: float = float(os.getenv("FLASH_SMALL_LLM_TIMEOUT_S", "15"))
     # Kill switch: false = Flash answers from its rules only, no model call at all
     FLASH_AGENT_ENABLED: bool = os.getenv("FLASH_AGENT_ENABLED", "true").lower() == "true"
+    # Flash conversation (one per user, kept server-side): earlier turns a reply may draw on, the
+    # most recent messages the bubble loads, and how often the closed bubble checks for news
+    FLASH_CONTEXT_TURNS: int = int(os.getenv("FLASH_CONTEXT_TURNS", "6"))
+    FLASH_CONVERSATION_PAGE: int = int(os.getenv("FLASH_CONVERSATION_PAGE", "100"))
+    FLASH_POLL_SECONDS: int = int(os.getenv("FLASH_POLL_SECONDS", "60"))
 
     # Interview scheduling: interviewer business hours (local time), working days, buffer, length
     INTERVIEW_WORKDAY_START_HOUR: int = int(os.getenv("INTERVIEW_WORKDAY_START_HOUR", "9"))

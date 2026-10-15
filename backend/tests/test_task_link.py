@@ -59,10 +59,10 @@ def test_link_is_stored_and_returned_by_my_day(db):
     assert rows[task.id]["link"] == "/candidates/CAN-1?tab=interview" and rows[plain.id]["link"] is None
 
 
-def test_core_certification_approval_task_links_to_the_review_screen(db):
+def test_core_certification_approval_task_opens_the_decision_in_flash(db):
     from app.services import core_certification_service as service
 
     owner = person(db, full_access_role(db), "Head")
     employee = type("E", (), {"first_name": "Ravi", "last_name": "K", "email": "r@x"})()
-    task = service._approval_task(db, employee, owner.UserID, 90, 1)
-    assert task.link == service.REVIEW_PATH == "/workforce/core-certification"
+    task = service._approval_task(db, employee, owner.UserID, 90, 1, "REQ-1")
+    assert task.link == "/my-tasks?flash=core_cert:REQ-1"
