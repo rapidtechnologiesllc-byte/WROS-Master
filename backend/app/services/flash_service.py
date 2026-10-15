@@ -43,27 +43,21 @@ access to financial data and BU only get their bu related not org
 wide" (Avinash, 2026-08-06) -- Flash is never a side-door around the
 RBAC the real dashboards already enforce.
 
-**2026-08-06, real architecture change, not just a docstring update**:
-this module made an external Gemini API call for intent classification
-until Avinash directly questioned it -- "why is it calling an external
-Gemini system and exposing our data when I explicitly asked you to
-build it entirely inside the WROS as our proprietary." Scope confirmed
-directly with him (not assumed): Flash's own intent classification,
-specifically -- rewritten to pure local regex/keyword matching, zero
-network calls, zero data ever leaves this process. See
-classify_internal_query()'s own docstring for the real trade-off this
-creates (more rigid than an LLM, needs recognizably-phrased questions).
-Thunder's own candidate-facing Gemini usage (reply generation,
-sentiment, resume parsing, etc.) is a separate, much larger system and
-is UNCHANGED by this -- that would be its own, much bigger decision,
-not made here.
+Intent classification: the rules in classify_internal_query() route the
+common phrasings with no model at all. A phrasing they miss goes to
+app.services.flash_brain.router (2026-10-15, CEO decision "hybrid"): the
+self-hosted small model, else Claude, may only pick one of AI_INTENTS and
+a short query -- it never answers. What reaches a model is redacted to
+work data first (flash_brain.redaction: no contact details, pay,
+documents or finance figures). The 2026-08-06 Gemini router is retired.
+With no brain configured (or FLASH_AGENT_ENABLED=false) the rules alone
+decide, exactly as before.
 
 Every answer is built from real DB rows -- there is no free-text LLM
-answer describing candidates, financials, or status, and (as of
-2026-08-06) no LLM call anywhere in this module at all. Anything
-outside the supported intents gets an explicit "I can't answer that
-yet" instead of an invented answer -- "strict mode," per Avinash's own
-words, same "no fake success" principle as the rest of this codebase.
+answer describing candidates, financials, or status. Anything outside the
+supported intents gets an explicit "I can't answer that yet" instead of an
+invented answer -- "strict mode," per Avinash's own words, same "no fake
+success" principle as the rest of this codebase.
 """
 from app.core.tenant_context import tenant_id_of
 from app.core.tenant_context import sole_tenant_id
@@ -939,60 +933,6 @@ def _create_job_from_details(db: Session, user: Users, details: Dict) -> Dict:
             "reply": f"Sorry, I couldn't create the job. Error: {str(e)[:100]}"
         }
 
-AI_ROUTER_TIMEOUT_SECONDS = 8
-
-
-def _ai_llm_call(system_prompt: str, user_prompt: str, max_tokens: int, temperature: float) -> str:
-    import os
-
-    import requests
-
-    from app.services.prompt_framework_service import GEMINI_MODEL_URL
-
-    api_key = os.getenv("GEMINI_API_KEY", "")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY not set")
-    resp = requests.post(f"{GEMINI_MODEL_URL}?key={api_key}", timeout=AI_ROUTER_TIMEOUT_SECONDS, json={
-        "contents": [{"parts": [{"text": f"{system_prompt}\n\n{user_prompt}"}]}],
-        "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens,
-                             "responseMimeType": "application/json"}})
-    resp.raise_for_status()
-    return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-
-
-def classify_with_ai(db: Session, message: str, *, history: Optional[List[Dict]] = None,
-                     tenant_id: Optional[int] = None, llm_call=None) -> Optional[Dict]:
-    """For phrasings the rules don't recognise: the model may only pick one of AI_INTENTS
-    and extract a short query. Returns None when it can't (no key, timeout, bad output),
-    so the caller falls back to the honest "unsupported" reply -- never a guessed answer."""
-    import os
-
-    from app.services.prompt_framework_service import call_llm
-
-    if llm_call is None and _ai_llm_call.__module__ == __name__ and not os.getenv("GEMINI_API_KEY"):
-        return None  # no model configured: the rules alone decide
-    intents = "\n".join(f"- {name}: {desc}" for name, desc in AI_INTENTS.items())
-    recent = "\n".join(f"Q: {t.get('question', '')}\nA: {t.get('reply', '')[:200]}"
-                       for t in (history or [])[-MAX_HISTORY_TURNS:])
-    system_prompt = (
-        "You route questions for BlitzenX's internal staffing assistant. You never answer them. "
-        "Reply with JSON only: {\"intent\": <one of the names below or \"unknown\">, \"query\": <short text>}.\n"
-        f"Intents:\n{intents}")
-    user_prompt = (f"Recent conversation:\n{recent}\n\n" if recent else "") + f"Question: {message}"
-    try:
-        raw = call_llm(db, str(tenant_id if tenant_id is not None else sole_tenant_id(db)), None, "flash_intent", "v1", system_prompt, user_prompt, 80, 0.0,
-                       llm_call=llm_call or _ai_llm_call, sleep_fn=lambda _seconds: None)
-        parsed = json.loads(re.sub(r"^```(?:json)?|```$", "", raw.strip()).strip())
-    except Exception as exc:
-        logger.warning(f"[Flash] AI routing unavailable: {exc}")
-        return None
-    intent = parsed.get("intent") if isinstance(parsed, dict) else None
-    if intent not in AI_INTENTS:
-        return None
-    query = str(parsed.get("query") or "")[:200].strip()
-    return {"intent": intent, "query": query, "routed_by": "ai"}
-
-
 def get_my_timesheets_answer(db: Session, user: Users) -> Dict:
     from app.models.employee_allocation import EmployeeAllocation
     from app.models.timesheet import Timesheet
@@ -1063,6 +1003,7 @@ def _format_pipeline_summary(result: Dict) -> str:
 
 def answer_internal_query(
     db: Session, message: str, *, current_user: Optional[Users] = None, history: Optional[List[Dict]] = None, conversation_state: Optional[Dict] = None,
+    brains=None,
 ) -> Dict:
     """
     Full turn: classify -> real DB lookup -> deterministic, honest
@@ -1087,7 +1028,13 @@ def answer_internal_query(
         return {"intent": INTENT_UNKNOWN, "reply": UNSUPPORTED_QUERY_MESSAGE}
 
     if classification["intent"] == INTENT_UNKNOWN:
-        routed = classify_with_ai(db, message, history=history, tenant_id=getattr(current_user, "tenant_id", None))
+        from app.services.flash_brain.llm import get_brains
+        from app.services.flash_brain.router import route_intent
+
+        brains = brains if brains is not None else get_brains()
+        tenant_id = getattr(current_user, "tenant_id", None) or sole_tenant_id(db)
+        routed = route_intent(brains, message, intents=AI_INTENTS, history=(history or [])[-MAX_HISTORY_TURNS:],
+                              tenant_id=tenant_id)
         if routed is not None:
             classification = routed
 

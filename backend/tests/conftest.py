@@ -274,3 +274,12 @@ def client(_app_lifespan, db: Session):
     yield _app_lifespan
 
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def _flash_brains_offline(monkeypatch):
+    """No test reaches a real language model: Flash runs on its rules unless a test passes its
+    own (fake) brains or switches the agent back on with fake settings."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "FLASH_AGENT_ENABLED", False)

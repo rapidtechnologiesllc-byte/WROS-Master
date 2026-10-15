@@ -10,8 +10,9 @@ EXTERNAL-facing agent (open jobs, a logged-in candidate's own
 application/onboarding status) -- Flash is the INTERNAL-facing agent,
 used by staff and by anyone once they convert from candidate to
 employee. See app.services.flash_service for the full rationale: every
-answer comes from a real DB query, never a fabricated one; the LLM
-only classifies intent and extracts a search term -- "strict mode,"
+answer comes from a real DB query, never a fabricated one; a language
+model (app.services.flash_brain) only classifies intent and extracts a
+search term, and sees work data only -- "strict mode,"
 per Avinash's own words, not a general-purpose chat model guessing.
 
 Renamed 2026-08-06 from "Ask Thunder" (module/route prefix were
@@ -34,6 +35,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.schemas.flash import FlashRequest, FlashResponse
+from app.services.flash_brain.llm import Brains, get_brains
 from app.services.flash_service import answer_internal_query
 
 router = APIRouter(prefix="/flash", tags=["flash"])
@@ -51,6 +53,7 @@ def ask_flash(
     body: FlashRequest,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_internal_user),
+    brains: Brains = Depends(get_brains),
 ):
     history = [{"question": turn.question, "reply": turn.reply} for turn in body.history]
     result = answer_internal_query(
@@ -58,6 +61,7 @@ def ask_flash(
         body.message,
         current_user=current_user,
         history=history,
-        conversation_state=body.conversation_state
+        conversation_state=body.conversation_state,
+        brains=brains,
     )
     return FlashResponse(**result)

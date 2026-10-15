@@ -172,6 +172,25 @@ class Settings:
     # Flash's recruiter run re-runs this often while a job is active
     FLASH_RECRUITER_INTERVAL_HOURS: int = int(os.getenv("FLASH_RECRUITER_INTERVAL_HOURS", "4"))
 
+    # Flash's language models (CEO 2026-10-15: hybrid). The large model (Claude) plans and uses
+    # tools; the small self-hosted model (Ollama-compatible /api/chat) parses and classifies.
+    # Either may be off; with both off Flash answers from its rules and says what is offline.
+    # Only work data reaches a model: app.services.flash_brain.redaction strips contact details,
+    # pay, documents and finance figures first.
+    ANTHROPIC_API_KEY: str = get_secret("anthropic-api-key", default=os.getenv("ANTHROPIC_API_KEY", "")) or ""
+    FLASH_LARGE_LLM_MODEL: str = os.getenv("FLASH_LARGE_LLM_MODEL", "claude-opus-5-5")
+    FLASH_LARGE_LLM_EFFORT: str = os.getenv("FLASH_LARGE_LLM_EFFORT", "medium")
+    FLASH_LARGE_LLM_TIMEOUT_S: float = float(os.getenv("FLASH_LARGE_LLM_TIMEOUT_S", "60"))
+    FLASH_LARGE_LLM_MAX_TOKENS: int = int(os.getenv("FLASH_LARGE_LLM_MAX_TOKENS", "16000"))
+    FLASH_LARGE_LLM_MAX_TOOL_ROUNDS: int = int(os.getenv("FLASH_LARGE_LLM_MAX_TOOL_ROUNDS", "8"))
+    # Server-side refusal fallback (Anthropic picks the fallback model by refusal category)
+    FLASH_LARGE_LLM_FALLBACKS_ENABLED: bool = os.getenv("FLASH_LARGE_LLM_FALLBACKS_ENABLED", "true").lower() == "true"
+    FLASH_SMALL_LLM_BASE_URL: str = os.getenv("FLASH_SMALL_LLM_BASE_URL", "")
+    FLASH_SMALL_LLM_MODEL: str = os.getenv("FLASH_SMALL_LLM_MODEL", "")
+    FLASH_SMALL_LLM_TIMEOUT_S: float = float(os.getenv("FLASH_SMALL_LLM_TIMEOUT_S", "15"))
+    # Kill switch: false = Flash answers from its rules only, no model call at all
+    FLASH_AGENT_ENABLED: bool = os.getenv("FLASH_AGENT_ENABLED", "true").lower() == "true"
+
     # Interview scheduling: interviewer business hours (local time), working days, buffer, length
     INTERVIEW_WORKDAY_START_HOUR: int = int(os.getenv("INTERVIEW_WORKDAY_START_HOUR", "9"))
     INTERVIEW_WORKDAY_END_HOUR: int = int(os.getenv("INTERVIEW_WORKDAY_END_HOUR", "17"))

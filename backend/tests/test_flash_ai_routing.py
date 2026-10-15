@@ -1,10 +1,11 @@
-"""Flash answers from real data only. Rules route the common phrasings for free; the AI
-router handles the rest but may only pick a known intent -- anything else (no key, bad
-output, an invented intent) falls back to the honest "unsupported" reply. Candidate status
+"""Flash answers from real data only. Rules route the common phrasings for free; the brain
+router (flash_brain.router) handles the rest but may only pick a known intent -- anything else
+(no brain, bad output, an invented intent) falls back to the honest "unsupported" reply. Candidate status
 includes where the person is in the hiring order and what they are waiting for."""
 import json
 import uuid
 from datetime import date
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy.orm import Session
@@ -19,6 +20,8 @@ from app.models.timesheet import Timesheet
 from app.models.user import Jobs, Users
 from app.services import flash_service
 from app.services import hiring_pipeline_service as hp
+from app.services.flash_brain.llm import Brains, SmallBrain
+from tests.flash_fakes import FakeSmall
 
 
 def _uid():
@@ -59,28 +62,29 @@ def user(db):
     return person
 
 
-def _router(reply):
-    return lambda system, prompt, max_tokens, temperature: reply
-
-
-def test_ai_routes_phrasings_the_rules_miss(db, user, monkeypatch):
+def test_ai_routes_phrasings_the_rules_miss(db, user):
     assert flash_service.classify_internal_query("got a spare kafka person?")["intent"] == "unknown"
-    monkeypatch.setattr(flash_service, "_ai_llm_call", _router(json.dumps({"intent": "bench_availability", "query": "kafka"})))
-    result = flash_service.answer_internal_query(db, "got a spare kafka person?", current_user=user)
+    brains = Brains(small=FakeSmall({"intent": "bench_availability", "query": "kafka"}))
+    result = flash_service.answer_internal_query(db, "got a spare kafka person?", current_user=user, brains=brains)
     assert result["intent"] == "bench_availability"
 
 
 @pytest.mark.parametrize("reply", ["not json", json.dumps({"intent": "delete_everything", "query": "x"}), json.dumps([1])])
-def test_ai_cannot_invent_an_answer_or_an_intent(db, user, monkeypatch, reply):
-    monkeypatch.setattr(flash_service, "_ai_llm_call", _router(reply))
-    result = flash_service.answer_internal_query(db, "tell me something interesting", current_user=user)
+def test_ai_cannot_invent_an_answer_or_an_intent(db, user, reply):
+    def post(url, json=None, timeout=None):
+        return SimpleNamespace(status_code=200, json=lambda: {"message": {"content": reply}})
+
+    brains = Brains(small=SmallBrain(base_url="http://ollama:11434", model="m", timeout_s=1, post=post))
+    result = flash_service.answer_internal_query(db, "tell me something interesting", current_user=user, brains=brains)
     assert result == {"intent": "unknown", "reply": flash_service.UNSUPPORTED_QUERY_MESSAGE}
 
 
-def test_without_a_model_flash_still_answers_what_the_rules_know(db, user, monkeypatch):
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    assert flash_service.answer_internal_query(db, "what's on my plate", current_user=user)["intent"] == "my_tasks"
-    assert flash_service.answer_internal_query(db, "write me a poem", current_user=user)["intent"] == "unknown"
+def test_without_a_model_flash_still_answers_what_the_rules_know(db, user):
+    brains = Brains(small_offline_reason="FLASH_SMALL_LLM_BASE_URL is not set",
+                    large_offline_reason="ANTHROPIC_API_KEY is not set")
+    assert flash_service.answer_internal_query(db, "what's on my plate", current_user=user, brains=brains)["intent"] == "my_tasks"
+    assert flash_service.answer_internal_query(db, "write me a poem", current_user=user, brains=brains)["intent"] == "unknown"
+    assert not hasattr(flash_service, "classify_with_ai") and not hasattr(flash_service, "_ai_llm_call")
 
 
 def test_my_timesheets(db, user):
