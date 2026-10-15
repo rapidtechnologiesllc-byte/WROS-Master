@@ -301,7 +301,7 @@ const HOME_ROUTES = {
   ceo: '/ceo-fy-progress',
   cfo: '/cfo-dashboard',
   partner: '/partner-roi',
-  bu_head: '/bu-dashboard',
+  bu_head: '/bu-head-dashboard',
 };
 export const homeDashboard = () => getAuthority().home_dashboard || 'default';
 export const landingPath = (fallback) => HOME_ROUTES[homeDashboard()] || fallback;
