@@ -75,6 +75,7 @@ class QueueProcessorService:
         'hiring_stage_action': 45,
         'hiring_convert_to_bench': 45,
         'send_pipeline_email': 50,  # Graph draft + send; handler self-limits to 45s
+        'send_interview_notice': 35,  # one Graph send; handler self-limits to 30s
         'send_whatsapp_message': 60,  # WhatsApp API calls
         'send_email_message': 30,  # Email typically fast
         'send_sms_message': 30,  # SMS typically fast

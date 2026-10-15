@@ -433,6 +433,13 @@ def _action_screen(db: Session, pipeline: HiringPipeline) -> str:
 
 def _action_schedule(level: str):
     def action(db: Session, pipeline: HiringPipeline) -> str:
+        from app.services.interview_verdict_service import candidate_verdicts
+
+        # Fact-based: a round at this level already exists for this job (or with no job set),
+        # scheduled from the screens or by Flash -> nobody needs to be asked to schedule it
+        if any(verdict.level == level and panel.job_id in (pipeline.job_id, None)
+               for panel, verdict in candidate_verdicts(db, pipeline.candidate_id)):
+            return f"{level} round already exists: no scheduling task"
         label = "technical" if level == "L1" else "management"
         _recruiter_task(db, pipeline, f"Schedule {level} ({label}) interview: {{name}}",
                         f"{{name}} is ready for the {level} ({label}) round. Create the interview panel with "

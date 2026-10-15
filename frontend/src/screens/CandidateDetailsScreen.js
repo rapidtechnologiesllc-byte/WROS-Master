@@ -725,15 +725,10 @@ export default function CandidateDetailsScreen({
     if (end.getTime() <= start.getTime()) {
       end.setDate(end.getDate() + 1);
     }
-    const endDate = [
-      end.getFullYear(),
-      String(end.getMonth() + 1).padStart(2, "0"),
-      String(end.getDate()).padStart(2, "0"),
-    ].join("-");
-
+    // the form is in the scheduler's local time; the API stores UTC, so send ISO with the offset
     return {
-      startDateTime: `${scheduleForm.interviewDate}T${scheduleForm.startTime}:00`,
-      endDateTime: `${endDate}T${scheduleForm.endTime}:00`,
+      startDateTime: start.toISOString(),
+      endDateTime: end.toISOString(),
     };
   }, [
     scheduleForm.interviewDate,

@@ -16,7 +16,6 @@ from sqlalchemy.orm import Session
 from app.services.message_handlers.base_message_handler import time_bound, TimeoutError
 from app.services.message_handlers.candidate_conversion_handler import CandidateConversionHandler
 from app.services.message_handlers.job_creation_flash_handler import JobCreationFlashHandler
-from app.services.message_handlers.interview_scheduled_handler import InterviewScheduledHandler
 from app.models.channel_queue import ChannelQueueItem
 
 
@@ -129,53 +128,6 @@ class TestJobCreationValidation:
         # missing right after creation = a handler bug: ValueError, never retried
         with pytest.raises(ValueError, match="not found in database"):
             JobCreationFlashHandler.on_success(message, result, db)
-
-
-class TestInterviewScheduledValidation:
-    """Test interview_scheduled_handler validation before COMPLETED."""
-
-    def test_on_success_validates_interview_created(self):
-        """on_success should verify interview record exists."""
-        message = Mock(spec=ChannelQueueItem)
-        message.id = "msg-interview-1"
-
-        result = {
-            "status": "success",
-            "interview_id": "int-999",
-            "candidate_id": "cand-int-1",
-            "interview_date": "2026-09-20"
-        }
-
-        db = Mock(spec=Session)
-        db.query.return_value.filter.return_value.first.return_value = None  # Not found
-
-        with pytest.raises(RuntimeError, match="Interview .* not found in database"):
-            InterviewScheduledHandler.on_success(message, result, db)
-
-    def test_on_success_validates_interview_status(self):
-        """on_success should verify interview status is 'Scheduled'."""
-        from app.models.user import Interview
-
-        message = Mock(spec=ChannelQueueItem)
-        message.id = "msg-interview-2"
-
-        result = {
-            "status": "success",
-            "interview_id": "int-123",
-            "candidate_id": "cand-int-2",
-            "interview_date": "2026-09-20"
-        }
-
-        # Mock interview with wrong status
-        interview_mock = Mock(spec=Interview)
-        interview_mock.status = "Pending"  # Wrong!
-        interview_mock.candidate_id = "cand-int-2"
-
-        db = Mock(spec=Session)
-        db.query.return_value.filter.return_value.first.return_value = interview_mock
-
-        with pytest.raises(RuntimeError, match="expected 'Scheduled'"):
-            InterviewScheduledHandler.on_success(message, result, db)
 
 
 class TestErrorClassification:

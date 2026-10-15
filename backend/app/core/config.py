@@ -183,6 +183,16 @@ class Settings:
         os.getenv("INTERVIEW_DURATION_MINUTES", os.getenv("DEFAULT_INTERVIEW_DURATION_MINUTES", "60")))
     # Time zone used for a person whose profile has none
     INTERVIEW_DEFAULT_TIMEZONE: str = os.getenv("INTERVIEW_DEFAULT_TIMEZONE", "Asia/Kolkata")
+    # Every interview invites the candidate (CEO 2026-10-15). The automatic invite waits this long
+    # so an invite sent from the screen (POST /email/interview/invite/{id}) supersedes it
+    INTERVIEW_INVITE_DELAY_SECONDS: int = int(os.getenv("INTERVIEW_INVITE_DELAY_SECONDS", "300"))
+    # interview_reminders job: reminders before the start and feedback nudges after the end (minutes),
+    # sent only within this many minutes of their due time (older ones are skipped, never sent late)
+    INTERVIEW_REMINDER_MINUTES_BEFORE: tuple = tuple(
+        int(m) for m in os.getenv("INTERVIEW_REMINDER_MINUTES_BEFORE", "60,15").split(",") if m.strip())
+    INTERVIEW_FEEDBACK_NUDGE_MINUTES_AFTER: tuple = tuple(
+        int(m) for m in os.getenv("INTERVIEW_FEEDBACK_NUDGE_MINUTES_AFTER", "60,1440").split(",") if m.strip())
+    INTERVIEW_REMINDER_GRACE_MINUTES: int = int(os.getenv("INTERVIEW_REMINDER_GRACE_MINUTES", "30"))
     
     # Email Settings (if needed in future)
     SMTP_HOST: Optional[str] = os.getenv("SMTP_HOST")
