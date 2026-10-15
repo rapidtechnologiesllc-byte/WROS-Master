@@ -86,6 +86,17 @@ def require_experience(candidate: Candidate) -> None:
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+def require_employment_type(candidate: Candidate) -> None:
+    """Interview selection (CEO 2026-10-15): an explicit C2C/1099, or a type the candidate's
+    country does not accept, is not interviewed; UNKNOWN may interview."""
+    from app.services.employment_type_policy import EmploymentTypeNotAccepted, assert_may_interview
+
+    try:
+        assert_may_interview(candidate, "schedule an interview")
+    except EmploymentTypeNotAccepted as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 def _require_sequencing(db: Session, candidate_id: str, level: str, job_id: Optional[str],
                         panel: Optional[InterviewPanel] = None) -> None:
     from app.services.interview_sequencing_service import PriorRoundNotPassed, enforce_interview_sequencing_gate
@@ -132,6 +143,7 @@ def create_panel(db: Session, user: Users, *, candidate_id: str, job_id: Optiona
     candidate = ensure_candidate_visible(db, candidate_id, user)
     job = visible_job_or_404(db, user, job_id, f"Job with ID {job_id}") if job_id else None
     require_experience(candidate)
+    require_employment_type(candidate)
 
     level = (level or infer_level(round_name)).upper()
     if level not in LEVELS:
@@ -224,6 +236,7 @@ def schedule_interview(db: Session, user: Users, *, panel_id: int, candidate_id:
     if panel.candidate_id != candidate.candidateID:
         raise HTTPException(status_code=400, detail="The interview's candidate must be the panel's candidate")
     require_experience(candidate)
+    require_employment_type(candidate)
     _require_sequencing(db, candidate.candidateID, _panel_level(db, panel), panel.job_id, panel)
     _require_rehire_clearance(db, panel)
 

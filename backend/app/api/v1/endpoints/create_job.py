@@ -1150,9 +1150,12 @@ def create_job_application(
     # the 5-year rule applies at every step, the way into a job pipeline included (CEO)
     from app.services.submission_service import ExperienceIneligible, assert_experience_eligible
 
+    from app.services.employment_type_policy import EmploymentTypeNotAccepted, assert_may_interview
+
     try:
         assert_experience_eligible(candidate, "submit the candidate to a job")
-    except ExperienceIneligible as exc:
+        assert_may_interview(candidate, "submit the candidate to a job")
+    except (ExperienceIneligible, EmploymentTypeNotAccepted) as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
     # Duplicate check

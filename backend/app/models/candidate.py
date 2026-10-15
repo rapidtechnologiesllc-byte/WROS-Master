@@ -3,10 +3,12 @@ from sqlalchemy.orm import column_property, relationship
 import logging
 from app.models.base import Base
 
-# HRMS-P606 (R-03): only W2_FULLTIME may ever be submitted. UNKNOWN is the
-# safe-upgrade default for every existing row -- fails closed, same as C2C/1099,
-# until someone explicitly confirms the candidate is W2 full-time.
-CANDIDATE_EMPLOYMENT_TYPES = ("W2_FULLTIME", "C2C", "1099", "UNKNOWN")
+# One canonical set of employment types (CEO 2026-10-15). Which a candidate's country accepts,
+# and what each is called there ("W2 full-time" in the US, "Full-time" in India), is
+# configuration: app.services.employment_type_policy. C2C and 1099 are never accepted; UNKNOWN
+# (the default) fails closed at client submission (HRMS-P606) but may interview.
+# W2_FULLTIME rows became FULLTIME (app.core.db_contract._initialize_employment_types).
+CANDIDATE_EMPLOYMENT_TYPES = ("FULLTIME", "CONTRACT", "C2C", "1099", "UNKNOWN")
 
 # HRMS-P816: sourcing attribution. Immutable once set (BR-0816-01) --
 # enforced at the service layer (only set at creation time, in
@@ -63,9 +65,8 @@ class Candidate(Base):
     # Distinct from profile completeness (BR-01) -- never combine the two.
     resume_completeness_score = Column(Integer, nullable=True)
     # HRMS-P606 (R-03) -- fails closed to UNKNOWN for every existing row
-    # (see CANDIDATE_EMPLOYMENT_TYPES above); direct WROS-sourced candidates
-    # should be set to W2_FULLTIME explicitly by whichever story owns
-    # candidate creation/intake -- not assumed here.
+    # (see CANDIDATE_EMPLOYMENT_TYPES above); set on the profile, or FULLTIME/CONTRACT
+    # when the candidate is converted to an employee -- never assumed.
     employment_type = Column(
         Enum(*CANDIDATE_EMPLOYMENT_TYPES, name="candidate_employment_type", native_enum=False, create_constraint=True),
         nullable=False, server_default="UNKNOWN", default="UNKNOWN",
@@ -77,6 +78,10 @@ class Candidate(Base):
     # per-candidate values would come from whichever intake flow
     # eventually captures location -- not resolved here.
     timezone = Column(String(64), nullable=False, server_default="Asia/Kolkata", default="Asia/Kolkata")
+    # ISO 3166-1 alpha-2 country the candidate works from: decides which employment types are
+    # accepted (app.services.employment_type_policy). NULL = unknown: may interview, never
+    # submitted to a client.
+    country = Column(String(2), nullable=True)
     # HRMS-P816 -- internal-analytics-only, BR-0816-02: never exposed to
     # any candidate- or client-facing view/API response.
     source_channel = Column(

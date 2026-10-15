@@ -152,6 +152,11 @@ def _walk(db: Session, pipeline: HiringPipeline) -> Tuple[str, List[str], Dict]:
             experience = check_experience_eligibility(candidate)
             if not experience["is_eligible"]:
                 return reached, [f"not eligible (5-year rule): {experience['message']}"], refs
+            from app.services.employment_type_policy import interview_check
+
+            employment = interview_check(candidate)
+            if not employment["allowed"]:
+                return reached, [f"not eligible (employment type): {employment['message']}"], refs
         reached = "L1"
         # L1 -> L2 -> OFFER
         for level, nxt in (("L1", "L2"), ("L2", "OFFER")):

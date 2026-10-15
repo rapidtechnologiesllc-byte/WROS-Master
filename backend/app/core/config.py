@@ -183,6 +183,21 @@ class Settings:
         os.getenv("INTERVIEW_DURATION_MINUTES", os.getenv("DEFAULT_INTERVIEW_DURATION_MINUTES", "60")))
     # Time zone used for a person whose profile has none
     INTERVIEW_DEFAULT_TIMEZONE: str = os.getenv("INTERVIEW_DEFAULT_TIMEZONE", "Asia/Kolkata")
+    # Employment type by the candidate's country (CEO 2026-10-15), the one place this lives:
+    # app.services.employment_type_policy reads it. One canonical set of types (FULLTIME, CONTRACT,
+    # C2C, 1099, UNKNOWN); a country lists the types it accepts with its own labels, and "names"
+    # are how a free-text location names the country. A country not listed accepts nothing.
+    # C2C, 1099 and UNKNOWN can never be accepted (checked when the policy loads).
+    EMPLOYMENT_TYPE_POLICY_JSON: str = os.getenv("EMPLOYMENT_TYPE_POLICY_JSON", "") or """{
+      "labels": {"FULLTIME": "Full-time", "CONTRACT": "Contract", "C2C": "Corp-to-corp (C2C)",
+                 "1099": "1099 contractor", "UNKNOWN": "Not confirmed"},
+      "countries": {
+        "US": {"name": "United States", "names": ["united states", "united states of america", "usa", "us", "u.s.", "u.s.a."],
+               "accepts": {"FULLTIME": "W2 full-time", "CONTRACT": "W2 contract"}},
+        "IN": {"name": "India", "names": ["india", "in", "bharat"],
+               "accepts": {"FULLTIME": "Full-time", "CONTRACT": "Contract"}}
+      }
+    }"""
     # Every interview invites the candidate (CEO 2026-10-15). The automatic invite waits this long
     # so an invite sent from the screen (POST /email/interview/invite/{id}) supersedes it
     INTERVIEW_INVITE_DELAY_SECONDS: int = int(os.getenv("INTERVIEW_INVITE_DELAY_SECONDS", "300"))

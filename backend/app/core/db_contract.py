@@ -449,6 +449,7 @@ def _initialize_leadership_roles():
         _initialize_thunder_conversation_owner(db)
         _initialize_candidate_status_templates(db)
         _initialize_submission_violation_types(db)
+        _initialize_employment_types(db)
         _initialize_permission_row_tenants(db)
         _initialize_functions(db)
         _initialize_company_codes(db)
@@ -730,6 +731,38 @@ def _initialize_submission_violation_types(db):
     db.execute(text(f"ALTER TABLE app_schema.submission_violations ADD CONSTRAINT submission_violation_type "
                     f"CHECK (violation_type IN ({allowed}))"))
     db.commit()
+
+
+def _initialize_employment_types(db):
+    """One canonical employment-type set (CEO 2026-10-15): W2_FULLTIME becomes FULLTIME on
+    candidates, sub-vendor submissions and jobs, and the CHECK constraints are rebuilt from
+    CANDIDATE_EMPLOYMENT_TYPES. A candidate with no country gets the configured country its
+    free-text location names ("Pune, Maharashtra, India" -> IN). The policy is loaded first, so
+    a misconfigured EMPLOYMENT_TYPE_POLICY_JSON fails startup. Idempotent."""
+    from app.models.candidate import CANDIDATE_EMPLOYMENT_TYPES
+    from app.services.employment_type_policy import policy
+
+    countries = policy()["countries"]
+    allowed = ", ".join("'" + kind + "'" for kind in CANDIDATE_EMPLOYMENT_TYPES)
+    for table, constraint in (("candidates", "candidate_employment_type"),
+                              ("sub_vendor_submissions", "subvendor_submission_employment_type")):
+        db.execute(text(f"ALTER TABLE app_schema.{table} DROP CONSTRAINT IF EXISTS {constraint}"))
+        db.execute(text(f"UPDATE app_schema.{table} SET employment_type = 'FULLTIME' "
+                        f"WHERE employment_type = 'W2_FULLTIME'"))
+        db.execute(text(f"ALTER TABLE app_schema.{table} ADD CONSTRAINT {constraint} "
+                        f"CHECK (employment_type IN ({allowed}))"))
+    db.execute(text("UPDATE app_schema.jobs SET employment_type = 'FULLTIME' WHERE employment_type = 'W2_FULLTIME'"))
+    db.execute(text("ALTER TABLE app_schema.jobs ALTER COLUMN employment_type SET DEFAULT 'FULLTIME'"))
+    derived = 0
+    for code, country in countries.items():
+        names = sorted({n.lower() for n in country.get("names") or []} | {(country.get("name") or "").lower()} - {""})
+        derived += db.execute(text(
+            'UPDATE app_schema.candidates SET country = :code WHERE country IS NULL '
+            'AND lower(trim(regexp_replace("candidateCurrentLocation", \'^.*,\', \'\'))) = ANY(:names)'),
+            {"code": code, "names": names}).rowcount
+    db.commit()
+    if derived:
+        logger.info(f"[Contract] Candidate country derived from location for {derived} candidate(s)")
 
 
 def _initialize_permission_row_tenants(db):
@@ -1348,6 +1381,7 @@ def _run_schema_migrations():
             ("assigned_recruiter_id", "VARCHAR(512) NULL"),
             ("assigned_recruiter_changed_at", "TIMESTAMP NULL"),
             ("assigned_recruiter_changed_by", "VARCHAR(512) NULL"),
+            ("country", "VARCHAR(2) NULL"),
         ]
         for column_name, column_def in candidate_columns:
             try:
@@ -1430,7 +1464,7 @@ def _run_schema_migrations():
                 ("nice_to_have_skills", "TEXT NULL"),
                 ("max_experience_years", "NUMERIC(4,1) NULL"),
                 ("work_location", "VARCHAR(20) NOT NULL DEFAULT 'REMOTE'"),
-                ("employment_type", "VARCHAR(50) NOT NULL DEFAULT 'W2_FULLTIME'"),
+                ("employment_type", "VARCHAR(50) NOT NULL DEFAULT 'FULLTIME'"),
                 ("interview_type_required", "VARCHAR(20) NOT NULL DEFAULT 'L1_AND_L2'"),
                 ("positions_filled", "INTEGER NOT NULL DEFAULT 0"),
                 ("billing_rate_usd_cents", "INTEGER NULL"),

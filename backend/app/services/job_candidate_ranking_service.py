@@ -7,7 +7,8 @@ viewer may see (apply_bu_scope_to_candidate_query); for an onsite or hybrid job,
 whose location matches the job's.
 
 Hard gates, every time: the company-wide 5-year floor (check_experience_eligibility; unverified
-experience fails) and the job's own minimum (check_job_experience).
+experience fails), the job's own minimum (check_job_experience) and the employment type by
+country (employment_type_policy.interview_check: explicit C2C/1099 out, UNKNOWN in).
 
 Skills: SkillMatchingService.score_skills on canonical names. A candidate qualifies at
 settings.FLASH_MATCH_MIN_SCORE or above with no required skill missing.
@@ -27,6 +28,7 @@ from app.models.candidate_skill_tag import CandidateSkillTag
 from app.models.user import Jobs, Users
 from app.services.candidate_pipeline_stage import pipeline_stage_in
 from app.services.skill_matching_service import SkillMatchingService
+from app.services.employment_type_policy import interview_check
 from app.services.submission_service import MIN_EXPERIENCE_MONTHS, check_experience_eligibility, check_job_experience
 
 logger = logging.getLogger(__name__)
@@ -89,6 +91,8 @@ def rank_candidates_for_job(
         if not check_experience_eligibility(candidate)["is_eligible"]:
             continue
         if not check_job_experience(candidate, job)["allowed"]:
+            continue
+        if not interview_check(candidate)["allowed"]:  # explicit C2C/1099 never interviews
             continue
         result = SkillMatchingService.score_skills(
             job_skills, SkillMatchingService.candidate_skills(db, candidate, tags.get(candidate.candidateID, [])),

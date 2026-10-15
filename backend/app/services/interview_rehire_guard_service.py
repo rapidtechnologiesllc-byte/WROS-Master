@@ -244,6 +244,9 @@ def decide_rehire_review(
         if candidate is None:
             raise RehireReviewNotFound(f"Candidate {review.candidate_id} of review {review_id} not found")
         assert_experience_eligible(candidate, "schedule an interview")  # before anything changes
+        from app.services.employment_type_policy import assert_may_interview
+
+        assert_may_interview(candidate, "schedule an interview")
         panel = InterviewPanel(
             candidate_id=review.candidate_id,
             round_name=review.round_name,

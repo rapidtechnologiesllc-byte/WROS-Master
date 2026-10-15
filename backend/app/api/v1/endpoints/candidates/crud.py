@@ -92,6 +92,13 @@ def _serialize_skills(skills) -> Optional[str]:
         logger.warning(f"Failed to serialize skills: {e}")
         return None
 
+def _employment_type_label(candidate) -> Optional[str]:
+    from app.services.employment_type_policy import label
+
+    employment_type = getattr(candidate, 'employment_type', None)
+    return label(employment_type, getattr(candidate, 'country', None)) if employment_type else None
+
+
 def _build_candidate_response(
     candidate,
     candidate_status=None,
@@ -134,6 +141,9 @@ def _build_candidate_response(
         candidate_joining_date=getattr(candidate, 'candidateJoiningDate', None),
         candidate_notice_period=getattr(candidate, 'candidate_notice_period', None),
         candidate_current_location=candidate.candidateCurrentLocation,
+        candidate_country=getattr(candidate, 'country', None),
+        employment_type=getattr(candidate, 'employment_type', None),
+        employment_type_label=_employment_type_label(candidate),
         candidate_current_salary=getattr(candidate, 'candidateCurrentSalary', None),
         candidate_current_salary_type=getattr(candidate, 'candidateCurrentSalaryType', None),
         candidate_expected_salary=getattr(candidate, 'candidateExpectedSalary', None),
@@ -214,6 +224,18 @@ def _build_candidate_response(
         status=candidate_status.status if candidate_status else None,
         pipline_status=candidate_status.piplineStatus if candidate_status else None
     )
+
+@router.get(
+    "/employment-types",
+    dependencies=[Depends(require_role_template_permission("candidates", "can_view"))],
+)
+def get_employment_types():
+    """The employment-type picker: every type, labelled per country, accepted ones first
+    (app.services.employment_type_policy; configuration, CEO 2026-10-15)."""
+    from app.services.employment_type_policy import describe
+
+    return describe()
+
 
 @router.get(
     "/all",
@@ -655,6 +677,33 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         candidate.assigned_recruiter_changed_by = getattr(user, "UserID", None)
         _record_profile_edit(db, candidate_id, user, f"Recruiter set to {recruiter.UserName or recruiter.UserEmail}")
 
+    if request.candidate_current_location is not None and request.candidate_country is None:
+        # a free-text location that names a configured country sets it (never clears it)
+        from app.services.employment_type_policy import country_code
+
+        derived = country_code(request.candidate_current_location)
+        if derived and derived != candidate.country:
+            corrections['candidate_country'] = (candidate.country, derived)
+            candidate.country = derived
+
+    if request.candidate_country is not None:
+        country = request.candidate_country.strip().upper() or None
+        if country is not None and not re.fullmatch(r"[A-Z]{2}", country):
+            raise HTTPException(status_code=400, detail="candidate_country must be a two-letter ISO country code")
+        if country != candidate.country:
+            corrections['candidate_country'] = (candidate.country, country)
+            candidate.country = country
+
+    if request.employment_type is not None:
+        from app.models.candidate import CANDIDATE_EMPLOYMENT_TYPES
+
+        if request.employment_type not in CANDIDATE_EMPLOYMENT_TYPES:
+            raise HTTPException(status_code=400, detail=(
+                f"employment_type must be one of {', '.join(CANDIDATE_EMPLOYMENT_TYPES)}"))
+        if request.employment_type != candidate.employment_type:
+            corrections['employment_type'] = (candidate.employment_type, request.employment_type)
+            candidate.employment_type = request.employment_type
+
     if request.candidate_employee_type is not None:
         old_val = candidate.candidateEmployeeType
         candidate.candidateEmployeeType = request.candidate_employee_type
@@ -768,6 +817,9 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         candidate_current_salary=candidate.candidateCurrentSalary,
         candidate_current_salary_type=getattr(candidate, 'candidateCurrentSalaryType', None),
         candidate_source=candidate.candidateSource,
+        candidate_country=candidate.country,
+        employment_type=candidate.employment_type,
+        employment_type_label=_employment_type_label(candidate),
     )
 
 @router.patch(

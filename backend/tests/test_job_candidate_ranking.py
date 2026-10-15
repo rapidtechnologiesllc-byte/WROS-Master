@@ -170,3 +170,18 @@ def test_skill_matching_service_scores_by_candidate_id_and_tags(db, tenants, ski
     assert result["overall_recency_score"] == 100 and result["can_proceed"] is True
     with pytest.raises(ValueError):
         SkillMatchingService.score_candidate_skill_recency("CAN-missing", job.jobID, db)
+
+
+def test_explicit_c2c_and_1099_are_never_ranked_but_unknown_is(db, tenants, skill):
+    job = _job(db, [skill])
+    unknown = _cand(db, tags=[skill])
+    india_contract = _cand(db, tags=[skill])
+    india_contract.employment_type, india_contract.country = "CONTRACT", "IN"
+    c2c = _cand(db, tags=[skill])
+    c2c.employment_type, c2c.country = "C2C", "US"
+    ten99 = _cand(db, tags=[skill])
+    ten99.employment_type = "1099"
+    db.flush()
+    ranked = set(_ids(rank_candidates_for_job(db, job)))
+    assert {unknown.candidateID, india_contract.candidateID} <= ranked
+    assert not ranked & {c2c.candidateID, ten99.candidateID}
