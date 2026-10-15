@@ -143,6 +143,7 @@ def _approval_task(db: Session, employee: Employee, head_user_id: str, counted: 
                      f"billable Staff Aug days with no escalation. Approve or reject at {REVIEW_PATH}."),
         priority="HIGH", tenant_id=tenant_id, assigned_to_user_id=head_user_id,
         due_date=datetime.utcnow() + timedelta(days=settings.CORE_CERT_TASK_DUE_DAYS),
+        link=REVIEW_PATH,
     )
 
 

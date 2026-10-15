@@ -129,6 +129,9 @@ class Task(Base):
     # flagged if none is set). Same polymorphic-lite nullable-link
     # posture as expense_id/document_id/interview_id above.
     invoice_id = Column(String(512), ForeignKey("invoices.id"), nullable=True, index=True)
+    # In-app path the task opens (e.g. "/workforce/core-certification"); My Tasks follows it
+    # before any title-based guess. Always a same-site path (task_service.create_task checks).
+    link = Column(String(512), nullable=True)
 
     due_date = Column(DateTime, nullable=True, index=True)
     is_external = Column(Boolean, nullable=False, default=False)

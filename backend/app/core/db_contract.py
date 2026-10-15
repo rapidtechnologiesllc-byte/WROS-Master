@@ -1404,6 +1404,10 @@ def _run_schema_migrations():
         # the live table lacks (same create_all()-never-alters-existing-tables
         # gap as Migration 3). Discovered via a full model-vs-DB column scan.
         drifted_tables = {
+            # Task deep link: the in-app path My Tasks opens (task_service.create_task)
+            "tasks": [
+                ("link", "VARCHAR(512) NULL"),
+            ],
             # Expense receipts: attached file + automatic check (expense_receipt_service)
             "expense_records": [
                 ("receipt_file_path", "VARCHAR(1024) NULL"),
