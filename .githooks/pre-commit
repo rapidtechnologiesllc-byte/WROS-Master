@@ -54,9 +54,15 @@ echo ""
 if [ -n "$STAGED_JS_FILES" ]; then
     echo "[PHASE 1] Linting & Type Safety (Gates 1-5)"
 
-    # Gate 1: ESLint - Zero warnings
-    if command -v eslint &> /dev/null; then
-        if ! npx eslint $STAGED_JS_FILES --max-warnings 0 2>/dev/null; then
+    # Gate 1: ESLint - Zero warnings, with the frontend's own ESLint and the full react-app rules
+    # (frontend/.eslintrc.gate.json, hooks rules included). The production build keeps CRA's own
+    # config. A global eslint is a different major version that cannot read the config, and no
+    # eslint at all used to skip the gate silently: both fail.
+    STAGED_FRONTEND_JS=$(echo "$STAGED_JS_FILES" | grep '^frontend/' | sed 's#^frontend/##' || true)
+    if [ -n "$STAGED_FRONTEND_JS" ]; then
+        if [ ! -x frontend/node_modules/.bin/eslint ]; then
+            log_gate_failure 1 "ESLint zero warnings" "frontend/" "frontend ESLint not installed (run: cd frontend && npm ci)"
+        elif ! (cd frontend && ./node_modules/.bin/eslint --no-eslintrc -c .eslintrc.gate.json $STAGED_FRONTEND_JS --max-warnings 0); then
             log_gate_failure 1 "ESLint zero warnings" "$STAGED_JS_FILES" "ESLint warnings found (fix all before commit)"
         else
             log_gate_pass 1 "ESLint zero warnings"

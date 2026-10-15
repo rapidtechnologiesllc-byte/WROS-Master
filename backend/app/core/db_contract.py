@@ -326,7 +326,8 @@ LEADERSHIP_ROLES = {
                     "activity-feed", "ask-flash", "candidates", "jobs", "submissions", "interviews", "clients",
                     "opportunities", "pipeline-management", "demand-confirmation", "goals"],
             # LinkedIn Pipeline is a sub-page of the candidates resource (init_resources), not a resource
-            "v": ["offer-letters", "employees", "allocations", "utilization-dashboard", "resource-forecast", "projects", "resources", "invoices", "forecasts", "revenue",
+            "v": ["offer-letters", "employees", "allocations", "utilization-dashboard", "resource-forecast",
+                  "workforce-overview", "projects", "resources", "invoices", "forecasts", "revenue",
                   "executive-revenue-dashboard", "analytics", "partner-dashboard",
                   "partner-dashboard-view", "bu-head-dashboard", "bu-head-dashboard-view", "business-units",
                   "delivery-centers", "organizational-hierarchy", "ask-thunder"],
@@ -342,7 +343,8 @@ LEADERSHIP_ROLES = {
                     "activity-feed", "ask-flash", "candidates", "jobs", "submissions", "interviews",
                     "allocations", "timesheets", "projects", "resources", "opportunities", "demand-confirmation",
                     "pipeline-management", "clients"],
-            "v": ["offer-letters", "employees", "onboarding", "utilization-dashboard", "resource-forecast", "invoices", "forecasts", "revenue", "goals",
+            "v": ["offer-letters", "employees", "onboarding", "utilization-dashboard", "resource-forecast",
+                  "workforce-overview", "invoices", "forecasts", "revenue", "goals",
                   "bu-head-dashboard", "bu-head-dashboard-view", "business-units", "delivery-centers",
                   "organizational-hierarchy", "ask-thunder"],
         },
@@ -446,6 +448,7 @@ def _initialize_leadership_roles():
         _initialize_contract_catalog_only(db)
         _initialize_thunder_conversation_owner(db)
         _initialize_candidate_status_templates(db)
+        _initialize_submission_violation_types(db)
         _initialize_permission_row_tenants(db)
         _initialize_functions(db)
         _initialize_company_codes(db)
@@ -715,6 +718,18 @@ def _initialize_candidate_status_templates(db):
     db.commit()
     if added:
         logger.info(f"[Contract] Seeded {added} candidate status email template(s)")
+
+
+def _initialize_submission_violation_types(db):
+    """The violation_type CHECK constraint is rebuilt from VIOLATION_TYPES (create_all never
+    alters an existing table: the client-submission gates of 2026-10-14 added types). Idempotent."""
+    from app.models.submission import VIOLATION_TYPES
+
+    allowed = ", ".join("'" + kind + "'" for kind in VIOLATION_TYPES)
+    db.execute(text("ALTER TABLE app_schema.submission_violations DROP CONSTRAINT IF EXISTS submission_violation_type"))
+    db.execute(text(f"ALTER TABLE app_schema.submission_violations ADD CONSTRAINT submission_violation_type "
+                    f"CHECK (violation_type IN ({allowed}))"))
+    db.commit()
 
 
 def _initialize_permission_row_tenants(db):

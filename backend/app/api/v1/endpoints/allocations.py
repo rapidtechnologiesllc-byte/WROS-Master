@@ -47,11 +47,11 @@ from app.schemas.allocation import (
     DropdownItem,
     EndAllocationRequest,
 )
+from app.services.deployment_readiness_service import EmployeeNotDeployable
 from app.services.employee_allocation_service import (
     AllocationNeedsClient,
     AllocationOverCapacity,
     ProjectClientMismatch,
-    BuddyProgramNotGraduated,
     EmployeeAlreadyAllocated,
     allocate_employee_to_project,
     end_allocation,
@@ -170,7 +170,7 @@ def create_allocation(
         )
     except EmployeeAlreadyAllocated as exc:
         raise HTTPException(status_code=409, detail=str(exc))
-    except BuddyProgramNotGraduated as exc:
+    except EmployeeNotDeployable as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except AllocationOverCapacity as exc:
         raise HTTPException(status_code=409, detail=str(exc))

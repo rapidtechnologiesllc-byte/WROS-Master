@@ -53,6 +53,10 @@ _JOBS = (
     ScheduledJob("thunder_engagement_sweep", "app.services.thunder_engagement_sweep:run_sweep",
                  timedelta(minutes=10), timeout_s=120, sends_external=True,
                  backlog_guard="app.services.thunder_engagement_sweep:backlog_guard"),
+    # internal only: employees who meet the Core certification rules get one approval task for
+    # their BU Head; pending requests follow the current head (core_certification_service)
+    ScheduledJob("core_certification_sweep", "app.services.core_certification_service:run_daily_sweep",
+                 timedelta(days=1), timeout_s=300, daily_after_utc="05:00"),
     ScheduledJob("birthday_drafts", "app.services.culture_agent_service:generate_birthday_drafts",
                  timedelta(days=1), timeout_s=120, daily_after_utc="03:00"),
 )

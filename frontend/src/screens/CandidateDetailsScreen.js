@@ -1,6 +1,6 @@
 import { apiFetch } from "../services/api/client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Card, Button } from "../components/ui";
+import { Button } from "../components/ui";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
 import ProfileTabEditable from "./tabs/ProfileTabEditable";
 import FeedbackTab from "./tabs/FeedbackTab";
@@ -19,12 +19,7 @@ import {
   createCandidateHistoryEvent,
   HISTORY_EVENT_TYPES,
 } from "../services/api/candidateHistory";
-import {
-  listChecklistTemplates,
-  assignChecklistToCandidate,
-  getChecklistTemplate,
-  getCandidateChecklists,
-} from "../services/api/checklists";
+import { getCandidateChecklists } from "../services/api/checklists";
 import {
   createInterviewPanel,
   assignPanelMember,
@@ -33,7 +28,7 @@ import {
 import { sendPlainEmail, sendInterviewInvite } from "../services/api/email";
 import { getCandidateDocuments } from "../services/api/documents";
 import { getAllUsers } from "../services/api/users";
-import { getCandidateById, updateCandidate } from "../services/api/candidates";
+import { updateCandidate } from "../services/api/candidates";
 import {
   getOnlineInterviewEmailTemplate,
   getFaceToFaceInterviewEmailTemplate,
@@ -44,6 +39,7 @@ import StatusDropdown from "../components/ui/StatusDropdown";
 import PreonboardingModal from "./PreonboardingModal";
 import { getCandidateNotes, createCandidateNote } from "../services/api/notes";
 import { getCandidateApplications, getActiveJobs } from "../services/api/jobs";
+import { getSubmissionReadiness } from "../services/api/submissions";
 import ReactMarkdown from "react-markdown";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AcceptButton } from "../styles/CandidateSearchStyles";
@@ -71,14 +67,6 @@ const initialScheduleForm = {
   extraNotes: "",
 };
 
-const durationOptions = [
-  { label: "30 mins", value: "30" },
-  { label: "45 mins", value: "45" },
-  { label: "60 mins", value: "60" },
-  { label: "90 mins", value: "90" },
-  { label: "120 mins", value: "120" },
-];
-
 const timezoneOptions = [
   "Asia/Kolkata",
   "UTC",
@@ -90,11 +78,6 @@ const timezoneOptions = [
 
 const meetingPlatformOptions = ["Microsoft Teams", "Other"];
 
-const emailTemplateOptions = [
-  "Online Interview",
-  "Face to Face Interview",
-  "Custom",
-];
 const roundNameOptions = [
   { label: "L1 Interview", value: "L1 Interview" },
   { label: "L2 Interview", value: "L2 Interview" },
@@ -298,11 +281,18 @@ export default function CandidateDetailsScreen({
   const [notice, setNotice] = useState("");
   const [noticeType, setNoticeType] = useState("success");
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const [templates, setTemplates] = useState([]);
-  const [loadingTemplates, setLoadingTemplates] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState("");
-  const [selectedTemplateData, setSelectedTemplateData] = useState(null);
-  const [assigning, setAssigning] = useState(false);
+  // "Submit to Job" before the bench, "Submit to Client" for an employee (the modal re-checks per job)
+  const [submitAction, setSubmitAction] = useState(null);
+  useEffect(() => {
+    let live = true;
+    if (!candidate?.id) return undefined;
+    getSubmissionReadiness(candidate.id)
+      .then((r) => live && setSubmitAction(r?.action || null))
+      .catch((err) => console.error("[CandidateDetails] Could not check submission readiness:", err));
+    return () => {
+      live = false;
+    };
+  }, [candidate?.id]);
   const [isChecklistAssigned, setIsChecklistAssigned] = useState(false);
   const [showScheduleMenu, setShowScheduleMenu] = useState(false);
   const scheduleMenuRef = useRef(null);
@@ -317,7 +307,7 @@ export default function CandidateDetailsScreen({
   const [showPanelMemberDropdown, setShowPanelMemberDropdown] = useState(false);
   const [panelSearch, setPanelSearch] = useState("");
   const [preonboardingModal, setPreonboardingModal] = useState(false);
-  const [radioStatus, setRadioStatus] = useState("");
+  const [radioStatus] = useState("");
   const [updatedStatus, setUpdatedStatus] = useState(null);
   const [notes, setNotes] = useState([]);
   const [loadingNotes, setLoadingNotes] = useState(false);
@@ -372,10 +362,6 @@ export default function CandidateDetailsScreen({
     setActiveTab(defaultTab || "profile");
   }, [defaultTab, limitedMode]);
 
-  useEffect(() => {
-    if (!autoOpenSchedule) return;
-    openScheduleModal("online");
-  }, [autoOpenSchedule]);
 
   useEffect(() => {
     if (limitedMode || !candidate?.id) return;
@@ -419,21 +405,6 @@ export default function CandidateDetailsScreen({
     loadNotes();
   }, [candidate?.id]);
 
-  useEffect(() => {
-    if (!showAssignModal) return;
-    const fetchTemplates = async () => {
-      try {
-        setLoadingTemplates(true);
-        const res = await listChecklistTemplates();
-        setTemplates(res?.templates || []);
-      } catch (err) {
-        console.error("Failed to fetch templates", err);
-      } finally {
-        setLoadingTemplates(false);
-      }
-    };
-    fetchTemplates();
-  }, [showAssignModal]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -578,7 +549,7 @@ export default function CandidateDetailsScreen({
     if (candidate?.id) {
       loadCandidateJobs();
     }
-  }, [candidate?.id, limitedMode]);
+  }, [candidate?.id, candidate?.candidate_id, candidate?._id, limitedMode]);
 
   // Load full candidate details to populate all form fields (commented out - CandidateDetailsWrapper already loads this)
   //     try {
@@ -592,39 +563,6 @@ export default function CandidateDetailsScreen({
   //     loadFullCandidateDetails();
   //   }
   // }, [candidate?.id, limitedMode, onUpdateCandidate]);
-
-  const handleTemplateChange = async (id) => {
-    setSelectedTemplate(id);
-
-    try {
-      const res = await getChecklistTemplate(id);
-      setSelectedTemplateData(res);
-    } catch (err) {
-      console.error("Failed to fetch template details", err);
-    }
-  };
-
-  const handleAssignChecklist = async () => {
-    if (!selectedTemplate) return;
-    try {
-      setAssigning(true);
-      await assignChecklistToCandidate({
-        candidateId: candidate?.id,
-        templateId: selectedTemplate,
-      });
-      showNotice("Checklist assigned successfully");
-      setActiveTab("tasks");
-      setIsChecklistAssigned(true);
-      setShowAssignModal(false);
-      setSelectedTemplate("");
-      setSelectedTemplateData(null);
-    } catch (err) {
-      console.error(err);
-      showNotice(err?.message || "Failed to assign checklist", "error");
-    } finally {
-      setAssigning(false);
-    }
-  };
 
   const buildTemplateValues = (templateName, type) => {
     const candidateName = candidate?.name || "Candidate";
@@ -649,22 +587,6 @@ export default function CandidateDetailsScreen({
     const hours = String(end.getHours()).padStart(2, "0");
     const minutes = String(end.getMinutes()).padStart(2, "0");
     return `${hours}:${minutes}`;
-  };
-
-  const recomputeDuration = (dateValue, startTimeValue, endTimeValue) => {
-    if (!dateValue || !startTimeValue || !endTimeValue) return "";
-    const start = new Date(`${dateValue}T${startTimeValue}`);
-    const end = new Date(`${dateValue}T${endTimeValue}`);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-      return "";
-    }
-    if (end.getTime() <= start.getTime()) {
-      end.setDate(end.getDate() + 1);
-    }
-    const diffMinutes = Math.round(
-      (end.getTime() - start.getTime()) / (60 * 1000),
-    );
-    return String(diffMinutes);
   };
 
   const openScheduleModal = async (type) => {
@@ -706,6 +628,17 @@ export default function CandidateDetailsScreen({
     }
     setShowScheduleModal(true);
   };
+
+  // opened once when the screen is asked to (autoOpenSchedule), not again on every render;
+  // the ref holds the latest openScheduleModal so the effect needn't re-run when it changes
+  const openScheduleRef = useRef(openScheduleModal);
+  openScheduleRef.current = openScheduleModal;
+  const autoOpenedSchedule = useRef(false);
+  useEffect(() => {
+    if (!autoOpenSchedule || autoOpenedSchedule.current) return;
+    autoOpenedSchedule.current = true;
+    openScheduleRef.current("online");
+  }, [autoOpenSchedule]);
 
   const closeScheduleModal = () => {
     if (scheduling) return;
@@ -1293,7 +1226,6 @@ ${formattedJD}
     try {
       const res = await managerReviewApprove(record, action);
       if (res?.status === "success") {
-        const updatedCandidate = res?.data;
         if (action === "Approve") {
           const emailSend = await sendPlainEmail({
             toEmail: candidate?.email,
@@ -1435,7 +1367,7 @@ ${formattedJD}
                 </Button>
               ) : null}
               {hasPermission("candidates", "edit") &&
-              candidate?.pipelineStatus == "Pre-onboarding-Approval" ? (
+              candidate?.pipelineStatus === "Pre-onboarding-Approval" ? (
                 <AcceptButton
                   disabled={isApproved}
                   onClick={() => handlePreOnboardingAction(apiState, "Approve")}
@@ -1577,7 +1509,7 @@ ${formattedJD}
                     disabled={isChecklistAssigned}
                     onClick={() => setShowAssignModal(true)}
                   >
-                    Submit Job
+                    {submitAction === "SUBMIT_TO_JOB" || !submitAction ? "Submit to Job" : "Submit to Client"}
                   </Button>
                   <div className="relative" ref={notesMenuRef}>
                     <button
@@ -2259,18 +2191,6 @@ function CardBlock({ title, subtitle, children }) {
         ) : null}
       </div>
       {children}
-    </div>
-  );
-}
-function Info({ label, value }) {
-  return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-      <span className="text-xs uppercase tracking-wide text-gray-500">
-        {label}
-      </span>
-      <div className="font-medium text-sm text-gray-900 mt-1">
-        {value || "-"}
-      </div>
     </div>
   );
 }

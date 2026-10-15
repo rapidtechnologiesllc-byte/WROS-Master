@@ -1,6 +1,6 @@
 // Job list overview with actions.
 import { Briefcase, Plus } from "lucide-react";
-import { Button, Card, StatusBadge, Table } from "../components/ui";
+import { Button, Card } from "../components/ui";
 import TableView from "../components/ui/TableView";
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "../utils/Routes";
@@ -8,15 +8,10 @@ import { hasPermission } from "../utils/permissionsRoleTemplate";
 
 export default function JobsOverview({
   jobs,
-  onCreate,
   onOpenJob,
   onViewJob,
-  onDeleteJob,
   onPostToLinkedIn,
-  onApproveJob,
 }) {
-  const canDelete = Boolean(onDeleteJob);
-  const canApprove = Boolean(onApproveJob);
   const canCreateJob = hasPermission("jobs", "create");
   const submittedCount = jobs.filter((j) => j.status === "Submitted").length;
   const totalCount = jobs.length;

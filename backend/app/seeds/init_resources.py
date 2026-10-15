@@ -56,6 +56,8 @@ RESOURCE_ROUTES = {
     "convert-to-employee": "/hiring-pipeline",
     "utilization-dashboard": "/utilization-dashboard",
     "resource-forecast": "/forecast",
+    # bench / Staff Aug / Core: where every employee stands (CEO 2026-10-14)
+    "workforce-overview": "/workforce",
     # Sales
     "clients": "/client-management",
     "opportunities": "/opportunity-pipeline",
@@ -121,6 +123,7 @@ NAV_LABELS = {
     "bi-explorer": "BI Explorer",
     "htd-intake": "HTD Intake",
     "my-tasks": "My Tasks",
+    "workforce-overview": "Workforce Overview",
 }
 
 # Resources whose page is a tab of another page (Users & Access Control):

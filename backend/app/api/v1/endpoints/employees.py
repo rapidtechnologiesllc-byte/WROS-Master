@@ -27,6 +27,9 @@ so "bench-pool"/"bench-aging-alerts" never get swallowed as an id):
   POST   /employees/{employee_id}/mark-bench
   POST   /employees/{employee_id}/remove-from-bench
   GET    /employees/{employee_id}/bench-history
+  GET    /employees/{employee_id}/escalations
+  POST   /employees/{employee_id}/escalations
+  POST   /employees/escalations/{escalation_id}/resolve   (Director and above)
 """
 import json
 from datetime import date, datetime
@@ -41,6 +44,7 @@ from app.core.data_scope import bu_filter, ensure_assignable
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.employee import Employee
+from app.models.employee_escalation import EmployeeEscalation
 from app.models.resource_management import BenchPoolEntry
 from app.models.user import Users
 from app.core.logging import logger
@@ -50,6 +54,10 @@ from app.schemas.employee import (
     EmployeeCreateRequest,
     EmployeeItem,
     EmployeeListResponse,
+    EscalationCreateRequest,
+    EscalationItem,
+    EscalationListResponse,
+    EscalationResolveRequest,
     MarkBenchRequest,
     RecordUtilizationRequest,
     UtilizationHistoryItem,
@@ -460,3 +468,87 @@ def remove_from_bench(
     db.refresh(employee)
     return _to_item(db, employee)
 
+
+
+# --------------------------------------------------------------------------- escalations
+# An OPEN escalation keeps the employee away from every client (deployment_readiness_service);
+# only a Director or above resolves one, with a note (CEO 2026-10-14).
+
+def _escalation_item(row: EmployeeEscalation) -> EscalationItem:
+    return EscalationItem(
+        id=row.id, employee_id=row.employee_id, reason=row.reason, severity=row.severity, status=row.status,
+        raised_by_user_id=row.raised_by_user_id, raised_at=row.raised_at, resolved_by_user_id=row.resolved_by_user_id,
+        resolved_at=row.resolved_at, resolution_note=row.resolution_note,
+    )
+
+
+@router.get(
+    "/{employee_id}/escalations", response_model=EscalationListResponse,
+    dependencies=[Depends(require_resource_permission("employees", "view"))],
+    summary="Escalations raised against an employee (open first)",
+)
+def list_escalations(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    employee = _get_employee_or_404(db, employee_id, current_user)
+    rows = (
+        db.query(EmployeeEscalation)
+        .filter(EmployeeEscalation.employee_id == employee.id, EmployeeEscalation.tenant_id == current_user.tenant_id)
+        .order_by(EmployeeEscalation.status, EmployeeEscalation.raised_at.desc())
+        .all()
+    )
+    return EscalationListResponse(escalations=[_escalation_item(r) for r in rows])
+
+
+@router.post(
+    "/{employee_id}/escalations", response_model=EscalationItem, status_code=201,
+    dependencies=[Depends(require_resource_permission("employees", "edit"))],
+    summary="Raise an escalation (blocks client submission and deployment while open)",
+)
+def raise_escalation(
+    employee_id: str,
+    body: EscalationCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    employee = _get_employee_or_404(db, employee_id, current_user)
+    row = EmployeeEscalation(tenant_id=current_user.tenant_id, employee_id=employee.id, reason=body.reason.strip(),
+                             severity=body.severity, raised_by_user_id=current_user.UserID)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    logger.info(f"[Escalation] {row.id} raised on employee {employee.id} by {current_user.UserID}")
+    return _escalation_item(row)
+
+
+@router.post(
+    "/escalations/{escalation_id}/resolve", response_model=EscalationItem,
+    dependencies=[Depends(require_resource_permission("employees", "edit"))],
+    summary="Resolve an escalation (Director and above)",
+)
+def resolve_escalation(
+    escalation_id: str,
+    body: EscalationResolveRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    from app.core.authority import is_director
+
+    row = db.query(EmployeeEscalation).filter(
+        EmployeeEscalation.id == escalation_id, EmployeeEscalation.tenant_id == current_user.tenant_id,
+    ).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Escalation not found.")
+    _get_employee_or_404(db, row.employee_id, current_user)  # another BU's escalation is not found
+    if not is_director(db, current_user):
+        raise HTTPException(status_code=403, detail="Only a Director or above can resolve an escalation.")
+    if row.status != "OPEN":
+        raise HTTPException(status_code=409, detail="This escalation is already resolved.")
+    row.status, row.resolution_note = "RESOLVED", body.resolution_note.strip()
+    row.resolved_by_user_id, row.resolved_at = current_user.UserID, datetime.utcnow()
+    db.commit()
+    db.refresh(row)
+    logger.info(f"[Escalation] {row.id} resolved by {current_user.UserID}")
+    return _escalation_item(row)

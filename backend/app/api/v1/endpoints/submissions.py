@@ -31,16 +31,17 @@ Routes:
       The compliance audit log (every blocked attempt).
 """
 
+from app.services.deployment_readiness_service import DELIVERY_LINE_LABELS, EmployeeNotDeployable, job_line
 from app.services.employee_allocation_service import (
     AllocationNeedsClient,
     AllocationOverCapacity,
-    BuddyProgramNotGraduated,
     EmployeeAlreadyAllocated,
     ProjectClientMismatch,
 )
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.bu_scope import candidate_scope_filter, ensure_candidate_visible
@@ -48,19 +49,35 @@ from app.core.data_scope import job_filter, visible_job_or_404
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.candidate import Candidate
+from app.models.client import Client
+from app.models.employee import Employee
 from app.models.demand import Demand
-from app.models.submission import Submission, SubmissionViolation
+from app.models.submission import (
+    ALLOWED_SUBMISSION_TRANSITIONS,
+    SUBMISSION_STATUS_LABELS,
+    Submission,
+    SubmissionViolation,
+)
 from app.models.user import Users
 from app.schemas.submission import (
     ClientResponseRequest,
     CreateSubmissionRequest,
     SubmissionItem,
+    InternalSubmissionItem,
+    InternalSubmissionListResponse,
+    SubmissionCandidateOption,
+    SubmissionJobOption,
     SubmissionListResponse,
+    SubmissionOptionsResponse,
+    SubmissionReadinessResponse,
     SubmissionViolationItem,
     SubmissionViolationListResponse,
 )
 from app.services.submission_service import (
+    MARKET_PROFILE_ALLOWED_EMPLOYEE_STATUSES,
     DemandNotOpenForSubmission,
+    check_experience_eligibility,
+    client_submission_blockers,
     DuplicateSubmission,
     InvalidSubmissionTransition,
     SubmissionComplianceError,
@@ -88,10 +105,23 @@ def _to_item(db: Session, submission: Submission) -> SubmissionItem:
         f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip()
         if candidate else "(unknown candidate)"
     )
+    client = db.query(Client).filter(Client.id == submission.client_id).first()
+    employee = db.query(Employee).filter(Employee.candidate_id == submission.candidate_id).first()
+    line = job_line(db, demand) if demand else None
     return SubmissionItem(
         id=submission.id,
         demand_id=submission.demand_id,
         demand_job_title=demand.job_title if demand else "(unknown demand)",
+        client_name=client.company_name if client else None,
+        delivery_line=line,
+        delivery_line_label=DELIVERY_LINE_LABELS.get(line),
+        employee_status=employee.status if employee else None,
+        status_label=SUBMISSION_STATUS_LABELS.get(submission.status, submission.status),
+        next_statuses=[
+            {"value": nxt, "label": SUBMISSION_STATUS_LABELS.get(nxt, nxt)}
+            for nxt in sorted(ALLOWED_SUBMISSION_TRANSITIONS.get(submission.status, set()),
+                            key=list(SUBMISSION_STATUS_LABELS).index)
+        ],
         candidate_id=submission.candidate_id,
         candidate_name=candidate_name or "(unnamed candidate)",
         status=submission.status,
@@ -174,10 +204,177 @@ def list_submissions(
     submissions = query.order_by(Submission.submitted_at.desc()).all()
     return SubmissionListResponse(submissions=[_to_item(db, s) for s in submissions])
 
+def _candidate_issues(db: Session, candidate: Candidate) -> list:
+    """Job-independent blockers (the job's own gates are checked once a job is picked)."""
+    return [b["message"] for b in client_submission_blockers(db, candidate)]
+
+
+@router.get(
+    "/options",
+    dependencies=[
+        Depends(require_resource_permission("submissions", "view")),
+        Depends(get_current_internal_user),
+    ],
+    response_model=SubmissionOptionsResponse,
+    summary="Jobs and candidates the Submissions screen can pick from",
+)
+def submission_options(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Open client jobs and bench/active/allocated employees' candidates in the caller's scope,
+    with the jobs' BU, the candidates' BU lock, experience and employment type so the screen can
+    say why a pair would be blocked. Job scope matches POST: the caller's business units plus
+    jobs not yet assigned to one. The compliance gates still run on POST /submissions."""
+    jobs = (
+        db.query(Demand, Client.company_name)
+        .join(Client, Client.id == Demand.client_id)
+        .filter(
+            or_(Demand.tenant_id == current_user.tenant_id, Demand.tenant_id.is_(None)),
+            Demand.demand_status.in_(("OPEN", "IN_PROGRESS")),
+            job_filter(db, current_user, Demand.jobID),
+        )
+        .order_by(Client.company_name, Demand.jobTitle)
+        .all()
+    )
+    candidates = (
+        db.query(Candidate, Employee.status)
+        .join(Employee, Employee.candidate_id == Candidate.candidateID)
+        .filter(
+            Employee.status.in_(MARKET_PROFILE_ALLOWED_EMPLOYEE_STATUSES),
+            candidate_scope_filter(db, current_user, Candidate.candidateID),
+        )
+        .order_by(Candidate.candidateFirstName, Candidate.candidateLastName)
+        .all()
+    )
+    return SubmissionOptionsResponse(
+        jobs=[
+            SubmissionJobOption(id=job.id, job_title=job.job_title or "(untitled job)", client_id=job.client_id,
+                                client_name=client_name, status=job.status, business_unit_id=job.business_unit_id,
+                                delivery_line=job_line(db, job),
+                                delivery_line_label=DELIVERY_LINE_LABELS.get(job_line(db, job)))
+            for job, client_name in jobs
+        ],
+        candidates=[
+            SubmissionCandidateOption(
+                id=c.candidateID,
+                name=f"{c.candidateFirstName or ''} {c.candidateLastName or ''}".strip() or c.candidateID,
+                employee_status=status, total_experience_months=c.total_experience_months,
+                employment_type=c.employment_type, submission_bu_id=c.submission_bu_id,
+                issues=_candidate_issues(db, c),
+            )
+            for c, status in candidates
+        ],
+    )
+
+@router.get(
+    "/internal",
+    dependencies=[
+        Depends(require_resource_permission("submissions", "view")),
+        Depends(get_current_internal_user),
+    ],
+    response_model=InternalSubmissionListResponse,
+    summary="Internal submissions: market candidates on jobs, on their way to the bench",
+)
+def list_internal_submissions(
+    demand_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Every candidate put on a job (candidate_job_applications) who is not an employee yet,
+    with their hiring-pipeline stage (Screen, L1, L2, Offer ... Bench) and what blocks the next
+    step. Same scope as the external list: the caller's tenant, jobs and candidates in their
+    business units (or not yet assigned to one)."""
+    from app.models.candidate import CandidateJobApplication
+    from app.models.hiring_pipeline import HiringPipeline
+
+    query = (
+        db.query(CandidateJobApplication, Candidate, Demand)
+        .join(Candidate, Candidate.candidateID == CandidateJobApplication.candidate_id)
+        .join(Demand, Demand.jobID == CandidateJobApplication.job_id)
+        .outerjoin(Employee, Employee.candidate_id == Candidate.candidateID)
+        .filter(
+            Employee.id.is_(None),
+            Candidate.tenant_id == current_user.tenant_id,
+            job_filter(db, current_user, Demand.jobID),
+            candidate_scope_filter(db, current_user, Candidate.candidateID),
+        )
+    )
+    if demand_id:
+        query = query.filter(Demand.jobID == demand_id)
+    rows = query.order_by(CandidateJobApplication.applied_at.desc()).all()
+    candidate_ids = {candidate.candidateID for _, candidate, _ in rows}
+    latest_pipeline = {}  # the newest pipeline per candidate, in one query
+    for pipeline in (db.query(HiringPipeline).filter(HiringPipeline.candidate_id.in_(candidate_ids))
+                     .order_by(HiringPipeline.id).all() if candidate_ids else []):
+        latest_pipeline[pipeline.candidate_id] = pipeline
+    client_ids = {job.client_id for _, _, job in rows if job.client_id}
+    clients = {c.id: c for c in db.query(Client).filter(Client.id.in_(client_ids)).all()} if client_ids else {}
+    items = []
+    for application, candidate, job in rows:
+        pipeline = latest_pipeline.get(candidate.candidateID)
+        client = clients.get(job.client_id)
+        line = (client.line_type if client else None) if not job.project_id else job_line(db, job)
+        items.append(InternalSubmissionItem(
+            application_id=application.id, candidate_id=candidate.candidateID,
+            candidate_name=f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip()
+            or candidate.candidateID,
+            job_id=job.jobID, job_title=job.job_title or "(untitled job)",
+            client_name=client.company_name if client else None,
+            delivery_line=line,
+            delivery_line_label=DELIVERY_LINE_LABELS.get(line),
+            applied_at=application.applied_at, stage=pipeline.stage if pipeline else "SCREEN",
+            blockers=list(pipeline.blockers or []) if pipeline else [],
+        ))
+    return InternalSubmissionListResponse(submissions=items)
+
+
+@router.get(
+    "/readiness/{candidate_id}",
+    dependencies=[
+        Depends(require_resource_permission("submissions", "view")),
+        Depends(get_current_internal_user),
+    ],
+    response_model=SubmissionReadinessResponse,
+    summary="What the candidate's submit button does now, and what blocks it",
+)
+def submission_readiness(
+    candidate_id: str,
+    demand_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Before the bench a candidate is submitted to a job (L1 -> L2 -> ... -> bench); a bench
+    employee is submitted to the client. The blockers are exactly what POST /submissions (or
+    the job application, for SUBMIT_TO_JOB) would refuse with. Read-only: nothing is committed."""
+    from app.models.hiring_pipeline import HiringPipeline
+
+    candidate = ensure_candidate_visible(db, candidate_id, current_user)
+    demand = visible_job_or_404(db, current_user, demand_id, "Job") if demand_id else None
+    pipeline = (db.query(HiringPipeline).filter(HiringPipeline.candidate_id == candidate.candidateID)
+                .order_by(HiringPipeline.id.desc()).first())
+    stage = pipeline.stage if pipeline else None
+    employee = db.query(Employee).filter(Employee.candidate_id == candidate.candidateID).first()
+    if employee is None:
+        # the 5-year rule already applies on the way into a job pipeline
+        experience = check_experience_eligibility(candidate)
+        blockers = [] if experience["is_eligible"] else [experience]
+        return SubmissionReadinessResponse(
+            candidate_id=candidate.candidateID, stage=stage, is_employee=False, action="SUBMIT_TO_JOB",
+            blockers=[{"error": b["error"], "message": b["message"]} for b in blockers],
+        )
+    blockers = client_submission_blockers(db, candidate, demand)
+    return SubmissionReadinessResponse(
+        candidate_id=candidate.candidateID, stage=stage, is_employee=True,
+        action="NONE" if blockers else "SUBMIT_TO_CLIENT",
+        blockers=[{"error": b["error"], "message": b["message"]} for b in blockers],
+    )
+
+
 @router.get(
     "/violations",
     dependencies=[
-        Depends(require_resource_permission("resources", "view")),
+        Depends(require_resource_permission("submissions", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=SubmissionViolationListResponse,
@@ -208,7 +405,7 @@ def list_violations(
 @router.post(
     "/{submission_id}/client-response",
     dependencies=[
-        Depends(require_resource_permission("resources", "edit")),
+        Depends(require_resource_permission("submissions", "edit")),
         Depends(get_current_internal_user),
     ],
     response_model=SubmissionItem,
@@ -229,7 +426,7 @@ def client_response(
         )
     except InvalidSubmissionTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc))
-    except (EmployeeAlreadyAllocated, BuddyProgramNotGraduated, AllocationOverCapacity, AllocationNeedsClient,
+    except (EmployeeAlreadyAllocated, EmployeeNotDeployable, AllocationOverCapacity, AllocationNeedsClient,
             ProjectClientMismatch) as exc:
         # PLACED allocates the employee to the client; it can't be recorded half-done
         db.rollback()

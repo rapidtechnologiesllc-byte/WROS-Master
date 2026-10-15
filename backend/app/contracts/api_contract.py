@@ -148,7 +148,7 @@ MODULES_AND_RESOURCES = {
                     "risk-dashboard", "thunder-analytics", "bulk-launch",
                     "checklists"],
     "Workforce": ["employees", "onboarding", "allocations", "timesheets", "htd-intake", "buddy-program", "convert-to-employee",
-                  "utilization-dashboard", "resource-forecast"],
+                  "utilization-dashboard", "resource-forecast", "workforce-overview"],
     "Sales": ["clients", "opportunities", "sales-ops", "pipeline-management",
               "demand-confirmation"],
     "Project Management": ["projects", "resources", "budget", "schedule", "core-pull", "work-orders"],

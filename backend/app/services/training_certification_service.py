@@ -153,20 +153,20 @@ def get_open_positions(db: Session, business_unit_id: int = None) -> int:
 
 
 def get_core_certified_employees(db: Session, business_unit_id: int = None) -> list:
-    """Employees holding an active core certification."""
-    rows = _bu_certifications(db, business_unit_id).join(
-        Certification, Certification.id == EmployeeCertification.certification_id
-    ).filter(
-        Certification.is_core_certification == True,  # noqa: E712
-        EmployeeCertification.status == "Active",
-    ).with_entities(Employee, Certification.cert_name, EmployeeCertification.earned_date).all()
+    """Core-certified employees: Employee.core_certified, set when their BU Head approves (CEO
+    2026-10-14, app.services.core_certification_service). The same flag that gates Core jobs,
+    so this list and who can be submitted to a Core client never disagree. Technical
+    certificates flagged is_core_certification are tracked separately (get_next_training_steps)."""
+    rows = (_bu_employees(db, business_unit_id)
+            .filter(Employee.core_certified.is_(True), Employee.status != "EXITED")
+            .order_by(Employee.core_certified_date.desc()).all())
     return [
         {
             "name": _employee_name(employee),
-            "certification": cert_name,
-            "earned_date": earned_date.isoformat() if earned_date else None,
+            "certification": "Core (BU Head approved)",
+            "earned_date": employee.core_certified_date.isoformat() if employee.core_certified_date else None,
         }
-        for employee, cert_name, earned_date in rows
+        for employee in rows
     ]
 
 

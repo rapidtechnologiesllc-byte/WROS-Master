@@ -75,7 +75,7 @@ def _world(db, *, partner=True, currency="USD", contact=True):
     db.flush()
     job = Jobs(tenant_id=1, client_id=client.id, project_id=project.id, jobTitle="Dev", jobDescription="d",
                jobSkills="x", jobExperience="5", jobLocation="Remote", billing_rate_usd_cents=RATE)
-    worker = Employee(tenant_id=1, first_name="Sam", last_name="Lee", email=f"s{_uid()}@x.com",
+    worker = Employee(buddy_program_status="GRADUATED", core_certified=True, core_certified_date=date(2026, 1, 1), tenant_id=1, first_name="Sam", last_name="Lee", email=f"s{_uid()}@x.com",
                       joining_date=date(2025, 1, 1), status="BENCH", bu_id=unit.id if unit else None)
     db.add_all([job, worker])
     db.flush()

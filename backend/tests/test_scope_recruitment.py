@@ -170,7 +170,7 @@ def test_submissions_follow_their_job(db, w, api):
     assert {sub_a.id, sub_b.id} <= ids(api.get(w.org_user, "/api/v1/submissions").json())
     assert not ids(api.get(w.partner_a, f"/api/v1/submissions?demand_id={w.job_b.jobID}").json()) & {sub_b.id}
     response = api.post(w.partner_a, f"/api/v1/submissions/{sub_b.id}/client-response",
-                        json={"new_status": "CLIENT_REJECTED"})
+                        json={"new_status": "REJECTED_BY_CLIENT"})
     assert response.status_code == 404
     submit = api.post(w.partner_a, "/api/v1/submissions/",
                       json={"demand_id": w.job_b.jobID, "candidate_id": w.cand_u.candidateID})

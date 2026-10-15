@@ -238,7 +238,11 @@ def _person(db, role, job_title):
 def _roles(db):
     """The managed roles the tests rely on (seeded by db_contract in a real database)."""
     from app.models.org_structure import OrgRole
+    from app.models.tenant import Tenant
 
+    if db.query(Tenant).filter_by(id=1).first() is None:  # no other test may have made it yet
+        db.add(Tenant(id=1, name="test-tenant"))
+        db.flush()
     for name, level, designation in (("CFO", 16, "cfo"), ("Vice President", 14, None)):
         if not db.query(OrgRole).filter_by(tenant_id=1, name=name).first():
             db.add(OrgRole(tenant_id=1, name=name, hierarchy_level=level, designation=designation))
@@ -289,6 +293,7 @@ def test_home_dashboard_follows_the_role_position_not_the_template(db, job_title
 
 def test_home_dashboard_still_needs_the_dashboard_permission(db):
     """A CEO position whose template cannot view the CEO dashboard gets the general one."""
+    _roles(db)  # the tenant and managed roles, whatever ran before
     _position(db, "CEO", "ceo", 0)
     role = RoleTemplate(tenant_id=1, name=f"noperm-{_uid()}", display_name="R", hierarchy_level=5,
                         org_level_access=True, enabled=True)

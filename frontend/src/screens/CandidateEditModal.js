@@ -1,15 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import { CloudCog, FileText } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { FileText } from "lucide-react";
 import { Button, Card, Input, Select } from "../components/ui";
 import { uploadResume } from "../services/api/documents";
-import { updateCandidateStatus } from "../services/api/candidateStatus";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
 import {
   extractResumeText,
   inferFieldsFromResumeText,
 } from "../utils/resumeAutofill";
-import { assignJob, getAllJobs } from "../services/api/jobs";
-import { mapJobFromApi } from "../utils/jobMappers";
 
 function splitFullName(full) {
   const parts = String(full || "")
@@ -28,46 +25,24 @@ function splitFullName(full) {
   };
 }
 
-const PIPELINE_OPTIONS = [
-  "Applied",
-  "Screening",
-  "Interview",
-  "Pre-Boarding",
-  "Onboarded",
-  "Hired",
-  "Rejected",
-];
-
 export default function CandidateEditModal({
   candidate,
   onClose,
   onUpdateCandidate,
-  onRefreshCandidates,
 }) {
-  // Permission Gate: Only users with candidates.edit can edit candidates
-  if (!hasPermission('candidates', 'edit')) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div className="bg-white rounded-lg p-6 max-w-md">
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Access Denied</h2>
-          <p className="text-gray-600 mb-4">You do not have permission to edit candidates.</p>
-          <button
-            onClick={onClose}
-            className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const initialName = useMemo(
     () => splitFullName(candidate?.candidate_name || ""),
     [candidate],
   );
   const candidateId = candidate?.id;
-  const [candidateRole, setCandidateRole] = useState("");
+  // Permission Gate: Only users with candidates.edit can edit candidates.
+  // Evaluated before any early return so hook order stays stable.
+  const canEditCandidates = hasPermission('candidates', 'edit');
+  // Latest candidate snapshot, read by the reset effect below. The form is only
+  // re-seeded when a different candidate is opened (candidateId changes), so a
+  // background refresh of the candidate list does not wipe in-progress edits.
+  const candidateRef = useRef(candidate);
+  candidateRef.current = candidate;
   const [candidateJobTitle, setCandidateJobTitle] = useState(
     candidate?.candidate_job_title || "",
   );
@@ -100,16 +75,12 @@ export default function CandidateEditModal({
 
   const [resumeFile, setResumeFile] = useState(null);
   const [resumeParsing, setResumeParsing] = useState(false);
-  const [sendLoginEmail, setSendLoginEmail] = useState(false);
   const [actionNotice, setActionNotice] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [accountStatusEdit, setAccountStatusEdit] = useState("Active");
-  const [pipelineStatusEdit, setPipelineStatusEdit] = useState("Applied");
-  const [statusSaving, setStatusSaving] = useState(false);
-  const [users, setUsers] = useState([]);
   const [employeeType, setEmployeeType] = useState("");
 
   useEffect(() => {
+    const candidate = candidateRef.current;
     const nameParts = splitFullName(candidate?.candidate_name || "");
     setFirstName(nameParts.firstName);
     setMiddleName(nameParts.middleName);
@@ -135,12 +106,7 @@ export default function CandidateEditModal({
     setResumeFile(null);
     setResumeParsing(false);
     setActionNotice("");
-    setAccountStatusEdit(candidate?.status || "Active");
-
-    setPipelineStatusEdit(
-      candidate?.pipline_status || candidate?.pipeline_status || "Applied",
-    );
-  }, [candidateId, candidate?.status, candidate?.pipline_status, candidate?.pipeline_status]);
+  }, [candidateId]);
 
   const handleResumeFileChange = async (event) => {
     const file = event.target.files?.[0] || null;
@@ -169,6 +135,7 @@ export default function CandidateEditModal({
           : "Resume attached. Could not infer details — fill the form manually.",
       );
     } catch (err) {
+      console.error("[CandidateEditModal] Failed to parse resume:", err);
       setActionNotice(err.message || "Could not read resume for auto-fill.");
     } finally {
       setResumeParsing(false);
@@ -219,31 +186,31 @@ export default function CandidateEditModal({
       if (resumeFile) {
         await uploadResume({ candidateId, file: resumeFile });
       }
+      onClose?.();
     } catch (err) {
+      console.error("[CandidateEditModal] Failed to update candidate:", err);
       setActionNotice(err.message || "Failed to update candidate.");
     } finally {
       setIsSaving(false);
-      onClose?.();
     }
   };
 
-  const handleSaveStatus = async () => {
-    if (!candidateId) return;
-    setActionNotice("");
-    setStatusSaving(true);
-    try {
-      await updateCandidateStatus(candidateId, {
-        status: accountStatusEdit,
-        pipeline_status: pipelineStatusEdit,
-      });
-      await onRefreshCandidates?.();
-      setActionNotice("Account status and pipeline updated.");
-    } catch (err) {
-      setActionNotice(err.message || "Failed to update status.");
-    } finally {
-      setStatusSaving(false);
-    }
-  };
+  if (!canEditCandidates) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="bg-white rounded-lg p-6 max-w-md">
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600 mb-4">You do not have permission to edit candidates.</p>
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!candidate) return null;
 

@@ -1,28 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle, X } from 'lucide-react';
-import { Input, Button } from './ui';
+import { Input } from './ui';
 import { apiRequest } from '../services/api/client';
 import { hasPermission } from '../utils/permissionsRoleTemplate';
 
 const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuccess, modules }) => {
-  // Permission Gate: Only users with role-templates.edit can access this component
-  if (!hasPermission('role-templates', 'edit')) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div className="bg-white rounded-lg p-6 max-w-md">
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Access Denied</h2>
-          <p className="text-gray-600 mb-4">You do not have permission to manage role templates.</p>
-          <button
-            onClick={onClose}
-            className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
@@ -33,23 +15,27 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
   // A role's own permission set ({id, name, hierarchy_level}) vs a function add-on (null)
   const [ownerRole, setOwnerRole] = useState(null);
   const [functions, setFunctions] = useState(['General']);
+  const [permissions, setPermissions] = useState({});
+  const [expandedModules, setExpandedModules] = useState({});
+  const [actionError, setActionError] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState(null);
+  // Permission Gate: Only users with role-templates.edit can access this component.
+  // Evaluated before effects so no API calls fire for users without access.
+  const canManageTemplates = hasPermission('role-templates', 'edit');
 
   useEffect(() => {
+    if (!canManageTemplates) return;
     apiRequest('/admin/role-templates/functions', { method: 'GET' })
       .then(({ data }) => setFunctions(data.functions || ['General']))
       .catch((err) => {
         console.error('[RoleTemplateEditor] Failed to load functions:', err);
         setActionError(`Failed to load functions: ${err.message}`);
       });
-  }, []);
-  const [permissions, setPermissions] = useState({});
-  const [expandedModules, setExpandedModules] = useState({});
-  const [actionError, setActionError] = useState(null);
-  const [actionSuccess, setActionSuccess] = useState(null);
+  }, [canManageTemplates]);
 
   // Load template data when editing
   useEffect(() => {
-    if (mode === 'edit' && templateId) {
+    if (canManageTemplates && mode === 'edit' && templateId) {
       const fetchTemplate = async () => {
         try {
           const { data } = await apiRequest(`/admin/role-templates/${templateId}`, {
@@ -81,7 +67,8 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
           }
           setPermissions(permsHierarchy);
         } catch (err) {
-          console.error('Failed to load template:', err);
+          console.error('[RoleTemplateEditor] Failed to load template:', err);
+          setActionError(`Failed to load template: ${err.message}`);
         } finally {
           setLoading(false);
         }
@@ -89,7 +76,24 @@ const RoleTemplateEditor = ({ mode = 'create', templateId = null, onClose, onSuc
 
       fetchTemplate();
     }
-  }, [mode, templateId]);
+  }, [canManageTemplates, mode, templateId]);
+
+  if (!canManageTemplates) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="bg-white rounded-lg p-6 max-w-md">
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600 mb-4">You do not have permission to manage role templates.</p>
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const handleTogglePermission = (resourceName, action) => {
     setPermissions(prev => ({

@@ -30,6 +30,7 @@ existing ATSScore.overall_score -- not recomputed by this module).
 """
 import logging
 from datetime import datetime
+from decimal import Decimal
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
@@ -46,9 +47,12 @@ from app.services.demand_service import record_placement, transition_demand_stat
 
 MIN_EXPERIENCE_MONTHS = 60  # HRMS-P601 -- 5 years, R-01
 
-# HRMS-P605 -- only these Employee statuses may be submitted to a client.
-# ACTIVE here is this codebase's equivalent of the doc's ACTIVE_EMPLOYEE.
-MARKET_PROFILE_ALLOWED_EMPLOYEE_STATUSES = {"BENCH", "ACTIVE", "ALLOCATED"}
+# HRMS-P605 -- only these Employee statuses may be submitted to a client. ACTIVE here is this
+# codebase's equivalent of the doc's ACTIVE_EMPLOYEE; SPECIALITY_READY is the bench after Buddy
+# graduation. ALLOCATED stays allowed: whether an allocation holds the employee is decided from
+# their ACTIVE allocations (deployment_readiness_service.allocation_blockers: a Staff Aug
+# allocation does not hold them from a Core job, CEO 2026-10-14), never from the status field.
+MARKET_PROFILE_ALLOWED_EMPLOYEE_STATUSES = {"BENCH", "ACTIVE", "SPECIALITY_READY", "ALLOCATED"}
 
 # HRMS-P606 -- only W2_FULLTIME may be submitted; UNKNOWN fails closed
 # same as C2C/1099 (BR-02 of that story).
@@ -115,7 +119,7 @@ def check_market_profile_rule(db: Session, candidate_id: str) -> dict:
             "allowed": False, "candidate_status": employee.status,
             "error": "MARKET_PROFILE_SUBMISSION_BLOCKED",
             "message": (
-                f"Employee status is {employee.status}. Only BENCH, ACTIVE, or "
+                f"Employee status is {employee.status}. Only BENCH, ACTIVE, SPECIALITY_READY or "
                 f"ALLOCATED employees may be submitted to clients."
             ),
         }
@@ -161,6 +165,60 @@ def _log_violation(
         blocked_message=blocked_message,
     ))
 
+def check_job_experience(candidate: Candidate, demand: Demand) -> dict:
+    """The job's own minimum experience, on top of the company-wide 5-year floor."""
+    required_years = demand.min_experience_years
+    months = candidate.total_experience_months
+    if required_years is None or months is None:  # no job minimum / the floor already fails closed
+        return {"allowed": True}
+    required_months = Decimal(required_years) * 12
+    if months >= required_months:
+        return {"allowed": True}
+    return {
+        "allowed": False, "error": "JOB_EXPERIENCE_SHORT", "violation_type": "JOB_EXPERIENCE_SHORT",
+        "message": (f"The job needs {required_years} years of experience; the candidate has "
+                    f"{months // 12} years {months % 12} months."),
+    }
+
+
+def client_submission_blockers(db: Session, candidate: Candidate, demand: Optional[Demand] = None) -> List[dict]:
+    """Every reason the candidate cannot be submitted to a client right now (HRMS-0711 BR-01: all
+    of them, not the first). With a demand, the job's own gates too (its minimum experience, the
+    job's Core line, and which allocations hold the employee). The one rule set behind POST /submissions, readiness and the pickers.
+    Blockers carrying violation_type are logged to SubmissionViolation on a blocked attempt."""
+    blockers: List[dict] = []
+
+    experience = check_experience_eligibility(candidate)
+    if not experience["is_eligible"]:
+        blockers.append({**experience, "violation_type": "EXPERIENCE_INELIGIBLE",
+                         "candidate_status_at_time": str(candidate.total_experience_months)})
+
+    market_profile = check_market_profile_rule(db, candidate.candidateID)
+    if not market_profile["allowed"]:
+        blockers.append({**market_profile, "violation_type": "NO_MARKET_PROFILE"})
+
+    employment_type = check_employment_type_rule(candidate)
+    if not employment_type["allowed"]:
+        blockers.append({**employment_type, "violation_type": "C2C_NOT_ACCEPTED",
+                         "candidate_status_at_time": employment_type["employment_type"]})
+
+    employee = db.query(Employee).filter(Employee.candidate_id == candidate.candidateID).first()
+    if employee is not None:
+        from app.services.deployment_readiness_service import submission_blockers
+
+        blockers.extend(submission_blockers(db, employee, demand))
+
+    if demand is not None:
+        job_experience = check_job_experience(candidate, demand)
+        if not job_experience["allowed"]:
+            blockers.append(job_experience)
+
+    pipeline = check_hiring_pipeline_rule(db, candidate.candidateID)
+    if not pipeline["allowed"]:
+        blockers.append(pipeline)  # recorded in hiring_pipeline_events, not submission_violations
+    return blockers
+
+
 def create_submission(
     db: Session,
     *,
@@ -174,47 +232,20 @@ def create_submission(
     subvendor_id: Optional[str] = None,
 ) -> Submission:
     """
-    Runs all three compliance gates (BR-01 of HRMS-0711: all violations
-    returned, not just the first), then the demand-status and duplicate
-    checks. Raises SubmissionComplianceError / DemandNotOpenForSubmission
-    / DuplicateSubmission on failure -- never partially inserts.
+    Runs every client-submission gate (client_submission_blockers; BR-01 of HRMS-0711: all
+    violations returned, not just the first), then the demand-status and duplicate checks.
+    Raises SubmissionComplianceError / DemandNotOpenForSubmission / DuplicateSubmission on
+    failure -- never partially inserts.
     """
-    blockers: List[dict] = []
-
-    experience = check_experience_eligibility(candidate)
-    if not experience["is_eligible"]:
-        blockers.append(experience)
-        _log_violation(
-            db, tenant_id=tenant_id, recruiter_user_id=submitted_by_user_id,
-            candidate_id=candidate.candidateID, violation_type="EXPERIENCE_INELIGIBLE",
-            candidate_status_at_time=str(candidate.total_experience_months),
-            blocked_message=experience["message"],
-        )
-
-    market_profile = check_market_profile_rule(db, candidate.candidateID)
-    if not market_profile["allowed"]:
-        blockers.append(market_profile)
-        _log_violation(
-            db, tenant_id=tenant_id, recruiter_user_id=submitted_by_user_id,
-            candidate_id=candidate.candidateID, violation_type="NO_MARKET_PROFILE",
-            candidate_status_at_time=market_profile["candidate_status"],
-            blocked_message=market_profile["message"],
-        )
-
-    employment_type = check_employment_type_rule(candidate)
-    if not employment_type["allowed"]:
-        blockers.append(employment_type)
-        _log_violation(
-            db, tenant_id=tenant_id, recruiter_user_id=submitted_by_user_id,
-            candidate_id=candidate.candidateID, violation_type="C2C_NOT_ACCEPTED",
-            candidate_status_at_time=employment_type["employment_type"],
-            blocked_message=employment_type["message"],
-        )
-
-    pipeline = check_hiring_pipeline_rule(db, candidate.candidateID)
-    if not pipeline["allowed"]:
-        blockers.append(pipeline)  # recorded in hiring_pipeline_events, not submission_violations
-
+    blockers = client_submission_blockers(db, candidate, demand)
+    for blocker in blockers:
+        if blocker.get("violation_type"):
+            _log_violation(
+                db, tenant_id=tenant_id, recruiter_user_id=submitted_by_user_id,
+                candidate_id=candidate.candidateID, violation_type=blocker["violation_type"],
+                candidate_status_at_time=blocker.get("candidate_status_at_time") or blocker.get("candidate_status"),
+                blocked_message=blocker["message"],
+            )
     if blockers:
         db.flush()
         raise SubmissionComplianceError(blockers)
@@ -222,6 +253,10 @@ def create_submission(
     if demand.status not in ("OPEN", "IN_PROGRESS"):
         raise DemandNotOpenForSubmission(
             f"Cannot submit to demand in status '{demand.status}' -- must be OPEN or IN_PROGRESS."
+        )
+    if not demand.client_id:  # submissions.client_id is NOT NULL: a client submission needs a client
+        raise DemandNotOpenForSubmission(
+            f"Job {demand.id} has no client. Set the client on the job before submitting a candidate."
         )
 
     # BU Scoping: Check if candidate is already locked to a different BU

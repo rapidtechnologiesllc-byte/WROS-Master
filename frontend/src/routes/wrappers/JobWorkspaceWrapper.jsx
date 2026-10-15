@@ -3,16 +3,17 @@ import { useNavigate, useParams } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
 
 import JobWorkspaceScreen from "../../screens/JobWorkspaceScreen";
-import { getAllJobs } from "../../services/api/jobs";
 import { getCandidateById } from "../../services/api/candidates";
 import { getJobById, updateJob } from "../../services/api/jobs";
 import { mapJobFromApi } from "../Approutes";
+
+// The workspace never shows the hiring manager, so the job is mapped without a user directory.
+const NO_USERS = [];
 
 export default function JobWorkspaceWrapper({ candidates, notify }) {
   const { jobId } = useParams();
   const navigate = useNavigate();
   const [job, setJob] = useState(null);
-  const [users, setUsers] = useState([]);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -20,10 +21,11 @@ export default function JobWorkspaceWrapper({ candidates, notify }) {
       setError(null);
       try {
         const response = await getJobById(jobId);
-        const mappedJob = mapJobFromApi(response, users);
+        const mappedJob = mapJobFromApi(response, NO_USERS);
         setJob(mappedJob);
       } catch (err) {
-        setError("Failed to load job");
+        console.error(`[JobWorkspaceWrapper] Failed to load job ${jobId}: ${err.message}`, err);
+        setError(`Failed to load job: ${err.message}`);
       }
     };
 
@@ -76,7 +78,7 @@ export default function JobWorkspaceWrapper({ candidates, notify }) {
           Object.entries(fields).filter(([, v]) => v !== undefined),
         );
         const updated = await updateJob(job.id, payload);
-        setJob(mapJobFromApi(updated, users));
+        setJob(mapJobFromApi(updated, NO_USERS));
       }}
     />
   );

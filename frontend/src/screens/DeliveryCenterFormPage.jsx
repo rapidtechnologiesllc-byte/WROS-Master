@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, X } from 'lucide-react';
 import Button from '../components/ui/Button';
@@ -16,27 +16,12 @@ import { hasPermission } from '../utils/permissionsRoleTemplate';
 const DELIVERY_CENTERS_PATH = '/api/v1/api/admin/users-access-control/delivery-centers';
 
 export default function DeliveryCenterFormPage() {
-  // Permission Gate: Only users with delivery-centers.edit can create/edit delivery centers
-  if (!hasPermission('delivery-centers', 'edit')) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div className="bg-white rounded-lg p-6 max-w-md">
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Access Denied</h2>
-          <p className="text-gray-600 mb-4">You do not have permission to manage companies.</p>
-          <button
-            onClick={() => window.history.back()}
-            className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Go Back
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const { dcId } = useParams();
   const navigate = useNavigate();
   const mode = dcId ? 'edit' : 'create';
+  // Permission Gate: Only users with delivery-centers.edit can create/edit delivery centers.
+  // Evaluated before effects so no API calls fire for users without access.
+  const canEditCenters = hasPermission('delivery-centers', 'edit');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -52,26 +37,7 @@ export default function DeliveryCenterFormPage() {
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState(null);
 
-  useEffect(() => {
-    if (mode === 'edit' && dcId) {
-      loadDeliveryCenter();
-    }
-  }, [dcId, mode]);
-
-  useEffect(() => {
-    apiRequest(DELIVERY_CENTERS_PATH)
-      .then((res) => {
-        const parentList = (res.data?.delivery_centers || []).filter((c) => c.center_type === 'HQ' && String(c.id) !== String(dcId));
-        setParents(parentList);
-        // With no parent company yet, the first company added is the parent
-        if (mode === 'create' && parentList.length === 0) {
-          setFormData((prev) => ({ ...prev, center_type: 'HQ' }));
-        }
-      })
-      .catch((err) => setActionError(`Could not load companies: ${err.message}`));
-  }, [dcId, mode]);
-
-  const loadDeliveryCenter = async () => {
+  const loadDeliveryCenter = useCallback(async () => {
     try {
       setLoading(true);
       const res = await apiRequest(DELIVERY_CENTERS_PATH);
@@ -88,12 +54,52 @@ export default function DeliveryCenterFormPage() {
         setActionError('Company not found');
       }
     } catch (err) {
-      console.error('Failed to load delivery center:', err);
+      console.error('[DeliveryCenterFormPage] Failed to load delivery center:', err);
       setActionError(`Failed to load company: ${err.message}`);
     } finally {
       setLoading(false);
     }
-  };
+  }, [dcId]);
+
+  useEffect(() => {
+    if (canEditCenters && mode === 'edit' && dcId) {
+      loadDeliveryCenter();
+    }
+  }, [canEditCenters, dcId, mode, loadDeliveryCenter]);
+
+  useEffect(() => {
+    if (!canEditCenters) return;
+    apiRequest(DELIVERY_CENTERS_PATH)
+      .then((res) => {
+        const parentList = (res.data?.delivery_centers || []).filter((c) => c.center_type === 'HQ' && String(c.id) !== String(dcId));
+        setParents(parentList);
+        // With no parent company yet, the first company added is the parent
+        if (mode === 'create' && parentList.length === 0) {
+          setFormData((prev) => ({ ...prev, center_type: 'HQ' }));
+        }
+      })
+      .catch((err) => {
+        console.error('[DeliveryCenterFormPage] Failed to load companies:', err);
+        setActionError(`Could not load companies: ${err.message}`);
+      });
+  }, [canEditCenters, dcId, mode]);
+
+  if (!canEditCenters) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="bg-white rounded-lg p-6 max-w-md">
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600 mb-4">You do not have permission to manage companies.</p>
+          <button
+            onClick={() => window.history.back()}
+            className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Input (components/ui/Input.js) calls onChange with the raw string value,
   // not a synthetic event; the native <select> below still passes a real event.

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Card,
   Input,
@@ -12,6 +12,7 @@ import {
   Drawer,
   Button,
   Empty,
+  Alert,
 } from "antd";
 import { getAllOffers } from "../services/api/offerLetters";
 import {
@@ -26,45 +27,32 @@ function OfferLettersScreen() {
   const canViewOffers = hasPermission("offer-letters.view") || hasPermission("offer-letters");
   const canCreateOffers = hasPermission("offer-letters.create");
 
-  // Hide entire screen if no view permission
-  if (!canViewOffers) {
-    return (
-      <PageContainer>
-        <Card>
-          <Empty
-            description="Access Denied"
-            style={{ marginTop: 48, marginBottom: 48 }}
-          />
-          <p style={{ textAlign: "center", color: "#999" }}>
-            You don't have permission to view offer letters.
-          </p>
-        </Card>
-      </PageContainer>
-    );
-  }
-
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
+  const [loadError, setLoadError] = useState(null);
 
-  useEffect(() => {
-    loadOffers();
-  }, []);
-
-  const loadOffers = async () => {
+  const loadOffers = useCallback(async () => {
     try {
       setLoading(true);
+      setLoadError(null);
       const response = await getAllOffers();
       setOffers(response?.offers ?? []);
     } catch (error) {
-      console.error("Failed to load offers", error);
+      console.error("[OfferLettersScreen] Failed to load offers:", error);
+      setLoadError(`Failed to load offers: ${error?.message || "Unknown error"}`);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!canViewOffers) return;
+    loadOffers();
+  }, [canViewOffers, loadOffers]);
 
   const statistics = useMemo(() => {
     const counts = {};
@@ -128,6 +116,23 @@ function OfferLettersScreen() {
     }
     return candidates;
   }, [offers, searchText, statusFilter]);
+
+  // Hide entire screen if no view permission
+  if (!canViewOffers) {
+    return (
+      <PageContainer>
+        <Card>
+          <Empty
+            description="Access Denied"
+            style={{ marginTop: 48, marginBottom: 48 }}
+          />
+          <p style={{ textAlign: "center", color: "#999" }}>
+            You don't have permission to view offer letters.
+          </p>
+        </Card>
+      </PageContainer>
+    );
+  }
 
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
@@ -276,6 +281,15 @@ function OfferLettersScreen() {
       <div className="rounded-2xl border bg-white p-4 shadow-sm mb-4">
         <div className="text-lg font-bold text-gray-900">Offer Letters</div>
       </div>
+      {loadError && (
+        <Alert
+          type="error"
+          showIcon
+          message={loadError}
+          action={<Button size="small" onClick={loadOffers}>Retry</Button>}
+          style={{ marginBottom: 16 }}
+        />
+      )}
       <StatsContainer>
         <Row gutter={[16, 16]}>
           <Col span={4}>

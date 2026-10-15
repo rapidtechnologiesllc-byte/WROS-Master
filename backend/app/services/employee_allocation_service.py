@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from app.models.demand import Demand
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
+from app.services.deployment_readiness_service import assert_deployable
 from app.services.employee_service import transition_employee_status
 from app.services.resource_management_service import (
     log_allocation_conflict,
@@ -49,22 +50,6 @@ class ProjectClientMismatch(Exception):
     """The project belongs to a different client than the job."""
 
 
-class BuddyProgramNotGraduated(Exception):
-    """S-365/HRMS-0521 BR: no client deployment while an employee is
-    actively mid-Buddy-Program (IN_PROGRESS/EXTENDED)."""
-
-# S-365's BR reads as a blanket "buddy_program_status=GRADUATED required
-# for allocation," which read literally would also block every employee
-# who never entered a Buddy Program at all (buddy_program_status
-# defaults to NOT_STARTED) -- including every employee this codebase's
-# own pre-existing allocation tests already allocate successfully.
-# Scoped here to the two states that mean "actively mid-program, not
-# yet cleared" (IN_PROGRESS, EXTENDED) rather than blocking NOT_STARTED
-# too, which would silently invalidate already-tested behavior for a
-# reading the doc doesn't unambiguously require. Flagged, not decided
-# unilaterally as final -- confirm with whoever owns onboarding whether
-# NOT_STARTED should also block.
-_BUDDY_PROGRAM_BLOCKING_STATUSES = ("IN_PROGRESS", "EXTENDED")
 
 def allocate_employee_to_project(
     db: Session,
@@ -94,16 +79,13 @@ def allocate_employee_to_project(
     every ACTIVE allocation whose date range overlaps this one must not
     exceed 100 -- checked here, hard-blocked, not a soft warning.
     """
-    if employee.buddy_program_status in _BUDDY_PROGRAM_BLOCKING_STATUSES:
-        raise BuddyProgramNotGraduated(
-            f"Employee {employee.id} must complete Buddy Program graduation "
-            f"(current status: {employee.buddy_program_status}) before client deployment."
-        )
-
     if not demand.client_id:
         raise AllocationNeedsClient(
             f"Job {demand.id} has no client. Set the client on the job before allocating anyone to it."
         )
+    # Buddy graduated, no open escalation, Core-certified for a Core client (CEO 2026-10-14):
+    # the same gates as a client submission, on every path that deploys someone
+    assert_deployable(db, employee, demand)
     if project is None and getattr(demand, "project_id", None):
         # the job's project, so the allocation's time can be invoiced (an allocation with no
         # project never reaches an invoice)
@@ -162,8 +144,9 @@ def allocate_employee_to_project(
     )
     db.add(allocation)
 
-    if employee.status in ("BENCH", "ACTIVE"):
-        was_on_bench = employee.status == "BENCH"
+    # SPECIALITY_READY is the bench after Buddy graduation: leaving it for a client is the same move
+    if employee.status in ("BENCH", "ACTIVE", "SPECIALITY_READY"):
+        was_on_bench = employee.status in ("BENCH", "SPECIALITY_READY")
         transition_employee_status(
             db, employee, "ALLOCATED",
             reason=f"Allocated to demand {demand.id}", changed_by=changed_by,
