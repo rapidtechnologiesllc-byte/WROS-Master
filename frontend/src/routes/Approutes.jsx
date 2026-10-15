@@ -1,64 +1,36 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Dashboard from "../screens/Dashboard";
-import Documents from "../screens/Documents";
-import ActiveJobs from "../screens/ActiveJobs";
-import InterviewSchedule from "../screens/InterviewSchedule";
-import InterviewStatus from "../screens/InterviewStatus";
-import InterviewAnalytics from "../screens/InterviewAnalytics";
 import JobCreate from "../screens/JobCreate";
-import JobDetails from "../screens/JobDetails";
 import JobsOverview from "../screens/JobsOverview";
-import JobWorkspaceScreen from "../screens/JobWorkspaceScreen";
-import MatchingJobs from "../screens/MatchingJobs";
-import NewsletterScreen from "../screens/NewsletterScreen";
-import OfferScreen from "../screens/OfferScreen";
-import PreOnboarding from "../screens/PreOnboardingOld";
-import PreOnboardingPage from "../screens/PreOnboarding";
 import ChecklistTemplatesScreen from "../screens/ChecklistTemplatesScreen";
 import UsersAndAccessControl from "../screens/UsersAndAccessControl";
 import UserFormPage from "../screens/UserFormPage";
 import EmployeesConsolidatedScreen from "../screens/EmployeesConsolidatedScreen";
 import BusinessUnitFormPage from "../screens/BusinessUnitFormPage";
 import DeliveryCenterFormPage from "../screens/DeliveryCenterFormPage";
-import Verification from "../screens/Verification";
-import MyWorkspace from "../screens/MyWorkspace";
 import SystemHealth from "../screens/SystemHealth";
-import { getAllInterviews, updateInterview } from "../services/api/interviews";
+import { getAllInterviews } from "../services/api/interviews";
 import {
   getAllCandidates,
   getCandidateById,
   updateCandidate,
-  deleteCandidate,
 } from "../services/api/candidates";
 import {
   approveJob,
   deleteJob,
   getAllJobs,
-  updateJob,
   postJobOnLinkedIn,
 } from "../services/api/jobs";
-import { applyForJob } from "../services/api/jobs";
-import {
-  createOfferLetter,
-  getAllOffers,
-  getOfferById,
-  updateOfferLetter,
-  cancelOfferLetter,
-} from "../services/api/offerLetters";
+import { getAllOffers } from "../services/api/offerLetters";
 import { getAllUsers } from "../services/api/users";
-import {
-  getAllCandidateStatuses,
-  updateCandidateStatus,
-} from "../services/api/candidateStatus";
-import CandidateDetailsScreen from "../screens/CandidateDetailsScreen";
+import { getAllCandidateStatuses } from "../services/api/candidateStatus";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import OfferListing from "../screens/OfferListing";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import AuthPage from "../pages/AuthPage";
 import Shell from "../layout/Shell";
 import { adminRoutes } from "./AdminRoutes";
-import AssignmentsScreen from "../screens/AssignmentsScreen";
 import CandidateCreate from "../screens/CandidateCreate";
 import CandidateSearch from "../screens/CandidateSearch";
 import CandidateSelfService from "../screens/CandidateSelfService";
@@ -67,7 +39,6 @@ import { useNavigate } from "react-router-dom";
 import CandidateDetailsWrapper from "./wrappers/CandidateDetailsWrapper";
 import JobWorkspaceWrapper from "./wrappers/JobWorkspaceWrapper";
 import { ROUTES } from "../utils/Routes";
-import OfferLettersScreen from "../screens/OfferLettersScreen";
 import ThunderChatScreen from "../screens/ThunderChatScreen";
 import ResourceManagementScreen from "../screens/ResourceManagementScreen";
 import CorePullScreen from "../screens/CorePullScreen";
@@ -93,7 +64,6 @@ import RevenueScreen from "../screens/RevenueScreen";
 import TenantLocaleScreen from "../screens/TenantLocaleScreen";
 import PublicThunderChatScreen from "../screens/PublicThunderChatScreen";
 import CandidatePortalScreen from "../screens/CandidatePortalScreen";
-import MessageTemplatesScreen from "../screens/MessageTemplatesScreen";
 import EmailTemplatesScreen from "../screens/SettingsScreens/EmailTemplatesScreen";
 import APIKeysSettings from "../screens/APIKeysSettings";
 import InterventionQueueScreen from "../screens/InterventionQueueScreen";
@@ -120,7 +90,6 @@ import AdminWeeklyRecapDashboard from "../screens/AdminWeeklyRecapDashboard";
 import EmployeeConversionScreen from "../screens/EmployeeConversionScreen";
 import HiringPipelineScreen from "../screens/HiringPipelineScreen";
 import ForcePasswordReset from "../pages/ForcePasswordReset";
-import CEOExecutiveDashboardScreen from "../screens/CEOExecutiveDashboardScreen";
 import TrainingCertificationDashboard from "../screens/TrainingCertificationDashboard";
 import CertificationManagementScreen from "../screens/CertificationManagementScreen";
 import PartnerDashboard from "../screens/PartnerDashboard";
@@ -265,16 +234,16 @@ export const mapJobFromApi = (j, users = []) => {
   };
 };
 
-const normalizeJobStatusForApi = (uiStatus) => {
-  const raw = String(uiStatus || "").trim();
-  const lower = raw.toLowerCase();
-  if (lower === "open") return "active";
-  if (lower === "public") return "public";
-  if (lower === "draft") return "draft";
-  if (lower === "submitted") return "submitted";
-  if (lower === "closed") return "closed";
-  // e.g. "Pending Approval" -> "pending_approval"
-  return lower.replace(/\s+/g, "_");
+// Candidate pipeline statuses are an optional enrichment of the candidate list:
+// on failure the list still renders with its own status fields, and the error
+// is logged rather than swallowed.
+const loadCandidateStatusesOptional = async () => {
+  try {
+    return await getAllCandidateStatuses();
+  } catch (err) {
+    console.error("[AppRoutes] Failed to load candidate statuses:", err);
+    return null;
+  }
 };
 
 // NOTE: normalizeRole() REMOVED - role checking is now entirely permission-based
@@ -363,9 +332,6 @@ function AuthenticatedApp() {
   const [storedRole, setStoredRole] = useState(localStorage.getItem("permission_role"));
   const [storedJobTitle, setStoredJobTitle] = useState(localStorage.getItem("job_title"));
   const [permissionsLoading, setPermissionsLoading] = useState(true);
-  const storedUserType = String(localStorage.getItem("hrms_user_type") || "")
-    .trim()
-    .toLowerCase();
 
   // Deleting a job needs the jobs delete permission on the role template
   const canDeleteJobs = hasPermission("jobs", "delete");
@@ -404,6 +370,12 @@ function AuthenticatedApp() {
           }
         }
       } catch (error) {
+        // Fallback: keep the permissions cached at login so the app still renders,
+        // but never hide why the refresh failed.
+        console.error(
+          "[AppRoutes] Failed to refresh user permissions from /hr/me; using cached permissions:",
+          error,
+        );
       } finally {
         // CRITICAL: Mark loading as complete so Shell can render
         setPermissionsLoading(false);
@@ -417,38 +389,13 @@ function AuthenticatedApp() {
     }
   }, []);
 
-  const [role, setRole] = useState(storedRole);
-  const [candidateRecord, setCandidateRecord] = useState(null);
   const [candidates, setCandidates] = useState([]);
 
   const [jobs, setJobs] = useState([]);
   const [interviews, setInterviews] = useState([]);
   const [offers, setOffers] = useState([]);
   const [users, setUsers] = useState([]);
-  const [offerLoading, setOfferLoading] = useState(false);
-  const [offerError, setOfferError] = useState("");
-
-  const [selectedCandidateId, setSelectedCandidateId] = useState(
-    candidates[0]?.id || "",
-  );
-  const [selectedJobId, setSelectedJobId] = useState(jobs[0]?.id || "");
-  const [jobDetailsMode, setJobDetailsMode] = useState("view");
-  const [jobCreateMode, setJobCreateMode] = useState("create");
-  const [selectedCandidateData, setSelectedCandidateData] = useState(null);
-  const [candidateDetailsDefaultTab, setCandidateDetailsDefaultTab] =
-    useState("profile");
-  const [autoOpenSchedule, setAutoOpenSchedule] = useState(false);
-  const [apiState, setApiState] = useState();
   const navigate = useNavigate();
-  const selectedCandidate = useMemo(
-    () => candidates.find((c) => c.id === selectedCandidateId) || candidates[0],
-    [candidates, selectedCandidateId],
-  );
-
-  const selectedJob = useMemo(
-    () => jobs.find((j) => j.id === selectedJobId) || jobs[0],
-    [jobs, selectedJobId],
-  );
 
   const notify = useCallback((title, message) => {
     alertDialog(`${title}\n\n${message}`);
@@ -460,10 +407,7 @@ function AuthenticatedApp() {
       mapJobFromApi(j, users),
     );
     setJobs(mappedJobs);
-    if (!selectedJobId && mappedJobs.length) {
-      setSelectedJobId(mappedJobs[0].id);
-    }
-  }, [selectedJobId, users]);
+  }, [users]);
 
   const mapInterviews = useCallback((interviewRes) => {
     return (interviewRes || []).map((i) => ({
@@ -479,38 +423,17 @@ function AuthenticatedApp() {
     }));
   }, []);
 
-  const refreshInterviews = useCallback(async () => {
-    const refreshed = await getAllInterviews();
-    setInterviews(mapInterviews(refreshed));
-  }, [mapInterviews]);
-
-  const refreshOffers = useCallback(async () => {
-    try {
-      const res = await getAllOffers();
-      setOffers(res?.offers || []);
-    } catch (err) {
-      setOffers([]);
-    }
-  }, []);
-
   const refreshCandidates = useCallback(async () => {
     try {
       const [res, statusRes] = await Promise.all([
         getAllCandidates(),
-        getAllCandidateStatuses().catch(() => null),
+        loadCandidateStatusesOptional(),
       ]);
       let mapped = (res?.candidates || []).map(mapCandidateFromApi);
       if (statusRes) {
         mapped = mergeCandidateStatuses(mapped, statusRes);
       }
       setCandidates(mapped);
-      setSelectedCandidateData((prev) => {
-        if (!prev?.id) return prev;
-        const updatedCandidate = mapped.find(
-          (candidate) => candidate.id === prev.id,
-        );
-        return updatedCandidate || prev;
-      });
     } catch (err) {
       notify("Candidates", err.message || "Failed to refresh candidates.");
     }
@@ -533,7 +456,7 @@ function AuthenticatedApp() {
           getAllInterviews(),
           getAllOffers(),
           getAllUsers(),
-          getAllCandidateStatuses().catch(() => null),
+          loadCandidateStatusesOptional(),
         ]);
         if (!isMounted) return;
 
@@ -563,13 +486,6 @@ function AuthenticatedApp() {
         setCandidates(mappedCandidates);
         setJobs(mappedJobs);
         setInterviews(mappedInterviews);
-
-        if (!selectedCandidateId && mappedCandidates.length) {
-          setSelectedCandidateId(mappedCandidates[0].id);
-        }
-        if (!selectedJobId && mappedJobs.length) {
-          setSelectedJobId(mappedJobs[0].id);
-        }
       } catch (err) {
         if (!isMounted) return;
         notify("Load", err.message || "Failed to load data.");
@@ -620,8 +536,6 @@ function AuthenticatedApp() {
                 onLogout={handleLogout}
                 candidates={candidates}
                 jobs={jobs}
-                setSelectedCandidateData={setSelectedCandidateData}
-                setSelectedJobId={setSelectedJobId}
               />
             }
           >
@@ -720,7 +634,6 @@ function AuthenticatedApp() {
                   <CandidateSearch
                     candidates={candidates}
                     jobs={jobs}
-                    setAutoOpenSchedule={setAutoOpenSchedule}
                     onRefreshCandidates={refreshCandidates}
                     onCreateCandidate={() => navigate("/candidates/create")}
                   />
@@ -771,9 +684,6 @@ function AuthenticatedApp() {
               element={
                 <JobsOverview
                   jobs={jobs}
-                  onCreate={() => {
-                    setJobCreateMode("create");
-                  }}
                   onViewJob={(jobId) => {
                     navigate(`/jobs/${jobId}/workspace`);
                   }}
@@ -841,7 +751,6 @@ function AuthenticatedApp() {
                       },
                       ...prev,
                     ]);
-                    setSelectedJobId(j.id);
                     navigate(ROUTES.JOBS);
                   }}
                 />
@@ -867,12 +776,7 @@ function AuthenticatedApp() {
             <Route
               path="offers-listing"
               element={
-                <OfferListing
-                  onFetchCandidateById={async (candidateId) => {
-                    const res = await getCandidateById(candidateId);
-                    return mapCandidateFromApi(res || {});
-                  }}
-                />
+                <OfferListing />
               }
             />
 

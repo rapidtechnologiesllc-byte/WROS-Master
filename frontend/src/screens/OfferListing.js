@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Label, SectionTitle } from "../styles/Pre-onboardingModal";
+import { useNavigate } from "react-router-dom";
+import { Label } from "../styles/Pre-onboardingModal";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
 import { getAllJobs } from "../services/api/jobs";
 import { Select } from "antd";
@@ -19,10 +20,8 @@ import {
   ButtonDiv,
   RejectButton,
 } from "../styles/CandidateSearchStyles";
-import PreonboardingModal from "./PreonboardingModal";
 import SignatureModal from "../components/ui/SignatureModal";
-import { sendMailAttachments, sendPlainEmail } from "../services/api/email";
-import OfferConfirmationEmail from "../utils/offerLetterTemplate";
+import { sendPlainEmail } from "../services/api/email";
 import { EyeOutlined, DownloadOutlined } from "@ant-design/icons";
 import {
   DownloadButton,
@@ -36,15 +35,13 @@ import { getRejectionEmailHTML } from "../utils/rejectionEmailTemplate";
 import { mapJobFromApi } from "../utils/jobMappers";
 
 const OfferListing = () => {
+  const navigate = useNavigate();
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState("");
-  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [offerDetails, setOfferDetails] = useState([]);
-  const [preonboardingModal, setPreonboardingModal] = useState(false);
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [selectedOfferCandidate, setSelectedOfferCandidate] = useState(null);
-  const [signaturePng, setSignaturePng] = useState(null);
   const [signatureLoading, setSignatureLoading] = useState(false);
   const [rejectModalShow, setRejectModalShow] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -65,13 +62,18 @@ const OfferListing = () => {
       try {
         const refreshed = await getAllJobs();
         if (!isMounted) return;
+        // No user directory is loaded on this screen; mapJobFromApi only
+        // uses it to resolve owner names, which this list does not show.
         const mappedJobs = (refreshed?.jobs || []).map((j) =>
-          mapJobFromApi(j, users),
+          mapJobFromApi(j, []),
         );
         setJobs(mappedJobs);
       } catch (err) {
-        console.error("Failed to load offer jobs:", err);
-        throw new Error(`Failed to fetch offer letters jobs: ${err.message}`);
+        // Throwing here only produced an unhandled promise rejection; surface it.
+        console.error("[OfferListing] Failed to load jobs:", err);
+        if (isMounted) {
+          setActionError(`Failed to load jobs: ${err?.message || "Unknown error"}`);
+        }
       }
     };
     fetchData();
@@ -92,7 +94,10 @@ const OfferListing = () => {
         const list = await offerLetterByJobId(selectedJob?.id || "");
         setOfferDetails(list?.offers);
       } catch (err) {
-        console.error("Failed to load offer letters:", err);
+        console.error("[OfferListing] Failed to load offer letters:", err);
+        setActionError(
+          `Failed to load offer letters: ${err?.message || "Unknown error"}`,
+        );
       } finally {
         setLoading(false);
       }
@@ -111,7 +116,8 @@ const OfferListing = () => {
         const list = await getAllOffers({ status: statusSelected });
         setOfferDetails(list?.offers);
       } catch (err) {
-        console.error("Failed to fetch offers:", err);
+        console.error("[OfferListing] Failed to fetch offers:", err);
+        setActionError(`Failed to fetch offers: ${err?.message || "Unknown error"}`);
       } finally {
         setLoading(false);
       }
@@ -160,6 +166,7 @@ const OfferListing = () => {
       window.URL.revokeObjectURL(blobUrl);
       setActionSuccess("Offer letter downloaded successfully");
     } catch (error) {
+      console.error("[OfferListing] Offer letter download failed:", error);
       setActionError(`Download failed: ${error?.message || "Unknown error"}`);
     }
   };
@@ -176,37 +183,45 @@ const OfferListing = () => {
         selectedOfferCandidate?.id,
         payload,
       );
-      if (cancelOfferApi?.status === "Success") {
-        const result = await updateCandidateStatus(
-          selectedOfferCandidate?.candidate_id,
-          {
-            status: "Active",
-            pipeline_status: "Applied",
-          },
-        );
-        if (result?.status === "success") {
-          await sendPlainEmail({
-            toEmail: selectedOfferCandidate?.candidate_email,
-            subject: `Update on Your Application - ${selectedOfferCandidate?.position}`,
-            bodyContent: getRejectionEmailHTML(
-              selectedOfferCandidate?.candidate_name,
-            ),
-            isHtml: true,
-          });
-          const matchid = selectedOfferCandidate?.id;
-          setOfferDetails((prev) =>
-            prev.map((item) =>
-              item?.id == matchid
-                ? { ...item, offer_status: "Cancelled" }
-                : item,
-            ),
-          );
-          setActionSuccess("Offer rejected successfully");
-        }
+      if (cancelOfferApi?.status !== "Success") {
+        setActionError("Failed to cancel the offer letter");
+        return;
       }
+      const matchid = selectedOfferCandidate?.id;
+      setOfferDetails((prev) =>
+        prev.map((item) =>
+          String(item?.id) === String(matchid)
+            ? { ...item, offer_status: "Cancelled" }
+            : item,
+        ),
+      );
       setRejectModalShow(false);
       setRejectReason("");
+
+      const result = await updateCandidateStatus(
+        selectedOfferCandidate?.candidate_id,
+        {
+          status: "Active",
+          pipeline_status: "Applied",
+        },
+      );
+      if (result?.status !== "success") {
+        setActionError(
+          "Offer cancelled, but the candidate status could not be reset",
+        );
+        return;
+      }
+      await sendPlainEmail({
+        toEmail: selectedOfferCandidate?.candidate_email,
+        subject: `Update on Your Application - ${selectedOfferCandidate?.position}`,
+        bodyContent: getRejectionEmailHTML(
+          selectedOfferCandidate?.candidate_name,
+        ),
+        isHtml: true,
+      });
+      setActionSuccess("Offer rejected successfully");
     } catch (err) {
+      console.error("[OfferListing] Failed to reject offer:", err);
       setActionError(err?.message || "Failed to reject offer");
     }
   };
@@ -219,24 +234,12 @@ const OfferListing = () => {
         return (
           <button
             className="font-semibold text-gray-900 transition-colors hover:text-black hover:underline"
-            onClick={async () => {
-              setSelectedCandidateId(record?.candidate_id);
-              let finalCandidate = record;
-              if (onFetchCandidateById) {
-                try {
-                  const fresh = await onFetchCandidateById(
-                    record?.candidate_id,
-                  );
-                  if (fresh) {
-                    finalCandidate = fresh;
-                  }
-                } catch (err) {}
+            onClick={() => {
+              if (!record?.candidate_id) {
+                setActionError("This offer has no linked candidate");
+                return;
               }
-              setCandidateRecord(record);
-              setSelectedCandidate(finalCandidate);
-              setCandidateDetailsDefaultTab?.("profile");
-              setAutoOpenSchedule?.(false);
-              setScreen("candidateDetails");
+              navigate(`/candidates/${record.candidate_id}`);
             }}
           >
             {record?.candidate_name}
@@ -318,34 +321,27 @@ const OfferListing = () => {
         const releasOffer = await releaseOfferApi(candidateData?.id);
         if (releasOffer?.status === "success") {
           setActionSuccess("Offer Approved and released successfully");
+        } else {
+          setActionError("Offer approved, but releasing it failed");
         }
-
-        //   toEmail: candidateData?.candidate_email,
-        //   subject: `BlitzenX-Employment Offer ${candidateData?.candidate_name} | ${candidateData?.position} `,
-        //   bodyContent: OfferConfirmationEmail(
-        //     candidateData?.candidate_name,
-        //     candidateData?.position,
-        //     "BlitzenX",
-        //     candidateData?.job_id,
-        //   ),
-        //   files: [candidateData?.download_url],
-        //   is_html: false,
-        // });
+      } else {
+        setActionError("Failed to approve the offer letter");
       }
     } catch (error) {
-      setActionError("Offer Already Approved");
+      console.error("[OfferListing] Failed to approve/release offer:", error);
+      setActionError(error?.message || "Failed to approve the offer letter");
     }
   };
 
   const handleSignatureSave = async (pngData) => {
     try {
       setSignatureLoading(true);
-      setSignaturePng(pngData);
       if (selectedOfferCandidate) {
         await sendEmailOffer(pngData, selectedOfferCandidate);
       }
       setShowSignatureModal(false);
     } catch (err) {
+      console.error("[OfferListing] Failed to save signature:", err);
       setActionError(err?.message || "Failed to save signature");
     } finally {
       setSignatureLoading(false);

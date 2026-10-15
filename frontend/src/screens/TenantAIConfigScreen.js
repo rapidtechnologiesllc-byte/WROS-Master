@@ -5,8 +5,8 @@
 // per Step 3. No config-history UI (Section 9 explicitly excludes it)
 // -- "Last updated" below is the one real, unified timestamp this
 // story's own table actually stores, not per-section fabricated history.
-import { useEffect, useState } from "react";
-import { Bot, Clock, Gauge, Mail, Power, RefreshCw, AlertCircle, X, CheckCircle } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Bot, Clock, Gauge, Mail, Power, RefreshCw, X } from "lucide-react";
 import { Tabs } from "antd";
 import { Card, Button, Input, TextArea, Select } from "../components/ui";
 import { getTenantAIConfig, updateTenantAIConfig } from "../services/api/tenantAiConfig";
@@ -23,22 +23,23 @@ export default function TenantAIConfigScreen() {
   const [actionError, setActionError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       const res = await getTenantAIConfig();
       setConfig(res);
     } catch (err) {
+      console.error("[TenantAIConfigScreen] Failed to load AI configuration:", err);
       setError(err.message || "Failed to load AI configuration.");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const save = async (updates) => {
     try {
@@ -48,10 +49,26 @@ export default function TenantAIConfigScreen() {
       setTimeout(() => setActionSuccess(null), 3000);
       return true;
     } catch (err) {
+      console.error("[TenantAIConfigScreen] Failed to save AI configuration:", err);
       setActionError(err.message || "Failed to save.");
       return false;
     }
   };
+
+  if (!config && !loading && error) {
+    return (
+      <div className="grid gap-4">
+        <Card title="Tenant AI Configuration" subtitle="Could not load Thunder's settings.">
+          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>
+          <div className="mt-3">
+            <Button variant="ghost" onClick={load}>
+              <RefreshCw className="h-4 w-4" /> Retry
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   if (loading || !config) {
     return (
@@ -101,10 +118,10 @@ export default function TenantAIConfigScreen() {
             </Button>
           </div>
 
-          <IdentitySection config={config} save={save} />
-          <EngagementTimingSection config={config} save={save} />
+          <IdentitySection config={config} save={save} setActionError={setActionError} />
+          <EngagementTimingSection config={config} save={save} setActionError={setActionError} />
           <SlaSection config={config} save={save} />
-          <DigestSection config={config} save={save} />
+          <DigestSection config={config} save={save} setActionError={setActionError} />
           <GlobalControlsSection config={config} save={save} />
         </div>
       )
@@ -158,7 +175,7 @@ function SectionShell({ title, subtitle, icon, children, editing, onEdit, onCanc
   );
 }
 
-function IdentitySection({ config, save }) {
+function IdentitySection({ config, save, setActionError }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState(config.ai_agent_name);
@@ -230,7 +247,7 @@ function IdentitySection({ config, save }) {
   );
 }
 
-function EngagementTimingSection({ config, save }) {
+function EngagementTimingSection({ config, save, setActionError }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [greeting, setGreeting] = useState(config.greeting_channel);
@@ -355,7 +372,7 @@ function SlaSection({ config, save }) {
   );
 }
 
-function DigestSection({ config, save }) {
+function DigestSection({ config, save, setActionError }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [enabled, setEnabled] = useState(config.digest_enabled);

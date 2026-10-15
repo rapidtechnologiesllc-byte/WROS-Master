@@ -1,14 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
-import { Button, Input, StatusBadge, Table } from "../components/ui";
-import Toolbar from "../components/ui/Toolbar";
-import ReactMarkdown from "react-markdown";
-import { candidateAppendedJob, removeCandidateApi } from "../services/api/jobs";
-import CandidateEditModal from "./CandidateEditModal";
-import AssignJobModal from "./AssignJobModal";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Button, StatusBadge } from "../components/ui";
+import { candidateAppendedJob } from "../services/api/jobs";
 import CandidateAssignJobModal from "./CandidateAssignJobModal";
 import { getCandidateById } from "../services/api/candidates";
-import { UserMinus, AlertCircle, CheckCircle, X } from "lucide-react";
-import MoveStageDrawer from "../components/ui/MoveStageDrawer";
+import { AlertCircle, CheckCircle, X } from "lucide-react";
 import JobDetails from "./JobDetails";
 
 const TABS = ["Job Details", "Candidates", "Job Analytics"];
@@ -66,29 +61,22 @@ export default function JobWorkspaceScreen({
   onUpdateJob,
 }) {
   const [activeTab, setActiveTab] = useState("Candidates");
-  const [query, setQuery] = useState("");
-  const [sourceFilter, setSourceFilter] = useState("");
-  const [experienceFilter, setExperienceFilter] = useState("");
-  const [salaryFilter, setSalaryFilter] = useState("");
-  const [joinDaysFilter, setJoinDaysFilter] = useState("");
   const [selectedStage, setSelectedStage] = useState("All");
-  const [loading, setLoading] = useState(false);
   const [finalCandidates, setFinalCandidates] = useState([]);
-  const [assignModal, setAssignModal] = useState(false);
-  const [openMenuId, setOpenMenuId] = useState(null);
-  const [openMoveDrawer, setOpenMoveDrawer] = useState(false);
   const [showSubmitJobModal, setShowSubmitJobModal] = useState(false);
   const [selectedJobForSubmission, setSelectedJobForSubmission] =
     useState(null);
   const [actionError, setActionError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
 
-  const fetchCandidateJob = async () => {
-    try {
-      setLoading(true);
+  const jobId = job?.id;
 
-      const result = await candidateAppendedJob(job?.id);
+  const fetchCandidateJob = useCallback(async () => {
+    if (!jobId) return;
+    try {
+      const result = await candidateAppendedJob(jobId);
       const applications = result?.applications || [];
+      let failedLookups = 0;
 
       const enrichedCandidates = await Promise.all(
         applications.map(async (app) => {
@@ -100,6 +88,13 @@ export default function JobWorkspaceScreen({
               candidate: candidateDetails,
             };
           } catch (err) {
+            // Keep the application row (it exists on the job) but flag the
+            // missing profile instead of silently dropping the failure.
+            failedLookups += 1;
+            console.error(
+              `[JobWorkspaceScreen] Failed to load candidate ${app?.candidate_id}:`,
+              err,
+            );
             return {
               ...app,
               candidate: null,
@@ -109,14 +104,22 @@ export default function JobWorkspaceScreen({
       );
 
       setFinalCandidates(enrichedCandidates);
-      setLoading(false);
+      if (failedLookups > 0) {
+        setActionError(
+          `Could not load details for ${failedLookups} candidate(s) on this job.`,
+        );
+      }
     } catch (err) {
+      console.error("[JobWorkspaceScreen] Failed to load job candidates:", err);
+      setActionError(
+        `Failed to load candidates for this job: ${err?.message || "Unknown error"}`,
+      );
     }
-  };
+  }, [jobId]);
+
   useEffect(() => {
-    if (!job?.id) return;
     fetchCandidateJob();
-  }, [job?.id]);
+  }, [fetchCandidateJob]);
 
   const normalizedTitle = String(job?.title || "")
     .trim()
@@ -140,7 +143,6 @@ export default function JobWorkspaceScreen({
       experience: c.candidate_experience,
       location: c.candidate_current_location,
       source: "API",
-      createdAt: "—",
       status: c.status || c?.candidate?.pipline_status || "Sourced",
       pipelineStatus: c?.candidate?.pipline_status || c.status || "Sourced",
       createdAt: formatDate(c.applied_at),
@@ -171,165 +173,7 @@ export default function JobWorkspaceScreen({
       ...item,
       count: stageCounts[item.label] || 0,
     }));
-  }, [pipeline, stageCounts]);
-
-  const visibleCandidates = useMemo(() => {
-    return jobCandidates.filter((c) => {
-      const stage = getStageLabel(c);
-      const q = query.trim().toLowerCase();
-      const matchesQuery =
-        !q ||
-        String(c?.name || "")
-          .toLowerCase()
-          .includes(q) ||
-        String(c?.email || "")
-          .toLowerCase()
-          .includes(q) ||
-        String(c?.phone || "")
-          .toLowerCase()
-          .includes(q);
-      const matchesStage = selectedStage === "All" || stage === selectedStage;
-      const matchesSource =
-        !sourceFilter ||
-        String(c?.source || "")
-          .toLowerCase()
-          .includes(sourceFilter.toLowerCase());
-      const matchesExp =
-        !experienceFilter ||
-        String(c?.experience || "")
-          .toLowerCase()
-          .includes(experienceFilter.toLowerCase());
-      const matchesSalary =
-        !salaryFilter ||
-        String(c?.expectedSalary || "")
-          .toLowerCase()
-          .includes(salaryFilter.toLowerCase());
-      const matchesJoinDays =
-        !joinDaysFilter ||
-        String(c?.joiningDate || "")
-          .toLowerCase()
-          .includes(joinDaysFilter.toLowerCase());
-      return (
-        matchesQuery &&
-        matchesStage &&
-        matchesSource &&
-        matchesExp &&
-        matchesSalary &&
-        matchesJoinDays
-      );
-    });
-  }, [
-    jobCandidates,
-    query,
-    selectedStage,
-    sourceFilter,
-    experienceFilter,
-    salaryFilter,
-    joinDaysFilter,
-  ]);
-
-  const handleAssignedCandidate = (candidate) => {
-    setFinalCandidates((prev) => {
-      const exists = prev.some((c) => c.candidate_id === candidate.id);
-      if (exists) {
-        return prev.map((c) =>
-          c.candidate_id === candidate.id
-            ? {
-                ...c,
-                status: "Assigned",
-                pipelineStatus: "Assigned",
-              }
-            : c,
-        );
-      }
-
-      return [
-        ...prev,
-        {
-          candidate_id: candidate.id,
-          candidate_first_name: candidate.candidate_name?.split(" ")[0],
-          candidate_last_name: candidate.candidate_name?.split(" ")[1] || "",
-          candidate_email: candidate.candidate_email,
-          candidate_mobile: candidate.candidate_mobile,
-          status: "Assigned",
-          pipelineStatus: "Assigned",
-        },
-      ];
-    });
-  };
-
-  const removeCandidateHandler = async (candidateId) => {
-    if (!candidateId) {
-      setActionError("Invalid Candidate");
-      return;
-    }
-    try {
-      const result = await removeCandidateApi(job?.id, candidateId);
-      if (result?.status === 200) {
-        setActionSuccess("Candidate Removed");
-        setFinalCandidates((prev) =>
-          prev.filter((c) => c.candidate_id !== candidateId),
-        );
-      } else {
-        setActionError("Failed to remove candidate");
-      }
-    } catch (err) {
-      setActionError("Error occurred");
-    }
-  };
-
-  const handleActiveStatus = async (status, candidateId) => {
-    try {
-      const result = await updateCandidateStatus(candidateId, {
-        status: status,
-      });
-      if (result?.status === "success") {
-        setActionSuccess(`Candidate ${result?.data?.candidate_name} is Archived`);
-        const candidateStatus = await getCandidateStatus(candidateId);
-        setCandidateList((prev) =>
-          prev.map((c) =>
-            c.id === candidateId
-              ? {
-                  ...c,
-                  accountStatus: candidateStatus?.status,
-                  pipelineStatus: candidateStatus?.pipeline_status,
-                }
-              : c,
-          ),
-        );
-      }
-    } catch (err) {
-      console.error("Failed to update candidate status:", err);
-    }
-  };
-
-  const handleCandidateStatus = async (candidateId) => {
-    try {
-      const result = await updateCandidateStatus(candidateId, {
-        status: "Active",
-        pipeline_status: "Pre-Onboarding",
-      });
-      if (result?.status === "success") {
-        setActionSuccess(
-          `Candidate ${result?.data?.candidate_name} moved to Pre-Onboarding`,
-        );
-        const candidateStatus = await getCandidateStatus(candidateId);
-        setCandidateList((prev) =>
-          prev.map((c) =>
-            c.id === candidateId
-              ? {
-                  ...c,
-                  accountStatus: candidateStatus?.status,
-                  pipelineStatus: candidateStatus?.pipeline_status,
-                }
-              : c,
-          ),
-        );
-      }
-    } catch (err) {
-      setActionError(err?.message || "Failed to update candidate status");
-    }
-  };
+  }, [stageCounts]);
 
   return (
     <div className="space-y-4">
@@ -492,33 +336,33 @@ export default function JobWorkspaceScreen({
             </div>
           </div>
 
-          <div class="w-full rounded-xl border bg-gray-50 p-6 text-sm text-gray-700 shadow-sm">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <span class="font-bold">Pending review</span>
-                <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-600">
+          <div className="w-full rounded-xl border bg-gray-50 p-6 text-sm text-gray-700 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="font-bold">Pending review</span>
+                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-600">
                   New
                 </span>
-                <span class="text-gray-400 cursor-pointer">ⓘ</span>
+                <span className="text-gray-400 cursor-pointer">ⓘ</span>
               </div>
-              <div class="flex items-center gap-1 text-blue-500 text-sm cursor-pointer"></div>
+              <div className="flex items-center gap-1 text-blue-500 text-sm cursor-pointer"></div>
             </div>
 
-            <div class="mt-4">
-              <span class="text-3xl font-semibold text-blue-600">0</span>
-              <span class="ml-2 text-gray-500 text-sm">(Last 3 months)</span>
+            <div className="mt-4">
+              <span className="text-3xl font-semibold text-blue-600">0</span>
+              <span className="ml-2 text-gray-500 text-sm">(Last 3 months)</span>
             </div>
-            <div class="mt-6 flex items-center gap-6 text-sm text-gray-600">
-              <div class="flex items-center gap-2">
-                <span class="h-3 w-3 rounded-full bg-purple-400"></span>
+            <div className="mt-6 flex items-center gap-6 text-sm text-gray-600">
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full bg-purple-400"></span>
                 <span>Sourced (0)</span>
               </div>
-              <div class="flex items-center gap-2">
-                <span class="h-3 w-3 rounded-full bg-teal-400"></span>
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full bg-teal-400"></span>
                 <span>Screening (0)</span>
               </div>
-              <div class="flex items-center gap-2">
-                <span class="h-3 w-3 rounded-full bg-yellow-400"></span>
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full bg-yellow-400"></span>
                 <span>Interview (0)</span>
               </div>
             </div>
@@ -529,6 +373,18 @@ export default function JobWorkspaceScreen({
         <div className="rounded-2xl border bg-white p-6 text-sm text-slate-600 shadow-sm">
           {activeTab} section will be wired next.
         </div>
+      )}
+
+      {showSubmitJobModal && selectedJobForSubmission && (
+        <CandidateAssignJobModal
+          selectedJob={selectedJobForSubmission}
+          allCandidates={candidates}
+          onAssignSuccess={fetchCandidateJob}
+          onClose={() => {
+            setShowSubmitJobModal(false);
+            setSelectedJobForSubmission(null);
+          }}
+        />
       )}
     </div>
   );

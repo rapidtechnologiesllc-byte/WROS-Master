@@ -5,11 +5,44 @@ import { Button, Input } from "../components/ui";
 import { getHrMe, changeHrMePassword, updateWhatsAppNumber } from "../services/api/users";
 import { getNotifications, markNotificationRead } from "../services/api/notifications";
 import { useNavigate, useLocation } from "react-router-dom";
-import { ROUTES } from "../utils/Routes";
 import cx from "../utils/cx";
 import ThunderActivityFeedPanel from "../components/activity/ThunderActivityFeedPanel";
 import BUSwitcher from "../components/BUSwitcher";
 import { alertDialog } from "../utils/dialogs";
+
+// Pure search helpers: module scope so the memoised filters below depend only on their inputs.
+const getSearchableText = (item, fields) =>
+  fields
+    .map((field) => {
+      const value = item?.[field];
+      if (Array.isArray(value)) {
+        return value.join(" ");
+      }
+      return value || "";
+    })
+    .join(" ")
+    .toLowerCase();
+const matchesSearch = (item, query, fields) => {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const searchableText = getSearchableText(item, fields);
+  const matchesKeyword = (keyword) => {
+    const cleanKeyword = keyword.trim().toLowerCase();
+    if (!cleanKeyword) return true;
+    return searchableText.includes(cleanKeyword);
+  };
+  if (q.includes(" and ")) {
+    return q.split(" and ").every((keyword) => matchesKeyword(keyword));
+  }
+  if (q.includes(" or ")) {
+    return q.split(" or ").some((keyword) => matchesKeyword(keyword));
+  }
+  if (q.includes(" not ")) {
+    const [includeKeyword, excludeKeyword] = q.split(" not ");
+    return matchesKeyword(includeKeyword) && !matchesKeyword(excludeKeyword);
+  }
+  return matchesKeyword(q);
+};
 
 export default function TopBar({
   role,
@@ -140,39 +173,6 @@ export default function TopBar({
     setShowNewPassword(false);
     setShowPasswordModal(true);
   };
-  const getSearchableText = (item, fields) =>
-    fields
-      .map((field) => {
-        const value = item?.[field];
-        if (Array.isArray(value)) {
-          return value.join(" ");
-        }
-        return value || "";
-      })
-      .join(" ")
-      .toLowerCase();
-  const matchesSearch = (item, query, fields) => {
-    const q = query.trim().toLowerCase();
-    if (!q) return true;
-    const searchableText = getSearchableText(item, fields);
-    const matchesKeyword = (keyword) => {
-      const cleanKeyword = keyword.trim().toLowerCase();
-      if (!cleanKeyword) return true;
-      return searchableText.includes(cleanKeyword);
-    };
-    if (q.includes(" and ")) {
-      return q.split(" and ").every((keyword) => matchesKeyword(keyword));
-    }
-    if (q.includes(" or ")) {
-      return q.split(" or ").some((keyword) => matchesKeyword(keyword));
-    }
-    if (q.includes(" not ")) {
-      const [includeKeyword, excludeKeyword] = q.split(" not ");
-      return matchesKeyword(includeKeyword) && !matchesKeyword(excludeKeyword);
-    }
-    return matchesKeyword(q);
-  };
-
   const crumbs = useMemo(() => {
     const path = location.pathname;
     const pathMap = {

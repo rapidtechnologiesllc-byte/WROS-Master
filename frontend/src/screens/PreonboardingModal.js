@@ -1,54 +1,25 @@
-import React, { useEffect, useRef, useState, useLayoutEffect } from "react";
-import { Button, Card, Input, Select, TextArea } from "../components/ui";
+import React, { useCallback, useEffect, useState } from "react";
+import { Button, Input, Select } from "../components/ui";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
-import { updateCandidateStatus } from "../services/api/candidates";
 import { AlertCircle, CheckCircle, X } from "lucide-react";
+import { DatePicker, Form, Steps, Checkbox, Avatar } from "antd";
 import {
-  DatePicker,
-  Divider,
-  Form,
-  Steps,
-  Checkbox,
-  Table,
-  Avatar,
-  Collapse,
-} from "antd";
-import {
-  AvatarWrapper,
   BonusButtonDiv,
-  CandidateRole,
-  CandidateWrapper,
   CheckBoxesDiv,
   ContactPersonDiv,
-  Content,
-  DateText,
-  DetailItem,
-  DetailsGrid,
   DocumentPaper,
   DocumentViewer,
   EmptyState,
   FormStepContainer,
-  Header,
-  HeaderRow,
   IconDiv,
-  Label,
-  Name,
   NameDiv,
   PreviewLayout,
   PreviewTopBar,
-  Role,
-  SectionTitle,
   Span,
-  StepperDiv,
-  Title,
-  UserInfo,
-  Value,
-  Wrapper,
 } from "../styles/Pre-onboardingModal";
-import { EyeIcon, FileText } from "lucide-react";
+import { EyeIcon } from "lucide-react";
 import SalaryModal from "./SalaryModal";
 import BonusModal from "./BonusModal";
-import { DownOutlined } from "@ant-design/icons";
 import { getAllJobs } from "../services/api/jobs";
 import { departmentList, listBusinessUnits } from "../services/api/rbac";
 import {
@@ -59,13 +30,11 @@ import {
   offerLetterById,
   salaryStructure,
 } from "../services/api/offerLetters";
-import { renderAsync } from "docx-preview";
-import { viewDocument } from "../services/api/documents";
 import DocxViewer from "../components/ui/DocxViewer";
-import { sendMailAttachments } from "../services/api/email";
-import OfferConfirmationEmail from "../utils/offerLetterTemplate";
 import SignatureModal from "../components/ui/SignatureModal";
-import { dayjs } from "dayjs";
+// dayjs only has a default export; the old named import resolved to
+// undefined, so pre-filling an existing offer's dates threw at runtime.
+import dayjs from "dayjs";
 import { mapJobFromApi } from "../utils/jobMappers";
 
 // State for action feedback (replaces toast notifications)
@@ -88,14 +57,12 @@ const PreonboardingModal = ({
   onSuccess,
 }) => {
   const Locations = ["Hyderabad", "Chennai", "Texas", "Remote"];
-  const Department = ["PRISM", "Sales", "HR"];
 
   // Action feedback state
   const { actionError, setActionError, actionSuccess, setActionSuccess, clearError, clearSuccess } = useActionFeedback();
 
   const [selectLocation, setSelectLocation] = useState();
   const [selectDepartment, setSelectDepartment] = useState();
-  const [note, setNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [current, setCurrent] = useState(0);
   const [email, setEmail] = useState(candidate?.email);
@@ -104,8 +71,6 @@ const PreonboardingModal = ({
   const [salaryTable, setSalaryTable] = useState(false);
   const [bonus, setBonus] = useState(false);
   const [jobs, setJobs] = useState([]);
-  const [selectedJobId, setSelectedJobId] = useState("");
-  const [users, setUsers] = useState([]);
   const [worker, setWorkers] = useState("");
   const [businessUnit, setBusinessUnit] = useState([]);
   const [buValue, setBuValue] = useState("");
@@ -113,20 +78,15 @@ const PreonboardingModal = ({
   const [joiningDate, setJoiningDate] = useState("");
   const [structureType, setStructureType] = useState("");
   const [offerValidDate, setOfferValidDate] = useState("");
-  const [docUrl, setDocUrl] = useState("");
-  const [loadingDoc, setLoadingDoc] = useState(false);
-  const [offerDocData, setOfferDocData] = useState(null);
   const [docBlob, setDocBlob] = useState(null);
   const [departmentListState, setDepartmentList] = useState([]);
   const [selectedJob, setSelectedJob] = useState(null);
   const [showSignatureModal, setShowSignatureModal] = useState(false);
-  const [signaturePng, setSignaturePng] = useState(null);
+  // job_id of the offer being edited; resolved to a job once jobs have loaded
+  const [offerJobId, setOfferJobId] = useState(null);
   const [offerIdData, setOfferIdData] = useState();
   const [salaryData, setSalaryData] = useState();
   const [salaryLoading, setSalaryLoading] = useState(false);
-  const previewRef = useRef(null);
-  const isRendering = useRef(false);
-  const { Panel } = Collapse;
   const [form] = Form.useForm();
   const localName = localStorage.getItem("hrms_user_name");
   const localEmail = localStorage.getItem("hrms_user_email");
@@ -142,26 +102,42 @@ const PreonboardingModal = ({
     "Intern Salary Structure",
     "Non Guidewire Salary Structure",
   ];
-  const offers = [
-    {
-      id: 1,
-      file: "Vaibhav Shirur.pdf.pdf",
-      date: "17 Apr 2026",
-      content: "Offer letter details or preview content here",
-    },
-    {
-      id: 2,
-      file: "Vaibhav Shirur.pdf.pdf",
-      date: "19 Feb 2026",
-      content: "Another offer letter details here",
-    },
-  ];
+
+  const fetchOfferDetails = useCallback(async () => {
+    try {
+      const data = await getOfferById(offerId);
+      setSalaryText(data.salary);
+      setJoiningDate(data.joining_date);
+      setOfferValidDate(data.offer_expire_date);
+      setOfferJobId(data.job_id);
+      form.setFieldsValue({
+        joiningDate: data.joining_date ? dayjs(data.joining_date) : null,
+        offerValidUpto: data.offer_expire_date
+          ? dayjs(data.offer_expire_date)
+          : null,
+      });
+    } catch (error) {
+      console.error("[PreonboardingModal] Failed to load offer details:", error);
+      setActionError(
+        `Failed to load offer details: ${error?.message || "Unknown error"}`,
+      );
+    }
+  }, [offerId, form, setActionError]);
 
   useEffect(() => {
     if (offerId) {
       fetchOfferDetails();
     }
-  }, [offerId]);
+  }, [offerId, fetchOfferDetails]);
+
+  // The offer usually arrives before the job list; select its job once both exist.
+  useEffect(() => {
+    if (!offerJobId || !jobs.length) return;
+    const job = jobs.find((item) => item.id === offerJobId);
+    if (job) {
+      setSelectedJob((prev) => prev || job);
+    }
+  }, [offerJobId, jobs]);
 
   useEffect(() => {
     const fetchBusinessUnit = async () => {
@@ -169,11 +145,12 @@ const PreonboardingModal = ({
         const result = await listBusinessUnits();
         setBusinessUnit(result);
       } catch (err) {
+        console.error("[PreonboardingModal] Failed to load business units:", err);
         setActionError(err?.message || "Failed to load business units");
       }
     };
     fetchBusinessUnit();
-  }, []);
+  }, [setActionError]);
 
   useEffect(() => {
     const listingDepartments = async () => {
@@ -181,10 +158,12 @@ const PreonboardingModal = ({
         const listResult = await departmentList();
         setDepartmentList(listResult);
       } catch (err) {
+        console.error("[PreonboardingModal] Failed to load departments:", err);
+        setActionError(err?.message || "Failed to load departments");
       }
     };
     listingDepartments();
-  }, []);
+  }, [setActionError]);
 
   useEffect(() => {
     let isMounted = true;
@@ -192,20 +171,25 @@ const PreonboardingModal = ({
       try {
         const refreshed = await getAllJobs();
         if (!isMounted) return;
+        // No user directory is loaded here; mapJobFromApi only uses it for
+        // owner display names.
         const mappedJobs = (refreshed?.jobs || []).map((j) =>
-          mapJobFromApi(j, users),
+          mapJobFromApi(j, []),
         );
         setJobs(mappedJobs);
       } catch (err) {
-        console.error("Failed to load preonboarding jobs:", err);
-        throw new Error(`Failed to fetch preonboarding jobs: ${err.message}`);
+        // Throwing here only produced an unhandled promise rejection; surface it.
+        console.error("[PreonboardingModal] Failed to load jobs:", err);
+        if (isMounted) {
+          setActionError(`Failed to load jobs: ${err?.message || "Unknown error"}`);
+        }
       }
     };
     fetchData();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [setActionError]);
 
   const jobOptions = [
     { label: "Please select job", value: "", disabled: true },
@@ -235,20 +219,12 @@ const PreonboardingModal = ({
     setJoiningDate(dateString);
   };
 
-  const onChange = (value) => {
-    setCurrent(value);
-  };
-
   const onDateChange = (date, dateString) => {
     setOfferValidDate(dateString);
   };
 
   const next = () => {
-    if (current < 1) {
-      setCurrent(current + 1);
-    } else {
-      handleGenerateOffer();
-    }
+    setCurrent((step) => Math.min(step + 1, 1));
   };
 
   const prev = () => {
@@ -275,7 +251,10 @@ const PreonboardingModal = ({
       const salaryDetails = await salaryStructure(payload);
       setSalaryData(salaryDetails?.salary_structure);
     } catch (error) {
-      setActionError("Failed to fetch salary structure");
+      console.error("[PreonboardingModal] Failed to fetch salary structure:", error);
+      setActionError(
+        `Failed to fetch salary structure: ${error?.message || "Unknown error"}`,
+      );
     } finally {
       setSalaryLoading(false);
     }
@@ -284,54 +263,6 @@ const PreonboardingModal = ({
   const handleBonusModal = () => {
     setBonus(true);
   };
-
-  const columns = [
-    {
-      title: "NAME OF CANDIDATE",
-      dataIndex: "candidate",
-      key: "candidate",
-      render: (_, record) => (
-        <CandidateWrapper>
-          <Avatar style={{ backgroundColor: "#f39c12" }}>{record.name}</Avatar>
-          <div>
-            <Name>{record.name}</Name>
-            <Role>{record.role}</Role>
-          </div>
-        </CandidateWrapper>
-      ),
-    },
-    {
-      title: "ANNUAL SALARY IN WORDS",
-      dataIndex: "salary",
-      key: "salary",
-      render: (text) => (
-        <input
-          type="text"
-          value={salaryText}
-          onChange={(e) => {
-            setSalaryText(e.target.value);
-          }}
-          style={{
-            border: "1px solid #d9d9d9",
-            padding: "6px 10px",
-            borderRadius: "4px",
-            background: "#fafafa",
-            width: "fit-content",
-          }}
-        />
-      ),
-    },
-  ];
-
-  const data = [
-    {
-      key: "1",
-      initials: "GS",
-      name: `${candidate?.name}`,
-      role: `${candidate?.jobTitle}`,
-      salary: "(INR Thirty Lakhs Only)",
-    },
-  ];
 
   const disablePastDates = (current) => {
     if (!current) return false;
@@ -362,7 +293,10 @@ const PreonboardingModal = ({
         offer_expire_date: offerValidDate,
       };
       const result = await createOfferLetter(payload);
-      if (!result) return;
+      if (!result?.id) {
+        setActionError("Offer letter was not created");
+        return;
+      }
       setOfferIdData(result?.id);
       const generateOfferLetter = await generateOfferDoc(result?.id);
       if (generateOfferLetter?.status === "success") {
@@ -375,8 +309,13 @@ const PreonboardingModal = ({
         setDocBlob(blob);
         setActionSuccess(generateOfferLetter?.message);
         next();
+      } else {
+        setActionError(
+          generateOfferLetter?.message || "Failed to generate offer letter document",
+        );
       }
     } catch (err) {
+      console.error("[PreonboardingModal] Failed to generate offer letter:", err);
       setActionError(err?.message || "Failed to generate offer letter");
     } finally {
       setIsSaving(false);
@@ -400,14 +339,13 @@ const PreonboardingModal = ({
       const offerApproveApi = await approveOfferLetter(offerIdData, formData);
       if (offerApproveApi?.status === "success") {
         setActionSuccess("Offer Approved and released");
+      } else {
+        setActionError("Failed to approve the offer letter");
       }
     } catch (error) {
-      setActionError("Offer Already Approved");
+      console.error("[PreonboardingModal] Failed to approve offer:", error);
+      setActionError(error?.message || "Failed to approve the offer letter");
     }
-    //    email,
-    //    subject: `BlitzenX-Employment Offer ${fullName} | ${candidate?.jobTitle} `,
-    //    bodyContent: OfferConfirmationEmail(fullName,candidate?.jobTitle,"BlitzenX",selectedJobId,worker,)
-    //  });
   };
 
   const getInitials = (name = "") => {
@@ -422,38 +360,8 @@ const PreonboardingModal = ({
   };
 
   const handleSignatureSave = async (pngData) => {
-    setSignaturePng(pngData);
     setShowSignatureModal(false);
     await sendEmailOffer(pngData);
-  };
-
-  const handleGenerateOfferClick = () => {
-    if (current === 1) {
-      setShowSignatureModal(true);
-    } else {
-      offerLetterHandler();
-    }
-  };
-
-  const fetchOfferDetails = async () => {
-    try {
-      const data = await getOfferById(offerId);
-      setSalaryText(data.salary);
-      setJoiningDate(data.joining_date);
-      setOfferValidDate(data.offer_expire_date);
-      const job = jobs.find((item) => item.id === data.job_id);
-      if (job) {
-        setSelectedJob(job);
-      }
-      form.setFieldsValue({
-        joiningDate: data.joining_date ? dayjs(data.joining_date) : null,
-        offerValidUpto: data.offer_expire_date
-          ? dayjs(data.offer_expire_date)
-          : null,
-      });
-    } catch (error) {
-      console.error(error);
-    }
   };
 
   const handleButtonClick = () => {
