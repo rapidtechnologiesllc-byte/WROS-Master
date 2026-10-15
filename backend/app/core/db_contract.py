@@ -53,6 +53,11 @@ def initialize_database():
         _run_schema_migrations()
         logger.info("[OK] Schema migrations completed")
 
+        # Step 1.6: One-time data migrations (each runs once per database, marker-guarded)
+        logger.info("[Contract] Step 1.6: Running one-time data migrations...")
+        _run_data_migrations()
+        logger.info("[OK] Data migrations completed")
+
         # Step 2: Initialize tenant
         logger.info("[Contract] Step 2: Initializing tenant...")
         _initialize_tenant()
@@ -95,6 +100,59 @@ def initialize_database():
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[FAILED] Database contract violation: {e}", exc_info=True)
         raise
+
+def _interview_times_to_utc(db: Session) -> int:
+    """Interview start/end were saved as India wall-clock time (every live scheduling screen sent
+    local time without an offset; the old invite endpoint assumed Asia/Kolkata). Storage is naive
+    UTC since 2026-10-15, so convert the rows saved before that. Interviews created by the new
+    scheduling path (it queues `interview-scheduled:{id}`) were already stored as UTC and are left
+    alone. Returns the number of interviews converted."""
+    return db.execute(text(
+        "UPDATE app_schema.interviews i SET "
+        "start_time = (i.start_time AT TIME ZONE :zone) AT TIME ZONE 'UTC', "
+        "end_time = (i.end_time AT TIME ZONE :zone) AT TIME ZONE 'UTC' "
+        "WHERE (i.start_time IS NOT NULL OR i.end_time IS NOT NULL) AND NOT EXISTS ("
+        "  SELECT 1 FROM app_schema.channel_queue_item q WHERE q.id = 'interview-scheduled:' || i.id)"),
+        {"zone": settings.INTERVIEW_LEGACY_STORAGE_TIMEZONE}).rowcount
+
+
+# name -> function(db) returning a row count. Append only; never rename or reorder.
+DATA_MIGRATIONS = (
+    ("interview_times_to_utc", _interview_times_to_utc),
+)
+
+
+def _run_data_migrations():
+    db = SessionLocal()
+    try:
+        run_data_migrations(db)
+    finally:
+        db.close()
+
+
+def run_data_migrations(db: Session, migrations=DATA_MIGRATIONS) -> list:
+    """Run each one-time data migration exactly once per database; returns the names it ran.
+    The marker row in data_migrations is inserted in the same transaction as the migration: a
+    second run (or a second instance starting at the same moment, which waits on the primary key)
+    finds the marker and skips. A failing migration rolls back with its marker and fails startup."""
+    ran = []
+    try:
+        for name, migrate in migrations:
+            claimed = db.execute(text(
+                "INSERT INTO app_schema.data_migrations (name, applied_at) VALUES (:name, now()) "
+                "ON CONFLICT (name) DO NOTHING RETURNING name"), {"name": name}).first()
+            if claimed is None:
+                db.rollback()
+                continue
+            count = migrate(db)
+            db.commit()
+            ran.append(name)
+            logger.info(f"[Contract] Data migration {name}: {count} row(s)")
+    except Exception:
+        db.rollback()
+        raise
+    return ran
+
 
 def _initialize_linkedin_outreach_tasks():
     """Open a follow-up task for in-progress LinkedIn pipeline items that have none."""

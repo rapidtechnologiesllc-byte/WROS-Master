@@ -183,6 +183,9 @@ class Settings:
         os.getenv("INTERVIEW_DURATION_MINUTES", os.getenv("DEFAULT_INTERVIEW_DURATION_MINUTES", "60")))
     # Time zone used for a person whose profile has none
     INTERVIEW_DEFAULT_TIMEZONE: str = os.getenv("INTERVIEW_DEFAULT_TIMEZONE", "Asia/Kolkata")
+    # Wall-clock zone that interview start/end times were saved in before storage became naive
+    # UTC (2026-10-15). Read once, by the one-time interview_times_to_utc data migration.
+    INTERVIEW_LEGACY_STORAGE_TIMEZONE: str = os.getenv("INTERVIEW_LEGACY_STORAGE_TIMEZONE", "Asia/Kolkata")
     # Employment type by the candidate's country (CEO 2026-10-15), the one place this lives:
     # app.services.employment_type_policy reads it. One canonical set of types (FULLTIME, CONTRACT,
     # C2C, 1099, UNKNOWN); a country lists the types it accepts with its own labels, and "names"
