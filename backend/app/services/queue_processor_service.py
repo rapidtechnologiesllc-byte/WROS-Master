@@ -80,6 +80,7 @@ class QueueProcessorService:
         'send_sms_message': 30,  # SMS typically fast
         'webhook_callback': 45,  # HTTP webhooks
         'create_candidate': 30,  # DB operation
+        'job_created_flash': 45,  # JobCreationFlashHandler.TIMEOUT_SECONDS
         'update_candidate': 30,  # DB operation
         # Default: use HANDLER_TIMEOUT_SECONDS
     }
@@ -612,7 +613,9 @@ class QueueProcessorService:
                     logger.info(f"[QueueProcessor] Verified job {job_id} exists in database")
 
                     # FLOW STEP 3: Analyze with SLM (job now in DB, ready for analysis)
-                    # SLM receives: job_id + JD + hiring_manager requirements
+                    # SLM receives: job_id + JD + hiring_manager requirements. Advisory only: a
+                    # failed analysis never stops recruiting (the recruiter run uses its defaults).
+                    slm_analysis = None
                     try:
                         slm_analysis = SLMService.analyze_job_creation(
                             job_id=job_id,
@@ -626,30 +629,16 @@ class QueueProcessorService:
                             f"urgency={slm_analysis.get('urgency')} "
                             f"strategy={slm_analysis.get('recruitment_strategy')}"
                         )
-
-                        # FLOW STEP 4: Queue flash_recruiter with SLM instructions
-                        from app.services.message_queue_service import MessageQueueService as MQS
-                        recruiter_msg_id = MQS.enqueue(
-                            task_name='flash_recruiter',
-                            task_id=f"recruit:{job_id}:created",
-                            data={
-                                'job_id': job_id,
-                                'job_title': persisted_job.jobTitle,
-                                'job_skills': persisted_job.jobSkills or "",
-                                'no_of_positions': persisted_job.noOfPositions,
-                                'hiring_manager_id': persisted_job.hiringManagerID,
-                                'business_unit_id': persisted_job.business_unit_id,
-                                'slm_analysis': slm_analysis,
-                                'slm_strategy': slm_analysis.get('recruitment_strategy'),
-                                'slm_urgency': slm_analysis.get('urgency'),
-                            }
-                        )
-                        logger.info(f"[QueueProcessor] Queued flash_recruiter for job {job_id}: message_id={recruiter_msg_id}")
-                        MQS.enqueue(task_name='source_candidates_for_job', task_id=f"source:{job_id}:created",
-                                    data={'job_id': job_id, 'reason': 'created'})
                     except Exception as slm_err:
                         logger.error(f"[QueueProcessor] SLM analysis failed for job {job_id}: {slm_err}", exc_info=True)
-                        # Don't fail - continue without SLM guidance (flash_recruiter will use defaults)
+
+                    # FLOW STEP 4: start recruiting a live job (recruiter run + sourcing run), in its
+                    # tenant. Outside the SLM try: a queueing failure fails this message (retried).
+                    if (persisted_job.jobStatus or "").lower() == "active":
+                        from app.services.recruiting_service import start_recruiting
+
+                        start_recruiting(persisted_job, "created", slm_analysis=slm_analysis, run_id="created")
+                        logger.info(f"[QueueProcessor] Started recruiting for job {job_id}")
 
                 # CRITICAL FIX: Check handler result status FIRST before any other logic
                 # If handler returned explicit failure, mark as FAILED immediately

@@ -144,6 +144,23 @@ def _default_llm_call(system_prompt: str, user_prompt: str, max_tokens: int, tem
     text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
     return re.sub(r"```(?:json)?", "", text).strip()
 
+def _write_log(row: PromptExecutionLog) -> None:
+    """Persist one log row in its own session and transaction, so logging never commits
+    (or rolls back) the caller's unit of work."""
+    from app.core.database import SessionLocal
+
+    session = SessionLocal()
+    try:
+        session.add(row)
+        session.commit()
+    except Exception as exc:
+        session.rollback()
+        logger.error(f"[PromptFramework] Failed to write prompt execution log: {exc}", exc_info=True)
+        raise
+    finally:
+        session.close()
+
+
 def call_llm(
     db: Session,
     tenant_id: str,
@@ -157,14 +174,17 @@ def call_llm(
     *,
     llm_call: Optional[Callable[[str, str, int, float], str]] = None,
     sleep_fn: Callable[[float], None] = time.sleep,
+    log_writer: Optional[Callable[[PromptExecutionLog], None]] = None,
 ) -> str:
     """
-    Step 3. BR-03: always logs, success or failure. Retries once after
+    Step 3. BR-03: always logs, success or failure -- through `log_writer` (default: a
+    separate session), never by committing the caller's `db`. Retries once after
     RETRY_DELAY_SECONDS on failure; raises LLMCallFailedError if both
     attempts fail. max_tokens is never overridden upward by a caller --
     build_prompt() is the only source of it, this function just enforces
     the value it's given.
     """
+    write = log_writer or _write_log
     last_error: Optional[Exception] = None
     for attempt in range(2):
         start = time.monotonic()
@@ -176,28 +196,27 @@ def call_llm(
                 if not api_key:
                     raise RuntimeError("GEMINI_API_KEY not set")
                 response = _default_llm_call(system_prompt, user_prompt, max_tokens, temperature, api_key)
-            latency_ms = int((time.monotonic() - start) * 1000)
-
-            db.add(PromptExecutionLog(
-                tenant_id=tenant_id, candidate_id=candidate_id, prompt_type=prompt_type, template_version=template_version,
-                input_tokens=len(system_prompt.split()) + len(user_prompt.split()), output_tokens=len(response.split()),
-                latency_ms=latency_ms, response_preview=response[:200], model=GEMINI_MODEL_NAME, success=True,
-            ))
-            db.commit()
-            return response
         except Exception as exc:
             logger.error(f"Error: {str(exc)}", exc_info=True)
             last_error = exc
             latency_ms = int((time.monotonic() - start) * 1000)
-            db.add(PromptExecutionLog(
+            write(PromptExecutionLog(
                 tenant_id=tenant_id, candidate_id=candidate_id, prompt_type=prompt_type, template_version=template_version,
                 input_tokens=None, output_tokens=None, latency_ms=latency_ms, response_preview=None,
                 model=GEMINI_MODEL_NAME, success=False, error_message=str(exc),
             ))
-            db.commit()
             logger.warning(f"[PromptFramework] callLLM attempt {attempt + 1} failed for prompt_type={prompt_type!r}: {exc}")
             if attempt == 0:
                 sleep_fn(RETRY_DELAY_SECONDS)
+        else:
+            latency_ms = int((time.monotonic() - start) * 1000)
+
+            write(PromptExecutionLog(
+                tenant_id=tenant_id, candidate_id=candidate_id, prompt_type=prompt_type, template_version=template_version,
+                input_tokens=len(system_prompt.split()) + len(user_prompt.split()), output_tokens=len(response.split()),
+                latency_ms=latency_ms, response_preview=response[:200], model=GEMINI_MODEL_NAME, success=True,
+            ))
+            return response
 
     raise LLMCallFailedError(f"LLM call failed twice for prompt_type={prompt_type!r}: {last_error}")
 

@@ -166,6 +166,23 @@ class Settings:
     EXPENSE_RECEIPT_AMOUNT_TOLERANCE_PCT: float = float(os.getenv("EXPENSE_RECEIPT_AMOUNT_TOLERANCE_PCT", "2"))
     EXPENSE_RECEIPT_DATE_TOLERANCE_DAYS: int = int(os.getenv("EXPENSE_RECEIPT_DATE_TOLERANCE_DAYS", "7"))
     MAX_UPLOAD_SIZE: int = int(os.getenv("MAX_UPLOAD_SIZE", "10485760"))  # 10MB default
+
+    # Flash matching: a candidate qualifies for a job at this skill-match score (0-100) or above
+    FLASH_MATCH_MIN_SCORE: int = int(os.getenv("FLASH_MATCH_MIN_SCORE", "60"))
+    # Flash's recruiter run re-runs this often while a job is active
+    FLASH_RECRUITER_INTERVAL_HOURS: int = int(os.getenv("FLASH_RECRUITER_INTERVAL_HOURS", "4"))
+
+    # Interview scheduling: interviewer business hours (local time), working days, buffer, length
+    INTERVIEW_WORKDAY_START_HOUR: int = int(os.getenv("INTERVIEW_WORKDAY_START_HOUR", "9"))
+    INTERVIEW_WORKDAY_END_HOUR: int = int(os.getenv("INTERVIEW_WORKDAY_END_HOUR", "17"))
+    # Python weekday numbers (Monday=0) that are never scheduled
+    INTERVIEW_WEEKEND_DAYS: tuple = tuple(
+        int(d) for d in os.getenv("INTERVIEW_WEEKEND_DAYS", "5,6").split(",") if d.strip())
+    INTERVIEW_BUFFER_MINUTES: int = int(os.getenv("INTERVIEW_BUFFER_MINUTES", "15"))
+    INTERVIEW_DURATION_MINUTES: int = int(
+        os.getenv("INTERVIEW_DURATION_MINUTES", os.getenv("DEFAULT_INTERVIEW_DURATION_MINUTES", "60")))
+    # Time zone used for a person whose profile has none
+    INTERVIEW_DEFAULT_TIMEZONE: str = os.getenv("INTERVIEW_DEFAULT_TIMEZONE", "Asia/Kolkata")
     
     # Email Settings (if needed in future)
     SMTP_HOST: Optional[str] = os.getenv("SMTP_HOST")

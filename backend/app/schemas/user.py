@@ -139,6 +139,8 @@ class JobCreateRequest(BaseModel):
     job_skills: str  # Keep for backward compatibility (flat list: "Java, Python, SQL")
     structured_skills: Optional[List[SkillRequirement]] = None  # New: structured metadata
     job_experience: str
+    # Minimum years the role needs; when omitted it is parsed from job_experience on save
+    min_experience_years: Optional[float] = None
     job_location: str
     company_type: str
     company_name: str

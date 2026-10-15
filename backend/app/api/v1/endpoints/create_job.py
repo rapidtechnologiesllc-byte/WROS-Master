@@ -662,6 +662,15 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
     if request.project_id:
         validate_job_project(db, request.project_id, client)
 
+    # Every job has a recruiter: none given -> the tenant's recruiter with the fewest open jobs
+    if not request.recuriter_id:
+        from app.services.recruiter_assignment_service import assign_to_recruiter_roundrobin
+
+        recruiter = assign_to_recruiter_roundrobin(db, user.tenant_id)
+        if recruiter is not None:
+            request.recuriter_id = recruiter.UserID
+            logger.info(f"[JobCreation] Recruiter assigned round-robin: {recruiter.UserID}")
+
     # QUEUE-DRIVEN: Send job creation to FLASH queue instead of direct DB write
     # The message handler will create the job and assign AI recruiter
     MessageQueueService.enqueue(
@@ -673,7 +682,10 @@ def create_job(request: JobCreateRequest, background_tasks: BackgroundTasks, db:
             "job_location": request.job_location,
             "job_description": request.job_description,
             "job_skills": request.job_skills,
+            # Structured skills drive candidate matching (Jobs.required_skills_canonical)
+            "structured_skills": [s.model_dump() for s in request.structured_skills or []],
             "job_experience": request.job_experience,
+            "min_experience_years": request.min_experience_years,
             "company_type": request.company_type,
             "company_name": company_name,
             "contact_person": request.contact_person,

@@ -245,7 +245,7 @@ class SLMService:
         job_id: str,
         job_title: str,
         job_skills: str,
-        no_of_positions: int,
+        no_of_positions: Optional[int],
         db: Optional[Session] = None,
     ) -> Dict[str, Any]:
         """
@@ -268,6 +268,8 @@ class SLMService:
             if not job_id or not job_title:
                 raise ValueError("job_id and job_title required")
 
+            # A job saved without a head count is one position (Jobs.noOfPositions is nullable)
+            no_of_positions = 1 if no_of_positions is None else int(no_of_positions)
             # Assess urgency based on number of positions
             urgency = "HIGH" if no_of_positions >= 3 else "MEDIUM" if no_of_positions >= 1 else "LOW"
 

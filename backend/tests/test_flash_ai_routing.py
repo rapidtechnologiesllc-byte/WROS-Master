@@ -36,6 +36,14 @@ def db(test_db_engine):
     connection.close()
 
 
+@pytest.fixture(autouse=True)
+def llm_log_in_test_session(db, monkeypatch):
+    """call_llm logs through its own session in production; here the rows stay in the test transaction."""
+    from app.services import prompt_framework_service
+
+    monkeypatch.setattr(prompt_framework_service, "_write_log", db.add)
+
+
 @pytest.fixture
 def user(db):
     if db.query(Tenant).filter_by(id=1).first() is None:

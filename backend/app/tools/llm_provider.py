@@ -45,78 +45,64 @@ class RoundRobinLLMProvider:
         """Initialize all LLM providers lazily"""
         pass
 
+    def _cached(self, key: str, factory):
+        """Return the cached instance for ``key``, building it once.
+
+        ``factory`` returns the client, or None when the provider is not
+        configured. A failed or unconfigured initialisation caches None so it
+        is not retried on every call; the cached value is always returned.
+        """
+        if key not in self.llm_instances:
+            try:
+                self.llm_instances[key] = factory()
+            except Exception as e:
+                logger.error(f"Failed to initialize {key}: {e}", exc_info=True)
+                self.llm_instances[key] = None
+        return self.llm_instances.get(key)
+
     def _get_gemini(self):
         """Lazy-load Gemini"""
-        if "gemini" not in self.llm_instances:
-            try:
-                from langchain_google_genai import ChatGoogleGenerativeAI
-                api_key = real_api_key("GEMINI_API_KEY")
-                # Skip if API key not set or is dummy key
-                if not api_key or api_key == "AIzaSyDummy_For_Local_Dev":
-                    logger.warning("GEMINI_API_KEY not set or is dummy key, skipping Gemini")
-                    return None
-                self.llm_instances["gemini"] = ChatGoogleGenerativeAI(
-                    api_key=api_key,
-                    model="gemini-1.5-flash",
-                    max_retries=1
-                )
-            except Exception as e:
-                logger.error(f"Failed to initialize Gemini: {e}")
-                self.llm_instances["gemini"] = None
-                return self.llm_instances["gemini"]
+        def build():
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            api_key = real_api_key("GEMINI_API_KEY")
+            if not api_key or api_key == "AIzaSyDummy_For_Local_Dev":
+                logger.warning("GEMINI_API_KEY not set or is dummy key, skipping Gemini")
+                return None
+            return ChatGoogleGenerativeAI(api_key=api_key, model="gemini-1.5-flash", max_retries=1)
+        return self._cached("gemini", build)
 
     def _get_claude(self):
         """Lazy-load Claude"""
-        if "claude" not in self.llm_instances:
-            try:
-                from langchain_anthropic import ChatAnthropic
-                api_key = real_api_key("ANTHROPIC_API_KEY")
-                if not api_key:
-                    logger.warning("ANTHROPIC_API_KEY not set")
-                    return None
-                self.llm_instances["claude"] = ChatAnthropic(
-                    api_key=api_key,
-                    model="claude-sonnet-5-5",
-                    max_tokens=2048
-                )
-            except Exception as e:
-                logger.error(f"Failed to initialize Claude: {e}")
-                self.llm_instances["claude"] = None
-                return self.llm_instances["claude"]
+        def build():
+            from langchain_anthropic import ChatAnthropic
+            api_key = real_api_key("ANTHROPIC_API_KEY")
+            if not api_key:
+                logger.warning("ANTHROPIC_API_KEY not set")
+                return None
+            return ChatAnthropic(api_key=api_key, model="claude-sonnet-5-5", max_tokens=2048)
+        return self._cached("claude", build)
 
     def _get_grok(self):
         """Lazy-load Grok"""
-        if "grok" not in self.llm_instances:
-            try:
-                from xai_sdk import XAIClient
-                api_key = real_api_key("XAI_API_KEY")
-                if not api_key:
-                    logger.warning("XAI_API_KEY not set")
-                    return None
-                self.llm_instances["grok"] = XAIClient(api_key=api_key)
-            except Exception as e:
-                logger.error(f"Failed to initialize Grok: {e}")
-                self.llm_instances["grok"] = None
-                return self.llm_instances["grok"]
+        def build():
+            from xai_sdk import XAIClient
+            api_key = real_api_key("XAI_API_KEY")
+            if not api_key:
+                logger.warning("XAI_API_KEY not set")
+                return None
+            return XAIClient(api_key=api_key)
+        return self._cached("grok", build)
 
     def _get_openai(self):
         """Lazy-load OpenAI (ChatGPT)"""
-        if "openai" not in self.llm_instances:
-            try:
-                from langchain_openai import ChatOpenAI
-                api_key = real_api_key("OPENAI_API_KEY")
-                if not api_key:
-                    logger.warning("OPENAI_API_KEY not set")
-                    return None
-                self.llm_instances["openai"] = ChatOpenAI(
-                    api_key=api_key,
-                    model="gpt-4-turbo",
-                    max_tokens=2048
-                )
-            except Exception as e:
-                logger.error(f"Failed to initialize OpenAI: {e}")
-                self.llm_instances["openai"] = None
-                return self.llm_instances["openai"]
+        def build():
+            from langchain_openai import ChatOpenAI
+            api_key = real_api_key("OPENAI_API_KEY")
+            if not api_key:
+                logger.warning("OPENAI_API_KEY not set")
+                return None
+            return ChatOpenAI(api_key=api_key, model="gpt-4-turbo", max_tokens=2048)
+        return self._cached("openai", build)
 
     def get_next_provider(self):
         """Get next provider in round-robin order"""

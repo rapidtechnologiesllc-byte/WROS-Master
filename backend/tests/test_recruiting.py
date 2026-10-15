@@ -71,6 +71,7 @@ def test_start_recruiting_queues_both_runs_with_unique_ids(job, queued):
     names = [c[0] for c in queued]
     assert names.count("flash_recruiter") == 2 and names.count("source_candidates_for_job") == 2
     assert len({c[1] for c in queued}) == 4
+    assert all(c[3]["tenant_id"] == 1 for c in queued)
 
 
 def test_sourcing_report_becomes_a_recruiter_task(db, job):
@@ -106,4 +107,8 @@ def test_recruiter_run_with_a_watching_candidate_does_not_crash_and_reschedules_
             "job_id": job.jobID, "previously_matched_candidate_ids": [candidate.candidateID]}), db)
     assert first["candidates_new"] == 1 and second["candidates_new"] == 0
     reruns = [c for c in queued if c[0] == "flash_recruiter"]
-    assert len(reruns) == 2 and reruns[0][1] != reruns[1][1] and reruns[0][3]["delay_seconds"] == 14400
+    assert len(reruns) == 2 and reruns[0][1] != reruns[1][1]
+    # the interval is a setting, and the re-run stays in the job's tenant
+    from app.core.config import settings
+    assert reruns[0][3]["delay_seconds"] == settings.FLASH_RECRUITER_INTERVAL_HOURS * 3600
+    assert reruns[0][3]["tenant_id"] == job.tenant_id == 1

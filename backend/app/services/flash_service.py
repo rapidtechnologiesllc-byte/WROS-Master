@@ -131,6 +131,11 @@ PERMISSION_DENIED_FINANCE_MESSAGE = (
     "Finance Operations screen if you have it."
 )
 
+PERMISSION_DENIED_BENCH_MESSAGE = (
+    "I can't answer that -- who's on the bench is limited to people who can view employees. "
+    "Ask someone with access, or use the Bench screen if you have it."
+)
+
 MAX_CANDIDATES_RETURNED = 5
 
 # Backlog item, 2026-08-05 (wros_ask_thunder_bugs_and_memory_backlog):
@@ -338,91 +343,20 @@ def _extract_keywords(text: str) -> List[str]:
     tokens = re.findall(r"[A-Za-z][A-Za-z0-9+.#]*", text or "")
     return [t for t in tokens if len(t) > 1 and t.lower() not in _STOPWORDS]
 
-def find_candidates_for_job(db: Session, job_id: str, *, top_n: int = MAX_CANDIDATES_RETURNED, tenant_id: Optional[int] = None, user_bu_id: Optional[int] = None) -> List[Dict]:
-    """
-    Find candidates matching a job's structured skill requirements using AND/OR boolean logic.
-    AND mode: all mandatory skills required
-    OR mode: any skill match counts
+def find_candidates_for_job(db: Session, job_id: str, *, top_n: int = MAX_CANDIDATES_RETURNED, tenant_id: Optional[int] = None, viewer: Optional[Users] = None) -> List[Dict]:
+    """The job's best-matching eligible candidates, from the one ranking rule
+    (job_candidate_ranking_service: tenant pool, the caller's BU scope, the 5-year
+    floor and the job's own minimum, normalised skills). Unknown job -> []."""
+    from app.services.job_candidate_ranking_service import rank_candidates_for_job
 
-    ISOLATION FIX: Filters by tenant_id (required) and user_bu_id (optional for BU scoping)
-    """
-    from app.models.user import Jobs
-    from sqlalchemy import or_ as sql_or
-
-    job = db.query(Jobs).filter(
-        Jobs.jobID == job_id,
-        Jobs.tenant_id == tenant_id  # TENANT ISOLATION FIX
-    ).first()
-    if not job or not job.required_skills_canonical:
+    job = db.query(Jobs).filter(Jobs.jobID == job_id, Jobs.tenant_id == tenant_id).first()
+    if job is None:
         return []
-
-    skills_required = job.required_skills_canonical
-    boolean_mode = job.job_skills_boolean_mode or "AND"
-
-    # ISOLATION FIX: Add tenant_id + BU filtering
-    query_filters = [
-        Candidate.tenant_id == tenant_id,  # TENANT ISOLATION
-        Candidate.candidateSkills.isnot(None),
-        Candidate.candidateExperience.isnot(None)
+    return [
+        {"candidate_id": r.candidate_id, "name": r.name, "score": r.score, "matched": r.matched,
+         "experience_months": r.experience_months}
+        for r in rank_candidates_for_job(db, job, viewer=viewer, limit=top_n)
     ]
-
-    # BU ISOLATION FIX: When user_bu_id is set, filter to that BU + unassigned
-    if user_bu_id:
-        query_filters.append(
-            sql_or(
-                Candidate.associated_bu_id.is_(None),  # Unassigned candidates
-                Candidate.associated_bu_id == user_bu_id  # Own BU
-            )
-        )
-    # If user_bu_id is None (admin), no BU filter - can see all
-
-    candidates = db.query(Candidate).filter(*query_filters).limit(500).all()
-
-    matched = []
-    for candidate in candidates:
-        candidate_skills = (candidate.candidateSkills or "").lower()
-        candidate_exp = candidate.candidateExperience or ""
-
-        if boolean_mode == "AND":
-            # All mandatory skills must match
-            matches_mandatory = all(
-                skill["name"].lower() in candidate_skills
-                for skill in skills_required if skill.get("mandatory", True)
-            )
-            if matches_mandatory:
-                # Check if experience meets minimum
-                try:
-                    years = int(candidate_exp.split()[0]) if candidate_exp else 0
-                    min_years = min((s.get("years", 0) for s in skills_required if s.get("mandatory")), default=0)
-                    if years >= min_years:
-                        matched.append({
-                            "candidate_id": candidate.candidateID,
-                            "name": f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
-                            "skills": candidate.candidateSkills,
-                            "experience": candidate_exp,
-                            "job_title": candidate.candidateJobTitle,
-                        })
-                except (ValueError, IndexError):
-                    if any(skill["name"].lower() in candidate_skills for skill in skills_required):
-                        matched.append({
-                            "candidate_id": candidate.candidateID,
-                            "name": f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
-                            "skills": candidate.candidateSkills,
-                            "experience": candidate_exp,
-                            "job_title": candidate.candidateJobTitle,
-                        })
-        else:  # OR mode
-            # At least one skill must match
-            if any(skill["name"].lower() in candidate_skills for skill in skills_required):
-                matched.append({
-                    "candidate_id": candidate.candidateID,
-                    "name": f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
-                    "skills": candidate.candidateSkills,
-                    "experience": candidate_exp,
-                    "job_title": candidate.candidateJobTitle,
-                })
-
-    return matched[:top_n]
 
 def find_matching_candidates(db: Session, query_text: str, *, top_n: int = MAX_CANDIDATES_RETURNED, tenant_id: Optional[int] = None, user_bu_id: Optional[int] = None) -> List[Dict]:
     """
@@ -556,7 +490,7 @@ def get_candidate_status_summary(db: Session, name_query: str, *, tenant_id: Opt
         })
     return {"matches": matches}
 
-def find_available_bench_employees(db: Session, query_text: str, *, top_n: int = MAX_CANDIDATES_RETURNED) -> List[Dict]:
+def find_available_bench_employees(db: Session, user: Users, query_text: str, *, top_n: int = MAX_CANDIDATES_RETURNED) -> List[Dict]:
     """
     Real read of resource_management_service's own bench pool table --
     no new data source, same "additive, not a replacement" posture as
@@ -564,11 +498,15 @@ def find_available_bench_employees(db: Session, query_text: str, *, top_n: int =
     the bench") returns the whole current pool, most-recently-benched
     first; a query_text filters by skill_tags/current_title overlap,
     same keyword-overlap technique find_matching_candidates() already
-    uses for candidates.
+    uses for candidates. Scoped like the bench screen: the caller's
+    tenant and the business units they can see.
     """
+    from app.core.data_scope import bu_filter
+
     entries = (
         db.query(BenchPoolEntry, Employee)
         .join(Employee, BenchPoolEntry.employee_id == Employee.id)
+        .filter(Employee.tenant_id == user.tenant_id, bu_filter(db, user, Employee.bu_id))
         .order_by(BenchPoolEntry.created_at.desc())
         .limit(200)
         .all()
@@ -1188,7 +1126,12 @@ def answer_internal_query(
         # Unlike SOURCING/CANDIDATE_STATUS, an empty query is valid here
         # ("who's on the bench" with no skill filter) -- never treated
         # as unsupported.
-        results = find_available_bench_employees(db, query)
+        # Same permission as the bench screen (employees.view), and its tenant + BU scope
+        from app.core import authority
+
+        if current_user is None or not authority.has_permission(db, current_user, "employees.view"):
+            return {"intent": intent, "reply": PERMISSION_DENIED_BENCH_MESSAGE}
+        results = find_available_bench_employees(db, current_user, query)
         return {"intent": intent, "reply": _format_bench_reply(query, results)}
 
     if intent in (INTENT_FINANCE_PNL, INTENT_AR_AGING, INTENT_MY_TASKS) and current_user is None:
