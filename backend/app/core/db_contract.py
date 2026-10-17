@@ -42,11 +42,9 @@ def initialize_database():
     try:
         # Step 1: Create all tables from models
         logger.info("[Contract] Step 1: Creating database tables...")
-        # Import models package - this triggers _auto_import_all_models()
+        # Import models package - this triggers _auto_import_all_models(). Every table is declared
+        # in app.models (tests/test_slm_job_metadata.py asserts no model lives elsewhere)
         import app.models
-        # Models defined outside app.models must be imported to be created
-        import app.services.slm_job_metadata_service  # noqa: F401 -- SLMJobMetadata
-        import app.services.slm_feedback_engine  # noqa: F401 -- SLMFeedback, SLMModelVersion
         Base.metadata.create_all(bind=engine)
         logger.info("[OK] Database tables created")
 
