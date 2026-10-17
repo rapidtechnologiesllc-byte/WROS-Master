@@ -6,8 +6,12 @@ role-template permissions (app.core.authority) and, for records, the existing sc
 called with the user. A denied tool returns {"error": "You don't have permission to ..."}, writes
 nothing, and the reply says so plainly.
 
-Every call is stored in the conversation as an `event` message (payload: tool, args, outcome):
-the audit trail of what Flash did and why.
+Every call is stored in the conversation as an `event` message. The payload keeps the full trace
+for audit (tool, args, the whole outcome, ok, the raw "tool: text" line); the body is what the
+person reads -- a one-line summary chosen per tool by its `summary` function ("Created job Rails
+Developer for Acme"). A summary of None marks a purely internal step (a draft update, a client
+lookup): the payload says `hidden` and the Flash bubble does not show it. A permission refusal is
+always shown.
 
 A tool marked `confirm` runs only after the user's explicit "yes" to the one-line question Flash
 asked (the conversation's workflow state carries `confirm` / `confirmed`).
@@ -26,6 +30,7 @@ from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
 from fastapi import HTTPException
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -57,6 +62,9 @@ class FlashTool:
     confirm: bool = False  # runs only after the user's explicit yes to Flash's question
     gate: Optional[Callable[[Session, Users], bool]] = None  # a rule on top of the permission
     model_visible: bool = True  # False: answered from the database only, never offered to a model
+    # (args, outcome) -> the one line the person reads, or None for an internal step (not shown).
+    # Required: register() refuses a tool without one.
+    summary: Optional[Callable[[Dict, Dict], Optional[str]]] = None
 
 
 @dataclass
@@ -96,6 +104,8 @@ def register(tool: FlashTool) -> FlashTool:
         raise ValueError(f"Flash tool {tool.name!r} registered twice")
     if any(word in tool.name for word in FORBIDDEN_TOOL_WORDS):
         raise ValueError(f"Flash tool {tool.name!r} would take a decision Flash never takes")
+    if tool.summary is None:
+        raise ValueError(f"Flash tool {tool.name!r} has no summary: say what the person reads, or hide()")
     TOOLS[tool.name] = tool
     return tool
 
@@ -120,6 +130,52 @@ def _summary(outcome: Dict) -> str:
     return str(text)[:EVENT_SUMMARY_CHARS]
 
 
+def _one_line(text: str) -> str:
+    line = " ".join(str(text).split())
+    return line if len(line) <= EVENT_SUMMARY_CHARS else line[:EVENT_SUMMARY_CHARS - 1].rstrip() + "…"
+
+
+# --------------------------------------------------------------------------- summaries
+
+def hide(args: Dict, outcome: Dict) -> Optional[str]:
+    """An internal step: kept in the audit trail, not shown in the bubble."""
+    return None
+
+
+def said(fn: Callable[[Dict, Dict], Optional[str]]) -> Callable[[Dict, Dict], Optional[str]]:
+    """`fn` for a successful call; a failed one shows its (user-facing) error."""
+    def summary(args: Dict, outcome: Dict) -> Optional[str]:
+        return outcome["error"] if "error" in outcome else fn(args, outcome)
+    return summary
+
+
+def first_line(args: Dict, outcome: Dict) -> Optional[str]:
+    """The tool's own text (or error), first line: for tools whose text is already a sentence for
+    the person."""
+    text = (outcome.get("error") or outcome.get("text") or "").strip()
+    return text.splitlines()[0] if text else None
+
+
+def _count(outcome: Dict, key: str) -> int:
+    return len(outcome.get(key) or [])
+
+
+def _for(value: Optional[str]) -> str:
+    value = (value or "").strip()
+    return f" for {value}" if value else ""
+
+
+def _event_line(name: str, tool: Optional[FlashTool], args: Dict, outcome: Dict, refused: bool) -> Optional[str]:
+    """What the person reads for this call, or None (not shown). Refusals are always shown; a
+    call to no tool, or a confirmation not yet given, is Flash's own protocol and never shown."""
+    if refused:
+        return outcome["error"]
+    if tool is None:
+        return None
+    line = tool.summary(args, outcome)
+    return _one_line(line) if line else None
+
+
 def execute(ctx: ToolContext, name: str, args: Optional[Dict] = None) -> Dict:
     """Run one tool as ctx.user. Permission and confirmation are re-checked here, whoever calls;
     a refusal or a domain error comes back as {"error": message}. The call is recorded as an
@@ -127,14 +183,18 @@ def execute(ctx: ToolContext, name: str, args: Optional[Dict] = None) -> Dict:
     _load_registry()
     args = dict(args or {})
     tool = TOOLS.get(name)
+    refused, protocol = False, False
     if tool is None:
         outcome = {"error": f"Flash has no tool called {name}."}
+        protocol = True
     elif not allowed(ctx.db, ctx.user, tool):
         outcome = {"error": f"You don't have permission to {tool.denied}."}
+        refused = True
     elif tool.confirm and ctx.state.get("confirmed") != name:
         question = (ctx.state.get("confirm") or {}).get("question")
         outcome = {"error": "Not confirmed yet. " + (f"Ask the user: {question}" if question
                                                        else "Ask the user to confirm first.")}
+        protocol = True
     else:
         try:
             outcome = tool.handler(ctx, args)
@@ -150,9 +210,11 @@ def execute(ctx: ToolContext, name: str, args: Optional[Dict] = None) -> Dict:
             ctx.save_state(state)
     if not isinstance(outcome, dict):
         raise TypeError(f"Flash tool {name} returned {type(outcome).__name__}, not a dict")
-    conversations.append(ctx.db, ctx.conversation, "event", f"{name}: {_summary(outcome)}",
-                         {"tool": name, "args": args, "outcome": _summary(outcome),
-                          "ok": "error" not in outcome})
+    trace_line = f"{name}: {_summary(outcome)}"
+    line = None if protocol else _event_line(name, tool, args, outcome, refused)
+    conversations.append(ctx.db, ctx.conversation, "event", line or trace_line,
+                         {"tool": name, "args": jsonable_encoder(args), "outcome": jsonable_encoder(outcome),
+                          "ok": "error" not in outcome, "hidden": line is None, "trace": trace_line})
     ctx.trace.append({"name": name, "args": args, "outcome": outcome})
     logger.info(f"[FlashTool] {ctx.user.UserID} {name} -> {'error' if 'error' in outcome else 'ok'}")
     return outcome
@@ -327,40 +389,49 @@ def _can_view_pnl(db: Session, user: Users) -> bool:
 register(FlashTool(
     "find_candidates", "Search candidates by role or skills the user can see.",
     schema({"query": {"type": "string", "description": "Role or skills, e.g. 'Guidewire developer'"}}),
-    "candidates.view", _find_candidates, "see candidates"))
+    "candidates.view", _find_candidates, "see candidates",
+    summary=said(lambda a, o: f"Searched candidates{_for(a.get('query'))}: {_count(o, 'results')} found.")))
 register(FlashTool(
     "candidate_status", "Where a named candidate is in hiring.",
-    schema({"name": {"type": "string"}}), "candidates.view", _candidate_status, "see candidates"))
+    schema({"name": {"type": "string"}}), "candidates.view", _candidate_status, "see candidates",
+    summary=said(lambda a, o: f"Looked up {a['name'].strip()}'s hiring status.")))  # the handler needs a name
 register(FlashTool(
     "bench_availability", "Employees on the bench, optionally with given skills.",
     schema({"skills": {"type": "string", "description": "Skills, may be empty"}}),
-    "employees.view", _bench, "see the bench"))
+    "employees.view", _bench, "see the bench",
+    summary=said(lambda a, o: f"Checked the bench{_for(a.get('skills'))}: {_count(o, 'results')} available.")))
 register(FlashTool(
     "bu_pnl", "A business unit's P&L.", schema({"bu": {"type": "string"}}), None, _bu_pnl,
-    "see financial data", gate=_can_view_pnl, model_visible=False))
+    "see financial data", gate=_can_view_pnl, model_visible=False,
+    summary=said(lambda a, o: f"Looked up the P&L{_for(a.get('bu'))}.")))
 register(FlashTool(
     "overdue_invoices", "Overdue client invoices.", schema({}), None, _overdue_invoices,
-    "see financial data", gate=_can_view_pnl, model_visible=False))
+    "see financial data", gate=_can_view_pnl, model_visible=False,
+    summary=said(lambda a, o: "Looked up overdue invoices.")))
 register(FlashTool("my_tasks", "The user's own tasks due today or overdue.", schema({}), None, _my_tasks,
-                   "see these tasks"))
+                   "see these tasks", summary=said(lambda a, o: f"Checked your tasks: {_count(o, 'tasks')} due.")))
 register(FlashTool("my_timesheets", "The user's own recent timesheets.", schema({}), None, _my_timesheets,
-                   "see these timesheets"))
+                   "see these timesheets", summary=said(lambda a, o: "Checked your timesheets.")))
 register(FlashTool(
     "pipeline_summary", "How many candidates are at each hiring stage, optionally for one client.",
     schema({"client": {"type": "string", "description": "Client name, may be empty"}}),
-    "candidates.view", _pipeline_summary, "see candidates"))
+    "candidates.view", _pipeline_summary, "see candidates",
+    summary=said(lambda a, o: f"Checked the hiring pipeline{_for(a.get('client'))}.")))
 register(FlashTool(
     "search_clients", "Find existing clients by name (use before creating a job or a client).",
-    schema({"name": {"type": "string"}}), "clients.view", _search_clients, "see clients"))
+    schema({"name": {"type": "string"}}), "clients.view", _search_clients, "see clients",
+    summary=hide))  # a lookup on the way to a job or client; the reply says what was found
 register(FlashTool(
     "create_client", "Create a new client attributed to the user's business unit. Only after the user "
     "said yes to Flash's question.",
     schema({"company_name": {"type": "string"}, "country": nullable("string")}),
-    "clients.create", _create_client, "create clients", mutating=True, confirm=True))
+    "clients.create", _create_client, "create clients", mutating=True, confirm=True,
+    summary=said(lambda a, o: f"Created client {o['client_name']}.")))
 register(FlashTool(
     "pending_decisions", "Decisions waiting for the user (approvals, mixed interview feedback).",
-    schema({}), None, _pending_decisions, "see decisions"))
+    schema({}), None, _pending_decisions, "see decisions",
+    summary=said(lambda a, o: f"Checked your decisions: {_count(o, 'decisions')} waiting.")))
 register(FlashTool(
     "open_core_cert", "Open a Core certification request for the user to decide in this chat.",
     schema({"request_id": {"type": "string"}}), "workforce-overview.view", _open_core_cert,
-    "see Core certification requests"))
+    "see Core certification requests", summary=said(lambda a, o: "Opened the Core certification request.")))

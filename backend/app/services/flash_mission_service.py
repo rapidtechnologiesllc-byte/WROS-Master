@@ -985,7 +985,7 @@ def control_by_query(db: Session, user: Users, action: str, query: str) -> str:
 # --------------------------------------------------------------------------- Flash tools
 
 def _register_tools() -> None:
-    from app.services.flash_brain.tools import FlashTool, ToolError, register, schema
+    from app.services.flash_brain.tools import FlashTool, ToolError, first_line, register, said, schema
 
     def status_tool(ctx, args):
         missions = visible_missions(ctx.db, ctx.user, args.get("query") or "").limit(3).all()
@@ -1005,12 +1005,13 @@ def _register_tools() -> None:
 
     register(FlashTool("mission_status", "Progress of Flash's searches (missions) the user started or can see, "
                        "matched on job title or client; empty query = all.",
-                       schema({"query": {"type": "string"}}), "jobs.view", status_tool, "see jobs"))
+                       schema({"query": {"type": "string"}}), "jobs.view", status_tool, "see jobs",
+                       summary=said(lambda a, o: "Checked on your Flash searches.")))
     for action in ("pause", "resume", "cancel"):
         register(FlashTool(f"{action}_mission", f"{action.title()} one of Flash's searches (id from mission_status). "
                            "Allowed for the person who started it or someone who can edit the job.",
                            schema({"mission_id": {"type": "string"}}), None, control_tool(action),
-                           f"{action} this search", mutating=True))
+                           f"{action} this search", mutating=True, summary=first_line))
 
 
 _register_tools()

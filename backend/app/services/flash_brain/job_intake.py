@@ -36,8 +36,10 @@ from app.services.flash_brain.tools import (
     ToolContext,
     ToolError,
     execute,
+    hide,
     nullable,
     register,
+    said,
     schema,
     search_clients,
     tools_for,
@@ -307,7 +309,8 @@ def _create_job(ctx: ToolContext, args: Dict) -> Dict:
         reply += " I'll start sourcing within a few minutes and report back here."
     state.update(done=True, job_id=job_id, mission_id=mission_id)
     ctx.save_state(state)
-    return {"text": reply, "job_id": job_id, "mission_id": mission_id}
+    return {"text": reply, "job_id": job_id, "mission_id": mission_id, "job_title": request.job_title,
+            "client_name": client.company_name}
 
 
 def start_mission_for(ctx: ToolContext, job_id: str, positions: int) -> Optional[str]:
@@ -324,10 +327,12 @@ def start_mission_for(ctx: ToolContext, job_id: str, positions: int) -> Optional
 register(FlashTool(
     "update_job_draft", "Record job details the user gave (only the ones given; others null). Returns what "
     "is still missing and the exact next question to ask.", DRAFT_SCHEMA, PERMISSION, _update_draft,
-    "create jobs"))
+    "create jobs", summary=hide))  # an internal step: Flash's reply asks the next question
 register(FlashTool(
     "create_job", "Create the drafted job. Only after the user answered yes to the confirmation question.",
-    schema({}), PERMISSION, _create_job, "create jobs", mutating=True, confirm=True))
+    schema({}), PERMISSION, _create_job, "create jobs", mutating=True, confirm=True,
+    summary=said(lambda a, o: f"Created job {o['job_title']} for {o['client_name']}"
+                              + ("; Flash is working it." if o.get("mission_id") else "."))))
 
 
 # --------------------------------------------------------------------------- rules tier

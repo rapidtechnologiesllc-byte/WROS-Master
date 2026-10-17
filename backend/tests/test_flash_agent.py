@@ -162,6 +162,54 @@ def test_job_by_chat_with_claude_gives_the_same_job(db, world, queued):
     assert events[-4:] == ["search_clients", "update_job_draft", "update_job_draft", "create_job"]
 
 
+def test_tool_events_read_as_one_line_and_keep_the_full_trace(db, world, queued):
+    """The bubble shows what Flash did in words ("Created job Rails Developer for Acme"); internal
+    steps (client lookup, draft updates, the unconfirmed attempt) are hidden; the payload keeps the
+    whole call for audit."""
+    ctx = _ctx(db, world.requester)
+    execute(ctx, "search_clients", {"name": world.client_name})
+    execute(ctx, "update_job_draft", {"title": "Rails Developer", "skills": ["Ruby on Rails"],
+                                      "client_id": world.client.id, "min_experience_years": 5,
+                                      "work_location": "REMOTE"})
+    execute(ctx, "create_job", {})  # not confirmed yet
+    state = ctx.state
+    state["confirmed"] = "create_job"
+    ctx.save_state(state)
+    created = execute(ctx, "create_job", {})
+    events = db.query(FlashMessage).filter_by(conversation_id=ctx.conversation.id, role="event").order_by(
+        FlashMessage.id).all()
+    assert [e.payload["hidden"] for e in events] == [True, True, True, False]
+    assert events[1].body.startswith("update_job_draft: Draft:")  # the raw line stays for audit only
+    assert events[1].payload["trace"] == events[1].body and events[1].payload["outcome"]["missing"] == []
+    assert events[2].payload["ok"] is False and events[2].payload["outcome"]["error"].startswith("Not confirmed yet")
+    assert events[3].body == f"Created job Rails Developer for {world.client_name}."
+    assert events[3].payload["outcome"]["job_id"] == created["job_id"] == _job_payload(queued)["job_id"]
+    assert events[3].payload["args"] == {} and events[3].payload["trace"].startswith("create_job: Job ")
+
+
+def test_a_refusal_and_a_failure_are_shown_in_words(db, world, queued):
+    clerk = user(db, role_without(db, "jobs.create"), "Clerk")
+    ctx = _ctx(db, clerk)
+    execute(ctx, "update_job_draft", {"title": "Rails Developer"})
+    execute(ctx, "candidate_status", {"name": ""})
+    execute(ctx, "no_such_tool", {})
+    events = db.query(FlashMessage).filter_by(conversation_id=ctx.conversation.id, role="event").order_by(
+        FlashMessage.id).all()
+    assert [(e.body, e.payload["hidden"]) for e in events[:2]] == [
+        ("You don't have permission to create jobs.", False), ("Say whose status you want.", False)]
+    assert events[2].payload["hidden"] is True  # Flash's own protocol, never the person's business
+
+
+def test_every_tool_declares_what_the_person_reads():
+    flash_tools._load_registry()
+    assert all(tool.summary is not None for tool in TOOLS.values())
+    with pytest.raises(ValueError, match="has no summary"):
+        flash_tools.register(flash_tools.FlashTool("look_around", "x", flash_tools.schema({}), None,
+                                                   lambda c, a: {}, "x"))
+    line = TOOLS["find_candidates"].summary({"query": "rails"}, {"text": "...", "results": [{}, {}]})
+    assert line == "Searched candidates for rails: 2 found."
+
+
 def test_claude_creating_without_a_yes_is_refused(db, world, queued):
     large = FakeLarge(
         [("update_job_draft", {"title": "Rails Developer", "skills": ["Ruby on Rails"], "client_id": world.client.id,

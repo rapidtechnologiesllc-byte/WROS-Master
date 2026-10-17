@@ -187,7 +187,8 @@ def test_rails_developer_end_to_end_with_claude(db, on, world, queued):
     assert track.candidate_id == candidate.candidateID
     run_turn(db, world.requester, "status of my Rails search", brains=brains)
     status_event = db.query(FlashMessage).filter(FlashMessage.role == "event").order_by(FlashMessage.id.desc()).first()
-    assert status_event.payload["tool"] == "mission_status" and "1 in interviews" in status_event.body
+    assert status_event.payload["tool"] == "mission_status" and status_event.body == "Checked on your Flash searches."
+    assert "1 in interviews" in status_event.payload["outcome"]["text"]
 
 
 def test_rails_developer_end_to_end_with_every_brain_offline(db, on, world, queued):
