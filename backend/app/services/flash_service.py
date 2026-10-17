@@ -90,6 +90,8 @@ INTENT_JOB_CREATE = "job_create"
 INTENT_MY_TIMESHEETS = "my_timesheets"
 INTENT_PIPELINE_SUMMARY = "pipeline_summary"
 INTENT_DECISIONS = "decisions"
+INTENT_MISSION_STATUS = "mission_status"
+INTENT_MISSION_CONTROL = "mission_control"
 INTENT_UNKNOWN = "unknown"
 
 # What the AI router may choose (it never answers -- every answer is a real DB lookup)
@@ -103,6 +105,7 @@ AI_INTENTS = {
     INTENT_MY_TIMESHEETS: "the asker's own timesheets or hours (query: empty)",
     INTENT_JOB_CREATE: "create or open a new job, or a need for a new hire (query: the job description)",
     INTENT_DECISIONS: "decisions or approvals waiting for the asker (query: empty)",
+    INTENT_MISSION_STATUS: "progress of Flash's own searches for jobs created in Flash (query: job title or client, may be empty)",
     INTENT_PIPELINE_SUMMARY: "how many candidates are at each hiring stage, optionally for one client (query: client name, may be empty)",
 }
 
@@ -228,6 +231,14 @@ _JOB_CREATE_PATTERN = re.compile(
     r"\b(i|we)\s+(need|want)\s+(a|an|\d+)\s+[\w+#. -]{0,40}?\b(developer|engineer|architect|analyst|tester|consultant)s?\b",
     re.IGNORECASE,
 )
+# Flash's own searches (missions): "status of my rails search", "my searches", "pause my rails search"
+_MISSION_STATUS_PATTERN = re.compile(
+    r"\b(?:status|progress|update)\s+(?:of|on)\s+(?:my|the|our)\s+(?P<q>.*?)\s*search\b|"
+    r"\bhow(?:'s|\s+is)\s+(?:my|the|our)\s+(?P<q2>.*?)\s*search\b|\bmy\s+(?:flash\s+)?searches\b",
+    re.IGNORECASE,
+)
+_MISSION_CONTROL_PATTERN = re.compile(
+    r"\b(?P<action>pause|resume|restart|cancel|stop)\s+(?:my|the|our)\s+(?P<q>.*?)\s*search\b", re.IGNORECASE)
 _DECISIONS_PATTERN = re.compile(
     r"\b(pending|open|waiting)\s+(decisions?|approvals?)\b|\b(decisions?|approvals?)\b.{0,30}\b(waiting|pending|for\s+me)\b|"
     r"\bwhat.{0,20}\b(waiting|pending)\b.{0,20}\b(on|for)\s+me\b",
@@ -303,6 +314,16 @@ def classify_internal_query(message: str, *, history: Optional[List[Dict]] = Non
 
     if _AR_AGING_PATTERN.search(text):
         return {"intent": INTENT_AR_AGING, "query": ""}
+
+    control = _MISSION_CONTROL_PATTERN.search(text)
+    if control:
+        action = {"restart": "resume", "stop": "cancel"}.get(control.group("action").lower(),
+                                                              control.group("action").lower())
+        return {"intent": INTENT_MISSION_CONTROL, "query": control.group("q").strip(), "action": action}
+
+    mission = _MISSION_STATUS_PATTERN.search(text)
+    if mission:
+        return {"intent": INTENT_MISSION_STATUS, "query": (mission.group("q") or mission.group("q2") or "").strip()}
 
     if _DECISIONS_PATTERN.search(text):
         return {"intent": INTENT_DECISIONS, "query": ""}
@@ -882,6 +903,17 @@ def answer_internal_query(
     if intent == INTENT_MY_TASKS:
         tasks = get_my_tasks_answer(db, current_user)
         return {"intent": intent, "reply": _format_my_tasks_reply(tasks)}
+
+    if intent in (INTENT_MISSION_STATUS, INTENT_MISSION_CONTROL):
+        from app.core import authority
+        from app.services import flash_mission_service
+
+        if current_user is None or not authority.has_permission(db, current_user, "jobs.view"):
+            return {"intent": intent, "reply": "You don't have permission to see jobs."}
+        if intent == INTENT_MISSION_STATUS:
+            return {"intent": intent, "reply": flash_mission_service.status_reply(db, current_user, query)}
+        return {"intent": intent, "reply": flash_mission_service.control_by_query(
+            db, current_user, classification.get("action") or "pause", query)}
 
     if intent == INTENT_DECISIONS:
         if current_user is None:

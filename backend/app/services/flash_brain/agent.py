@@ -36,9 +36,10 @@ FLASH_SYSTEM = (
     "only for what its result says is missing; create_client and create_job run only after the user said "
     "yes to the exact question update_job_draft gave you. You never record interview verdicts, reject or "
     "hire candidates, approve offers or submit candidates to clients: people decide those, and "
-    "pending_decisions lists what waits for this user. Financial figures are not available to you: tell "
-    "the user to ask Flash for the P&L or overdue invoices directly. If no tool fits, say what you can help "
-    "with.")
+    "pending_decisions lists what waits for this user. After a job is created Flash keeps working it (a "
+    "\"search\"): mission_status reports progress; pause_mission, resume_mission and cancel_mission change it. "
+    "Financial figures are not available to you: tell the user to ask Flash for the P&L or overdue invoices "
+    "directly. If no tool fits, say what you can help with.")
 
 
 def message_dict(message: FlashMessage) -> Dict:

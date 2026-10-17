@@ -311,8 +311,14 @@ def _create_job(ctx: ToolContext, args: Dict) -> Dict:
 
 
 def start_mission_for(ctx: ToolContext, job_id: str, positions: int) -> Optional[str]:
-    """Flash missions (sourcing -> interviews) are not part of this phase."""
-    return None
+    """Flash keeps working the job (flash_mission_service) when missions are switched on and the
+    user's role template grants flash-missions.create; otherwise the job is simply created."""
+    from app.core import authority
+    from app.services.flash_mission_service import start_mission
+
+    if not settings.FLASH_MISSIONS_ENABLED or not authority.has_permission(ctx.db, ctx.user, "flash-missions.create"):
+        return None
+    return start_mission(ctx.db, ctx.user, job_id, positions, conversation_id=ctx.conversation.id).id
 
 
 register(FlashTool(

@@ -62,6 +62,12 @@ _JOBS = (
     ScheduledJob("interview_reminders", "app.services.interview_reminder_job:run",
                  timedelta(minutes=5), timeout_s=120, sends_external=True,
                  backlog_guard="app.services.interview_reminder_job:backlog_guard"),
+    # candidate- and interviewer-facing: Flash missions (jobs created in the Flash chat) -- bench
+    # first, sourcing, interview scheduling as the requester, feedback chasing, until positions are
+    # filled by candidates who joined (flash_mission_service); off unless FLASH_MISSIONS_ENABLED
+    ScheduledJob("flash_mission_sweep", "app.services.flash_mission_service:run_sweep",
+                 timedelta(minutes=5), timeout_s=240, sends_external=True,
+                 backlog_guard="app.services.flash_mission_service:backlog_guard"),
     ScheduledJob("birthday_drafts", "app.services.culture_agent_service:generate_birthday_drafts",
                  timedelta(days=1), timeout_s=120, daily_after_utc="03:00"),
 )

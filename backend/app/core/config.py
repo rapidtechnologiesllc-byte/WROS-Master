@@ -199,6 +199,36 @@ class Settings:
     # does not say
     FLASH_JOB_DEFAULT_COMPANY_TYPE: str = os.getenv("FLASH_JOB_DEFAULT_COMPANY_TYPE", "Full time")
     FLASH_JOB_DEFAULT_POSITIONS: int = int(os.getenv("FLASH_JOB_DEFAULT_POSITIONS", "1"))
+    # Flash missions (flash spec D): after a job is created in the chat, Flash sources, schedules
+    # interviews and chases feedback until the positions are filled -- a position is filled when the
+    # candidate JOINS (CEO 2026-10-15), never at offer. Off until piloted.
+    FLASH_MISSIONS_ENABLED: bool = os.getenv("FLASH_MISSIONS_ENABLED", "false").lower() == "true"
+    FLASH_MISSION_BATCH: int = int(os.getenv("FLASH_MISSION_BATCH", "20"))  # missions per sweep
+    # Up to this many candidates interviewed at once per open position (CEO 2026-10-15: 20)
+    FLASH_PARALLEL_CANDIDATES: int = int(os.getenv("FLASH_PARALLEL_CANDIDATES", "20"))
+    FLASH_MISSION_RECHECK_HOURS: int = int(os.getenv("FLASH_MISSION_RECHECK_HOURS", "4"))  # no eligible candidate
+    FLASH_MISSION_TRACK_CHECK_MINUTES: int = int(os.getenv("FLASH_MISSION_TRACK_CHECK_MINUTES", "15"))
+    # No match: tell the recruiter after this many days, then the hiring manager every N days; a
+    # search is never closed for having no match (CEO 2026-10-15)
+    FLASH_MISSION_ESCALATE_AFTER_DAYS: int = int(os.getenv("FLASH_MISSION_ESCALATE_AFTER_DAYS", "5"))
+    FLASH_MISSION_REESCALATE_DAYS: int = int(os.getenv("FLASH_MISSION_REESCALATE_DAYS", "7"))
+    # A queued job that never appears fails its mission after this long
+    FLASH_MISSION_JOB_WAIT_HOURS: int = int(os.getenv("FLASH_MISSION_JOB_WAIT_HOURS", "24"))
+    FLASH_MISSION_MAX_ERRORS: int = int(os.getenv("FLASH_MISSION_MAX_ERRORS", "3"))
+    # No common free slot: retry this often; tell the recruiter after this long
+    FLASH_NO_SLOT_RETRY_HOURS: int = int(os.getenv("FLASH_NO_SLOT_RETRY_HOURS", "24"))
+    FLASH_NO_SLOT_ESCALATE_HOURS: int = int(os.getenv("FLASH_NO_SLOT_ESCALATE_HOURS", "48"))
+    # Missing interview feedback: remind the interviewer this often; after this many reminders the
+    # hiring manager is told too
+    FLASH_FEEDBACK_CHASE_HOURS: int = int(os.getenv("FLASH_FEEDBACK_CHASE_HOURS", "24"))
+    FLASH_FEEDBACK_CHASES_BEFORE_HM: int = int(os.getenv("FLASH_FEEDBACK_CHASES_BEFORE_HM", "2"))
+    # Interview slots Flash picks: no sooner than this, no later than this, on the quarter hour
+    INTERVIEW_MIN_LEAD_HOURS: int = int(os.getenv("INTERVIEW_MIN_LEAD_HOURS", "24"))
+    INTERVIEW_HORIZON_DAYS: int = int(os.getenv("INTERVIEW_HORIZON_DAYS", "10"))
+    INTERVIEW_SLOT_STEP_MINUTES: int = int(os.getenv("INTERVIEW_SLOT_STEP_MINUTES", "15"))
+    # Read interviewers' Outlook busy times and put Flash's interviews in their calendar (needs the
+    # Graph app with Calendars.ReadWrite); off -> database conflicts only, the invite says the link follows
+    FLASH_USE_GRAPH_CALENDAR: bool = os.getenv("FLASH_USE_GRAPH_CALENDAR", "false").lower() == "true"
 
     # Interview scheduling: interviewer business hours (local time), working days, buffer, length
     INTERVIEW_WORKDAY_START_HOUR: int = int(os.getenv("INTERVIEW_WORKDAY_START_HOUR", "9"))

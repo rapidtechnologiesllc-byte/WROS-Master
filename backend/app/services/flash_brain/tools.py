@@ -314,6 +314,7 @@ def _load_registry() -> None:
     if _LOADED:
         return
     _LOADED = True
+    from app.services import flash_mission_service  # noqa: F401 -- registers the mission tools
     from app.services.flash_brain import job_intake  # noqa: F401 -- registers its tools
 
 
