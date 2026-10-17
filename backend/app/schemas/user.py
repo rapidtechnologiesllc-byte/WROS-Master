@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 import logging
 from datetime import datetime, date
 
@@ -162,6 +162,8 @@ class JobCreateRequest(BaseModel):
     project_id: Optional[str] = None
     # What the client is billed per hour for this role (invoices use it)
     billing_rate_usd_cents: Optional[int] = None
+    # REMOTE / ONSITE / HYBRID (Jobs.work_location); omitted -> the job's default (REMOTE)
+    work_location: Optional[Literal["REMOTE", "ONSITE", "HYBRID"]] = None
 
 class JobCreateResponse(BaseModel):
     job_id: str

@@ -137,6 +137,7 @@ def submit_job(db: Session, user: Users, request: JobCreateRequest) -> str:
             "billing_rate_usd_cents": request.billing_rate_usd_cents,
             "department_id": request.department_id,
             "salary_range": request.salary_range,
+            "work_location": request.work_location,
             "job_status": PUBLISHED_STATUS,
             "created_by_user_id": user.UserID,
             "tenant_id": user.tenant_id,
@@ -150,12 +151,16 @@ def submit_job(db: Session, user: Users, request: JobCreateRequest) -> str:
 
 def _store_slm_metadata(db: Session, user: Users, job_id: str, request: JobCreateRequest) -> None:
     """Job metadata for SLM learning. Optional by design: the job is already queued, so a
-    failure here is logged and never fails the creation."""
+    failure here is logged and never fails the creation. It is written through its own session:
+    store_job_metadata commits (and on failure rolls back) the session it is given, which must
+    never be the caller's -- Flash's turn (the user's message, the job draft) lives there."""
+    from app.core.database import SessionLocal
     from app.services.slm_job_metadata_service import SLMJobMetadataService
 
+    own = SessionLocal()
     try:
         SLMJobMetadataService.store_job_metadata(
-            db=db,
+            db=own,
             job_id=job_id,
             job_title=request.job_title,
             job_description=request.job_description,
@@ -169,3 +174,5 @@ def _store_slm_metadata(db: Session, user: Users, job_id: str, request: JobCreat
         logger.info(f"[SLM] Stored metadata for job: {job_id} ({request.job_title})")
     except Exception as exc:
         logger.error(f"[SLM] Failed to store job metadata for {job_id}: {exc}", exc_info=True)
+    finally:
+        own.close()

@@ -92,7 +92,9 @@ def create_client(
     if not company_name:
         raise ClientValidationError("company_name is required.")
 
-    existing = db.query(Client).filter(Client.company_name == company_name).first()
+    tenant_id = created_by_user.tenant_id
+    existing = db.query(Client).filter(Client.company_name == company_name,
+                                       (Client.tenant_id == tenant_id) | Client.tenant_id.is_(None)).first()
     if existing:
         raise DuplicateClientError(f"A client named {company_name!r} already exists.")
 
@@ -120,6 +122,9 @@ def create_client(
             business_unit_id = corporate_bu.id if corporate_bu else None
 
     client = Client(
+        # The creator's tenant: the client list and every lookup are tenant-scoped, so a client
+        # without one was invisible right after creation
+        tenant_id=tenant_id,
         company_name=company_name,
         business_unit_id=business_unit_id,
         line_type=line_type,

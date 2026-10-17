@@ -9,8 +9,9 @@ Registry: WORKFLOWS[kind] -> object with open(ctx, ref) and step(ctx, text), eac
 {"reply": str, "done": bool, "state": dict | None}.
 """
 import logging
-from dataclasses import dataclass
-from typing import Dict, Optional
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -29,6 +30,9 @@ class WorkflowContext:
     db: Session
     user: Users
     conversation: FlashConversation
+    brains: Any = None  # flash_brain.llm.Brains for a workflow that uses a model (job intake)
+    history: List[Dict] = field(default_factory=list)  # earlier plain-text turns
+    now: Optional[datetime] = None
 
     @property
     def state(self) -> Dict:
@@ -117,7 +121,13 @@ class CoreCertWorkflow:
             return {"reply": str(exc), "done": True}
 
 
-WORKFLOWS = {CoreCertWorkflow.kind: CoreCertWorkflow()}
+def _registry() -> Dict:
+    from app.services.flash_brain.job_intake import JobIntakeWorkflow
+
+    return {CoreCertWorkflow.kind: CoreCertWorkflow(), JobIntakeWorkflow.kind: JobIntakeWorkflow()}
+
+
+WORKFLOWS = _registry()
 
 
 def _apply(db: Session, conversation: FlashConversation, kind: str, ref: Optional[str], result: Dict) -> Dict:
@@ -128,25 +138,30 @@ def _apply(db: Session, conversation: FlashConversation, kind: str, ref: Optiona
     return result
 
 
-def open_workflow(db: Session, user: Users, conversation: FlashConversation, kind: str, ref: str) -> Dict:
+def open_workflow(db: Session, user: Users, conversation: FlashConversation, kind: str, ref: Optional[str],
+                  *, brains=None) -> Dict:
     """Validate the workflow's permission and scope, make it the active one, return its first prompt.
     Raises HTTPException (404 unknown kind or record, 403 no permission)."""
     workflow = WORKFLOWS.get(kind)
     if workflow is None:
         raise HTTPException(status_code=404, detail=f"Flash has no '{kind}' discussion.")
-    result = workflow.open(WorkflowContext(db, user, conversation), ref)
+    result = workflow.open(WorkflowContext(db, user, conversation, brains=brains), ref)
     return _apply(db, conversation, kind, ref, result)
 
 
-def step_workflow(db: Session, user: Users, conversation: FlashConversation, text: str) -> Dict:
+def step_workflow(db: Session, user: Users, conversation: FlashConversation, text: str, *, brains=None,
+                  history: Optional[List[Dict]] = None, now: Optional[datetime] = None) -> Dict:
     """One message to the active workflow. A workflow the user may no longer see ends with the reason."""
     kind, ref = conversation.active_workflow, conversation.workflow_ref
     workflow = WORKFLOWS.get(kind)
     if workflow is None:
         logger.error(f"[Flash] conversation {conversation.id} had unknown workflow {kind!r}; cleared")
         return _apply(db, conversation, kind, ref, {"reply": "That discussion is no longer available.", "done": True})
+    ctx = WorkflowContext(db, user, conversation, brains=brains, history=history or [], now=now)
     try:
-        result = workflow.step(WorkflowContext(db, user, conversation), text)
+        result = workflow.step(ctx, text)
     except HTTPException as exc:
         result = {"reply": str(exc.detail), "done": True}
-    return _apply(db, conversation, kind, ref, result)
+    result = _apply(db, conversation, kind, ref, result)
+    result["brains"] = ctx.brains  # a model that failed during the step is offline for the rest of the turn
+    return result

@@ -4,7 +4,7 @@ import logging
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, OperationalError
-from app.models.user import Jobs, Users
+from app.models.user import JOB_WORK_LOCATIONS, Jobs, Users
 from datetime import datetime, timedelta
 from uuid import uuid4
 from app.services.message_handlers.base_message_handler import time_bound
@@ -113,6 +113,9 @@ class JobCreationFlashHandler:
             boolean_mode = (payload.get('job_skills_boolean_mode') or 'AND').upper()
             if boolean_mode not in ('AND', 'OR'):
                 raise ValueError(f"job_skills_boolean_mode must be AND or OR, got {boolean_mode!r}")
+            work_location = (payload.get('work_location') or 'REMOTE').upper()
+            if work_location not in JOB_WORK_LOCATIONS:
+                raise ValueError(f"work_location must be one of {JOB_WORK_LOCATIONS}, got {work_location!r}")
             min_experience_years = payload.get('min_experience_years')
             if min_experience_years is not None:
                 try:
@@ -154,6 +157,7 @@ class JobCreationFlashHandler:
                     required_skills_canonical=structured_skills,
                     job_skills_boolean_mode=boolean_mode,
                     min_experience_years=min_experience_years,
+                    work_location=work_location,
                 )
 
                 db.add(job)

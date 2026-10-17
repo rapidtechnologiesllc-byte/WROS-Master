@@ -195,6 +195,10 @@ class Settings:
     FLASH_CONTEXT_TURNS: int = int(os.getenv("FLASH_CONTEXT_TURNS", "6"))
     FLASH_CONVERSATION_PAGE: int = int(os.getenv("FLASH_CONVERSATION_PAGE", "100"))
     FLASH_POLL_SECONDS: int = int(os.getenv("FLASH_POLL_SECONDS", "60"))
+    # Jobs created by talking to Flash (CEO 2026-10-15): employment type and openings when the user
+    # does not say
+    FLASH_JOB_DEFAULT_COMPANY_TYPE: str = os.getenv("FLASH_JOB_DEFAULT_COMPANY_TYPE", "Full time")
+    FLASH_JOB_DEFAULT_POSITIONS: int = int(os.getenv("FLASH_JOB_DEFAULT_POSITIONS", "1"))
 
     # Interview scheduling: interviewer business hours (local time), working days, buffer, length
     INTERVIEW_WORKDAY_START_HOUR: int = int(os.getenv("INTERVIEW_WORKDAY_START_HOUR", "9"))
