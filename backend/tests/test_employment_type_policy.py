@@ -235,7 +235,15 @@ def test_db_contract_moves_w2_fulltime_to_fulltime_and_derives_country(db, world
     db.expire_all()
     row = db.get(Candidate, legacy.candidateID)
     assert (row.employment_type, row.country) == ("FULLTIME", "IN")
+    # a rolled-back previous release still writes W2_FULLTIME: the database accepts it ...
+    db.execute(text("UPDATE app_schema.candidates SET employment_type = 'W2_FULLTIME' "
+                    "WHERE \"candidateID\" = :id"), {"id": legacy.candidateID})
+    # ... and the next startup converts it again
+    _initialize_employment_types(db)
+    db.expire_all()
+    assert db.get(Candidate, legacy.candidateID).employment_type == "FULLTIME"
+    # anything outside the canonical set (plus that one legacy value) is still refused
     with pytest.raises(IntegrityError):
         with db.begin_nested():
-            db.execute(text("UPDATE app_schema.candidates SET employment_type = 'W2_FULLTIME' "
+            db.execute(text("UPDATE app_schema.candidates SET employment_type = 'BOGUS' "
                             "WHERE \"candidateID\" = :id"), {"id": legacy.candidateID})

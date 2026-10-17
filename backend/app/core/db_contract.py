@@ -793,6 +793,11 @@ def _initialize_submission_violation_types(db):
     db.commit()
 
 
+# Values the previous release writes (gate criterion 24: schema compatible with the old code for
+# two deploy cycles). Remove once two releases with the canonical set have shipped.
+ROLLBACK_COMPAT_EMPLOYMENT_TYPES = ("W2_FULLTIME",)
+
+
 def _initialize_employment_types(db):
     """One canonical employment-type set (CEO 2026-10-15): W2_FULLTIME becomes FULLTIME on
     candidates, sub-vendor submissions and jobs, and the CHECK constraints are rebuilt from
@@ -803,7 +808,10 @@ def _initialize_employment_types(db):
     from app.services.employment_type_policy import policy
 
     countries = policy()["countries"]
-    allowed = ", ".join("'" + kind + "'" for kind in CANDIDATE_EMPLOYMENT_TYPES)
+    # The constraint keeps the legacy W2_FULLTIME value for ROLLBACK_COMPAT_EMPLOYMENT_TYPES' life:
+    # if a deploy is rolled back, the previous release still writes W2_FULLTIME and must not fail;
+    # the next startup converts any such rows again (the UPDATE below is idempotent).
+    allowed = ", ".join("'" + kind + "'" for kind in (*CANDIDATE_EMPLOYMENT_TYPES, *ROLLBACK_COMPAT_EMPLOYMENT_TYPES))
     for table, constraint in (("candidates", "candidate_employment_type"),
                               ("sub_vendor_submissions", "subvendor_submission_employment_type")):
         db.execute(text(f"ALTER TABLE app_schema.{table} DROP CONSTRAINT IF EXISTS {constraint}"))
