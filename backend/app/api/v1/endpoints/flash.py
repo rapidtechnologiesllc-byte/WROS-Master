@@ -11,9 +11,12 @@ application/onboarding status) -- Flash is the INTERNAL-facing agent,
 used by staff and by anyone once they convert from candidate to
 employee. See app.services.flash_service for the full rationale: every
 answer comes from a real DB query, never a fabricated one; a language
-model (app.services.flash_brain) only classifies intent and extracts a
-search term, and sees work data only -- "strict mode,"
-per Avinash's own words, not a general-purpose chat model guessing.
+model (app.services.flash_brain) understands the request and calls Flash's
+tools (flash_brain.tools: the requester's own permissions, checked when a
+tool is offered and again when it runs), and sees work data only --
+"strict mode," per Avinash's own words, not a general-purpose chat model
+guessing. Flash can create a job in the chat (job_intake workflow), never
+a verdict, rejection, hire, offer approval or client submission.
 
 Renamed 2026-08-06 from "Ask Thunder" (module/route prefix were
 internal_ask_thunder.py / /ask-thunder) -- functionally unchanged,
@@ -129,7 +132,7 @@ def open_flash_workflow(
     brains: Brains = Depends(get_brains),
 ):
     conversation = conversations.active_conversation(db, current_user)
-    result = open_workflow(db, current_user, conversation, body.kind, body.ref)
+    result = open_workflow(db, current_user, conversation, body.kind, body.ref, brains=brains)
     said = conversations.append(db, conversation, "flash", result["reply"],
                                 {"intent": f"workflow:{body.kind}", "workflow": {"kind": body.kind, "ref": body.ref}})
     conversations.mark_read(conversation, said.id)

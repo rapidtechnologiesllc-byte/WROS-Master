@@ -137,6 +137,7 @@ def submit_job(db: Session, user: Users, request: JobCreateRequest) -> str:
             "billing_rate_usd_cents": request.billing_rate_usd_cents,
             "department_id": request.department_id,
             "salary_range": request.salary_range,
+            "work_location": request.work_location,
             "job_status": PUBLISHED_STATUS,
             "created_by_user_id": user.UserID,
             "tenant_id": user.tenant_id,
@@ -149,19 +150,28 @@ def submit_job(db: Session, user: Users, request: JobCreateRequest) -> str:
 
 
 def _store_slm_metadata(db: Session, user: Users, job_id: str, request: JobCreateRequest) -> None:
-    """Job metadata for SLM learning. Optional by design: the job is already queued, so a
-    failure here is logged and never fails the creation."""
+    """Job metadata for SLM learning. Optional telemetry, so non-blocking by design: nothing that
+    creates, matches, sources, interviews or offers on a job reads slm_job_metadata -- its only
+    reader is the CEO dashboard's "top performing jobs" list (ceo_fy_progress_service), and the job
+    is already queued. Failing the creation over it would lose a real job for a statistic, so a
+    failure is logged at error with the traceback and the job stands. (The table is declared in
+    app.models.slm_job_metadata, so create_all always creates it; the write failing used to be
+    the table missing from the test schema.) It is written through its own session:
+    store_job_metadata commits (and on failure rolls back) the session it is given, which must
+    never be the caller's -- Flash's turn (the user's message, the job draft) lives there."""
+    from app.core.database import SessionLocal
     from app.services.slm_job_metadata_service import SLMJobMetadataService
 
+    own = SessionLocal()
     try:
         SLMJobMetadataService.store_job_metadata(
-            db=db,
+            db=own,
             job_id=job_id,
             job_title=request.job_title,
             job_description=request.job_description,
             business_unit_id=request.business_unit,
             department=request.department_id,
-            required_skills=request.job_skills.split(',') if request.job_skills else None,
+            required_skills=[s.strip() for s in (request.job_skills or '').split(',') if s.strip()] or None,
             min_experience_months=None,
             max_experience_months=None,
             created_by=user.UserID,
@@ -169,3 +179,5 @@ def _store_slm_metadata(db: Session, user: Users, job_id: str, request: JobCreat
         logger.info(f"[SLM] Stored metadata for job: {job_id} ({request.job_title})")
     except Exception as exc:
         logger.error(f"[SLM] Failed to store job metadata for {job_id}: {exc}", exc_info=True)
+    finally:
+        own.close()

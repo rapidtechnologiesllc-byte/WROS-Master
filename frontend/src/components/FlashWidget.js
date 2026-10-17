@@ -10,6 +10,8 @@
 // 2026-10-15: the conversation lives on the server (one per user): loaded on mount, polled while
 // the bubble is closed (unread badge), opened on a record by a deep link (?flash=kind:ref, e.g.
 // a Core certification decision from its task), with chips for the decisions waiting.
+// 2026-10-17: a tool-call event shows the one-line summary its tool chose (the message body);
+// internal steps are marked hidden by the server and not shown.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { MessageCircleQuestion, Send, X, AlertCircle, CheckCircle, RotateCcw } from "lucide-react";
@@ -66,11 +68,14 @@ export default function FlashWidget() {
       if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     });
 
+  // Every message counts towards the newest id; an internal tool step (payload.hidden, e.g. a
+  // job draft update) stays in the server's audit trail and is not shown
   const addMessages = useCallback((incoming) => {
     if (!incoming || incoming.length === 0) return;
+    const shown = incoming.filter((m) => !(m.role === "event" && m.payload && m.payload.hidden));
     setMessages((prev) => {
       const seen = new Set(prev.map((m) => m.id));
-      const fresh = incoming.filter((m) => !seen.has(m.id));
+      const fresh = shown.filter((m) => !seen.has(m.id));
       return fresh.length ? [...prev, ...fresh] : prev;
     });
     lastIdRef.current = newestId(incoming, lastIdRef.current);

@@ -146,7 +146,7 @@ MODULES_AND_RESOURCES = {
     "Recruitment": ["candidates", "jobs", "submissions", "interviews", "offer-letters",
                     "intervention-queue", "rehire-approval", "candidate-review",
                     "risk-dashboard", "thunder-analytics", "bulk-launch",
-                    "checklists"],
+                    "checklists", "flash-missions"],
     "Workforce": ["employees", "onboarding", "allocations", "timesheets", "htd-intake", "buddy-program", "convert-to-employee",
                   "utilization-dashboard", "resource-forecast", "workforce-overview"],
     "Sales": ["clients", "opportunities", "sales-ops", "pipeline-management",

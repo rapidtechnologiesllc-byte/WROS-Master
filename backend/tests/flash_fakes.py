@@ -22,8 +22,9 @@ class FakeSmall:
 
 
 class FakeLarge:
-    """LargeBrain stand-in. extract_json answers like FakeSmall; run_tools replays `script`: a list
-    of rounds, each a list of (tool name, args) calls, then the final text (or an Exception)."""
+    """LargeBrain stand-in. extract_json answers like FakeSmall. run_tools replays `script`, one turn
+    per call: rounds (each a list of (tool name, args) calls) up to the turn's final text (a str), or
+    an Exception, which is raised. A call with no script left is an unfinished turn (refused)."""
 
     def __init__(self, *script, extract: Optional[list] = None):
         self.script = list(script)
@@ -38,9 +39,11 @@ class FakeLarge:
         return step
 
     def run_tools(self, *, system, history, user_message, tools, execute, tenant_id, purpose="agent"):
-        self.requests.append({"history": list(history), "user": user_message, "tools": [t.name for t in tools]})
+        self.requests.append({"history": list(history), "user": user_message, "tools": [t.name for t in tools],
+                              "purpose": purpose})
         result = ToolLoopResult()
-        for step in self.script:
+        while self.script:
+            step = self.script.pop(0)
             if isinstance(step, Exception):
                 raise step
             if isinstance(step, str):

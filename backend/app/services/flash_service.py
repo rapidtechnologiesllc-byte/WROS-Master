@@ -89,6 +89,9 @@ INTENT_MY_TASKS = "my_tasks"
 INTENT_JOB_CREATE = "job_create"
 INTENT_MY_TIMESHEETS = "my_timesheets"
 INTENT_PIPELINE_SUMMARY = "pipeline_summary"
+INTENT_DECISIONS = "decisions"
+INTENT_MISSION_STATUS = "mission_status"
+INTENT_MISSION_CONTROL = "mission_control"
 INTENT_UNKNOWN = "unknown"
 
 # What the AI router may choose (it never answers -- every answer is a real DB lookup)
@@ -100,7 +103,9 @@ AI_INTENTS = {
     INTENT_AR_AGING: "overdue or unpaid client invoices (query: empty)",
     INTENT_MY_TASKS: "the asker's own tasks (query: empty)",
     INTENT_MY_TIMESHEETS: "the asker's own timesheets or hours (query: empty)",
-    INTENT_JOB_CREATE: "create or open a new job (query: the job description)",
+    INTENT_JOB_CREATE: "create or open a new job, or a need for a new hire (query: the job description)",
+    INTENT_DECISIONS: "decisions or approvals waiting for the asker (query: empty)",
+    INTENT_MISSION_STATUS: "progress of Flash's own searches for jobs created in Flash (query: job title or client, may be empty)",
     INTENT_PIPELINE_SUMMARY: "how many candidates are at each hiring stage, optionally for one client (query: client name, may be empty)",
 }
 
@@ -221,7 +226,22 @@ _SOURCING_PATTERN = re.compile(
 _JOB_CREATE_PATTERN = re.compile(
     r"\b(create|post|open)\s+(a|an|new)?\s*(job|role|position|req|requisition)\b|"
     r"\bneed\s+to\s+(create|post|open)\s+(a|an)?\s*(job|role|position)\b|"
-    r"\b(hire|hiring|recruiting)\s+for\b",
+    r"\b(hire|hiring|recruiting)\s+for\b|"
+    # "I need a Rails developer for ...": a role the user wants filled
+    r"\b(i|we)\s+(need|want)\s+(a|an|\d+)\s+[\w+#. -]{0,40}?\b(developer|engineer|architect|analyst|tester|consultant)s?\b",
+    re.IGNORECASE,
+)
+# Flash's own searches (missions): "status of my rails search", "my searches", "pause my rails search"
+_MISSION_STATUS_PATTERN = re.compile(
+    r"\b(?:status|progress|update)\s+(?:of|on)\s+(?:my|the|our)\s+(?P<q>.*?)\s*search\b|"
+    r"\bhow(?:'s|\s+is)\s+(?:my|the|our)\s+(?P<q2>.*?)\s*search\b|\bmy\s+(?:flash\s+)?searches\b",
+    re.IGNORECASE,
+)
+_MISSION_CONTROL_PATTERN = re.compile(
+    r"\b(?P<action>pause|resume|restart|cancel|stop)\s+(?:my|the|our)\s+(?P<q>.*?)\s*search\b", re.IGNORECASE)
+_DECISIONS_PATTERN = re.compile(
+    r"\b(pending|open|waiting)\s+(decisions?|approvals?)\b|\b(decisions?|approvals?)\b.{0,30}\b(waiting|pending|for\s+me)\b|"
+    r"\bwhat.{0,20}\b(waiting|pending)\b.{0,20}\b(on|for)\s+me\b",
     re.IGNORECASE,
 )
 # Simple proper-noun heuristic for candidate-name extraction: 1-3
@@ -294,6 +314,19 @@ def classify_internal_query(message: str, *, history: Optional[List[Dict]] = Non
 
     if _AR_AGING_PATTERN.search(text):
         return {"intent": INTENT_AR_AGING, "query": ""}
+
+    control = _MISSION_CONTROL_PATTERN.search(text)
+    if control:
+        action = {"restart": "resume", "stop": "cancel"}.get(control.group("action").lower(),
+                                                              control.group("action").lower())
+        return {"intent": INTENT_MISSION_CONTROL, "query": control.group("q").strip(), "action": action}
+
+    mission = _MISSION_STATUS_PATTERN.search(text)
+    if mission:
+        return {"intent": INTENT_MISSION_STATUS, "query": (mission.group("q") or mission.group("q2") or "").strip()}
+
+    if _DECISIONS_PATTERN.search(text):
+        return {"intent": INTENT_DECISIONS, "query": ""}
 
     if _MY_TASKS_PATTERN.search(text):
         return {"intent": INTENT_MY_TASKS, "query": ""}
@@ -705,234 +738,6 @@ def _format_bench_reply(query_text: str, results: List[Dict]) -> str:
     ]
     return f"{len(results)} available {label}:\n" + "\n".join(lines)
 
-def _user_can_create_jobs(db: Session, user: Users) -> bool:
-    """Check if user has permission to create jobs (via RBAC)"""
-    from app.services.permission_helper import PermissionHelper
-    return PermissionHelper.has_any_permission(
-        user.UserID,
-        ["jobs.create"],
-        db,
-        user.tenant_id
-    )
-
-def _extract_job_details_from_history(history: Optional[List[Dict]]) -> Dict:
-    """Extract job creation details from conversation history"""
-    details = {
-        "oneliner": None,
-        "experience_level": None,
-        "is_remote": None,
-        "country": None,
-        "pay_amount": None,
-        "pay_rate_type": "$/Year",
-        "client": None,
-    }
-
-    if not history:
-        return details
-
-    # Parse previous exchanges to extract details
-    for turn in history[-5:]:  # Look back at last 5 turns
-        reply = str((turn or {}).get("reply") or "").lower()
-
-        # Extract experience level
-        if "year" in reply:
-            import re
-            exp_match = re.search(r"(\d+)(?:\s*[-–]\s*(\d+))?\s*years?", reply)
-            if exp_match:
-                details["experience_level"] = exp_match.group(0)
-
-        # Extract remote status
-        if "remote" in reply:
-            details["is_remote"] = "yes" in reply or "true" in reply or "remote" in reply
-
-        # Extract pay
-        if "$" in reply or "k" in reply:
-            import re
-            pay_match = re.search(r"\$?(\d+k?)", reply, re.IGNORECASE)
-            if pay_match:
-                details["pay_amount"] = pay_match.group(1)
-
-    return details
-
-def _get_next_job_question(details: Dict) -> tuple:
-    """Determine next question to ask based on collected details
-    Returns (question_text, field_name, response_type)"""
-
-    if details["oneliner"] is None:
-        return (
-            "Great! I'll help you create a job. First, briefly describe the role (e.g., 'Senior Java Developer with Spring Boot experience')",
-            "oneliner",
-            "text"
-        )
-
-    if details["experience_level"] is None:
-        return (
-            "What's the required experience level? (e.g., '5-7 years', 'Mid-level', 'Senior')",
-            "experience_level",
-            "text"
-        )
-
-    if details["is_remote"] is None:
-        return (
-            "Is this a remote role? (yes/no)",
-            "is_remote",
-            "boolean"
-        )
-
-    if details["is_remote"] and details["country"] is None:
-        return (
-            "Which country is this remote role for? (e.g., 'USA', 'India', 'Canada')",
-            "country",
-            "text"
-        )
-
-    if details["pay_amount"] is None:
-        return (
-            "What's the pay rate? (e.g., '150000', '150k' for annual, or '75/hour' for hourly)",
-            "pay_amount",
-            "text"
-        )
-
-    if details["client"] is None:
-        return (
-            "Who is the client/company? (e.g., 'Internal', 'Acme Corp')",
-            "client",
-            "text"
-        )
-
-    if "skills" not in details or details["skills"] is None:
-        return (
-            "What skills are required? (Format: 'Skill Name:Years:Mandatory' e.g., 'Java:5:yes, Spring Boot:3:yes, Docker:2:no')",
-            "skills",
-            "text"
-        )
-
-    return (None, None, None)
-
-def _handle_job_creation(db: Session, user: Users, oneliner: str, history: Optional[List[Dict]], conversation_state: Optional[Dict] = None) -> Dict:
-    """Handle conversational job creation flow"""
-    # Use conversation state if provided, otherwise extract from history
-    if conversation_state:
-        details = conversation_state.copy()
-    else:
-        details = _extract_job_details_from_history(history)
-
-    # If we have a one-liner from the initial message, use it
-    if oneliner:
-        details["oneliner"] = oneliner
-
-    # Determine next question to ask
-    next_q, field_name, q_type = _get_next_job_question(details)
-
-    if next_q is None:
-        # All details collected, create the job
-        return _create_job_from_details(db, user, details)
-
-    # Return next question
-    return {
-        "intent": INTENT_JOB_CREATE,
-        "reply": next_q,
-        "requires_response": True,
-        "expected_field": field_name,
-        "response_type": q_type,
-        "conversation_state": details
-    }
-
-def _parse_skills_from_string(skills_str: str) -> list:
-    """Parse skills string into structured format
-    Input: 'Java:5:yes, Spring Boot:3:yes, Docker:2:no'
-    Output: [{"name": "Java", "years": 5, "mandatory": True}, ...]
-    """
-    if not skills_str:
-        return []
-
-    skills = []
-    try:
-        for skill_part in skills_str.split(","):
-            parts = [p.strip() for p in skill_part.strip().split(":")]
-            if len(parts) >= 3:
-                name, years_str, mandatory_str = parts[0], parts[1], parts[2]
-                try:
-                    years = int(years_str)
-                    mandatory = mandatory_str.lower() in ("yes", "true", "1", "mandatory")
-                    skills.append({
-                        "name": name,
-                        "years": years,
-                        "mandatory": mandatory
-                    })
-                except ValueError:
-                    continue
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        logger.warning(f"Failed to parse skills string: {e}")
-
-    return skills if skills else [{"name": skill_str.strip(), "years": 0, "mandatory": True} for skill_str in skills_str.split(",")]
-
-def _create_job_from_details(db: Session, user: Users, details: Dict) -> Dict:
-    """Create a job from collected details and assign to recruiter"""
-    try:
-        from app.services.recruiter_assignment_service import assign_to_recruiter_roundrobin
-        from app.utils.uniq_id_generator import job_id_generator
-        from app.models.user import Jobs
-        from datetime import datetime
-
-        # Extract job title from oneliner
-        job_title = details["oneliner"].split(" ")[0] if details["oneliner"] else "Job"
-
-        # Parse skills into structured format
-        skills_str = details.get("skills", "")
-        structured_skills = _parse_skills_from_string(skills_str)
-
-        # Determine boolean mode: if any skill is optional, use OR, otherwise use AND
-        boolean_mode = "OR" if any(not s.get("mandatory", True) for s in structured_skills) else "AND"
-
-        # Create the job
-        job = Jobs(
-            jobID=job_id_generator(),
-            jobTitle=job_title,
-            jobDescription=details["oneliner"],  # Will be expanded later
-            jobSkills=details.get("skills", ""),  # Free text for backward compatibility
-            jobExperience=details.get("experience_level", ""),
-            jobLocation=details.get("country", "Remote"),
-            salaryRange=details.get("pay_amount", ""),
-            companyType="Full time",  # Default, can be updated
-            companyName=details.get("client", ""),
-            hiringManagerID=user.UserID,
-            # Job approval flow is disabled: every new job is published active
-            jobStatus="active",
-            required_skills_canonical=structured_skills,
-            job_skills_boolean_mode=boolean_mode,
-            jobCreatedAt=datetime.utcnow(),
-        )
-
-        db.add(job)
-        db.flush()  # Flush to get the job ID
-
-        # Assign to recruiter via round-robin
-        recruiter = assign_to_recruiter_roundrobin(db, user.tenant_id)
-
-        if recruiter:
-            job.recuriterID = recruiter.UserID  # the jobs table's recruiter column
-
-        db.commit()
-        from app.services.recruiting_service import start_recruiting
-
-        start_recruiting(job, "created in Flash chat")
-        return {
-            "intent": INTENT_JOB_CREATE,
-            "reply": f"✓ Job created successfully! Job ID: {job.jobID}\nAssigned to recruiter: {recruiter.UserName if recruiter else 'Pending'}",
-            "job_id": job.jobID
-        }
-
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        logger.error(f"[Flash] Job creation failed: {e}")
-        db.rollback()
-        return {
-            "intent": INTENT_JOB_CREATE,
-            "reply": f"Sorry, I couldn't create the job. Error: {str(e)[:100]}"
-        }
-
 def get_my_timesheets_answer(db: Session, user: Users) -> Dict:
     from app.models.employee_allocation import EmployeeAllocation
     from app.models.timesheet import Timesheet
@@ -1002,7 +807,7 @@ def _format_pipeline_summary(result: Dict) -> str:
 
 
 def answer_internal_query(
-    db: Session, message: str, *, current_user: Optional[Users] = None, history: Optional[List[Dict]] = None, conversation_state: Optional[Dict] = None,
+    db: Session, message: str, *, current_user: Optional[Users] = None, history: Optional[List[Dict]] = None,
     brains=None,
 ) -> Dict:
     """
@@ -1099,15 +904,35 @@ def answer_internal_query(
         tasks = get_my_tasks_answer(db, current_user)
         return {"intent": intent, "reply": _format_my_tasks_reply(tasks)}
 
-    if intent == INTENT_JOB_CREATE:
+    if intent in (INTENT_MISSION_STATUS, INTENT_MISSION_CONTROL):
+        from app.core import authority
+        from app.services import flash_mission_service
+
+        if current_user is None or not authority.has_permission(db, current_user, "jobs.view"):
+            return {"intent": intent, "reply": "You don't have permission to see jobs."}
+        if intent == INTENT_MISSION_STATUS:
+            return {"intent": intent, "reply": flash_mission_service.status_reply(db, current_user, query)}
+        return {"intent": intent, "reply": flash_mission_service.control_by_query(
+            db, current_user, classification.get("action") or "pause", query)}
+
+    if intent == INTENT_DECISIONS:
         if current_user is None:
-            return {"intent": intent, "reply": "You must be logged in to create jobs."}
+            return {"intent": intent, "reply": UNSUPPORTED_QUERY_MESSAGE}
+        from app.services.flash_brain.decisions import pending_decisions
 
-        # Check if user has permission to create jobs (HR Manager or Admin)
-        if not _user_can_create_jobs(db, current_user):
-            return {"intent": intent, "reply": "You don't have permission to create jobs. Contact HR."}
+        decisions = pending_decisions(db, current_user)
+        if not decisions:
+            return {"intent": intent, "reply": "Nothing is waiting for your decision."}
+        return {"intent": intent, "reply": f"{len(decisions)} decision(s) waiting for you:\n"
+                + "\n".join(f"- {d.text}" for d in decisions)}
 
-        # Handle job creation conversational flow
-        return _handle_job_creation(db, current_user, query, history, conversation_state)
+    if intent == INTENT_JOB_CREATE:
+        # The job_intake workflow (flash_brain.job_intake) takes over: Flash asks for what is
+        # missing, confirms in one line and creates the job through job_creation_service.
+        from app.core import authority
+
+        if current_user is None or not authority.has_permission(db, current_user, "jobs.create"):
+            return {"intent": intent, "reply": "You don't have permission to create jobs."}
+        return {"intent": intent, "reply": "Let's set up the job.", "open_workflow": "job_intake"}
 
     return {"intent": INTENT_UNKNOWN, "reply": UNSUPPORTED_QUERY_MESSAGE}

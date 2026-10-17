@@ -42,11 +42,9 @@ def initialize_database():
     try:
         # Step 1: Create all tables from models
         logger.info("[Contract] Step 1: Creating database tables...")
-        # Import models package - this triggers _auto_import_all_models()
+        # Import models package - this triggers _auto_import_all_models(). Every table is declared
+        # in app.models (tests/test_slm_job_metadata.py asserts no model lives elsewhere)
         import app.models
-        # Models defined outside app.models must be imported to be created
-        import app.services.slm_job_metadata_service  # noqa: F401 -- SLMJobMetadata
-        import app.services.slm_feedback_engine  # noqa: F401 -- SLMFeedback, SLMModelVersion
         Base.metadata.create_all(bind=engine)
         logger.info("[OK] Database tables created")
 
@@ -225,6 +223,10 @@ ORG_LEVEL_SEED_ROLES = ("Super Admin", "Admin")
 # Resources only the seeded admin roles start with: who may define the firm's job titles
 # and levels (org-roles) is an administrator decision, not every system role's.
 ADMIN_ONLY_RESOURCES = frozenset({"org-roles"})
+# Resources granted from another permission of the same role template, never wholesale: a role may
+# start Flash missions when it may create jobs (CEO 2026-10-15; data-driven, never by role name).
+# resource -> (source resource, source action)
+DERIVED_GRANTS = {"flash-missions": ("jobs", "create")}
 
 
 def _initialize_rbac():
@@ -349,7 +351,7 @@ def _initialize_rbac():
             }
             permissions_granted = 0
             for resource in resources:
-                if resource.id in existing_resource_ids:
+                if resource.id in existing_resource_ids or resource.name in DERIVED_GRANTS:
                     continue
                 # Admin-only resources start closed on the other system roles; the Role
                 # Templates editor can open them later (the row exists, so it is never re-seeded)
@@ -518,6 +520,7 @@ def _initialize_leadership_roles():
         _initialize_thunder_identity_config(db)
         _initialize_user_template_tenants(db)
         _initialize_pipeline_access(db)
+        _initialize_derived_grants(db)
     except Exception:
         db.rollback()
         raise
@@ -553,6 +556,41 @@ def _initialize_role_authority(db):
                             config_key=ROLE_AUTHORITY_SEED_KEY, config_value={"org_level_access": list(ORG_LEVEL_SEED_ROLES)}))
         db.commit()
         logger.info(f"[Contract] Set org_level_access on {updated} seeded role template(s) for tenant {tenant_id}")
+
+
+def _initialize_derived_grants(db):
+    """Every role template (any tenant) without a permission row for a DERIVED_GRANTS resource gets
+    one: view and create granted exactly when the template holds the source permission (e.g.
+    flash-missions from jobs.create). Existing rows are never touched, so a revoke in the Role
+    Templates editor sticks. Idempotent."""
+    from app.services.role_template_permission_service import canonical_resource
+
+    module_names = dict(db.query(Module.id, Module.name))
+    by_name = {}
+    for resource in db.query(Resource).all():
+        by_name.setdefault(resource.name, []).append(resource)
+    for name, (source_name, action) in DERIVED_GRANTS.items():
+        if name not in by_name:
+            continue
+        target = canonical_resource(by_name[name], module_names)
+        target_ids = [r.id for r in by_name[name]]
+        source_ids = [r.id for r in by_name.get(source_name, [])]
+        granted = 0
+        for role in db.query(RoleTemplate).all():
+            if db.query(RoleTemplatePermission.id).filter(RoleTemplatePermission.role_template_id == role.id,
+                                                          RoleTemplatePermission.resource_id.in_(target_ids)).first():
+                continue
+            holds = bool(source_ids) and db.query(RoleTemplatePermission.id).filter(
+                RoleTemplatePermission.role_template_id == role.id,
+                RoleTemplatePermission.resource_id.in_(source_ids),
+                getattr(RoleTemplatePermission, f"can_{action}").is_(True)).first() is not None
+            db.add(RoleTemplatePermission(role_template_id=role.id, resource_id=target.id,
+                                          tenant_id=role.tenant_id if role.tenant_id is not None else target.tenant_id,
+                                          can_view=holds, can_create=holds, can_edit=False, can_delete=False))
+            granted += holds
+        db.commit()
+        if granted:
+            logger.info(f"[Contract] {name}: granted to {granted} role template(s) holding {source_name}.{action}")
 
 
 PIPELINE_ACCESS_SEED_KEY = "pipeline_access_seeded"
