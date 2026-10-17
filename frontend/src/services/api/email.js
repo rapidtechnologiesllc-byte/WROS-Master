@@ -28,7 +28,8 @@ export const sendPlainEmail = async ({
 export const sendInterviewInvite = async ({
   interviewId,
   extraNotes,
-  timezone = "Asia/Kolkata",
+  // empty: the backend uses the candidate's own time zone
+  timezone,
   createTeamsEvent = true,
 }) => {
   const query = new URLSearchParams();

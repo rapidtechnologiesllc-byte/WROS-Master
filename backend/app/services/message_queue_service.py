@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 QUEUE_TYPE_CANDIDATE = 'CANDIDATE_QUEUE'
 QUEUE_TYPE_THUNDER = 'THUNDER_QUEUE'
 QUEUE_TYPE_EMAIL = 'EMAIL_QUEUE'
+QUEUE_TYPE_FLASH = 'FLASH_QUEUE'
 
 DEFAULT_DELAY_SECONDS = 0
 QUEUE_ITEM_RETRY_COUNT_INITIAL = 0
@@ -16,6 +17,19 @@ QUEUE_ITEM_RETRY_COUNT_INITIAL = 0
 
 # Queue items that have not finished yet (an idempotency key matches these, not finished ones)
 IN_FLIGHT_STATUSES = ("PENDING", "SCHEDULED", "PROCESSING", "WAITING_FOR_SLM")
+
+
+def queue_label(task_name: str) -> str:
+    """The channel_type label of a queued task (CLAUDE.md queue routing): Thunder work is
+    THUNDER_QUEUE, other candidate work CANDIDATE_QUEUE, everything else (jobs, interviews,
+    offers, projects, recruiter runs) FLASH_QUEUE. The main poll in queue_processor_service
+    does not filter on this label; workers filter only on CANDIDATE_QUEUE and EMAIL_QUEUE."""
+    name = task_name.lower()
+    if 'thunder' in name:
+        return QUEUE_TYPE_THUNDER
+    if 'candidate' in name:
+        return QUEUE_TYPE_CANDIDATE
+    return QUEUE_TYPE_FLASH
 
 
 class MessageQueueService:
@@ -111,7 +125,7 @@ class MessageQueueService:
                 message_id=task_id,
                 tenant_id=tenant_id,  # PHASE 2: Set tenant context for delivery_factory routing
                 type=task_name,
-                channel_type=QUEUE_TYPE_THUNDER if 'engage_candidate_with_thunder' in task_name.lower() or 'assign_thunder' in task_name.lower() else (QUEUE_TYPE_CANDIDATE if 'candidate' in task_name.lower() else QUEUE_TYPE_THUNDER),
+                channel_type=queue_label(task_name),
                 status=queue_status,
                 payload=data,
                 retry_count=QUEUE_ITEM_RETRY_COUNT_INITIAL,

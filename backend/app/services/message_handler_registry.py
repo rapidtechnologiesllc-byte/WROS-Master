@@ -141,6 +141,8 @@ def _initialize_default_handlers():
         MessageHandlerRegistry.register("hiring_stage_action", HiringStageActionHandler.process)
         from app.services.message_handlers.send_pipeline_email_handler import SendPipelineEmailHandler
         MessageHandlerRegistry.register("send_pipeline_email", SendPipelineEmailHandler.process)
+        from app.services.message_handlers.interview_notice_handler import InterviewNoticeHandler
+        MessageHandlerRegistry.register("send_interview_notice", InterviewNoticeHandler.process)
         logger.info("[Registry] Registered hiring pipeline handlers")
     except Exception as e:
         logger.error(f"[Registry] CRITICAL: Failed to register hiring pipeline handlers: {e}", exc_info=True)

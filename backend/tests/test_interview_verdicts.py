@@ -173,11 +173,11 @@ def test_no_interview_under_five_years_experience(client, db, world, months):
 
 
 def test_five_year_rule_at_every_interview_entry_point(client, db, world):
-    from types import SimpleNamespace
+    from fastapi import HTTPException
 
     from app.models.interview_rehire_review import InterviewRehireReview
     from app.services.interview_rehire_guard_service import decide_rehire_review
-    from app.services.message_handlers.interview_scheduled_handler import InterviewScheduledHandler
+    from app.services.interview_scheduling_service import schedule_interview
     from app.services.submission_service import ExperienceIneligible
 
     users, candidate = world
@@ -200,6 +200,8 @@ def test_five_year_rule_at_every_interview_entry_point(client, db, world):
     db.rollback()
     assert db.get(InterviewRehireReview, review.id).status == "PENDING_HM_APPROVAL"
 
-    message = SimpleNamespace(id=str(uuid.uuid4()), payload={"candidate_id": candidate.candidateID, "interview_date": start.isoformat()})
-    with pytest.raises(ValueError, match="Cannot schedule an interview"):
-        InterviewScheduledHandler.process(message, db)
+    # Flash schedules through the same service function the endpoint uses
+    with pytest.raises(HTTPException) as exc:
+        schedule_interview(db, users[0], panel_id=panel.json()["id"], candidate_id=candidate.candidateID,
+                           start=start, end=start + timedelta(hours=1))
+    assert exc.value.status_code == 400 and "Cannot schedule an interview" in exc.value.detail

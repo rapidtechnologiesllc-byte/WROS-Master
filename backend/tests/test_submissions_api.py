@@ -69,10 +69,11 @@ def _headers(user):
         {"sub": user.UserID, "type": "user", "tenant_id": 1, "role_template_id": user.role_template_id})}
 
 
-def _candidate(db, *, employee_status=None, bgv="PASSED", months=72, employment_type="W2_FULLTIME", buddy="GRADUATED"):
+def _candidate(db, *, employee_status=None, bgv="PASSED", months=72, employment_type="FULLTIME", buddy="GRADUATED",
+               country="IN"):
     candidate = Candidate(candidateID=f"CAN-{_uid()}", candidateEmail=f"c{_uid()}@example.com", candidatePassword="x",
                           candidateFirstName="Sam", candidateLastName="Lee", tenant_id=1,
-                          total_experience_months=months, employment_type=employment_type)
+                          total_experience_months=months, employment_type=employment_type, country=country)
     db.add(candidate)
     db.flush()
     if employee_status:

@@ -14,6 +14,8 @@ Run on every backend startup to ensure data integrity.
 
 import secrets
 import string
+from typing import Optional
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal, engine
@@ -52,6 +54,11 @@ def initialize_database():
         logger.info("[Contract] Step 1.5: Running schema migrations...")
         _run_schema_migrations()
         logger.info("[OK] Schema migrations completed")
+
+        # Step 1.6: One-time data migrations (each runs once per database, marker-guarded)
+        logger.info("[Contract] Step 1.6: Running one-time data migrations...")
+        _run_data_migrations()
+        logger.info("[OK] Data migrations completed")
 
         # Step 2: Initialize tenant
         logger.info("[Contract] Step 2: Initializing tenant...")
@@ -95,6 +102,59 @@ def initialize_database():
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[FAILED] Database contract violation: {e}", exc_info=True)
         raise
+
+def _interview_times_to_utc(db: Session) -> int:
+    """Interview start/end were saved as India wall-clock time (every live scheduling screen sent
+    local time without an offset; the old invite endpoint assumed Asia/Kolkata). Storage is naive
+    UTC since 2026-10-15, so convert the rows saved before that. Interviews created by the new
+    scheduling path (it queues `interview-scheduled:{id}`) were already stored as UTC and are left
+    alone. Returns the number of interviews converted."""
+    return db.execute(text(
+        "UPDATE app_schema.interviews i SET "
+        "start_time = (i.start_time AT TIME ZONE :zone) AT TIME ZONE 'UTC', "
+        "end_time = (i.end_time AT TIME ZONE :zone) AT TIME ZONE 'UTC' "
+        "WHERE (i.start_time IS NOT NULL OR i.end_time IS NOT NULL) AND NOT EXISTS ("
+        "  SELECT 1 FROM app_schema.channel_queue_item q WHERE q.id = 'interview-scheduled:' || i.id)"),
+        {"zone": settings.INTERVIEW_LEGACY_STORAGE_TIMEZONE}).rowcount
+
+
+# name -> function(db) returning a row count. Append only; never rename or reorder.
+DATA_MIGRATIONS = (
+    ("interview_times_to_utc", _interview_times_to_utc),
+)
+
+
+def _run_data_migrations():
+    db = SessionLocal()
+    try:
+        run_data_migrations(db)
+    finally:
+        db.close()
+
+
+def run_data_migrations(db: Session, migrations=DATA_MIGRATIONS) -> list:
+    """Run each one-time data migration exactly once per database; returns the names it ran.
+    The marker row in data_migrations is inserted in the same transaction as the migration: a
+    second run (or a second instance starting at the same moment, which waits on the primary key)
+    finds the marker and skips. A failing migration rolls back with its marker and fails startup."""
+    ran = []
+    try:
+        for name, migrate in migrations:
+            claimed = db.execute(text(
+                "INSERT INTO app_schema.data_migrations (name, applied_at) VALUES (:name, now()) "
+                "ON CONFLICT (name) DO NOTHING RETURNING name"), {"name": name}).first()
+            if claimed is None:
+                db.rollback()
+                continue
+            count = migrate(db)
+            db.commit()
+            ran.append(name)
+            logger.info(f"[Contract] Data migration {name}: {count} row(s)")
+    except Exception:
+        db.rollback()
+        raise
+    return ran
+
 
 def _initialize_linkedin_outreach_tasks():
     """Open a follow-up task for in-progress LinkedIn pipeline items that have none."""
@@ -449,6 +509,7 @@ def _initialize_leadership_roles():
         _initialize_thunder_conversation_owner(db)
         _initialize_candidate_status_templates(db)
         _initialize_submission_violation_types(db)
+        _initialize_employment_types(db)
         _initialize_permission_row_tenants(db)
         _initialize_functions(db)
         _initialize_company_codes(db)
@@ -730,6 +791,46 @@ def _initialize_submission_violation_types(db):
     db.execute(text(f"ALTER TABLE app_schema.submission_violations ADD CONSTRAINT submission_violation_type "
                     f"CHECK (violation_type IN ({allowed}))"))
     db.commit()
+
+
+# Values the previous release writes (gate criterion 24: schema compatible with the old code for
+# two deploy cycles). Remove once two releases with the canonical set have shipped.
+ROLLBACK_COMPAT_EMPLOYMENT_TYPES = ("W2_FULLTIME",)
+
+
+def _initialize_employment_types(db):
+    """One canonical employment-type set (CEO 2026-10-15): W2_FULLTIME becomes FULLTIME on
+    candidates, sub-vendor submissions and jobs, and the CHECK constraints are rebuilt from
+    CANDIDATE_EMPLOYMENT_TYPES. A candidate with no country gets the configured country its
+    free-text location names ("Pune, Maharashtra, India" -> IN). The policy is loaded first, so
+    a misconfigured EMPLOYMENT_TYPE_POLICY_JSON fails startup. Idempotent."""
+    from app.models.candidate import CANDIDATE_EMPLOYMENT_TYPES
+    from app.services.employment_type_policy import policy
+
+    countries = policy()["countries"]
+    # The constraint keeps the legacy W2_FULLTIME value for ROLLBACK_COMPAT_EMPLOYMENT_TYPES' life:
+    # if a deploy is rolled back, the previous release still writes W2_FULLTIME and must not fail;
+    # the next startup converts any such rows again (the UPDATE below is idempotent).
+    allowed = ", ".join("'" + kind + "'" for kind in (*CANDIDATE_EMPLOYMENT_TYPES, *ROLLBACK_COMPAT_EMPLOYMENT_TYPES))
+    for table, constraint in (("candidates", "candidate_employment_type"),
+                              ("sub_vendor_submissions", "subvendor_submission_employment_type")):
+        db.execute(text(f"ALTER TABLE app_schema.{table} DROP CONSTRAINT IF EXISTS {constraint}"))
+        db.execute(text(f"UPDATE app_schema.{table} SET employment_type = 'FULLTIME' "
+                        f"WHERE employment_type = 'W2_FULLTIME'"))
+        db.execute(text(f"ALTER TABLE app_schema.{table} ADD CONSTRAINT {constraint} "
+                        f"CHECK (employment_type IN ({allowed}))"))
+    db.execute(text("UPDATE app_schema.jobs SET employment_type = 'FULLTIME' WHERE employment_type = 'W2_FULLTIME'"))
+    db.execute(text("ALTER TABLE app_schema.jobs ALTER COLUMN employment_type SET DEFAULT 'FULLTIME'"))
+    derived = 0
+    for code, country in countries.items():
+        names = sorted({n.lower() for n in country.get("names") or []} | {(country.get("name") or "").lower()} - {""})
+        derived += db.execute(text(
+            'UPDATE app_schema.candidates SET country = :code WHERE country IS NULL '
+            'AND lower(trim(regexp_replace("candidateCurrentLocation", \'^.*,\', \'\'))) = ANY(:names)'),
+            {"code": code, "names": names}).rowcount
+    db.commit()
+    if derived:
+        logger.info(f"[Contract] Candidate country derived from location for {derived} candidate(s)")
 
 
 def _initialize_permission_row_tenants(db):
@@ -1217,470 +1318,334 @@ Best regards,
             logger.info("[Contract] Created default commission rule: 10%")
 
     except Exception as e:
-        logger.warning(f"[Contract] Could not initialize channel templates: {e}")
-        # Don't fail the entire startup if templates can't initialize
+        db.rollback()
+        logger.error(f"[Contract] Could not initialize channel templates: {e}", exc_info=True)
+        raise
     finally:
         db.close()
 
 
 def _create_performance_indexes():
-    """PHASE 3: Create database indexes for high-volume audit logging tables.
-
-    These indexes optimize queries on CandidateHistory and ActivityTimeline
-    for the new audit logging system (A+C implementation).
-    """
-    from sqlalchemy import text
+    """Indexes for the high-volume audit tables (CandidateHistory, ActivityTimeline). Idempotent;
+    a failure stops startup (SchemaMigrationError) rather than leaving the audit queries slow."""
     db = SessionLocal()
     try:
-        # Index for CandidateHistory - query by event_at (DATE range queries)
-        try:
-            db.execute(text("""
-                CREATE INDEX IF NOT EXISTS idx_candidate_history_event_at
-                ON app_schema.candidate_history(event_at DESC, "candidateID")
-            """))
-            db.commit()
-            logger.info("[Contract] Created index: idx_candidate_history_event_at")
-        except Exception as e:
-            logger.warning(f"[Contract] Could not create idx_candidate_history_event_at: {e}")
-            db.rollback()
-
-        # Index for CandidateHistory - query by candidateID and event_type
-        try:
-            db.execute(text("""
-                CREATE INDEX IF NOT EXISTS idx_candidate_history_candidate_type
-                ON app_schema.candidate_history("candidateID", event_type)
-            """))
-            db.commit()
-            logger.info("[Contract] Created index: idx_candidate_history_candidate_type")
-        except Exception as e:
-            logger.warning(f"[Contract] Could not create idx_candidate_history_candidate_type: {e}")
-            db.rollback()
-
-        # Index for ActivityTimeline - query by created_at (global feed)
-        try:
-            db.execute(text("""
-                CREATE INDEX IF NOT EXISTS idx_activity_timeline_created_at
-                ON app_schema.activity_timeline(created_at DESC, entity_id)
-            """))
-            db.commit()
-            logger.info("[Contract] Created index: idx_activity_timeline_created_at")
-        except Exception as e:
-            logger.warning(f"[Contract] Could not create idx_activity_timeline_created_at: {e}")
-            db.rollback()
-
-        # Index for ActivityTimeline - query by entity (candidate/user filters)
-        try:
-            db.execute(text("""
-                CREATE INDEX IF NOT EXISTS idx_activity_timeline_entity
-                ON app_schema.activity_timeline(entity_type, entity_id)
-            """))
-            db.commit()
-            logger.info("[Contract] Created index: idx_activity_timeline_entity")
-        except Exception as e:
-            logger.warning(f"[Contract] Could not create idx_activity_timeline_entity: {e}")
-            db.rollback()
-    except Exception as e:
-        logger.warning(f"[Contract] Could not create performance indexes: {e}")
-        # Don't fail startup if indexes can't be created
+        for name, definition in (
+            ("idx_candidate_history_event_at", 'app_schema.candidate_history(event_at DESC, "candidateID")'),
+            ("idx_candidate_history_candidate_type", 'app_schema.candidate_history("candidateID", event_type)'),
+            ("idx_activity_timeline_created_at", "app_schema.activity_timeline(created_at DESC, entity_id)"),
+            ("idx_activity_timeline_entity", "app_schema.activity_timeline(entity_type, entity_id)"),
+        ):
+            _migration_step(db, f"index {name}", f"CREATE INDEX IF NOT EXISTS {name} ON {definition}")
     finally:
         db.close()
+
+
+class SchemaMigrationError(RuntimeError):
+    """A startup schema migration failed. Startup stops: running on a half-migrated schema hides
+    the failure until a query hits the missing column (CLAUDE.md: fail fast)."""
+
+
+def _migration_step(db: Session, label: str, sql: str, params: Optional[dict] = None, *,
+                    lock_timeout: bool = False) -> int:
+    """Run one idempotent statement and commit it; a failure is logged, rolled back and raised.
+    Every statement is written to be a no-op once applied (IF [NOT] EXISTS, catalog checks), so
+    a restart on an up-to-date schema runs cleanly and only a real problem stops startup."""
+    from sqlalchemy import text
+
+    try:
+        if lock_timeout:  # ALTER TYPE takes an ACCESS EXCLUSIVE lock; never hang startup on it
+            db.execute(text("SET LOCAL lock_timeout = '5s'"))
+        result = db.execute(text(sql), params or {})
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error(f"[Contract] Migration failed: {label}: {exc}", exc_info=True)
+        raise SchemaMigrationError(f"Schema migration '{label}' failed: {exc}") from exc
+    count = result.rowcount if result.rowcount and result.rowcount > 0 else 0
+    if count:
+        logger.info(f"[Contract] Migration: {label} ({count} rows)")
+    return count
+
+
+def _column_type(db: Session, table: str, column: str) -> Optional[str]:
+    """The live data_type of app_schema.<table>.<column>, None when the column (or table) is absent."""
+    from sqlalchemy import text
+
+    return db.execute(text("""
+        SELECT data_type FROM information_schema.columns
+        WHERE table_schema = 'app_schema' AND table_name = :t AND column_name = :c
+    """), {"t": table, "c": column}).scalar()
+
 
 def _run_schema_migrations():
-    """Run schema migrations to alter existing columns, add new ones, etc.
+    """Bring existing tables up to the models (create_all() never alters an existing table).
 
-    This function handles database schema changes that cannot be automatically
-    detected by SQLAlchemy's metadata.create_all() (e.g., column type changes).
+    Every statement is idempotent -- IF [NOT] EXISTS, or a catalog check before the change -- so
+    it runs on every startup. A statement that still fails is a real problem: it is logged and
+    raised (SchemaMigrationError), and startup stops instead of running on a half-migrated schema.
     """
     db = SessionLocal()
     try:
-        from sqlalchemy import text
-
-        # Migration 1: Change api_keys_config.created_by and updated_by from Integer to String
-        # These fields store user IDs (emails), not integer IDs
-        try:
-            db.execute(text("""
-                ALTER TABLE app_schema.api_keys_config
-                ALTER COLUMN created_by TYPE VARCHAR(512);
-            """))
-            db.execute(text("""
-                ALTER TABLE app_schema.api_keys_config
-                ALTER COLUMN updated_by TYPE VARCHAR(512);
-            """))
-            db.commit()
-            logger.info("[Contract] Migration: Changed api_keys_config.created_by/updated_by to VARCHAR(512)")
-        except Exception as e:
-            # Column might already be VARCHAR or table doesn't exist yet
-            if "column" in str(e).lower() or "does not exist" in str(e).lower():
-                logger.debug(f"[Contract] Migration skipped (column already altered or table doesn't exist): {e}")
-            else:
-                logger.warning(f"[Contract] Migration warning: {e}")
-            db.rollback()
-
-        # Migration 2: Add thunder_assigned_at column to candidate_status if missing
-        # This column tracks when Thunder was assigned to the candidate
-        try:
-            db.execute(text("""
-                ALTER TABLE app_schema.candidate_status
-                ADD COLUMN thunder_assigned_at TIMESTAMP WITH TIME ZONE NULL;
-            """))
-            db.commit()
-            logger.info("[Contract] Migration: Added thunder_assigned_at column to candidate_status")
-        except Exception as e:
-            # Column might already exist
-            if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
-                logger.debug(f"[Contract] Migration skipped (column already exists): {e}")
-            elif "table" in str(e).lower() and "does not exist" in str(e).lower():
-                logger.debug(f"[Contract] Migration skipped (candidate_status table doesn't exist yet): {e}")
-            else:
-                logger.warning(f"[Contract] Migration warning: {e}")
-            db.rollback()
-
-        # Migration 3: Add candidate columns present on the Candidate model but
-        # missing from the live table (schema drift from create_all() never
-        # altering existing tables).
-        candidate_columns = [
-            ("tenant_id", "INTEGER NOT NULL DEFAULT 1"),
-            ("candidate_notice_period", "INTEGER NULL"),
-            ("referral_id", "VARCHAR(512) NULL"),
-            ("created_by_user_id", "VARCHAR(512) NULL"),
-            ("created_by_name", "VARCHAR(512) NULL"),
-            ("recruitment_source", "VARCHAR(512) NULL"),
-            ("assigned_recruiter_id", "VARCHAR(512) NULL"),
-            ("assigned_recruiter_changed_at", "TIMESTAMP NULL"),
-            ("assigned_recruiter_changed_by", "VARCHAR(512) NULL"),
-        ]
-        for column_name, column_def in candidate_columns:
-            try:
-                db.execute(text(f"""
-                    ALTER TABLE app_schema.candidates
-                    ADD COLUMN IF NOT EXISTS {column_name} {column_def};
-                """))
-                db.commit()
-                logger.info(f"[Contract] Migration: Ensured candidates.{column_name} exists")
-            except Exception as e:
-                if "table" in str(e).lower() and "does not exist" in str(e).lower():
-                    logger.debug(f"[Contract] Migration skipped (candidates table doesn't exist yet): {e}")
-                else:
-                    logger.warning(f"[Contract] Migration warning for candidates.{column_name}: {e}")
-                db.rollback()
-
-        # Migration 4: FK integrity + indexes for the candidate columns added
-        # above (candidates.referral_id -> employee_referrals.referral_id,
-        # plus lookup indexes on the audit/referral columns).
-        try:
-            db.execute(text("""
-                ALTER TABLE app_schema.candidates
-                ADD CONSTRAINT fk_candidate_referral
-                FOREIGN KEY (referral_id) REFERENCES app_schema.employee_referrals(referral_id)
-                ON DELETE SET NULL;
-            """))
-            db.commit()
-            logger.info("[Contract] Migration: Added fk_candidate_referral constraint")
-        except Exception as e:
-            if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
-                logger.debug(f"[Contract] Migration skipped (fk_candidate_referral already exists): {e}")
-            else:
-                logger.warning(f"[Contract] Migration warning for fk_candidate_referral: {e}")
-            db.rollback()
-
-        candidate_indexes = [
-            ("ix_candidate_referral_id", "referral_id"),
-            ("ix_candidate_created_by_user_id", "created_by_user_id"),
-            ("ix_candidate_recruitment_source", "recruitment_source"),
-        ]
-        for index_name, column_name in candidate_indexes:
-            try:
-                db.execute(text(f"""
-                    CREATE INDEX IF NOT EXISTS {index_name}
-                    ON app_schema.candidates({column_name});
-                """))
-                db.commit()
-                logger.info(f"[Contract] Migration: Ensured index {index_name} exists")
-            except Exception as e:
-                logger.warning(f"[Contract] Migration warning for index {index_name}: {e}")
-                db.rollback()
-
-        # Migration 5: Schema drift on other tables where the model has columns
-        # the live table lacks (same create_all()-never-alters-existing-tables
-        # gap as Migration 3). Discovered via a full model-vs-DB column scan.
-        drifted_tables = {
-            # Expense receipts: attached file + automatic check (expense_receipt_service)
-            "expense_records": [
-                ("receipt_file_path", "VARCHAR(1024) NULL"),
-                ("receipt_content_type", "VARCHAR(100) NULL"),
-                ("receipt_check_status", "VARCHAR(20) NOT NULL DEFAULT 'NOT_ATTACHED'"),
-                ("receipt_check_detail", "TEXT NULL"),
-            ],
-            # A Manage Role's permission set (CEO 2026-10-13)
-            "org_roles": [
-                ("role_template_id", "INTEGER NULL REFERENCES app_schema.role_templates(id)"),
-            ],
-            "jobs": [
-                ("is_deleted", "BOOLEAN NOT NULL DEFAULT false"),
-                ("deleted_at", "TIMESTAMP NULL"),
-                # Demand merged into Jobs: the client/delivery side of a requisition
-                ("client_id", "VARCHAR(512) NULL REFERENCES app_schema.clients(id)"),
-                ("project_id", "VARCHAR(512) NULL REFERENCES app_schema.projects(id)"),
-                ("opportunity_id", "VARCHAR(512) NULL REFERENCES app_schema.opportunities(id)"),
-                ("required_skills", "TEXT NULL"),
-                ("nice_to_have_skills", "TEXT NULL"),
-                ("max_experience_years", "NUMERIC(4,1) NULL"),
-                ("work_location", "VARCHAR(20) NOT NULL DEFAULT 'REMOTE'"),
-                ("employment_type", "VARCHAR(50) NOT NULL DEFAULT 'W2_FULLTIME'"),
-                ("interview_type_required", "VARCHAR(20) NOT NULL DEFAULT 'L1_AND_L2'"),
-                ("positions_filled", "INTEGER NOT NULL DEFAULT 0"),
-                ("billing_rate_usd_cents", "INTEGER NULL"),
-                ("budget_min_usd_cents", "INTEGER NULL"),
-                ("budget_max_usd_cents", "INTEGER NULL"),
-                ("demand_status", "VARCHAR(20) NOT NULL DEFAULT 'DRAFT'"),
-                ("sourcing_enabled", "BOOLEAN NOT NULL DEFAULT false"),
-                ("bench_first_checked", "BOOLEAN NOT NULL DEFAULT false"),
-                ("assigned_recruiter_employee_id", "VARCHAR(512) NULL REFERENCES app_schema.employees(id)"),
-                ("delivery_engine", "VARCHAR(20) NOT NULL DEFAULT 'SPECIALITY'"),
-                ("confirmation_status", "VARCHAR(20) NOT NULL DEFAULT 'POTENTIAL'"),
-                ("sow_reference", "VARCHAR(512) NULL"),
-                ("sow_received_date", "DATE NULL"),
-                ("source_type", "VARCHAR(20) NOT NULL DEFAULT 'DIRECT'"),
-                ("duration_hours", "INTEGER NULL"),
-                ("revenue_potential_usd_cents", "INTEGER NULL"),
-                ("created_by", "VARCHAR(512) NULL"),
-                ("updated_at", "TIMESTAMP NULL DEFAULT now()"),
-                ("closed_at", "TIMESTAMP NULL"),
-            ],
-            "conversation_events": [
-                ("tenant_id", "VARCHAR(50) NOT NULL DEFAULT '1'"),
-            ],
-            "linkedin_candidate_pipeline": [
-                ("email_collected_at", "TIMESTAMP NULL"),
-                ("email_from_recruiter", "VARCHAR(255) NULL"),
-                ("phone_verified_by", "VARCHAR(255) NULL"),
-                ("task_id", "VARCHAR(36) NULL"),
-            ],
-            "users": [
-                ("org_node_id", "VARCHAR(512) NULL REFERENCES app_schema.org_nodes(id)"),
-                ("location_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id)"),
-                # Existing users must not be forced into a password reset;
-                # the model still defaults new users to True.
-                ("password_reset_required", "BOOLEAN NOT NULL DEFAULT false"),
-            ],
-            # Goal tree Org -> Location (legal entity, e.g. BXUS/BXIN) -> Partner -> BU
-            "business_units": [
-                ("location_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
-                ("partner_user_id", 'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
-            ],
-            "clients": [
-                ("account_manager_user_id", 'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
-                # Contracting company (BX-US / BX-IN): revenue splits by company
-                ("contracting_company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
-            ],
-            "locations": [
-                ("state", "VARCHAR(512) NULL"),
-                ("parent_company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE RESTRICT"),
-                # Company code "<tenant>-<n>" (Location.company_seq)
-                ("company_seq", "INTEGER NULL"),
-            ],
-            "intercompany_settlements": [
-                ("business_unit_id", "INTEGER NULL REFERENCES app_schema.business_units(id) ON DELETE SET NULL"),
-            ],
-            # Production startup crashed on role_templates.hierarchy_level
-            # (2026-10-05); the rest were found by the same full scan.
-            "role_templates": [
-                ("hierarchy_level", "INTEGER NOT NULL DEFAULT 5"),
-                ("specialization", "VARCHAR(512) NOT NULL DEFAULT 'General'"),
-                ("is_super_user", "BOOLEAN NOT NULL DEFAULT false"),
-                ("org_level_access", "BOOLEAN NOT NULL DEFAULT false"),
-            ],
-            "org_nodes": [
-                ("company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
-                ("hierarchy_level", "INTEGER NOT NULL DEFAULT 5"),
-                ("specialization", "VARCHAR(512) NOT NULL DEFAULT 'General'"),
-            ],
-            "role_template_permissions": [
-                ("tenant_id", "INTEGER NOT NULL DEFAULT 1 REFERENCES app_schema.tenants(id)"),
-            ],
-            "candidates": [
-                ("thunder_enabled", "BOOLEAN NOT NULL DEFAULT true"),
-                ("status_changed_at", "TIMESTAMP NULL"),
-                ("previous_status", "VARCHAR(100) NULL"),
-                ("status_change_reason", "VARCHAR(500) NULL"),
-                ("upload_status", "VARCHAR(50) NULL"),
-                ("expected_document_count", "INTEGER NULL"),
-                ("actual_document_count", "INTEGER NULL"),
-                ("upload_started_at", "TIMESTAMP NULL"),
-                ("last_document_uploaded_at", "TIMESTAMP NULL"),
-                ("queued_at", "TIMESTAMP NULL"),
-                ("processing_started_at", "TIMESTAMP NULL"),
-                ("processing_completed_at", "TIMESTAMP NULL"),
-                ("upload_error", "TEXT NULL"),
-                ("celery_task_id", "VARCHAR(512) NULL"),
-                ('"candidateExpectedSalaryType"', "VARCHAR(50) NULL"),
-                ('"candidateCurrentSalaryType"', "VARCHAR(50) NULL"),
-            ],
-            "candidate_conversations": [
-                ("next_touch_scheduled_at", "TIMESTAMP NULL"),
-            ],
-            "employees": [
-                # Employer of record (BX-US / BX-IN): headcount splits by company
-                ("company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
-                ("guidewire_certification_current", "VARCHAR(50) NULL"),
-                ("guidewire_certification_expected", "VARCHAR(50) NULL"),
-            ],
-            "candidate_education_forms": [
-                ("education_level", "VARCHAR(100) NULL"),
-            ],
-            "candidate_experience_forms": [
-                ("responsibilities", "TEXT NULL"),
-            ],
-            "candidate_documents": [
-                ("document_name", "VARCHAR(512) NULL"),
-                ("upload_sequence", "INTEGER NULL"),
-            ],
-        }
-        # No tenant default anywhere: every row names its tenant (it once silently became 1)
-        for table_name in ("business_units", "business_unit_companies", "business_unit_location_heads",
-                           "candidates", "candidate_rejections", "candidate_rejection_reasons", "locations",
-                           "role_templates", "system_modules", "system_module_permissions",
-                           "thunder_monthly_highlights"):
-            try:
-                db.execute(text(f"ALTER TABLE app_schema.{table_name} ALTER COLUMN tenant_id DROP DEFAULT"))
-                db.commit()
-            except Exception as e:
-                db.rollback()
-                if "does not exist" not in str(e).lower():
-                    raise
-        for table_name, columns in drifted_tables.items():
-            for column_name, column_def in columns:
-                try:
-                    db.execute(text(f"""
-                        ALTER TABLE app_schema.{table_name}
-                        ADD COLUMN IF NOT EXISTS {column_name} {column_def};
-                    """))
-                    db.commit()
-                    logger.info(f"[Contract] Migration: Ensured {table_name}.{column_name} exists")
-                except Exception as e:
-                    if "table" in str(e).lower() and "does not exist" in str(e).lower():
-                        logger.debug(f"[Contract] Migration skipped ({table_name} table doesn't exist yet): {e}")
-                    else:
-                        logger.warning(f"[Contract] Migration warning for {table_name}.{column_name}: {e}")
-                    db.rollback()
-
-        # (org_level_access is set once by _initialize_role_authority.)
-
-        # Migration 5b: linkedin_candidate_pipeline was first created with
-        # uuid columns for user/candidate ids, but ids in this system are
-        # strings ("admin@...", "USER-...", "CAN-..."), so every query by
-        # user failed with InvalidTextRepresentation. Convert to text only
-        # while still uuid (idempotent; uuid -> text never loses data).
-        pipeline_columns = {
-            "assigned_to_user_id": "VARCHAR(255)",
-            "created_by_user_id": "VARCHAR(255)",
-            "candidate_id": "VARCHAR(512)",
-        }
-        for column_name, column_type in pipeline_columns.items():
-            try:
-                current_type = db.execute(text("""
-                    SELECT data_type FROM information_schema.columns
-                    WHERE table_schema = 'app_schema'
-                      AND table_name = 'linkedin_candidate_pipeline'
-                      AND column_name = :col
-                """), {"col": column_name}).scalar()
-                if current_type == "uuid":
-                    # ALTER TYPE takes an ACCESS EXCLUSIVE lock; never hang startup on it
-                    db.execute(text("SET LOCAL lock_timeout = '5s'"))
-                    db.execute(text(f"""
-                        ALTER TABLE app_schema.linkedin_candidate_pipeline
-                        ALTER COLUMN {column_name} TYPE {column_type} USING {column_name}::text;
-                    """))
-                    db.commit()
-                    logger.info(f"[Contract] Migration: linkedin_candidate_pipeline.{column_name} uuid -> {column_type}")
-            except Exception as e:
-                logger.warning(f"[Contract] Migration warning for linkedin_candidate_pipeline.{column_name}: {e}")
-                db.rollback()
-
-        # Migration 5c: agent_configs.tenant_id was created as uuid but
-        # tenants are integer ids -> every Agent Config query failed.
-        try:
-            current_type = db.execute(text("""
-                SELECT data_type FROM information_schema.columns
-                WHERE table_schema = 'app_schema' AND table_name = 'agent_configs' AND column_name = 'tenant_id'
-            """)).scalar()
-            if current_type == "uuid":
-                db.execute(text("SET LOCAL lock_timeout = '5s'"))
-                db.execute(text("ALTER TABLE app_schema.agent_configs ALTER COLUMN tenant_id TYPE VARCHAR(512) USING tenant_id::text"))
-                db.commit()
-                logger.info("[Contract] Migration: agent_configs.tenant_id uuid -> VARCHAR(512)")
-        except Exception as e:
-            logger.warning(f"[Contract] Migration warning for agent_configs.tenant_id: {e}")
-            db.rollback()
-
-        # Migration 5d: SLM learning-metrics tables were created with uuid
-        # tenant/candidate/job ids, but tenants are integers and candidate
-        # ids are "CAN-..." strings, so nothing could be stored or read.
-        uuid_to_text = {
-            "slm_metrics": ["tenant_id"],
-            "thunder_learning_metrics": ["tenant_id", "candidate_id"],
-            "flash_learning_metrics": ["tenant_id", "job_id"],
-            "learning_weight_updates": ["tenant_id"],
-            "learning_recommendations": ["tenant_id", "target_entity_id", "approved_by_user_id"],
-        }
-        for table_name, columns in uuid_to_text.items():
-            for column_name in columns:
-                try:
-                    current_type = db.execute(text("""
-                        SELECT data_type FROM information_schema.columns
-                        WHERE table_schema = 'app_schema' AND table_name = :t AND column_name = :c
-                    """), {"t": table_name, "c": column_name}).scalar()
-                    if current_type == "uuid":
-                        db.execute(text("SET LOCAL lock_timeout = '5s'"))
-                        db.execute(text(
-                            f"ALTER TABLE app_schema.{table_name} ALTER COLUMN {column_name} "
-                            f"TYPE VARCHAR(512) USING {column_name}::text"
-                        ))
-                        db.commit()
-                        logger.info(f"[Contract] Migration: {table_name}.{column_name} uuid -> VARCHAR(512)")
-                except Exception as e:
-                    logger.warning(f"[Contract] Migration warning for {table_name}.{column_name}: {e}")
-                    db.rollback()
-
-        # Migration 6: job_created_flash never set Jobs.tenant_id, so every
-        # queue-created job was invisible to the tenant-scoped job list.
-        # Single-tenant deployment: attribute orphaned jobs to tenant 1.
-        try:
-            result = db.execute(text("UPDATE app_schema.jobs SET tenant_id = 1 WHERE tenant_id IS NULL"))
-            db.commit()
-            if result.rowcount:
-                logger.info(f"[Contract] Migration: attributed {result.rowcount} tenant-less jobs to tenant 1")
-        except Exception as e:
-            logger.warning(f"[Contract] Migration warning for jobs.tenant_id backfill: {e}")
-            db.rollback()
-
-        # Migration 7: String columns were widened in the models (mostly to
-        # VARCHAR(512)) but create_all() never alters existing tables, so
-        # production kept the old lengths; e.g. tasks.candidate_id VARCHAR(36)
-        # rejected 40-char "CAN-<uuid>" ids and every candidate creation failed.
-        _widen_short_varchar_columns(db)
-
-        # Migration 8: 33 tables were created with tenant_id as a foreign key
-        # to users."UserID" (a tenant is not a user), so every write with a
-        # real tenant value failed -- e.g. agent seeding/logging with
-        # tenant_id="system" crashed the Agent State dashboard. Drop those
-        # constraints (removes an invalid rule only; no data changes).
-        _drop_tenant_id_user_foreign_keys(db)
-
-        # Migration 9: Org -> Company -> Partner -> BU. Departments are
-        # org-wide routing groups (BU optional); a BU operates in several
-        # companies; its partner is a user. Carry over the old single
-        # location and the org-chart partner (when that seat has a user).
-        _migrate_company_partner_structure(db)
-
-        # Migration 10: Demand merged into Jobs -- one requisition record.
-        _merge_demands_into_jobs(db)
-
-    except Exception as e:
-        logger.warning(f"[Contract] Schema migrations failed: {e}")
-        # Don't fail startup if migrations can't be run
+        _apply_schema_migrations(db)
     finally:
         db.close()
+
+
+def _apply_schema_migrations(db: Session):
+    # Migration 1: api_keys_config.created_by/updated_by hold user ids (strings), not integers
+    for column in ("created_by", "updated_by"):
+        current = _column_type(db, "api_keys_config", column)
+        if current is not None and current != "character varying":
+            _migration_step(db, f"api_keys_config.{column} -> VARCHAR(512)",
+                            f"ALTER TABLE app_schema.api_keys_config ALTER COLUMN {column} TYPE VARCHAR(512)",
+                            lock_timeout=True)
+
+    # Migration 2: candidate_status.thunder_assigned_at (when Thunder was assigned)
+    _migration_step(db, "candidate_status.thunder_assigned_at",
+                    "ALTER TABLE IF EXISTS app_schema.candidate_status "
+                    "ADD COLUMN IF NOT EXISTS thunder_assigned_at TIMESTAMP WITH TIME ZONE NULL")
+
+    # Migration 3: candidate columns present on the Candidate model but missing from the live
+    # table (schema drift from create_all() never altering existing tables).
+    candidate_columns = [
+        ("tenant_id", "INTEGER NOT NULL DEFAULT 1"),
+        ("candidate_notice_period", "INTEGER NULL"),
+        ("referral_id", "VARCHAR(512) NULL"),
+        ("created_by_user_id", "VARCHAR(512) NULL"),
+        ("created_by_name", "VARCHAR(512) NULL"),
+        ("recruitment_source", "VARCHAR(512) NULL"),
+        ("assigned_recruiter_id", "VARCHAR(512) NULL"),
+        ("assigned_recruiter_changed_at", "TIMESTAMP NULL"),
+        ("assigned_recruiter_changed_by", "VARCHAR(512) NULL"),
+        ("country", "VARCHAR(2) NULL"),
+    ]
+    for column_name, column_def in candidate_columns:
+        _migration_step(db, f"candidates.{column_name}",
+                        f"ALTER TABLE IF EXISTS app_schema.candidates ADD COLUMN IF NOT EXISTS {column_name} {column_def}")
+
+    # Migration 4: candidates.referral_id -> employee_referrals.referral_id, unless a foreign key
+    # on that column already exists (create_all names its own), plus lookup indexes.
+    referral_fk = db.execute(text("""
+        SELECT 1 FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = 'app_schema'
+          AND tc.table_name = 'candidates' AND kcu.column_name = 'referral_id'
+    """)).first()
+    if referral_fk is None:
+        _migration_step(db, "fk_candidate_referral", """
+            ALTER TABLE app_schema.candidates ADD CONSTRAINT fk_candidate_referral
+            FOREIGN KEY (referral_id) REFERENCES app_schema.employee_referrals(referral_id) ON DELETE SET NULL
+        """)
+    for index_name, column_name in (("ix_candidate_referral_id", "referral_id"),
+                                    ("ix_candidate_created_by_user_id", "created_by_user_id"),
+                                    ("ix_candidate_recruitment_source", "recruitment_source")):
+        _migration_step(db, f"index {index_name}",
+                        f"CREATE INDEX IF NOT EXISTS {index_name} ON app_schema.candidates({column_name})")
+
+    # Migration 5: Schema drift on other tables where the model has columns
+    # the live table lacks (same create_all()-never-alters-existing-tables
+    # gap as Migration 3). Discovered via a full model-vs-DB column scan.
+    drifted_tables = {
+        # Task deep link: the in-app path My Tasks opens (task_service.create_task)
+        "tasks": [
+            ("link", "VARCHAR(512) NULL"),
+        ],
+        # Expense receipts: attached file + automatic check (expense_receipt_service)
+        "expense_records": [
+            ("receipt_file_path", "VARCHAR(1024) NULL"),
+            ("receipt_content_type", "VARCHAR(100) NULL"),
+            ("receipt_check_status", "VARCHAR(20) NOT NULL DEFAULT 'NOT_ATTACHED'"),
+            ("receipt_check_detail", "TEXT NULL"),
+        ],
+        # A Manage Role's permission set (CEO 2026-10-13)
+        "org_roles": [
+            ("role_template_id", "INTEGER NULL REFERENCES app_schema.role_templates(id)"),
+        ],
+        "jobs": [
+            ("is_deleted", "BOOLEAN NOT NULL DEFAULT false"),
+            ("deleted_at", "TIMESTAMP NULL"),
+            # Demand merged into Jobs: the client/delivery side of a requisition
+            ("client_id", "VARCHAR(512) NULL REFERENCES app_schema.clients(id)"),
+            ("project_id", "VARCHAR(512) NULL REFERENCES app_schema.projects(id)"),
+            ("opportunity_id", "VARCHAR(512) NULL REFERENCES app_schema.opportunities(id)"),
+            ("required_skills", "TEXT NULL"),
+            ("nice_to_have_skills", "TEXT NULL"),
+            ("max_experience_years", "NUMERIC(4,1) NULL"),
+            ("work_location", "VARCHAR(20) NOT NULL DEFAULT 'REMOTE'"),
+            ("employment_type", "VARCHAR(50) NOT NULL DEFAULT 'FULLTIME'"),
+            ("interview_type_required", "VARCHAR(20) NOT NULL DEFAULT 'L1_AND_L2'"),
+            ("positions_filled", "INTEGER NOT NULL DEFAULT 0"),
+            ("billing_rate_usd_cents", "INTEGER NULL"),
+            ("budget_min_usd_cents", "INTEGER NULL"),
+            ("budget_max_usd_cents", "INTEGER NULL"),
+            ("demand_status", "VARCHAR(20) NOT NULL DEFAULT 'DRAFT'"),
+            ("sourcing_enabled", "BOOLEAN NOT NULL DEFAULT false"),
+            ("bench_first_checked", "BOOLEAN NOT NULL DEFAULT false"),
+            ("assigned_recruiter_employee_id", "VARCHAR(512) NULL REFERENCES app_schema.employees(id)"),
+            ("delivery_engine", "VARCHAR(20) NOT NULL DEFAULT 'SPECIALITY'"),
+            ("confirmation_status", "VARCHAR(20) NOT NULL DEFAULT 'POTENTIAL'"),
+            ("sow_reference", "VARCHAR(512) NULL"),
+            ("sow_received_date", "DATE NULL"),
+            ("source_type", "VARCHAR(20) NOT NULL DEFAULT 'DIRECT'"),
+            ("duration_hours", "INTEGER NULL"),
+            ("revenue_potential_usd_cents", "INTEGER NULL"),
+            ("created_by", "VARCHAR(512) NULL"),
+            ("updated_at", "TIMESTAMP NULL DEFAULT now()"),
+            ("closed_at", "TIMESTAMP NULL"),
+        ],
+        "conversation_events": [
+            ("tenant_id", "VARCHAR(50) NOT NULL DEFAULT '1'"),
+        ],
+        "linkedin_candidate_pipeline": [
+            ("email_collected_at", "TIMESTAMP NULL"),
+            ("email_from_recruiter", "VARCHAR(255) NULL"),
+            ("phone_verified_by", "VARCHAR(255) NULL"),
+            ("task_id", "VARCHAR(36) NULL"),
+        ],
+        "users": [
+            ("org_node_id", "VARCHAR(512) NULL REFERENCES app_schema.org_nodes(id)"),
+            ("location_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id)"),
+            # Existing users must not be forced into a password reset;
+            # the model still defaults new users to True.
+            ("password_reset_required", "BOOLEAN NOT NULL DEFAULT false"),
+        ],
+        # Goal tree Org -> Location (legal entity, e.g. BXUS/BXIN) -> Partner -> BU
+        "business_units": [
+            ("location_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
+            ("partner_user_id", 'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
+        ],
+        "clients": [
+            ("account_manager_user_id", 'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
+            # Contracting company (BX-US / BX-IN): revenue splits by company
+            ("contracting_company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
+        ],
+        "locations": [
+            ("state", "VARCHAR(512) NULL"),
+            ("parent_company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE RESTRICT"),
+            # Company code "<tenant>-<n>" (Location.company_seq)
+            ("company_seq", "INTEGER NULL"),
+        ],
+        "intercompany_settlements": [
+            ("business_unit_id", "INTEGER NULL REFERENCES app_schema.business_units(id) ON DELETE SET NULL"),
+        ],
+        # Production startup crashed on role_templates.hierarchy_level
+        # (2026-10-05); the rest were found by the same full scan.
+        "role_templates": [
+            ("hierarchy_level", "INTEGER NOT NULL DEFAULT 5"),
+            ("specialization", "VARCHAR(512) NOT NULL DEFAULT 'General'"),
+            ("is_super_user", "BOOLEAN NOT NULL DEFAULT false"),
+            ("org_level_access", "BOOLEAN NOT NULL DEFAULT false"),
+        ],
+        "org_nodes": [
+            ("company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
+            ("hierarchy_level", "INTEGER NOT NULL DEFAULT 5"),
+            ("specialization", "VARCHAR(512) NOT NULL DEFAULT 'General'"),
+        ],
+        "role_template_permissions": [
+            ("tenant_id", "INTEGER NOT NULL DEFAULT 1 REFERENCES app_schema.tenants(id)"),
+        ],
+        "candidates": [
+            ("thunder_enabled", "BOOLEAN NOT NULL DEFAULT true"),
+            ("status_changed_at", "TIMESTAMP NULL"),
+            ("previous_status", "VARCHAR(100) NULL"),
+            ("status_change_reason", "VARCHAR(500) NULL"),
+            ("upload_status", "VARCHAR(50) NULL"),
+            ("expected_document_count", "INTEGER NULL"),
+            ("actual_document_count", "INTEGER NULL"),
+            ("upload_started_at", "TIMESTAMP NULL"),
+            ("last_document_uploaded_at", "TIMESTAMP NULL"),
+            ("queued_at", "TIMESTAMP NULL"),
+            ("processing_started_at", "TIMESTAMP NULL"),
+            ("processing_completed_at", "TIMESTAMP NULL"),
+            ("upload_error", "TEXT NULL"),
+            ("celery_task_id", "VARCHAR(512) NULL"),
+            ('"candidateExpectedSalaryType"', "VARCHAR(50) NULL"),
+            ('"candidateCurrentSalaryType"', "VARCHAR(50) NULL"),
+        ],
+        "candidate_conversations": [
+            ("next_touch_scheduled_at", "TIMESTAMP NULL"),
+        ],
+        "employees": [
+            # Employer of record (BX-US / BX-IN): headcount splits by company
+            ("company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
+            ("guidewire_certification_current", "VARCHAR(50) NULL"),
+            ("guidewire_certification_expected", "VARCHAR(50) NULL"),
+        ],
+        "candidate_education_forms": [
+            ("education_level", "VARCHAR(100) NULL"),
+        ],
+        "candidate_experience_forms": [
+            ("responsibilities", "TEXT NULL"),
+        ],
+        "candidate_documents": [
+            ("document_name", "VARCHAR(512) NULL"),
+            ("upload_sequence", "INTEGER NULL"),
+        ],
+    }
+    # No tenant default anywhere: every row names its tenant (it once silently became 1)
+    for table_name in ("business_units", "business_unit_companies", "business_unit_location_heads",
+                       "candidates", "candidate_rejections", "candidate_rejection_reasons", "locations",
+                       "role_templates", "system_modules", "system_module_permissions",
+                       "thunder_monthly_highlights"):
+        if _column_type(db, table_name, "tenant_id") is not None:
+            _migration_step(db, f"{table_name}.tenant_id has no default",
+                            f"ALTER TABLE app_schema.{table_name} ALTER COLUMN tenant_id DROP DEFAULT")
+    for table_name, columns in drifted_tables.items():
+        for column_name, column_def in columns:
+            _migration_step(db, f"{table_name}.{column_name}",
+                            f"ALTER TABLE IF EXISTS app_schema.{table_name} "
+                            f"ADD COLUMN IF NOT EXISTS {column_name} {column_def}")
+
+    # (org_level_access is set once by _initialize_role_authority.)
+
+    # Migration 5b-5d: columns first created as uuid hold string / integer ids
+    # (linkedin_candidate_pipeline user/candidate ids, agent_configs and SLM learning-metrics
+    # tenant ids), so every query by them failed. Convert while still uuid (uuid -> text never
+    # loses data).
+    uuid_to_text = {
+        "linkedin_candidate_pipeline": [("assigned_to_user_id", "VARCHAR(255)"), ("created_by_user_id", "VARCHAR(255)"),
+                                        ("candidate_id", "VARCHAR(512)")],
+        "agent_configs": [("tenant_id", "VARCHAR(512)")],
+        "slm_metrics": [("tenant_id", "VARCHAR(512)")],
+        "thunder_learning_metrics": [("tenant_id", "VARCHAR(512)"), ("candidate_id", "VARCHAR(512)")],
+        "flash_learning_metrics": [("tenant_id", "VARCHAR(512)"), ("job_id", "VARCHAR(512)")],
+        "learning_weight_updates": [("tenant_id", "VARCHAR(512)")],
+        "learning_recommendations": [("tenant_id", "VARCHAR(512)"), ("target_entity_id", "VARCHAR(512)"),
+                                     ("approved_by_user_id", "VARCHAR(512)")],
+    }
+    for table_name, columns in uuid_to_text.items():
+        for column_name, column_type in columns:
+            if _column_type(db, table_name, column_name) == "uuid":
+                _migration_step(db, f"{table_name}.{column_name} uuid -> {column_type}",
+                                f"ALTER TABLE app_schema.{table_name} ALTER COLUMN {column_name} "
+                                f"TYPE {column_type} USING {column_name}::text", lock_timeout=True)
+
+    # Migration 6: job_created_flash never set Jobs.tenant_id, so every queue-created job was
+    # invisible to the tenant-scoped job list. Single-tenant deployment: attribute orphaned jobs
+    # to tenant 1.
+    _migration_step(db, "tenant-less jobs attributed to tenant 1",
+                    "UPDATE app_schema.jobs SET tenant_id = 1 WHERE tenant_id IS NULL")
+
+    # Migration 7: String columns were widened in the models (mostly to VARCHAR(512)) but
+    # create_all() never alters existing tables, so production kept the old lengths; e.g.
+    # tasks.candidate_id VARCHAR(36) rejected 40-char "CAN-<uuid>" ids and every candidate
+    # creation failed.
+    _widen_short_varchar_columns(db)
+
+    # Migration 8: 33 tables were created with tenant_id as a foreign key to users."UserID" (a
+    # tenant is not a user), so every write with a real tenant value failed. Drop those
+    # constraints (removes an invalid rule only; no data changes).
+    _drop_tenant_id_user_foreign_keys(db)
+
+    # Migration 9: Org -> Company -> Partner -> BU. Departments are org-wide routing groups (BU
+    # optional); a BU operates in several companies; its partner is a user. Carry over the old
+    # single location and the org-chart partner (when that seat has a user).
+    _migrate_company_partner_structure(db)
+
+    # Migration 10: Demand merged into Jobs -- one requisition record.
+    _merge_demands_into_jobs(db)
 
 
 def _migrate_company_partner_structure(db: Session):
@@ -1706,14 +1671,7 @@ def _migrate_company_partner_structure(db: Session):
         """),
     ]
     for label, sql in steps:
-        try:
-            result = db.execute(text(sql))
-            db.commit()
-            if result.rowcount and result.rowcount > 0:
-                logger.info(f"[Contract] Migration: {label} ({result.rowcount} rows)")
-        except Exception as e:
-            logger.warning(f"[Contract] Migration warning for {label}: {e}")
-            db.rollback()
+        _migration_step(db, label, sql)
 
 
 def _merge_demands_into_jobs(db: Session):
@@ -1790,41 +1748,24 @@ def _merge_demands_into_jobs(db: Session):
         """),
     ]
     for label, sql in steps:
-        try:
-            result = db.execute(text(sql))
-            db.commit()
-            if result.rowcount and result.rowcount > 0:
-                logger.info(f"[Contract] Migration: {label} ({result.rowcount} rows)")
-        except Exception as e:
-            logger.warning(f"[Contract] Migration warning for {label}: {e}")
-            db.rollback()
+        _migration_step(db, label, sql)
 
     # Repoint foreign keys demands(id) -> jobs("jobID")
-    try:
-        fks = db.execute(text("""
-            SELECT tc.table_name, tc.constraint_name, kcu.column_name
-            FROM information_schema.table_constraints tc
-            JOIN information_schema.key_column_usage kcu
-              ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
-            JOIN information_schema.constraint_column_usage ccu
-              ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema
-            WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = 'app_schema'
-              AND ccu.table_name = 'demands'
-        """)).fetchall()
-    except Exception as e:
-        logger.warning(f"[Contract] Migration warning listing demand foreign keys: {e}")
-        db.rollback()
-        fks = []
-    for table, constraint, column in fks:
-        try:
-            db.execute(text(f'ALTER TABLE app_schema.{table} DROP CONSTRAINT "{constraint}"'))
-            db.execute(text(f'ALTER TABLE app_schema.{table} ADD CONSTRAINT "fk_{table}_{column}_jobs" '
-                            f'FOREIGN KEY ({column}) REFERENCES app_schema.jobs("jobID")'))
-            db.commit()
-            logger.info(f"[Contract] Migration: {table}.{column} now references jobs")
-        except Exception as e:
-            logger.warning(f"[Contract] Migration warning repointing {table}.{column}: {e}")
-            db.rollback()
+    fks = db.execute(text("""
+        SELECT tc.table_name, tc.constraint_name, kcu.column_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
+        JOIN information_schema.constraint_column_usage ccu
+          ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = 'app_schema'
+          AND ccu.table_name = 'demands'
+    """)).fetchall()
+    for table, constraint, column in fks:  # once repointed, a constraint no longer shows up here
+        _migration_step(db, f"{table}.{column} references jobs",
+                        f'ALTER TABLE app_schema.{table} DROP CONSTRAINT "{constraint}", '
+                        f'ADD CONSTRAINT "fk_{table}_{column}_jobs" FOREIGN KEY ({column}) '
+                        f'REFERENCES app_schema.jobs("jobID")')
 
 
 def _drop_tenant_id_user_foreign_keys(db: Session):
@@ -1843,14 +1784,9 @@ def _drop_tenant_id_user_foreign_keys(db: Session):
           AND ccu.table_name = 'users'
     """)).fetchall()
     for schema, table, constraint in rows:
-        try:
-            db.execute(text("SET LOCAL lock_timeout = '5s'"))
-            db.execute(text(f'ALTER TABLE "{schema}"."{table}" DROP CONSTRAINT IF EXISTS "{constraint}"'))
-            db.commit()
-            logger.info(f"[Contract] Migration: dropped {table}.{constraint} (tenant_id -> users)")
-        except Exception as e:
-            logger.warning(f"[Contract] Migration warning dropping {table}.{constraint}: {e}")
-            db.rollback()
+        _migration_step(db, f"drop {table}.{constraint} (tenant_id -> users)",
+                        f'ALTER TABLE "{schema}"."{table}" DROP CONSTRAINT IF EXISTS "{constraint}"',
+                        lock_timeout=True)
 
 
 def _widen_short_varchar_columns(db: Session):
@@ -1892,14 +1828,8 @@ def _widen_short_varchar_columns(db: Session):
                 widen.append(f'ALTER COLUMN "{col.name}" TYPE VARCHAR({model_len})')
         if not widen:
             continue
-        try:
-            db.execute(text("SET LOCAL lock_timeout = '5s'"))
-            db.execute(text(f'ALTER TABLE "{schema}"."{table.name}" ' + ", ".join(widen)))
-            db.commit()
-            logger.info(f"[Contract] Migration: widened {len(widen)} varchar column(s) on {table.name}")
-        except Exception as e:
-            logger.warning(f"[Contract] Migration warning widening {table.name}: {e}")
-            db.rollback()
+        _migration_step(db, f"widen {len(widen)} varchar column(s) on {table.name}",
+                        f'ALTER TABLE "{schema}"."{table.name}" ' + ", ".join(widen), lock_timeout=True)
 
 
 if __name__ == "__main__":

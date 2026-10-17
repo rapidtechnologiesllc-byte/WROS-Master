@@ -2,7 +2,7 @@
 from datetime import date, datetime
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class CoreCertificationRequestItem(BaseModel):
@@ -37,12 +37,3 @@ class EligibilityResponse(BaseModel):
     required_days: int
     counted_from: Optional[date] = None
     reasons: List[str]
-
-
-class RejectChatRequest(BaseModel):
-    message: Optional[str] = Field(default=None, max_length=2000)
-
-
-class RejectChatResponse(BaseModel):
-    reply: str
-    done: bool

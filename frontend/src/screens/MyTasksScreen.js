@@ -186,7 +186,7 @@ export default function MyTasksScreen() {
       setActionError(`Outlook was not connected: ${searchParams.get("reason") || "Microsoft sign-in failed"}`);
     }
     if (outlook) setSearchParams({}, { replace: true });
-  }, []);
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     load();
@@ -224,7 +224,13 @@ export default function MyTasksScreen() {
   };
 
   const handleNavigateTask = (task) => {
-    // Open the record the task is linked to; the title is only a fallback hint.
+    // The task's own deep link wins (an in-app path set by whoever raised the task).
+    if (task.link) {
+      navigate(task.link);
+      return;
+    }
+    // Tasks raised before links existed: open the record the task is linked to; the title is
+    // only a fallback hint.
     const title = task.title || "";
     const isInterviewTask = Boolean(task.interview_id) || title.includes("Submit feedback") || title.includes("Interview");
     if (isInterviewTask && task.candidate_id) {

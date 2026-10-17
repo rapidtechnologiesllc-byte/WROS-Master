@@ -46,6 +46,21 @@ def is_contactable(db: Session, candidate: Candidate) -> Tuple[bool, str]:
     return True, "ok"
 
 
+def can_receive_transactional(db: Session, candidate: Candidate) -> Tuple[bool, str]:
+    """May the candidate be sent a message about a step they are already in (an interview
+    invitation or reminder)? A real email and no post-rejection no-contact period. Unlike
+    is_contactable it does not need thunder_enabled: scheduling an interview pauses Thunder's
+    outreach, never the candidate's own interview mail (flash spec E24)."""
+    if candidate is None:
+        return False, "candidate not found"
+    if not candidate.candidateEmail or is_placeholder_email(candidate.candidateEmail):
+        return False, "no real contact email"
+    until = rejection_cooldown_until(db, candidate.candidateID)
+    if until is not None:
+        return False, f"no-contact period until {until.isoformat()}"
+    return True, "ok"
+
+
 def record_rejection(db: Session, candidate: Candidate, reason: str, *,
                      rejected_by_user_id: Optional[str] = None, job_id: Optional[str] = None,
                      note: Optional[str] = None) -> CandidateRejection:

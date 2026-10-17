@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Edit2, Save, X, Loader, ChevronDown, ChevronRight, Download, Upload, AlertCircle, CheckCircle } from "lucide-react";
-import { Button, Input, Select, Card } from "../../components/ui";
+import { Input, Select } from "../../components/ui";
 import RateField from "../../components/ui/RateField";
 import PhoneField, { joinPhone, splitPhone } from "../../components/ui/PhoneField";
 import LocationCascadeSelect, { formatLocation, parseLocation } from "../../components/ui/LocationCascadeSelect";
@@ -10,13 +10,23 @@ import {
 } from "../../utils/candidateFields";
 import {
   getCandidateById,
-  getCandidateContacts,
+  getEmploymentTypes,
   updateCandidate,
 } from "../../services/api/candidates";
 import { getHrCandidateFullDetails } from "../../services/api/candidateSelfService";
 import { saveCandidateCertifications, saveCandidateEducation, saveCandidateExperience, saveCandidateSkills, saveCandidateQualifications, saveCandidateLicenses } from "../../services/api/candidates";
 import { getCandidateDocuments, uploadResume } from "../../services/api/documents";
-import { getAllUsers } from "../../services/api/users";
+
+// The employment-type picker for a country: its accepted types first; types it never accepts
+// (C2C, 1099) stay selectable so they can be recorded, marked as not accepted
+const employmentTypeOptions = (config, countryCode) => {
+  const country = config?.countries?.find((c) => c.code === countryCode);
+  const options = country?.options || config?.default_options || [];
+  return options.map((o) => ({
+    value: o.value,
+    label: o.accepted || o.value === "UNKNOWN" || !country ? o.label : `${o.label} (not accepted)`,
+  }));
+};
 
 // State for action feedback (replaces toast notifications)
 const useActionFeedback = () => {
@@ -34,7 +44,6 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [users, setUsers] = useState([]);
   const [candidateFullDetails, setCandidateFullDetails] = useState(null);
 
   // Action feedback state
@@ -127,14 +136,12 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
     const load = async () => {
       try {
         setLoading(true);
-        const [candidateData, fullDetails, userList] = await Promise.all([
+        const [candidateData, fullDetails] = await Promise.all([
           getCandidateById(candidateId),
           getHrCandidateFullDetails(candidateId),
-          getAllUsers(),
         ]);
         setData(candidateData);
         setCandidateFullDetails(fullDetails);
-        setUsers(userList || []);
 
         // Load resume data
         try {
@@ -143,6 +150,8 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
             setResumeData(docs.resume);
           }
         } catch (docErr) {
+          console.error("[ProfileTabEditable] Failed to load the resume", docErr);
+          setActionError(`Could not load the resume: ${docErr.message}`);
         }
       } catch (err) {
         setError(err?.message || "Failed to load profile");
@@ -152,7 +161,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
     };
 
     if (candidateId) load();
-  }, [candidateId]);
+  }, [candidateId, setActionError]);
 
   // Initialize education, experience, and certifications from candidateFullDetails
   useEffect(() => {
@@ -204,6 +213,19 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
     }
   }, [candidateFullDetails]);
 
+  // Employment types for the candidate's country (C2C and 1099 are recorded, never accepted)
+  const [employmentTypes, setEmploymentTypes] = useState(null);
+  useEffect(() => {
+    let active = true;
+    getEmploymentTypes()
+      .then((res) => { if (active) setEmploymentTypes(res); })
+      .catch((err) => {
+        console.error("[ProfileTabEditable] Failed to load employment types", err);
+        if (active) setActionError(`Could not load employment types: ${err.message}`);
+      });
+    return () => { active = false; };
+  }, [setActionError]);
+
   const profile = useMemo(() => {
     const merged = { ...(candidate || {}), ...(data || {}) };
     return merged && Object.keys(merged).length > 0 ? merged : {};
@@ -237,6 +259,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         current_salary_type: profile?.candidate_current_salary_type || DEFAULT_SALARY_RATE_TYPE,
         source: splitSource(profile?.candidate_source).choice,
         source_custom: splitSource(profile?.candidate_source).custom,
+        employment_type: profile?.employment_type || "UNKNOWN",
       });
     } catch (err) {
       console.error("Error loading edit form:", err);
@@ -266,6 +289,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         const loc = editForm.location || {};
         if (loc.countryCode && loc.stateCode && loc.city) {
           updatePayload.candidate_current_location = formatLocation(loc);
+          updatePayload.candidate_country = loc.countryCode;
         } else if (loc.countryCode || loc.stateCode || loc.city) {
           throw new Error("Select Country, State and City for the current location");
         } else if (!editForm.location_text) {
@@ -280,6 +304,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         updatePayload.candidate_expected_salary_type = editForm.expected_salary_type || null;
         updatePayload.candidate_current_salary = editForm.current_salary || null;
         updatePayload.candidate_current_salary_type = editForm.current_salary_type || null;
+        updatePayload.employment_type = editForm.employment_type || null;
       }
 
       if (onRefresh) {
@@ -321,9 +346,9 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
 
   if (loading) return <div className="p-6 text-center text-gray-500">Loading profile...</div>;
 
-  const userOptions = Array.isArray(users)
-    ? users.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))
-    : [];
+  if (error) {
+    return <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>;
+  }
 
   return (
     <div className="space-y-4">
@@ -472,6 +497,12 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               onChange={(v) => setEditForm({...editForm, source: v})}
               options={["", ...SOURCE_OPTIONS]}
             />
+            <Select
+              label="Employment Type"
+              value={editForm.employment_type || "UNKNOWN"}
+              onChange={(v) => setEditForm({...editForm, employment_type: v})}
+              options={employmentTypeOptions(employmentTypes, profile?.candidate_country)}
+            />
             {editForm.source === "Other" && (
               <Input
                 label="Other Source"
@@ -513,6 +544,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <InfoDisplay label="Experience (Years)" value={profile?.candidate_experience || "—"} />
             <InfoDisplay label="Source" value={profile?.candidate_source} />
+            <InfoDisplay label="Employment Type" value={profile?.employment_type_label} />
             <InfoDisplay label="Notice Period" value={profile?.candidate_notice_period ? `${profile.candidate_notice_period} days` : "—"} />
             <InfoDisplay label="Availability Date" value={profile?.candidate_joining_date} />
             <InfoDisplay

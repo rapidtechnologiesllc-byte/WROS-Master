@@ -10,7 +10,7 @@
 // Hiring-Manager limitedMode single-interview review card (a different,
 // narrower context this merge doesn't touch).
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Mail, Phone, MessageCircle, MessageSquare, Video, FileText, X, Loader, Upload, AlertCircle, CheckCircle } from "lucide-react";
+import { FileText, X, Loader, Upload, AlertCircle, CheckCircle } from "lucide-react";
 import { hasPermission } from "../../utils/permissionsRoleTemplate";
 import {
   createCandidateHistoryEvent,
@@ -139,7 +139,6 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
 
   const [showLogInterviewModal, setShowLogInterviewModal] = useState(false);
   const [logInterviewNote, setLogInterviewNote] = useState("");
-  const [loggingInterview, setLoggingInterview] = useState(false);
 
   const [showTranscriptModal, setShowTranscriptModal] = useState(false);
   const [transcriptFile, setTranscriptFile] = useState(null);
@@ -238,7 +237,10 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
     fetchData();
   }, [fetchData]);
 
-  const interviews = Array.isArray(historyData?.interviews) ? historyData.interviews : [];
+  const interviews = useMemo(
+    () => (Array.isArray(historyData?.interviews) ? historyData.interviews : []),
+    [historyData],
+  );
 
   // Grouped by job -- a candidate can interview for more than one job over
   // time; ordered by each job's earliest round so the most recent job
@@ -560,9 +562,9 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
       const end = new Date(`${rescheduleForm.interviewDate}T${rescheduleForm.endTime}`);
       const start = new Date(`${rescheduleForm.interviewDate}T${rescheduleForm.startTime}`);
       if (end.getTime() <= start.getTime()) end.setDate(end.getDate() + 1);
-      const updatedStart = `${rescheduleForm.interviewDate}T${rescheduleForm.startTime}:00`;
-      const endDate = [end.getFullYear(), String(end.getMonth() + 1).padStart(2, "0"), String(end.getDate()).padStart(2, "0")].join("-");
-      const updatedEnd = `${endDate}T${rescheduleForm.endTime}:00`;
+      // the form is in the scheduler's local time; the API stores UTC, so send ISO with the offset
+      const updatedStart = start.toISOString();
+      const updatedEnd = end.toISOString();
 
       const payload = {
         panel_id: selectedInterview.panel_id,
@@ -687,8 +689,6 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
 
           if (!response.ok) throw new Error("Failed to process transcript");
 
-          const result = await response.json();
-
           // Log the transcript upload as an activity
           await createCandidateHistoryEvent(candidateId, {
             event_type: "Interview Transcript Uploaded",
@@ -806,6 +806,50 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
           ) : (
             <div className="text-sm text-gray-500">
               No scheduling options available
+            </div>
+          )}
+        </SectionCard>
+
+        <SectionCard title="Interview Rounds">
+          {!interviews.length ? (
+            <EmptyState
+              title="No interviews scheduled"
+              subtitle="Once an interview is scheduled for this candidate, its rounds, feedback and actions appear here."
+            />
+          ) : (
+            <div className="space-y-6">
+              {jobGroups.map((group) => (
+                <div key={group.jobId || "unassigned"}>
+                  <div className="mb-2 flex items-center gap-2">
+                    <div className="text-sm font-bold text-bx-navy">{group.jobTitle}</div>
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
+                      {group.rounds.length} round{group.rounds.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  <div className="space-y-4 border-l-2 border-gray-100 pl-4">
+                    {group.rounds.map((interview) => {
+                      const interviewId = getInterviewId(interview);
+                      return (
+                        <InterviewRoundCard
+                          key={interviewId}
+                          interview={interview}
+                          feedbackList={feedbackMap[interviewId] || []}
+                          feedbackLoading={feedbackLoading}
+                          panelMembers={panelMembersMap[interview.panel_id] || []}
+                          myPanelInterview={myPanelInterviewMap.get(interviewId)}
+                          loggedInInterviewerId={loggedInInterviewerId}
+                          onSubmitClick={() => openSubmitModal(interview)}
+                          onSkipClick={() => openSkipModal(interview)}
+                          onViewDetails={() => openDetailsModal(interviewId)}
+                          onReschedule={canEditInterviews ? () => openRescheduleModal(interview) : undefined}
+                          onCancel={canEditInterviews ? () => openCancelModal(interview) : undefined}
+                          onUploadTranscript={() => setShowTranscriptModal(true)}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </SectionCard>
@@ -1111,10 +1155,10 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
                       setLogInterviewNote("");
                     }
                   }}
-                  disabled={loggingInterview || !logInterviewNote.trim()}
+                  disabled={!logInterviewNote.trim()}
                   className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {loggingInterview ? "Logging..." : "Log Interview"}
+                  Log Interview
                 </button>
               </div>
             </div>
@@ -1201,12 +1245,16 @@ function InterviewRoundCard({
           <button type="button" onClick={onViewDetails} className="inline-flex items-center rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50">
             View Details
           </button>
-          <button type="button" onClick={onReschedule} className="inline-flex items-center rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-100">
-            Reschedule
-          </button>
-          <button type="button" onClick={onCancel} className="inline-flex items-center rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100">
-            Cancel
-          </button>
+          {onReschedule && (
+            <button type="button" onClick={onReschedule} className="inline-flex items-center rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-100">
+              Reschedule
+            </button>
+          )}
+          {onCancel && (
+            <button type="button" onClick={onCancel} className="inline-flex items-center rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100">
+              Cancel
+            </button>
+          )}
           {onUploadTranscript && (
             <button type="button" onClick={onUploadTranscript} className="inline-flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-700 transition hover:bg-green-100">
               <Upload className="h-4 w-4" />
@@ -1665,18 +1713,6 @@ function Stat({ label, value }) {
       <div className="text-2xl font-semibold text-gray-900">{value ?? 0}</div>
       <div className="mt-1 text-xs text-gray-500">{label}</div>
     </div>
-  );
-}
-
-function ActivityLogButton({ icon: Icon, label, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex flex-col items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-3 transition hover:border-blue-300 hover:bg-blue-50"
-    >
-      <Icon className="h-5 w-5 text-gray-600" />
-      <span className="text-xs font-medium text-gray-700">{label}</span>
-    </button>
   );
 }
 

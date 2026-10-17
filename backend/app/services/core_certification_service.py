@@ -21,6 +21,7 @@ rules make none; revoking would also break ck_core_requires_certification for pe
 import copy
 import logging
 import re
+import uuid
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Tuple
@@ -47,6 +48,12 @@ STAFF_AUG = "SPECIALITY"
 NOT_HEADCOUNT = ("EXITED", "PRE_JOINING")
 CLOSED_TASK_STATUSES = ("COMPLETED", "CANCELLED")
 REVIEW_PATH = "/workforce/core-certification"
+FLASH_WORKFLOW = "core_cert"  # the Flash workflow that decides a request (flash_brain.workflows)
+
+
+def decision_link(request_id: str) -> str:
+    """The approval task opens Flash with this request's decision (on any screen)."""
+    return f"/my-tasks?flash={FLASH_WORKFLOW}:{request_id}"
 
 
 class CertificationError(Exception):
@@ -134,15 +141,18 @@ def _follow_ups_done(db: Session, request: CoreCertificationRequest, today: date
     return still_open == 0
 
 
-def _approval_task(db: Session, employee: Employee, head_user_id: str, counted: int, tenant_id: int) -> Task:
+def _approval_task(db: Session, employee: Employee, head_user_id: str, counted: int, tenant_id: int,
+                   request_id: str) -> Task:
     from app.services.task_service import create_task
 
     return create_task(
         db, title=f"Approve Core certification: {_employee_name(employee)}",
         description=(f"{_employee_name(employee)} has graduated the Buddy Program and has {counted} approved "
-                     f"billable Staff Aug days with no escalation. Approve or reject at {REVIEW_PATH}."),
+                     f"billable Staff Aug days with no escalation. Open this task to approve or reject with "
+                     f"Flash, or use {REVIEW_PATH}."),
         priority="HIGH", tenant_id=tenant_id, assigned_to_user_id=head_user_id,
         due_date=datetime.utcnow() + timedelta(days=settings.CORE_CERT_TASK_DUE_DAYS),
+        link=decision_link(request_id),
     )
 
 
@@ -181,9 +191,10 @@ def run_daily_sweep(db: Session, today: Optional[date] = None) -> Dict:
                 result["no_bu_head"] += 1
                 continue
             try:
-                task = _approval_task(db, employee, head, check["billable_days"], tenant_id)
+                request_id = str(uuid.uuid4())
+                task = _approval_task(db, employee, head, check["billable_days"], tenant_id, request_id)
                 db.add(CoreCertificationRequest(
-                    tenant_id=tenant_id, employee_id=employee.id, bu_head_user_id=head, task_id=task.id,
+                    id=request_id, tenant_id=tenant_id, employee_id=employee.id, bu_head_user_id=head, task_id=task.id,
                     billable_days=check["billable_days"], counted_from=check["counted_from"]))
                 db.commit()
                 result["requested"] += 1
@@ -217,6 +228,19 @@ def _reassign_pending(db: Session, tenant_id: int, result: Dict) -> None:
 
 
 # --------------------------------------------------------------------------- deciding
+
+def visible_requests(db: Session, user: Users):
+    """(request, employee) rows the user may see: their tenant and business units."""
+    from app.core.data_scope import bu_filter
+
+    return (db.query(CoreCertificationRequest, Employee)
+            .join(Employee, Employee.id == CoreCertificationRequest.employee_id)
+            .filter(CoreCertificationRequest.tenant_id == user.tenant_id, bu_filter(db, user, Employee.bu_id)))
+
+
+def visible_request(db: Session, user: Users, request_id: str) -> Optional[Tuple[CoreCertificationRequest, Employee]]:
+    return visible_requests(db, user).filter(CoreCertificationRequest.id == request_id).first()
+
 
 def may_decide(db: Session, request: CoreCertificationRequest, user: Users) -> bool:
     if user.UserID == request.bu_head_user_id:

@@ -55,8 +55,15 @@ const CANDIDATE_UPDATE_FIELDS = [
   "candidate_source", "candidate_experience", "candidate_skills", "candidate_joining_date",
   "candidate_notice_period", "candidate_expected_salary", "candidate_current_salary",
   "candidate_current_location", "candidate_job_title", "candidate_employee_type",
+  "candidate_country", "employment_type",
   "assigned_hr_manager_id", "assigned_report_manager_id", "assigned_recruiter_id",
 ];
+
+// Employment types labelled per country, accepted ones first (configured on the server)
+export const getEmploymentTypes = async () => {
+  const { data } = await apiRequest("/candidates/employment-types", { method: "GET" });
+  return data;
+};
 
 export const updateCandidate = async (candidateId, payload) => {
   if (!payload) {
@@ -85,7 +92,7 @@ export const deleteCandidate = async (candidateId) => {
 };
 
 export const updateCandidateStatus = async (candidateId, payload) => {
-  const { data, response } = await apiRequest(`/status/${candidateId}`, {
+  const { data } = await apiRequest(`/status/${candidateId}`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });

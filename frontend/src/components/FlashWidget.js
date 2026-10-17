@@ -7,9 +7,20 @@
 // answer that yet" straight from the backend, never a fabricated
 // answer -- "strict mode."
 // 2026-08-07: Added "Report Issue" button for production defect feedback.
-import { useRef, useState } from "react";
-import { MessageCircleQuestion, Send, X, AlertCircle, CheckCircle } from "lucide-react";
-import { askFlash } from "../services/api/flash";
+// 2026-10-15: the conversation lives on the server (one per user): loaded on mount, polled while
+// the bubble is closed (unread badge), opened on a record by a deep link (?flash=kind:ref, e.g.
+// a Core certification decision from its task), with chips for the decisions waiting.
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { MessageCircleQuestion, Send, X, AlertCircle, CheckCircle, RotateCcw } from "lucide-react";
+import {
+  FLASH_WORKFLOW_DONE_EVENT,
+  askFlash,
+  getFlashConversation,
+  markFlashRead,
+  openFlashWorkflow,
+  resetFlashConversation,
+} from "../services/api/flash";
 import { reportDefect } from "../services/api/defects";
 import cx from "../utils/cx";
 import { NAV_ITEMS } from "../layout/navItems";
@@ -22,9 +33,22 @@ const AFFECTED_SCREEN_OPTIONS = Array.from(
   new Set(Object.values(NAV_ITEMS).map((item) => item.label)),
 ).sort((a, b) => a.localeCompare(b));
 
+// The query parameter of a deep link into Flash: ?flash=<kind>:<ref>
+const FLASH_PARAM = "flash";
+
+const newestId = (list, current) =>
+  list.reduce((max, m) => (typeof m.id === "number" && m.id > (max ?? 0) ? m.id : max), current);
+
 export default function FlashWidget() {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
+  const [pendingQuestion, setPendingQuestion] = useState(null);
+  const [decisions, setDecisions] = useState([]);
+  const [unread, setUnread] = useState(0);
+  const [pollSeconds, setPollSeconds] = useState(null);
+  const [activeWorkflow, setActiveWorkflow] = useState(null);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -33,45 +57,160 @@ export default function FlashWidget() {
   const [screenError, setScreenError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
   const scrollRef = useRef(null);
+  const lastIdRef = useRef(null);
+  const workflowRef = useRef(null);
+  const handledLinkRef = useRef(null);
 
-  // Backlog item, 2026-08-05 (wros_ask_thunder_bugs_and_memory_backlog):
-  // pairs up the flat you/flash message list into {question, reply}
-  // turns for the backend's history-aware classifier -- the fix for
-  // "i ask a question to thunder and move to a different page it
-  // looses the history and acts as a new session." Only the recent
-  // tail matters (the backend caps further); no need to send everything.
-  const recentHistory = (allMessages) => {
-    const turns = [];
-    for (let i = 0; i < allMessages.length - 1; i++) {
-      if (allMessages[i].sender === "you" && allMessages[i + 1].sender === "flash") {
-        turns.push({ question: allMessages[i].body, reply: allMessages[i + 1].body });
-      }
+  const scrollToEnd = () =>
+    requestAnimationFrame(() => {
+      if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    });
+
+  const addMessages = useCallback((incoming) => {
+    if (!incoming || incoming.length === 0) return;
+    setMessages((prev) => {
+      const seen = new Set(prev.map((m) => m.id));
+      const fresh = incoming.filter((m) => !seen.has(m.id));
+      return fresh.length ? [...prev, ...fresh] : prev;
+    });
+    lastIdRef.current = newestId(incoming, lastIdRef.current);
+    scrollToEnd();
+  }, []);
+
+  // A local message (e.g. a failed request) shown in the bubble, never stored
+  const addLocalNote = useCallback((body) => {
+    setMessages((prev) => [...prev, { id: `local-${Date.now()}-${prev.length}`, role: "flash", body }]);
+    scrollToEnd();
+  }, []);
+
+  const trackWorkflow = useCallback((next) => {
+    const previous = workflowRef.current;
+    workflowRef.current = next || null;
+    setActiveWorkflow(next || null);
+    if (previous && !next) {
+      window.dispatchEvent(new CustomEvent(FLASH_WORKFLOW_DONE_EVENT, { detail: { kind: previous } }));
     }
-    return turns.slice(-3);
-  };
+  }, []);
+
+  const applyConversation = useCallback(
+    (data) => {
+      addMessages(data.messages);
+      setDecisions(data.pending_decisions || []);
+      setUnread(data.unread || 0);
+      setPollSeconds(data.poll_seconds || null);
+      trackWorkflow(data.active_workflow);
+    },
+    [addMessages, trackWorkflow],
+  );
+
+  const refresh = useCallback(async () => {
+    try {
+      applyConversation(await getFlashConversation(lastIdRef.current));
+    } catch (err) {
+      setScreenError(`Flash could not load your conversation: ${err.message}`);
+    }
+  }, [applyConversation]);
+
+  // The conversation is kept on the server: load it on any screen, after any reload
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  // Opening the bubble shows the latest (polling stops while it is open)
+  useEffect(() => {
+    if (open) refresh();
+  }, [open, refresh]);
+
+  // While the bubble is closed, check for news (interval served by the backend)
+  useEffect(() => {
+    if (open || !pollSeconds) return undefined;
+    const timer = setInterval(refresh, pollSeconds * 1000);
+    return () => clearInterval(timer);
+  }, [open, pollSeconds, refresh]);
+
+  // An open bubble has shown everything up to the newest message
+  useEffect(() => {
+    if (!open || unread === 0 || lastIdRef.current == null) return;
+    markFlashRead(lastIdRef.current)
+      .then(() => setUnread(0))
+      .catch((err) => setScreenError(`Flash could not mark messages read: ${err.message}`));
+  }, [open, unread]);
+
+  const startWorkflow = useCallback(
+    async (kind, ref) => {
+      setOpen(true);
+      setSending(true);
+      try {
+        const res = await openFlashWorkflow(kind, ref);
+        addMessages(res.messages);
+        trackWorkflow(res.active_workflow);
+        await refresh();
+      } catch (err) {
+        addLocalNote(err.message || "Flash could not open that discussion.");
+      } finally {
+        setSending(false);
+      }
+    },
+    [addMessages, addLocalNote, refresh, trackWorkflow],
+  );
+
+  // Deep link: ?flash=<kind>:<ref> opens the bubble on that discussion, on any screen
+  const flashLink = searchParams.get(FLASH_PARAM);
+  useEffect(() => {
+    if (!flashLink || handledLinkRef.current === flashLink) return;
+    handledLinkRef.current = flashLink;
+    const next = new URLSearchParams(searchParams);
+    next.delete(FLASH_PARAM);
+    setSearchParams(next, { replace: true });
+    const split = flashLink.indexOf(":");
+    const kind = split > 0 ? flashLink.slice(0, split) : "";
+    const ref = split > 0 ? flashLink.slice(split + 1) : "";
+    if (!kind || !ref) {
+      setOpen(true);
+      addLocalNote("That Flash link is incomplete, so there is nothing to open.");
+      return;
+    }
+    startWorkflow(kind, ref);
+  }, [flashLink, searchParams, setSearchParams, startWorkflow, addLocalNote]);
 
   const handleSend = async () => {
     const text = draft.trim();
     if (!text || sending) return;
-
-    const history = recentHistory(messages);
     setSending(true);
-    setMessages((prev) => [...prev, { sender: "you", body: text }]);
+    setPendingQuestion(text);
     setDraft("");
-
+    scrollToEnd();
     try {
-      const res = await askFlash(text, history);
-      setMessages((prev) => [...prev, { sender: "flash", body: res.reply }]);
+      const res = await askFlash(text);
+      addMessages(res.messages);
+      trackWorkflow(res.active_workflow);
     } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        { sender: "flash", body: err.message || "Something went wrong -- please try again." },
-      ]);
+      addLocalNote(err.message || "Something went wrong -- please try again.");
     } finally {
+      setPendingQuestion(null);
       setSending(false);
-      requestAnimationFrame(() => {
-        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      });
+    }
+  };
+
+  const handleDecision = (decision) => {
+    if (decision.workflow) {
+      startWorkflow(decision.kind, decision.ref);
+    } else if (decision.link) {
+      setOpen(false);
+      navigate(decision.link);
+    }
+  };
+
+  const handleReset = async () => {
+    if (sending) return;
+    try {
+      await resetFlashConversation();
+      setMessages([]);
+      lastIdRef.current = null;
+      trackWorkflow(null);
+      await refresh();
+    } catch (err) {
+      setScreenError(`Flash could not start a new conversation: ${err.message}`);
     }
   };
 
@@ -211,9 +350,19 @@ export default function FlashWidget() {
           <div className="flex items-center justify-between border-b bg-bx-navy px-4 py-3">
             <div>
               <div className="text-sm font-bold text-white">Ask Flash</div>
-              <div className="text-[11px] text-white/60">Sourcing, status, tasks &amp; finance</div>
+              <div className="text-[11px] text-white/60">
+                {activeWorkflow ? "In a discussion: type cancel to leave it" : "Sourcing, status, tasks & finance"}
+              </div>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={handleReset}
+                className="rounded p-1 text-white/70 hover:bg-white/10 hover:text-white"
+                title="Start a new conversation"
+                aria-label="Start a new conversation"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </button>
               <button
                 onClick={() => setShowReportModal(true)}
                 className="rounded p-1 text-white/70 hover:bg-white/10 hover:text-white"
@@ -228,17 +377,19 @@ export default function FlashWidget() {
           </div>
 
           <div ref={scrollRef} className="flex flex-1 flex-col gap-2 overflow-y-auto px-3 py-3">
-            {messages.length === 0 ? (
+            {messages.length === 0 && !pendingQuestion ? (
               <div className="mt-4 text-center text-xs text-gray-500">
                 Try: "find me a Java developer", "what's my BU's margin", or "what's on my plate"
               </div>
             ) : (
-              messages.map((m, i) => (
-                <div key={i} className={cx("flex", m.sender === "you" ? "justify-end" : "justify-start")}>
+              messages.map((m) => (
+                <div key={m.id} className={cx("flex", m.role === "user" ? "justify-end" : "justify-start")}>
                   <div
                     className={cx(
                       "max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 text-xs",
-                      m.sender === "you" ? "bg-bx-orange text-white" : "bg-gray-100 text-gray-900",
+                      m.role === "user" && "bg-bx-orange text-white",
+                      m.role === "flash" && "bg-gray-100 text-gray-900",
+                      m.role === "event" && "border border-blue-100 bg-blue-50 text-blue-900",
                     )}
                   >
                     {m.body}
@@ -246,8 +397,35 @@ export default function FlashWidget() {
                 </div>
               ))
             )}
+            {pendingQuestion ? (
+              <div className="flex justify-end">
+                <div className="max-w-[85%] whitespace-pre-wrap rounded-xl bg-bx-orange px-3 py-2 text-xs text-white opacity-70">
+                  {pendingQuestion}
+                </div>
+              </div>
+            ) : null}
             {sending ? <div className="text-xs text-gray-400">Flash is checking…</div> : null}
           </div>
+
+          {decisions.length > 0 ? (
+            <div className="border-t bg-amber-50 px-3 py-2">
+              <div className="text-[11px] font-semibold text-amber-900">
+                {decisions.length === 1 ? "1 decision is" : `${decisions.length} decisions are`} waiting for you
+              </div>
+              <div className="mt-1 flex max-h-20 flex-wrap gap-1 overflow-y-auto">
+                {decisions.map((d) => (
+                  <button
+                    key={`${d.kind}:${d.ref}`}
+                    onClick={() => handleDecision(d)}
+                    disabled={sending}
+                    className="rounded-full border border-amber-300 bg-white px-2 py-0.5 text-left text-[11px] text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                  >
+                    {d.text}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <div className="flex items-end gap-2 border-t px-3 py-2.5">
             <textarea
@@ -272,10 +450,15 @@ export default function FlashWidget() {
 
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex h-12 w-12 items-center justify-center rounded-full bg-bx-orange text-white shadow-xl transition hover:bg-bx-orange-hover"
-        aria-label="Ask Flash"
+        className="relative flex h-12 w-12 items-center justify-center rounded-full bg-bx-orange text-white shadow-xl transition hover:bg-bx-orange-hover"
+        aria-label={unread > 0 ? `Ask Flash (${unread} unread)` : "Ask Flash"}
       >
         <MessageCircleQuestion className="h-5 w-5" />
+        {!open && unread > 0 ? (
+          <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">
+            {unread > 99 ? "99+" : unread}
+          </span>
+        ) : null}
       </button>
       </div>
     </>

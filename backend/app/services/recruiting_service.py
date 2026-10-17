@@ -12,24 +12,32 @@ Queue ids are unique per run, so a re-run never collides with an earlier one.
 """
 import logging
 import uuid
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
 
-def start_recruiting(job, reason: str) -> None:
-    """Call after the job is committed."""
+def start_recruiting(job, reason: str, *, slm_analysis: Optional[Dict[str, Any]] = None,
+                     run_id: Optional[str] = None) -> None:
+    """Call after the job is committed. Both runs are queued in the job's tenant; an SLM job
+    analysis, when there is one, rides along to the recruiter run. A fixed run_id makes a
+    repeated call (a retried queue message) the same queue items instead of new ones."""
     from app.services.message_queue_service import MessageQueueService
 
-    run = uuid.uuid4().hex[:12]
+    run = run_id or uuid.uuid4().hex[:12]
     common = {"job_id": job.jobID, "job_title": job.jobTitle, "job_skills": job.jobSkills or "",
               "no_of_positions": getattr(job, "noOfPositions", None), "hiring_manager_id": job.hiringManagerID,
               "business_unit_id": getattr(job, "business_unit_id", None), "reason": reason}
-    MessageQueueService.enqueue(task_name="flash_recruiter", task_id=f"recruit:{job.jobID}:{run}", data=common)
+    if slm_analysis:
+        common.update(slm_analysis=slm_analysis, slm_strategy=slm_analysis.get("recruitment_strategy"),
+                      slm_urgency=slm_analysis.get("urgency"))
+    tenant_id = getattr(job, "tenant_id", None)
+    MessageQueueService.enqueue(task_name="flash_recruiter", task_id=f"recruit:{job.jobID}:{run}", data=common,
+                                tenant_id=tenant_id)
     MessageQueueService.enqueue(task_name="source_candidates_for_job", task_id=f"source:{job.jobID}:{run}",
-                                data={"job_id": job.jobID, "reason": reason})
+                                data={"job_id": job.jobID, "reason": reason}, tenant_id=tenant_id)
     logger.info(f"[Recruiting] started for job {job.jobID} ({reason})")
 
 

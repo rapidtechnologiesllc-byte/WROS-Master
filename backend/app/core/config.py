@@ -166,6 +166,75 @@ class Settings:
     EXPENSE_RECEIPT_AMOUNT_TOLERANCE_PCT: float = float(os.getenv("EXPENSE_RECEIPT_AMOUNT_TOLERANCE_PCT", "2"))
     EXPENSE_RECEIPT_DATE_TOLERANCE_DAYS: int = int(os.getenv("EXPENSE_RECEIPT_DATE_TOLERANCE_DAYS", "7"))
     MAX_UPLOAD_SIZE: int = int(os.getenv("MAX_UPLOAD_SIZE", "10485760"))  # 10MB default
+
+    # Flash matching: a candidate qualifies for a job at this skill-match score (0-100) or above
+    FLASH_MATCH_MIN_SCORE: int = int(os.getenv("FLASH_MATCH_MIN_SCORE", "60"))
+    # Flash's recruiter run re-runs this often while a job is active
+    FLASH_RECRUITER_INTERVAL_HOURS: int = int(os.getenv("FLASH_RECRUITER_INTERVAL_HOURS", "4"))
+
+    # Flash's language models (CEO 2026-10-15: hybrid). The large model (Claude) plans and uses
+    # tools; the small self-hosted model (Ollama-compatible /api/chat) parses and classifies.
+    # Either may be off; with both off Flash answers from its rules and says what is offline.
+    # Only work data reaches a model: app.services.flash_brain.redaction strips contact details,
+    # pay, documents and finance figures first.
+    ANTHROPIC_API_KEY: str = get_secret("anthropic-api-key", default=os.getenv("ANTHROPIC_API_KEY", "")) or ""
+    FLASH_LARGE_LLM_MODEL: str = os.getenv("FLASH_LARGE_LLM_MODEL", "claude-opus-5-5")
+    FLASH_LARGE_LLM_EFFORT: str = os.getenv("FLASH_LARGE_LLM_EFFORT", "medium")
+    FLASH_LARGE_LLM_TIMEOUT_S: float = float(os.getenv("FLASH_LARGE_LLM_TIMEOUT_S", "60"))
+    FLASH_LARGE_LLM_MAX_TOKENS: int = int(os.getenv("FLASH_LARGE_LLM_MAX_TOKENS", "16000"))
+    FLASH_LARGE_LLM_MAX_TOOL_ROUNDS: int = int(os.getenv("FLASH_LARGE_LLM_MAX_TOOL_ROUNDS", "8"))
+    # Server-side refusal fallback (Anthropic picks the fallback model by refusal category)
+    FLASH_LARGE_LLM_FALLBACKS_ENABLED: bool = os.getenv("FLASH_LARGE_LLM_FALLBACKS_ENABLED", "true").lower() == "true"
+    FLASH_SMALL_LLM_BASE_URL: str = os.getenv("FLASH_SMALL_LLM_BASE_URL", "")
+    FLASH_SMALL_LLM_MODEL: str = os.getenv("FLASH_SMALL_LLM_MODEL", "")
+    FLASH_SMALL_LLM_TIMEOUT_S: float = float(os.getenv("FLASH_SMALL_LLM_TIMEOUT_S", "15"))
+    # Kill switch: false = Flash answers from its rules only, no model call at all
+    FLASH_AGENT_ENABLED: bool = os.getenv("FLASH_AGENT_ENABLED", "true").lower() == "true"
+    # Flash conversation (one per user, kept server-side): earlier turns a reply may draw on, the
+    # most recent messages the bubble loads, and how often the closed bubble checks for news
+    FLASH_CONTEXT_TURNS: int = int(os.getenv("FLASH_CONTEXT_TURNS", "6"))
+    FLASH_CONVERSATION_PAGE: int = int(os.getenv("FLASH_CONVERSATION_PAGE", "100"))
+    FLASH_POLL_SECONDS: int = int(os.getenv("FLASH_POLL_SECONDS", "60"))
+
+    # Interview scheduling: interviewer business hours (local time), working days, buffer, length
+    INTERVIEW_WORKDAY_START_HOUR: int = int(os.getenv("INTERVIEW_WORKDAY_START_HOUR", "9"))
+    INTERVIEW_WORKDAY_END_HOUR: int = int(os.getenv("INTERVIEW_WORKDAY_END_HOUR", "17"))
+    # Python weekday numbers (Monday=0) that are never scheduled
+    INTERVIEW_WEEKEND_DAYS: tuple = tuple(
+        int(d) for d in os.getenv("INTERVIEW_WEEKEND_DAYS", "5,6").split(",") if d.strip())
+    INTERVIEW_BUFFER_MINUTES: int = int(os.getenv("INTERVIEW_BUFFER_MINUTES", "15"))
+    INTERVIEW_DURATION_MINUTES: int = int(
+        os.getenv("INTERVIEW_DURATION_MINUTES", os.getenv("DEFAULT_INTERVIEW_DURATION_MINUTES", "60")))
+    # Time zone used for a person whose profile has none
+    INTERVIEW_DEFAULT_TIMEZONE: str = os.getenv("INTERVIEW_DEFAULT_TIMEZONE", "Asia/Kolkata")
+    # Wall-clock zone that interview start/end times were saved in before storage became naive
+    # UTC (2026-10-15). Read once, by the one-time interview_times_to_utc data migration.
+    INTERVIEW_LEGACY_STORAGE_TIMEZONE: str = os.getenv("INTERVIEW_LEGACY_STORAGE_TIMEZONE", "Asia/Kolkata")
+    # Employment type by the candidate's country (CEO 2026-10-15), the one place this lives:
+    # app.services.employment_type_policy reads it. One canonical set of types (FULLTIME, CONTRACT,
+    # C2C, 1099, UNKNOWN); a country lists the types it accepts with its own labels, and "names"
+    # are how a free-text location names the country. A country not listed accepts nothing.
+    # C2C, 1099 and UNKNOWN can never be accepted (checked when the policy loads).
+    EMPLOYMENT_TYPE_POLICY_JSON: str = os.getenv("EMPLOYMENT_TYPE_POLICY_JSON", "") or """{
+      "labels": {"FULLTIME": "Full-time", "CONTRACT": "Contract", "C2C": "Corp-to-corp (C2C)",
+                 "1099": "1099 contractor", "UNKNOWN": "Not confirmed"},
+      "countries": {
+        "US": {"name": "United States", "names": ["united states", "united states of america", "usa", "us", "u.s.", "u.s.a."],
+               "accepts": {"FULLTIME": "W2 full-time", "CONTRACT": "W2 contract"}},
+        "IN": {"name": "India", "names": ["india", "in", "bharat"],
+               "accepts": {"FULLTIME": "Full-time", "CONTRACT": "Contract"}}
+      }
+    }"""
+    # Every interview invites the candidate (CEO 2026-10-15). The automatic invite waits this long
+    # so an invite sent from the screen (POST /email/interview/invite/{id}) supersedes it
+    INTERVIEW_INVITE_DELAY_SECONDS: int = int(os.getenv("INTERVIEW_INVITE_DELAY_SECONDS", "300"))
+    # interview_reminders job: reminders before the start and feedback nudges after the end (minutes),
+    # sent only within this many minutes of their due time (older ones are skipped, never sent late)
+    INTERVIEW_REMINDER_MINUTES_BEFORE: tuple = tuple(
+        int(m) for m in os.getenv("INTERVIEW_REMINDER_MINUTES_BEFORE", "60,15").split(",") if m.strip())
+    INTERVIEW_FEEDBACK_NUDGE_MINUTES_AFTER: tuple = tuple(
+        int(m) for m in os.getenv("INTERVIEW_FEEDBACK_NUDGE_MINUTES_AFTER", "60,1440").split(",") if m.strip())
+    INTERVIEW_REMINDER_GRACE_MINUTES: int = int(os.getenv("INTERVIEW_REMINDER_GRACE_MINUTES", "30"))
     
     # Email Settings (if needed in future)
     SMTP_HOST: Optional[str] = os.getenv("SMTP_HOST")

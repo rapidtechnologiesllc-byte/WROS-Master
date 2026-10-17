@@ -29,7 +29,7 @@ def _new_uuid() -> str:
     return str(uuid.uuid4())
 
 WORK_LOCATIONS = ("REMOTE", "ONSITE", "HYBRID")
-EMPLOYMENT_TYPES = ("W2_FULLTIME",)  # BR-01: the only allowed value, R-03
+EMPLOYMENT_TYPES = ("FULLTIME", "CONTRACT")  # what a job hires as; C2C/1099 never (CEO 2026-10-15)
 INTERVIEW_TYPES = ("L1_ONLY", "L1_AND_L2")
 URGENCY_LEVELS = ("IMMEDIATE", "HIGH", "NORMAL", "FLEXIBLE")
 DEMAND_STATUSES = ("DRAFT", "OPEN", "IN_PROGRESS", "FILLED", "CANCELLED", "ON_HOLD")

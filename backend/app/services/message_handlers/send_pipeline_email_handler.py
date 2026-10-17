@@ -10,7 +10,7 @@ Compensation: none needed; an unsent draft is re-sent by the next attempt.
 """
 import html
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from sqlalchemy.orm import Session
@@ -26,7 +26,11 @@ logger = logging.getLogger(__name__)
 TIMEOUT_SECONDS = 45
 
 
-def _onboarding_body(db: Session, candidate: Candidate, company: str, link: str) -> str:
+class Superseded(Exception):
+    """The email no longer applies (the interview moved, was cancelled or was deleted)."""
+
+
+def _onboarding_body(db: Session, candidate: Candidate, company: str, link: str, row: PipelineEmail) -> str:
     from app.models.preboarding_document import PreboardingDocument
 
     docs = db.query(PreboardingDocument).filter(PreboardingDocument.candidate_id == candidate.candidateID,
@@ -40,8 +44,62 @@ def _onboarding_body(db: Session, candidate: Candidate, company: str, link: str)
             f"have any questions.</p>")
 
 
+def _interview_for(db: Session, row: PipelineEmail):
+    """The interview an INTERVIEW_* email is about, still scheduled at the time in its ref."""
+    from app.models.user import Interview, InterviewPanel
+
+    interview_id, _, rest = (row.ref or "").partition(":")
+    start_key = rest.split(":")[0]
+    interview = db.query(Interview).filter(Interview.id == int(interview_id)).first() if interview_id.isdigit() else None
+    if interview is None or interview.status != "Scheduled" or interview.start_time is None \
+            or f"{interview.start_time:%Y%m%dT%H%M}" != start_key:
+        raise Superseded(f"interview {interview_id} is no longer scheduled at {start_key}")
+    panel = db.query(InterviewPanel).filter(InterviewPanel.id == interview.panel_id).first()
+    return interview, (panel.round_name if panel and panel.round_name else "interview")
+
+
+def _local_time(candidate: Candidate, value: datetime) -> str:
+    """A stored (naive UTC) time in the candidate's time zone."""
+    from zoneinfo import ZoneInfo
+
+    tz_name = candidate.timezone or settings.INTERVIEW_DEFAULT_TIMEZONE
+    local = value.replace(tzinfo=timezone.utc).astimezone(ZoneInfo(tz_name))
+    return f"{local:%A %d %B %Y, %H:%M} ({tz_name})"
+
+
+def _meeting_line(interview) -> str:
+    if interview.meeting_link:
+        link = html.escape(interview.meeting_link, quote=True)
+        return f"<p>Join here: <a href=\"{link}\">{link}</a></p>"
+    return "<p>The meeting link will follow in a separate email.</p>"
+
+
+def _interview_invite_body(db: Session, candidate: Candidate, company: str, link: str, row: PipelineEmail) -> str:
+    interview, round_name = _interview_for(db, row)
+    return (f"<p>Hello {html.escape(candidate.candidateFirstName or 'there')},</p>"
+            f"<p>Your {html.escape(round_name)} with {html.escape(company)} is scheduled for "
+            f"<strong>{html.escape(_local_time(candidate, interview.start_time))}</strong>.</p>"
+            f"{_meeting_line(interview)}"
+            f"<p>If this time does not work for you, reply to this email and your recruiter will "
+            f"find another slot.</p>"
+            f"<p><a href=\"{html.escape(link, quote=True)}\">Open my portal</a></p>")
+
+
+def _interview_reminder_body(db: Session, candidate: Candidate, company: str, link: str, row: PipelineEmail) -> str:
+    interview, round_name = _interview_for(db, row)
+    return (f"<p>Hello {html.escape(candidate.candidateFirstName or 'there')},</p>"
+            f"<p>A reminder that your {html.escape(round_name)} with {html.escape(company)} starts at "
+            f"<strong>{html.escape(_local_time(candidate, interview.start_time))}</strong>.</p>"
+            f"{_meeting_line(interview)}"
+            f"<p>Reply to this email if anything has changed.</p>")
+
+
 COPY = {
     "ONBOARDING_START": ("Welcome to {company} - your joining documents", _onboarding_body),
+    # every interview, from the screens or Flash (CEO 2026-10-15); ref = "{interview id}:{start}"
+    "INTERVIEW_INVITE": ("Your interview with {company}", _interview_invite_body),
+    # ref = "{interview id}:{start}:{minutes before}"
+    "INTERVIEW_REMINDER": ("Reminder: your interview with {company}", _interview_reminder_body),
 }
 
 
@@ -72,7 +130,11 @@ class SendPipelineEmailHandler:
             tenant = db.query(Tenant).filter(Tenant.id == candidate.tenant_id).first()
             company = tenant.name if tenant else "BlitzenX"
             subject, build = COPY[row.kind]
-            body = build(db, candidate, company, generate_portal_link_url(db, candidate.candidateID))
+            try:
+                body = build(db, candidate, company, generate_portal_link_url(db, candidate.candidateID), row)
+            except Superseded as exc:
+                logger.info(f"[PipelineEmail] handler_complete {email_id}: not sent, {exc}")
+                return {"status": "superseded", "email_id": email_id, "reason": str(exc)}
             row.graph_id, _, _ = mailbox.create_draft(candidate.candidateEmail, subject.format(company=company),
                                                       body, f"pipeline:{row.id}")
             db.commit()

@@ -14,6 +14,8 @@ from typing import Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import OperationalError
 
+from app.core.config import settings
+
 logger = logging.getLogger(__name__)
 
 # ARCHITECT FIX: Spartan Phalanx Formation Definition
@@ -45,6 +47,9 @@ FORMATION_INTEGRITY_THRESHOLD = 0.70  # Overall formation must be >70% healthy
 
 class FlashRecruiterHandler:
     """Flash Recruiter - autonomous candidate matching and outreach orchestration."""
+
+    # Enforced by queue_processor_service (its default for this task type)
+    TIMEOUT_SECONDS = 30
 
     @staticmethod
     def _check_thunder_health(db: Session) -> Dict[str, Any]:
@@ -286,20 +291,24 @@ class FlashRecruiterHandler:
                     next_payload = payload.copy()
                     next_payload['previously_matched_candidate_ids'] = updated_previously_matched
 
-                    # Schedule next recruitment run in 4 hours (14400 seconds)
+                    # Schedule the next recruitment run (settings.FLASH_RECRUITER_INTERVAL_HOURS), in the job's tenant
+                    interval_hours = settings.FLASH_RECRUITER_INTERVAL_HOURS
                     next_recruiter_msg_id = MessageQueueService.enqueue(
                         task_name='flash_recruiter',
                         task_id=f"recruit:{job_id}:{__import__('uuid').uuid4().hex[:12]}",  # unique per run
                         data=next_payload,
-                        delay_seconds=14400  # 4 hours
+                        delay_seconds=interval_hours * 3600,
+                        tenant_id=job.tenant_id,
                     )
                     logger.info(
-                        f"[FlashRecruiter] Scheduled next run for {job_id} in 4 hours: "
+                        f"[FlashRecruiter] Scheduled next run for {job_id} in {interval_hours} hours: "
                         f"message_id={next_recruiter_msg_id}, "
                         f"tracking {len(updated_previously_matched)} previously matched"
                     )
                 except Exception as schedule_err:
-                    logger.warning(f"[FlashRecruiter] Failed to schedule next run: {schedule_err}")
+                    # Without the next run recruiting for this job silently stops: fail so the run retries
+                    logger.error(f"[FlashRecruiter] Failed to schedule next run for {job_id}: {schedule_err}", exc_info=True)
+                    raise RuntimeError(f"Failed to schedule the next recruiter run for {job_id}: {schedule_err}") from schedule_err
 
             logger.info(
                 f"[FlashRecruiter] ✅ Completed recruitment for {job_id}: "
@@ -316,7 +325,8 @@ class FlashRecruiterHandler:
                 'candidates_deduped': len(matched_watches) - len(new_candidate_watches),
                 'outreach_queued': len(new_candidate_watches),
                 'job_status': job.jobStatus,
-                'next_run_in_hours': 4 if (job.jobStatus and job.jobStatus.lower() == 'active') else 0
+                'next_run_in_hours': (settings.FLASH_RECRUITER_INTERVAL_HOURS
+                                      if (job.jobStatus and job.jobStatus.lower() == 'active') else 0)
             }
 
         except ValueError as ve:

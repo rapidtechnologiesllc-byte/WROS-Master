@@ -89,7 +89,7 @@ def _make_candidate(db, tenant, candidate_id="C-001", **overrides):
     defaults = dict(
         candidateID=candidate_id, candidateEmail=f"{candidate_id}@example.com",
         candidatePassword="hashed", tenant_id=tenant.id,
-        total_experience_months=72, employment_type="W2_FULLTIME",
+        total_experience_months=72, employment_type="FULLTIME", country="US",
     )
     defaults.update(overrides)
     candidate = Candidate(**defaults)
@@ -179,8 +179,9 @@ def test_employment_type_unknown_blocked_same_as_c2c():
     result = check_employment_type_rule(candidate)
     assert result["allowed"] is False
 
-def test_employment_type_w2_fulltime_allowed():
-    candidate = Candidate(candidateID="X", candidateEmail="x@x.com", candidatePassword="h", employment_type="W2_FULLTIME")
+def test_employment_type_fulltime_in_the_us_allowed():
+    candidate = Candidate(candidateID="X", candidateEmail="x@x.com", candidatePassword="h", employment_type="FULLTIME",
+                          country="US")
     result = check_employment_type_rule(candidate)
     assert result["allowed"] is True
 

@@ -1,4 +1,7 @@
-"""Source Candidates Handler - Rank and queue candidates by skill recency for job.
+"""Source Candidates Handler - Rank the job's candidate pool and report the best matches.
+
+Ranking is job_candidate_ranking_service.rank_candidates_for_job: the job's tenant only, the
+5-year floor and the job's own minimum, normalised skills.
 
 Spartan Pattern: Reports cascade detection to Flash (Alpha Wolf).
 - Health metric: "Can I source viable candidates for this job?"
@@ -12,28 +15,24 @@ from typing import Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import OperationalError
 
-from app.models.candidate import Candidate
+from app.core.config import settings
 from app.models.user import Jobs
-from app.services.skill_matching_service import SkillMatchingService
+from app.services.job_candidate_ranking_service import candidate_pool, rank_candidates_for_job
 from app.services.message_queue_service import MessageQueueService
 from app.services.message_handlers.base_message_handler import time_bound
-from sqlalchemy import or_
-from app.services.candidate_pipeline_stage import pipeline_stage_in
 
 logger = logging.getLogger(__name__)
 
-VIABLE_MATCH_THRESHOLD = 60  # Formation integrity threshold
-PHALANX_HEALTH_CRITICAL = 40  # Escalate if below this
+TOP_MATCHES_REPORTED = 3
 
 
 class SourceCandidatesHandler:
     """Source candidates for job - rank by skill recency, report cascade status to Flash"""
-    # Enforced by queue_processor_service (its default for this task type)
+    # Enforced by queue_processor_service (its default for this task type) and by time_bound
     TIMEOUT_SECONDS = 30
 
-
     @staticmethod
-    @time_bound(timeout_seconds=15)
+    @time_bound(timeout_seconds=TIMEOUT_SECONDS)
     def process(message: Any, db: Session) -> Dict[str, Any]:
         """
         Process: Source candidates for job and report cascade status to Flash.
@@ -72,46 +71,29 @@ class SourceCandidatesHandler:
 
             logger.info(f"[SourceCandidates] Starting sourcing for {job_id} ({job.jobTitle})")
 
-            # PHASE 3: GET CANDIDATE POOL (location-based, active status)
-            # Active pool = not rejected and not already hired. (A Python `or`
-            # between the two location conditions silently kept only the first.)
-            candidates = db.query(Candidate).filter(
-                ~pipeline_stage_in("REJECTED", "HIRED"),
-                or_(
-                    Candidate.candidateCurrentLocation == job.jobLocation,
-                    Candidate.candidateCurrentLocation.ilike(f"%{job.jobLocation}%"),
-                ),
-            ).all()
+            # PHASE 3: GET CANDIDATE POOL (the job's tenant, active, in the area)
+            candidates_available = candidate_pool(db, job).count()
+            logger.info(f"[SourceCandidates] {candidates_available} candidates in the pool for {job_id}")
 
-            if not candidates:
-                logger.warning(f"[SourceCandidates] No candidates found for {job_id}")
-                candidate_ids = []
-            else:
-                candidate_ids = [c.candidateID for c in candidates]
-                logger.info(f"[SourceCandidates] Found {len(candidate_ids)} candidates in location")
-
-            # PHASE 4: RANK BY SKILL RECENCY (SkillMatchingService handles Spartan patterns)
-            matches = SkillMatchingService.get_best_matches_by_recency(
-                job_id=job_id,
-                candidate_ids=candidate_ids,
-                db=db
-            )
+            # PHASE 4: RANK (experience gates + skill match; only qualifying candidates come back)
+            ranked = rank_candidates_for_job(db, job, limit=TOP_MATCHES_REPORTED)
 
             # PHASE 5: CASCADE DETECTION - Check if best match viable
-            best_match = matches[0] if matches else None
-            formation_integrity = best_match.get("recency_score", 0) if best_match else 0
-
-            if formation_integrity < VIABLE_MATCH_THRESHOLD:
+            formation_integrity = ranked[0].score if ranked else 0
+            if not ranked:
                 cascade_status = "ESCALATE"
-                formation_feedback = f"ALERT: Best candidate match {formation_integrity}% < {VIABLE_MATCH_THRESHOLD}% threshold"
+                formation_feedback = (f"ALERT: no candidate meets the {settings.FLASH_MATCH_MIN_SCORE}% skill match "
+                                      f"and experience rules")
                 logger.error(f"[SourceCandidates] {job_id}: Cascade alert - {formation_feedback}")
             else:
                 cascade_status = "VIABLE"
                 formation_feedback = f"OK: Best candidate match {formation_integrity}% - sourcing can proceed"
                 logger.info(f"[SourceCandidates] {job_id}: Formation health {formation_integrity}% OK")
 
-            # PHASE 6: GET TOP 3 MATCHES FOR RECRUITER
-            top_matches = matches[:3] if matches else []
+            # PHASE 6: TOP MATCHES FOR RECRUITER (the shape handle_sourcing_complete reads)
+            top_matches = [{"candidate_id": r.candidate_id, "recency_score": r.score, "can_proceed": True,
+                            "matched_skills": r.matched, "experience_months": r.experience_months}
+                           for r in ranked]
 
             # PHASE 7: REPORT TO FLASH (Alpha Wolf)
             flash_report = {
@@ -120,7 +102,7 @@ class SourceCandidatesHandler:
                 "sourcing_status": cascade_status,
                 "formation_integrity": formation_integrity,
                 "formation_feedback": formation_feedback,
-                "candidates_available": len(candidate_ids),
+                "candidates_available": candidates_available,
                 "top_matches": top_matches,
                 "timestamp": datetime.utcnow().isoformat()
             }
@@ -129,7 +111,8 @@ class SourceCandidatesHandler:
             msg_id = MessageQueueService.enqueue(
                 task_name="candidate_sourcing_complete",
                 task_id=f"sourcing_complete:{job_id}:{uuid.uuid4().hex[:12]}",  # one per sourcing run
-                data=flash_report
+                data=flash_report,
+                tenant_id=job.tenant_id,
             )
 
             logger.info(f"[SourceCandidates] Queued report to Flash: {msg_id}")
@@ -137,7 +120,7 @@ class SourceCandidatesHandler:
             result = {
                 "status": "candidates_sourced",
                 "job_id": job_id,
-                "candidates_found": len(candidate_ids),
+                "candidates_found": candidates_available,
                 "top_matches_count": len(top_matches),
                 "formation_integrity": formation_integrity,
                 "cascade_status": cascade_status,

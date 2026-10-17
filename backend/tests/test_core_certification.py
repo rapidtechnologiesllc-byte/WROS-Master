@@ -1,6 +1,7 @@
 """Core certification (CEO 2026-10-14): Buddy graduated + 90 approved billable Staff Aug days with
 no escalation in them -> the daily sweep raises an approval task for the BU Head -> approve, or
-reject through a Flash discussion that becomes follow-up tasks."""
+reject through a Flash discussion that becomes follow-up tasks (that discussion runs in the Flash
+bubble: tests/test_flash_conversation_api.py)."""
 import uuid
 from datetime import date, datetime, timedelta
 from unittest.mock import patch
@@ -168,6 +169,7 @@ def test_sweep_raises_one_task_for_the_bu_head_and_is_idempotent(db, org):
     task = db.query(Task).filter_by(id=request.task_id).one()
     assert (request.status, request.bu_head_user_id, request.billable_days) == ("PENDING", org.head.UserID, 90)
     assert task.assigned_to_user_id == org.head.UserID and "/workforce/core-certification" in task.description
+    assert task.link == f"/my-tasks?flash=core_cert:{request.id}"  # opens the decision in Flash
     assert e.core_eligible_from == TODAY
 
     assert service.run_daily_sweep(db, today=TODAY).get("requested", 0) == 0
@@ -235,57 +237,6 @@ def test_no_longer_eligible_cannot_be_approved_and_is_closed(db, org, api):
     assert closed.status_code == 200 and closed.json()["status"] == "CLOSED"
 
 
-# --------------------------------------------------------------------------- reject with Flash
-
-def _chat(api, request, user, message):
-    response = api.post(f"/api/v1/core-certification/requests/{request.id}/reject-chat", headers=_h(user),
-                        json={"message": message})
-    assert response.status_code == 200, response.text
-    return response.json()
-
-
-def test_rejection_discussion_becomes_follow_up_tasks_then_a_new_review(db, org, api):
-    manager = _user(db, org.role, "Manager")
-    e, request = _pending(db, org, manager=manager.UserID)  # no login: 'employee' falls back to the head
-
-    assert "Why are you not approving" in _chat(api, request, org.head, "")["reply"]
-    assert "checked again" in _chat(api, request, org.head, "Client says ownership of defects is weak")["reply"]
-    # two criteria in one go; the second has no days yet
-    reply = _chat(api, request, org.head, "client feedback 30 days owner manager, Guidewire certification")["reply"]
-    assert "'Guidewire certification'" in reply and "how many days" in reply
-    summary = _chat(api, request, org.head, "45 employee")["reply"]
-    assert "client feedback: re-check in 30 days, owner the reporting manager" in summary
-    assert "Guidewire certification: re-check in 45 days, owner the employee (the employee has no login" in summary
-    done = _chat(api, request, org.head, "yes")
-    assert done["done"] and "2 follow-up task(s)" in done["reply"]
-
-    db.refresh(request)
-    assert request.status == "REJECTED" and request.rejection_reason == "Client says ownership of defects is weak"
-    plan = {item["criterion"]: item for item in request.follow_up_plan}
-    assert plan["client feedback"]["owner_user_id"] == manager.UserID and plan["client feedback"]["days"] == 30
-    assert plan["Guidewire certification"]["owner_user_id"] == org.head.UserID
-    tasks = db.query(Task).filter(Task.id.in_([i["task_id"] for i in request.follow_up_plan])).all()
-    assert len(tasks) == 2 and all(t.due_date for t in tasks)
-    assert request.chat_state is None
-
-    # no new review while follow-ups are open or the longest period (45 days) has not passed
-    later = TODAY + timedelta(days=50)
-    assert service.run_daily_sweep(db, today=later).get("requested", 0) == 0
-    for t in tasks:
-        t.status = "COMPLETED"
-    db.commit()
-    assert service.run_daily_sweep(db, today=TODAY + timedelta(days=10)).get("requested", 0) == 0
-    assert service.run_daily_sweep(db, today=later)["requested"] == 1
-
-
-def test_rejection_can_be_cancelled_and_the_request_stays_pending(db, org, api):
-    e, request = _pending(db, org)
-    _chat(api, request, org.head, "")
-    assert _chat(api, request, org.head, "cancel")["done"]
-    db.refresh(request)
-    assert request.status == "PENDING" and request.chat_state is None
-
-
 def test_partner_dashboard_counts_the_approved_certification(db, org):
     from app.services.training_certification_service import get_core_certified_employees
 
@@ -294,22 +245,3 @@ def test_partner_dashboard_counts_the_approved_certification(db, org):
     db.flush()
     names = [row["name"] for row in get_core_certified_employees(db, org.unit.id)]
     assert f"Ravi {e.last_name}" in names
-
-
-def test_a_reloaded_page_picks_the_discussion_up_where_it_stopped(db, org, api):
-    e, request = _pending(db, org)
-    _chat(api, request, org.head, "")
-    _chat(api, request, org.head, "Weak client feedback this quarter")
-    _chat(api, request, org.head, "client feedback, communication 15")
-    resumed = _chat(api, request, org.head, "")["reply"]  # the page reloads and opens the chat again
-    assert resumed.startswith("Picking up where we left off.")
-    assert "Weak client feedback this quarter" in resumed and "'client feedback'" in resumed
-    assert "Here is the plan" in _chat(api, request, org.head, "30")["reply"]
-
-
-def test_a_long_follow_up_is_visible_to_its_owner(db, org, api):
-    e, request = _pending(db, org)
-    for message in ("", "Needs a Guidewire certification first", "Guidewire certification 60 days", "yes"):
-        _chat(api, request, org.head, message)
-    scheduled = api.get("/api/v1/tasks/my-day/scheduled", headers=_h(org.head)).json()
-    assert any("Guidewire certification" in t["title"] for t in scheduled)  # due in 60 days

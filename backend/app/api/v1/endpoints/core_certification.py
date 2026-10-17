@@ -5,8 +5,9 @@ Prefix: /core-certification
 Tag:    core-certification
 
 Approval of Core certification by the employee's BU Head (CEO 2026-10-14). Requests are raised
-by the daily core_certification_sweep job (app.services.core_certification_service); a rejection
-is a short Flash discussion that becomes follow-up tasks.
+by the daily core_certification_sweep job (app.services.core_certification_service). Deciding in
+Flash: the approval task opens the bubble on the request (flash workflow core_cert); a rejection
+is a short Flash discussion there that becomes follow-up tasks.
 
 Auth: the workforce-overview permission to see requests (scoped to the caller's business
 units); deciding is for the request's BU Head or another leader of that business unit.
@@ -16,7 +17,6 @@ Routes:
   GET  /core-certification/eligibility/{employee_id}
   POST /core-certification/requests/{id}/approve
   POST /core-certification/requests/{id}/close          (no longer eligible)
-  POST /core-certification/requests/{id}/reject-chat    (one turn of the Flash discussion)
 """
 from typing import Optional
 
@@ -33,20 +33,12 @@ from app.schemas.core_certification import (
     CoreCertificationListResponse,
     CoreCertificationRequestItem,
     EligibilityResponse,
-    RejectChatRequest,
-    RejectChatResponse,
 )
 from app.services import core_certification_service as service
 
 router = APIRouter(prefix="/core-certification", tags=["core-certification"])
 
 VIEW = [Depends(require_resource_permission("workforce-overview", "view")), Depends(get_current_internal_user)]
-
-
-def _visible(db: Session, user: Users):
-    return (db.query(CoreCertificationRequest, Employee)
-            .join(Employee, Employee.id == CoreCertificationRequest.employee_id)
-            .filter(CoreCertificationRequest.tenant_id == user.tenant_id, bu_filter(db, user, Employee.bu_id)))
 
 
 def _item(db: Session, request: CoreCertificationRequest, employee: Employee, user: Users) -> CoreCertificationRequestItem:
@@ -67,7 +59,7 @@ def _item(db: Session, request: CoreCertificationRequest, employee: Employee, us
 
 
 def _request_or_404(db: Session, request_id: str, user: Users):
-    row = _visible(db, user).filter(CoreCertificationRequest.id == request_id).first()
+    row = service.visible_request(db, user, request_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Request not found.")
     return row
@@ -86,7 +78,7 @@ def list_requests(status: Optional[str] = None, db: Session = Depends(get_db),
                   current_user: Users = Depends(get_current_internal_user)):
     if status and status not in REQUEST_STATUSES:
         raise HTTPException(status_code=422, detail=f"status must be one of {REQUEST_STATUSES}")
-    query = _visible(db, current_user)
+    query = service.visible_requests(db, current_user)
     if status:
         query = query.filter(CoreCertificationRequest.status == status)
     rows = query.order_by(CoreCertificationRequest.created_at.desc()).all()
@@ -121,11 +113,3 @@ def close_request(request_id: str, db: Session = Depends(get_db),
     request, employee = _request_or_404(db, request_id, current_user)
     _decide(service.close, db, request, current_user)
     return _item(db, request, employee, current_user)
-
-
-@router.post("/requests/{request_id}/reject-chat", dependencies=VIEW, response_model=RejectChatResponse,
-             summary="One turn of the Flash rejection discussion (start with an empty message)")
-def reject_chat(request_id: str, body: RejectChatRequest, db: Session = Depends(get_db),
-                current_user: Users = Depends(get_current_internal_user)):
-    request, _ = _request_or_404(db, request_id, current_user)
-    return _decide(service.reject_chat, db, request, current_user, body.message)

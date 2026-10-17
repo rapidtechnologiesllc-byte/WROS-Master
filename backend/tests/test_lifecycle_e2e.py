@@ -104,7 +104,8 @@ def world(db):
                required_start_date=MONDAY - timedelta(days=14))
     candidate = Candidate(candidateID=f"CAN-{_uid()}", candidateEmail=f"sam{_uid()}@example.com",
                           candidatePassword="x", candidateFirstName="Sam", candidateLastName="Lee", tenant_id=1,
-                          total_experience_months=72, thunder_enabled=False)
+                          total_experience_months=72, thunder_enabled=False,
+                          candidateCurrentLocation="Pune, Maharashtra, India")
     db.add_all([job, candidate])
     db.flush()
     offer = OfferLetter(candidate_id=candidate.candidateID, position="Guidewire Developer", salary="24,00,000",
@@ -136,6 +137,8 @@ def test_candidate_to_partner_and_org_pnl(db, api, world):
     employee = db.query(Employee).filter_by(candidate_id=world["candidate"].candidateID).one()
     assert employee.base_salary_usd_cents == round(CTC_INR / FX * 100 / 12)
     assert employee.status == "BENCH"  # on the bench: no client yet
+    db.refresh(world["candidate"])  # joined: full-time, and India from the profile location
+    assert (world["candidate"].employment_type, world["candidate"].country) == ("FULLTIME", "IN")
 
     # Buddy Program graduated before any client (CEO 2026-10-14); the bench is where it runs
     record = ok(client.post("/api/v1/buddy-program/records", headers=admin_h, json={

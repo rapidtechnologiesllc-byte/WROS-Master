@@ -22,7 +22,7 @@ class JobCreationFlashHandler:
     RETRY_DELAY_MINUTES = 15
 
     @staticmethod
-    @time_bound(timeout_seconds=45)
+    @time_bound(timeout_seconds=TIMEOUT_SECONDS)
     def process(message: Any, db: Session) -> Dict[str, Any]:
         """
         Process: Create job from queue payload
@@ -103,6 +103,25 @@ class JobCreationFlashHandler:
                 if salary_range and len(salary_range) > 512:
                     raise ValueError("salary_range must be at most 512 characters")
 
+            # Structured skills (SkillRequirement shape) drive candidate matching
+            structured_skills = payload.get('structured_skills') or []
+            if not isinstance(structured_skills, list):
+                raise ValueError("structured_skills must be a list")
+            for skill in structured_skills:
+                if not isinstance(skill, dict) or not isinstance(skill.get('name'), str) or not skill['name'].strip():
+                    raise ValueError(f"Each structured skill needs a name: {skill!r}")
+            boolean_mode = (payload.get('job_skills_boolean_mode') or 'AND').upper()
+            if boolean_mode not in ('AND', 'OR'):
+                raise ValueError(f"job_skills_boolean_mode must be AND or OR, got {boolean_mode!r}")
+            min_experience_years = payload.get('min_experience_years')
+            if min_experience_years is not None:
+                try:
+                    min_experience_years = float(min_experience_years)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(f"min_experience_years must be a number, got {min_experience_years!r}") from exc
+                if min_experience_years < 0:
+                    raise ValueError("min_experience_years cannot be negative")
+
             # PHASE 2: DB WRITE (After validation)
             try:
                 # Build job object
@@ -119,7 +138,8 @@ class JobCreationFlashHandler:
                     contactPerson=payload.get('contact_person'),
                     # Approval flow is disabled: a missing status means active
                     jobStatus=payload.get('job_status') or 'active',
-                    noOfPositions=payload.get('no_of_positions', 1),
+                    # The key is present with None when the form leaves it empty: one position
+                    noOfPositions=payload.get('no_of_positions') or 1,
                     startDate=payload.get('start_date'),
                     endDate=payload.get('end_date'),
                     hiringManagerID=hiring_manager_id,
@@ -131,6 +151,9 @@ class JobCreationFlashHandler:
                     client_id=payload.get('client_id'),
                     project_id=payload.get('project_id'),
                     billing_rate_usd_cents=payload.get('billing_rate_usd_cents'),
+                    required_skills_canonical=structured_skills,
+                    job_skills_boolean_mode=boolean_mode,
+                    min_experience_years=min_experience_years,
                 )
 
                 db.add(job)
@@ -148,7 +171,7 @@ class JobCreationFlashHandler:
                 # HANDLER LOGIC: Handle job-specific workflows (after persisted to DB)
                 # These were moved from endpoint to handler to follow queue-driven architecture
 
-                job_status = payload.get('job_status', 'active')
+                job_status = job.jobStatus
 
                 if job_status == "active":
                     # Scan for ready candidates matching this job
@@ -256,7 +279,8 @@ class JobCreationFlashHandler:
                 )
 
             # 3. VERIFY JOB STATUS
-            expected_status = payload.get("job_status", "pending_approval")
+            # Same default as process(): a missing status means active
+            expected_status = payload.get("job_status") or "active"
             if job.jobStatus != expected_status:
                 raise ValueError(
                     f"Status mismatch for {job_id}: expected '{expected_status}', got '{job.jobStatus}'"
@@ -361,17 +385,9 @@ class JobCreationFlashHandler:
             raise
 
         except Exception as e:
-            logger.error(f"[Handler] ❌ Unexpected error during on_success: {e}", exc_info=True)
-            try:
-                db.rollback()
-            except Exception:
-                pass
-            # Return failure dict instead of raising
-            return {
-                'is_valid': False,
-                'error': str(e),
-                'error_type': type(e).__name__
-            }
+            db.rollback()
+            logger.error(f"[JobCreationFlash] ❌ Unexpected error during on_success: {e}", exc_info=True)
+            raise RuntimeError(f"Unexpected error during on_success: {str(e)}") from e
 
     @staticmethod
     def on_failed(message: Any, final_error: str, db: Session) -> None:

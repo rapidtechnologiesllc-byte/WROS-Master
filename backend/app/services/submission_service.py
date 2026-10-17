@@ -17,8 +17,9 @@ block* only. Per this session's confirmed direction:
     ALLOCATED states already live on Employee (HRMS-0101). A candidate
     with no linked Employee row at all (never converted, HRMS-0708) is
     blocked the same as one with a disallowed status.
-  - checkEmploymentTypeRule(): real gate against candidates.employment_type,
-    fails closed on UNKNOWN same as C2C, per HRMS-P606.
+  - checkEmploymentTypeRule(): real gate against candidates.employment_type and the
+    candidate's country (app.services.employment_type_policy.submission_check): fails closed
+    on UNKNOWN, on C2C/1099 and on an unknown country, per HRMS-P606 and CEO 2026-10-15.
 
 All three gates run and their results are collected before raising, so a
 recruiter sees every blocker at once, per HRMS-0711 BR-01. Every failed
@@ -53,10 +54,6 @@ MIN_EXPERIENCE_MONTHS = 60  # HRMS-P601 -- 5 years, R-01
 # their ACTIVE allocations (deployment_readiness_service.allocation_blockers: a Staff Aug
 # allocation does not hold them from a Core job, CEO 2026-10-14), never from the status field.
 MARKET_PROFILE_ALLOWED_EMPLOYEE_STATUSES = {"BENCH", "ACTIVE", "SPECIALITY_READY", "ALLOCATED"}
-
-# HRMS-P606 -- only W2_FULLTIME may be submitted; UNKNOWN fails closed
-# same as C2C/1099 (BR-02 of that story).
-EMPLOYMENT_TYPE_ALLOWED = {"W2_FULLTIME"}
 
 logger = logging.getLogger(__name__)
 
@@ -126,13 +123,12 @@ def check_market_profile_rule(db: Session, candidate_id: str) -> dict:
     return {"allowed": True, "candidate_status": employee.status}
 
 def check_employment_type_rule(candidate: Candidate) -> dict:
-    if candidate.employment_type in EMPLOYMENT_TYPE_ALLOWED:
-        return {"allowed": True, "employment_type": candidate.employment_type}
-    return {
-        "allowed": False, "employment_type": candidate.employment_type,
-        "error": "C2C_NOT_ACCEPTED",
-        "message": "BlitzenX only accepts full-time (W2) candidates.",
-    }
+    """HRMS-P606 + CEO 2026-10-15: the candidate's country must accept their employment type
+    (US: W2 full-time or W2 contract; India: full-time or contract; never C2C/1099; UNKNOWN or
+    an unknown country fails closed). The mapping is configuration (employment_type_policy)."""
+    from app.services.employment_type_policy import submission_check
+
+    return submission_check(candidate)
 
 def check_hiring_pipeline_rule(db: Session, candidate_id: str) -> dict:
     """CEO hiring order: a candidate reaches a client only from the bench -- interviews

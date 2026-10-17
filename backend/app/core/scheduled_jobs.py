@@ -57,6 +57,11 @@ _JOBS = (
     # their BU Head; pending requests follow the current head (core_certification_service)
     ScheduledJob("core_certification_sweep", "app.services.core_certification_service:run_daily_sweep",
                  timedelta(days=1), timeout_s=300, daily_after_utc="05:00"),
+    # candidate- and interviewer-facing: interview reminders (before the start) and feedback
+    # nudges (after the end), each sent once and only near its due time
+    ScheduledJob("interview_reminders", "app.services.interview_reminder_job:run",
+                 timedelta(minutes=5), timeout_s=120, sends_external=True,
+                 backlog_guard="app.services.interview_reminder_job:backlog_guard"),
     ScheduledJob("birthday_drafts", "app.services.culture_agent_service:generate_birthday_drafts",
                  timedelta(days=1), timeout_s=120, daily_after_utc="03:00"),
 )

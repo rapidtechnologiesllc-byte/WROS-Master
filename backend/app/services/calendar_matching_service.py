@@ -109,13 +109,13 @@ Real architecture adaptations:
   outcome, so a stalled/failed reschedule attempt never orphans the
   candidate's still-valid old interview.
 """
-import os
 from datetime import date as date_cls, datetime, time as time_cls, timedelta, timezone as dt_timezone
 from typing import Callable, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.logging import logger
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
@@ -128,11 +128,8 @@ from app.services.interview_service import L1NotPassed, NoEligibleInterviewer, c
 from app.services.notification_service import send_notification
 
 MIN_VALID_SLOTS = 2  # matches S-047's own BR-03 threshold
-DEFAULT_INTERVIEW_DURATION_MINUTES = int(os.getenv("DEFAULT_INTERVIEW_DURATION_MINUTES", "60"))
-SCHEDULING_BUFFER_MINUTES = 15  # BR-02
-INTERVIEWER_BUSINESS_HOURS_START = 9  # Step 1
-INTERVIEWER_BUSINESS_HOURS_END = 17
-WEEKEND_WEEKDAYS = (5, 6)
+# Business hours, working days, buffer (BR-02) and length come from settings (INTERVIEW_*)
+DEFAULT_INTERVIEW_DURATION_MINUTES = settings.INTERVIEW_DURATION_MINUTES
 
 # Submission statuses that mean "a real, live opportunity, worth scheduling an interview for" -- see module docstring's submission-resolution note.
 INTERVIEW_ELIGIBLE_STATUSES = ("CLIENT_INTERVIEW_REQUESTED", "SHORTLISTED", "SUBMITTED")
@@ -182,19 +179,21 @@ def _business_hour_windows_utc(start_date: date_cls, end_date: date_cls, tz_name
     windows = []
     d = start_date
     while d <= end_date:
-        if d.weekday() not in WEEKEND_WEEKDAYS:
-            start_local = datetime.combine(d, time_cls(INTERVIEWER_BUSINESS_HOURS_START, 0), tzinfo=tz)
-            end_local = datetime.combine(d, time_cls(INTERVIEWER_BUSINESS_HOURS_END, 0), tzinfo=tz)
+        if d.weekday() not in settings.INTERVIEW_WEEKEND_DAYS:
+            start_local = datetime.combine(d, time_cls(settings.INTERVIEW_WORKDAY_START_HOUR, 0), tzinfo=tz)
+            end_local = datetime.combine(d, time_cls(settings.INTERVIEW_WORKDAY_END_HOUR, 0), tzinfo=tz)
             windows.append((start_local.astimezone(dt_timezone.utc), end_local.astimezone(dt_timezone.utc)))
         d += timedelta(days=1)
     return windows
 
 def invert_busy_to_free(
     busy_events_utc: List[Tuple[datetime, datetime]], window_start_utc: datetime, window_end_utc: datetime,
-    *, buffer_minutes: int = SCHEDULING_BUFFER_MINUTES,
+    *, buffer_minutes: Optional[int] = None,
 ) -> List[Tuple[datetime, datetime]]:
     """BR-02 -- see module docstring on why the buffer is applied here,
     at inversion time, not at match time."""
+    if buffer_minutes is None:
+        buffer_minutes = settings.INTERVIEW_BUFFER_MINUTES
     free = []
     cursor = window_start_utc
     for busy_start, busy_end in sorted(busy_events_utc, key=lambda b: b[0]):
@@ -297,10 +296,8 @@ def attempt_calendar_match(
             db.commit()
             return {"outcome": "no_open_submission"}
 
-        try:
-            panel = get_assigned_interviewer(db, demand_id=submission.demand_id, interview_level=level, tenant_id=submission.tenant_id)
-        except Exception:
-            panel = None
+        # None = nobody assigned; a database error is not "nobody assigned" and fails below
+        panel = get_assigned_interviewer(db, demand_id=submission.demand_id, interview_level=level, tenant_id=submission.tenant_id)
         interviewer_user = _resolve_interviewer_user(db, panel) if panel else None
 
         if panel is None or interviewer_user is None:
@@ -318,10 +315,10 @@ def attempt_calendar_match(
         slot_utc_ranges = [_slot_to_utc_range(s) for s in slots]
         overall_start_utc = min(r[0] for r in slot_utc_ranges)
         overall_end_utc = max(r[1] for r in slot_utc_ranges)
-        interviewer_tz = ZoneInfo(interviewer_user.timezone or "Asia/Kolkata")
+        interviewer_tz = ZoneInfo(interviewer_user.timezone or settings.INTERVIEW_DEFAULT_TIMEZONE)
         min_date = overall_start_utc.astimezone(interviewer_tz).date()
         max_date = overall_end_utc.astimezone(interviewer_tz).date()
-        windows = _business_hour_windows_utc(min_date, max_date, interviewer_user.timezone or "Asia/Kolkata")
+        windows = _business_hour_windows_utc(min_date, max_date, interviewer_user.timezone or settings.INTERVIEW_DEFAULT_TIMEZONE)
 
         if not windows:
             db.add(ConversationEvent(conversation_id=conversation.id, event_type="calendar_match_failed", event_data={"reason": "no_weekday_windows"}, triggered_by="system"))
@@ -385,8 +382,8 @@ def attempt_calendar_match(
             "outcome": "matched",
             "interview_id": interview.id,
             "scheduled_at_utc": match_start,
-            "candidate_local_time": match_start.astimezone(ZoneInfo(candidate.timezone or "Asia/Kolkata")),
-            "interviewer_local_time": match_start.astimezone(ZoneInfo(interviewer_user.timezone or "Asia/Kolkata")),
+            "candidate_local_time": match_start.astimezone(ZoneInfo(candidate.timezone or settings.INTERVIEW_DEFAULT_TIMEZONE)),
+            "interviewer_local_time": match_start.astimezone(ZoneInfo(interviewer_user.timezone or settings.INTERVIEW_DEFAULT_TIMEZONE)),
         }
     except (L1NotPassed, NoEligibleInterviewer) as exc:
         logger.info(f"[CalendarMatching] Cannot schedule for candidate {candidate.candidateID!r}: {exc}")

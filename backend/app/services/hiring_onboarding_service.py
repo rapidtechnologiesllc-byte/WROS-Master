@@ -39,10 +39,15 @@ def _tenant_key(candidate: Candidate) -> str:
     return str(candidate.tenant_id)
 
 
+def pipeline_email_id(kind: str, candidate_id: str, ref: str) -> str:
+    """The pipeline_emails id (and queue task id) of one intended email."""
+    return f"pe:{kind}:{candidate_id}:{ref}"[:255]
+
+
 def queue_candidate_email(db: Session, candidate: Candidate, kind: str, ref: str) -> Optional[str]:
     """Records the intended email (once per kind/ref) and queues it. Call before commit;
     returns the email id to queue after commit (None if it already exists)."""
-    email_id = f"pe:{kind}:{candidate.candidateID}:{ref}"[:255]
+    email_id = pipeline_email_id(kind, candidate.candidateID, ref)
     if db.query(PipelineEmail.id).filter(PipelineEmail.id == email_id).first():
         return None
     db.add(PipelineEmail(id=email_id, tenant_id=candidate.tenant_id, candidate_id=candidate.candidateID,

@@ -1,103 +1,22 @@
 // Core certification approvals (CEO 2026-10-14). The daily job raises a request when an employee
 // has graduated Buddy and has 90 approved billable Staff Aug days with no escalation; the BU Head
-// (or another leader of that business unit) approves, or rejects through a short Flash discussion
-// that becomes follow-up tasks. Who may decide and whether someone still qualifies come from the API.
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import { ArrowLeft, Award, RefreshCw, Send } from "lucide-react";
+// (or another leader of that business unit) decides in Flash: Approve / Reject open the Flash
+// bubble on the request (?flash=core_cert:<id>), where a rejection is a short discussion that
+// becomes follow-up tasks. Who may decide and whether someone still qualifies come from the API.
+import { useCallback, useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, Award, MessageCircleQuestion, RefreshCw } from "lucide-react";
 import { Card, Button } from "../components/ui";
 import cx from "../utils/cx";
-import {
-  approveCoreCertification,
-  closeCoreCertification,
-  getCoreCertificationRequests,
-  rejectCoreCertificationChat,
-} from "../services/api/coreCertification";
-
-function FlashRejectChat({ request, onDone }) {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const started = useRef(false);
-  const bottom = useRef(null);
-
-  // keep Flash's latest reply in view
-  useEffect(() => {
-    bottom.current?.scrollIntoView({ block: "nearest" });
-  }, [messages]);
-
-  const send = useCallback(
-    async (text) => {
-      setBusy(true);
-      setError("");
-      if (text) setMessages((m) => [...m, { from: "you", text }]);
-      try {
-        const res = await rejectCoreCertificationChat(request.id, text);
-        setMessages((m) => [...m, { from: "flash", text: res.reply }]);
-        if (res.done) onDone();
-      } catch (err) {
-        setError(err.message || "Flash could not continue.");
-      } finally {
-        setBusy(false);
-      }
-    },
-    [request.id, onDone],
-  );
-
-  useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    send("");
-  }, [send]);
-
-  return (
-    <div className="mt-3 rounded-xl border bg-gray-50 p-3">
-      <div className="mb-2 text-xs font-semibold text-gray-700">Flash · reason for not approving</div>
-      <div className="max-h-64 space-y-2 overflow-y-auto">
-        {messages.map((m, i) => (
-          <div
-            key={i}
-            className={cx(
-              "whitespace-pre-line rounded-lg px-3 py-2 text-sm",
-              m.from === "flash" ? "bg-white text-gray-800" : "ml-8 bg-gray-900 text-white",
-            )}
-          >
-            {m.text}
-          </div>
-        ))}
-        <div ref={bottom} />
-      </div>
-      {error ? <div className="mt-2 text-xs text-rose-700">{error}</div> : null}
-      <form
-        className="mt-2 flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!input.trim() || busy) return;
-          const text = input.trim();
-          setInput("");
-          send(text);
-        }}
-      >
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Reply to Flash (or type cancel)"
-          className="flex-1 rounded-lg border px-3 py-2 text-sm"
-          disabled={busy}
-        />
-        <Button type="submit" size="sm" disabled={busy || !input.trim()}>
-          <Send className="h-4 w-4" />
-        </Button>
-      </form>
-    </div>
-  );
-}
+import { closeCoreCertification, getCoreCertificationRequests } from "../services/api/coreCertification";
+import { FLASH_WORKFLOW_DONE_EVENT } from "../services/api/flash";
 
 function PendingRow({ request, onChanged }) {
+  const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [rejecting, setRejecting] = useState(request.chat_in_progress);
+  // the decision (and a rejection discussion) happens in the Flash bubble, on any screen
+  const decideInFlash = () => navigate(`?flash=core_cert:${encodeURIComponent(request.id)}`);
 
   const act = async (fn) => {
     setBusy(true);
@@ -134,12 +53,16 @@ function PendingRow({ request, onChanged }) {
         </div>
         {request.can_decide ? (
           <div className="flex gap-2">
-            {request.still_eligible ? (
+            {request.chat_in_progress ? (
+              <Button size="sm" disabled={busy} onClick={decideInFlash}>
+                <MessageCircleQuestion className="h-4 w-4" /> Continue in Flash
+              </Button>
+            ) : request.still_eligible ? (
               <>
-                <Button size="sm" variant="success" disabled={busy || rejecting} onClick={() => act(approveCoreCertification)}>
+                <Button size="sm" variant="success" disabled={busy} onClick={decideInFlash}>
                   Approve
                 </Button>
-                <Button size="sm" variant="danger" disabled={busy || rejecting} onClick={() => setRejecting(true)}>
+                <Button size="sm" variant="danger" disabled={busy} onClick={decideInFlash}>
                   Reject
                 </Button>
               </>
@@ -154,16 +77,6 @@ function PendingRow({ request, onChanged }) {
         )}
       </div>
       {error ? <div className="mt-2 text-xs text-rose-700">{error}</div> : null}
-      {rejecting ? (
-        <FlashRejectChat
-          request={request}
-          onDone={() => {
-            // a cancel leaves the request pending: the row must offer Approve / Reject again
-            setRejecting(false);
-            onChanged();
-          }}
-        />
-      ) : null}
     </div>
   );
 }
@@ -190,6 +103,15 @@ export default function CoreCertificationScreen() {
     load();
   }, [load]);
 
+  // a decision taken in the Flash bubble changes this list
+  useEffect(() => {
+    const onDone = (event) => {
+      if (event.detail?.kind === "core_cert") load();
+    };
+    window.addEventListener(FLASH_WORKFLOW_DONE_EVENT, onDone);
+    return () => window.removeEventListener(FLASH_WORKFLOW_DONE_EVENT, onDone);
+  }, [load]);
+
   const pending = requests.filter((r) => r.status === "PENDING");
   const decided = requests.filter((r) => r.status !== "PENDING");
 
@@ -200,7 +122,7 @@ export default function CoreCertificationScreen() {
       </Link>
       <Card
         title={`Core certification: awaiting decision (${pending.length})`}
-        subtitle="Buddy graduated, 90 approved billable Staff Aug days, no escalation in them. The BU Head approves, or tells Flash why not."
+        subtitle="Buddy graduated, 90 approved billable Staff Aug days, no escalation in them. The BU Head decides in Flash: approve, or tell Flash why not."
         icon={<Award className="h-4 w-4" />}
         right={
           <Button variant="ghost" onClick={load} disabled={loading}>

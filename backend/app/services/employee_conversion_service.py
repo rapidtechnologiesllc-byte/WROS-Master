@@ -192,10 +192,21 @@ class EmployeeConversionService:
         db.add(hist)
         db.flush()
         candidate.status = "CONVERTED_TO_EMPLOYEE"
-        # A permanent / fixed-term BlitzenX employee is W2 by definition; this is
-        # what makes them submittable to client jobs (submission employment-type gate)
+        # A BlitzenX employee's employment type is known once they join: permanent / fixed-term is
+        # FULLTIME, a contract employee CONTRACT (labelled "W2 ..." in the US). With the country
+        # (when the profile has none: the delivery company they join, else their profile
+        # location) it is what the client-submission employment-type gate reads
         if employment_type in ("PERMANENT", "FIXED_TERM"):
-            candidate.employment_type = "W2_FULLTIME"
+            candidate.employment_type = "FULLTIME"
+        elif employment_type == "CONTRACT":
+            candidate.employment_type = "CONTRACT"
+        if not candidate.country:
+            from app.models.location import Location
+            from app.services.employment_type_policy import country_code
+
+            company = db.query(Location).filter(Location.id == final_company_id).first() if final_company_id else None
+            candidate.country = (country_code(company.country) if company else None) \
+                or country_code(candidate.candidateCurrentLocation)
         if hasattr(candidate, "candidate_employee_user_id"):
             candidate.candidate_employee_user_id = user.UserID
         db.add(candidate)

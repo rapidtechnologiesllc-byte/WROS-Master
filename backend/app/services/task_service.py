@@ -72,6 +72,19 @@ def validate_urgent_priority(
     note = response.split("NOTE:", 1)[1].strip() if "NOTE:" in response.upper() else response.strip()
     return is_plausible, note
 
+TASK_LINK_MAX_LENGTH = 512
+
+
+def validate_task_link(link: Optional[str]) -> None:
+    """A task link is an in-app path: it starts with "/" and not "//" (which a browser reads as
+    another site), with no whitespace or backslashes. None means no link."""
+    if link is None:
+        return
+    if (not isinstance(link, str) or not link.startswith("/") or link.startswith("//") or "\\" in link
+            or any(ch.isspace() for ch in link) or len(link) > TASK_LINK_MAX_LENGTH):
+        raise ValueError(f"Task link must be an in-app path like '/jobs/123', got {link!r}")
+
+
 def create_task(
     db: Session,
     *,
@@ -92,9 +105,11 @@ def create_task(
     expense_id: Optional[str] = None,
     invoice_id: Optional[str] = None,
     urgency_llm_call=None,
+    link: Optional[str] = None,
 ) -> Task:
     if priority not in TASK_PRIORITIES:
         raise ValueError(f"Unknown priority {priority!r}")
+    validate_task_link(link)
 
     task = Task(
         title=title, description=description, priority=priority,
@@ -102,7 +117,7 @@ def create_task(
         due_date=due_date, is_external=is_external, visibility_scope=visibility_scope,
         task_type=task_type, category=category, subcategory=subcategory,
         parent_task_id=parent_task_id, tenant_id=tenant_id,
-        assigned_to_user_id=assigned_to_user_id, expense_id=expense_id, invoice_id=invoice_id,
+        assigned_to_user_id=assigned_to_user_id, expense_id=expense_id, invoice_id=invoice_id, link=link,
     )
 
     if priority == "URGENT":

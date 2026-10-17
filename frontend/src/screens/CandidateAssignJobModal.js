@@ -36,7 +36,6 @@ const INITIAL_FORM_STATE = {
   recruitedBy: "",
   primarySales: "",
   contactPerson: "",
-  positionType: "",
   quotedBillRate: "",
   quotedBillRateType: "$/Hour",
   agreedBillRate: "",
@@ -44,7 +43,6 @@ const INITIAL_FORM_STATE = {
   agreedPayRate: "",
   agreedPayRateType: "$/Hour",
   agreedOn: getTodayDate(),
-  corpToCorp: "",
   selectedCv: "",
   internalNotes: "",
   notifyCandidate: false,
@@ -59,13 +57,8 @@ const TIME_ZONE_OPTIONS = [
   "Asia/Singapore",
 ];
 
-const POSITION_TYPE_OPTIONS = [
-  "Full Time",
-  "Contract",
-  "Contract To Hire",
-  "Corp To Corp",
-  "W2",
-];
+// No position-type / corp-to-corp pickers: the candidate's employment type is a profile fact
+// checked against their country at submission (employment_type_policy); C2C is never accepted
 const RATE_TYPE_OPTIONS = [
   { label: "$/Hour", value: "$/Hour" },
   { label: "$/Day", value: "$/Day" },
@@ -689,17 +682,6 @@ const CandidateAssignJobModalBody = ({
               </SectionCard>
 
               <SectionCard title="Pay">
-                <FormSelect
-                  label="Position Type"
-                  value={formData?.positionType}
-                  onChange={(value) => updateFormField("positionType", value)}
-                  options={POSITION_TYPE_OPTIONS?.map((type) => ({
-                    label: type,
-                    value: type,
-                  }))}
-                  disabled={isAssigning}
-                />
-
                 <RateField
                   label="Quoted Bill Rate"
                   value={formData?.quotedBillRate}
@@ -747,30 +729,6 @@ const CandidateAssignJobModalBody = ({
                   disabled={isAssigning}
                 />
 
-                <div className="mt-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
-                  <FormSelect
-                    label="Corp To Corp"
-                    value={
-                      formData?.corpToCorp === true
-                        ? "yes"
-                        : formData?.corpToCorp === false
-                          ? "no"
-                          : ""
-                    }
-                    onChange={(value) =>
-                      updateFormField(
-                        "corpToCorp",
-                        value === "yes" ? true : value === "no" ? false : "",
-                      )
-                    }
-                    options={[
-                      { label: "Yes", value: "yes" },
-                      { label: "No", value: "no" },
-                    ]}
-                    disabled={isAssigning}
-                    placeholder="Select"
-                  />
-                </div>
               </SectionCard>
 
               <SectionCard title="CV">
