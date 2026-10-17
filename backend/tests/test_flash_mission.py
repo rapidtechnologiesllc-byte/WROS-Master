@@ -308,6 +308,73 @@ def test_offer_accepted_keeps_sourcing_and_joining_closes(db, on, world, queued,
     assert any("joined. Search closed." in body for body in _events(db, world.requester))
 
 
+# --------------------------------------------------------------------------- bench first (R-04)
+
+def _bench_employee(db, world, skill, *, name="Bena", buddy="GRADUATED"):
+    """A bench employee who can be submitted to a client today (client_submission_blockers is
+    empty): 6 years, FULLTIME in India, Buddy graduated, BGV passed, no open escalation, not
+    allocated, in the requester's business unit, on the bench pool."""
+    from app.models.background_verification import BackgroundVerification
+    from app.models.resource_management import BenchPoolEntry
+
+    cand = _cand(db, skill, name=name)
+    employee = Employee(tenant_id=1, candidate_id=cand.candidateID, first_name=name, last_name="Bench",
+                        email=f"{uid()}@blitzenx.com", joining_date=date(2025, 1, 1), status="BENCH",
+                        buddy_program_status=buddy, bu_id=world.unit.id, company_id=world.company.id)
+    db.add(employee)
+    db.add(BackgroundVerification(tenant_id=1, candidate_id=cand.candidateID, status="PASSED"))
+    db.flush()
+    db.add(BenchPoolEntry(tenant_id=1, employee_id=employee.id, available_from=date(2026, 1, 1)))
+    db.flush()
+    return cand, employee
+
+
+def test_bench_first_tasks_a_person_to_propose_a_deployable_employee(db, on, world, queued):
+    from app.models.submission import Submission
+    from app.services.submission_service import client_submission_blockers
+
+    skill = f"Rails{uid()}"
+    bench, _ = _bench_employee(db, world, skill)
+    unready, _ = _bench_employee(db, world, skill, name="Unready", buddy="IN_PROGRESS")
+    job = _job(db, world, skill)
+    assert client_submission_blockers(db, bench, job) == []  # the fixture is really deployable
+    assert [b["error"] for b in client_submission_blockers(db, unready, job)] == ["BUDDY_NOT_GRADUATED"]
+    mission = _mission(db, world, job)
+    _sweep(db)
+
+    assert job.bench_first_checked and job.sourcing_enabled
+    tasks = db.query(Task).filter(Task.title.like("Propose %"), Task.category == "FLASH_MISSION").all()
+    assert len(tasks) == 1
+    (task,) = tasks
+    assert task.title == f"Propose Bena Bench to Rails Developer ({world.client_name})"
+    assert task.assigned_to_user_id == world.recruiter.UserID and task.candidate_id == bench.candidateID
+    assert task.link == f"/candidates/{bench.candidateID}" and "Flash does not submit to clients" in task.description
+    assert any("1 bench employee(s) fit (Bena Bench)" in b for b in _events(db, world.requester))
+    # Flash never submits to a client, and does not interview its own employees as new candidates
+    assert db.query(Submission).filter(Submission.candidate_id.in_([bench.candidateID, unready.candidateID])).count() == 0
+    assert db.query(InterviewPanel).filter(InterviewPanel.candidate_id.in_(
+        [bench.candidateID, unready.candidateID])).count() == 0
+    assert not [c for c in queued.enqueue if "submission" in c.task_name]
+    assert {(t.candidate_id, t.status) for t in _tracks(db, mission)} == {
+        (bench.candidateID, "SKIPPED"), (unready.candidateID, "SKIPPED")}
+    assert all(t.reason.startswith("already a BlitzenX employee") for t in _tracks(db, mission))
+
+    _sweep(db, NOW + timedelta(hours=5))  # once per job
+    assert db.query(Task).filter(Task.title.like("Propose %"), Task.category == "FLASH_MISSION").count() == 1
+    assert mission.state == "ACTIVE"
+
+
+def test_bench_first_goes_to_the_bu_head_without_a_recruiter(db, on, world, queued):
+    skill = f"Rails{uid()}"
+    bench, _ = _bench_employee(db, world, skill)
+    job = _job(db, world, skill, recruiter=None)
+    _mission(db, world, job)
+    _sweep(db)
+    task = db.query(Task).filter(Task.candidate_id == bench.candidateID, Task.title.like("Propose %")).one()
+    assert task.assigned_to_user_id == world.head.UserID  # the client's BU head
+    assert job.bench_first_checked
+
+
 # --------------------------------------------------------------------------- the verdict boundary
 
 def test_fail_moves_to_the_next_candidate_and_mixed_feedback_waits_for_a_person(db, on, world, queued, monkeypatch):

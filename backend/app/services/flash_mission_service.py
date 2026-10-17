@@ -20,7 +20,8 @@ advance(), in order:
     interview -> WITHDRAWN.
  4. Bench first (R-04), once: bench employees who match and could be submitted today
     (client_submission_blockers) become "Propose X to client" tasks for the recruiter -- Flash
-    never submits to a client. Then external sourcing is enabled.
+    never submits to a client. Then external sourcing is enabled; it never picks a current
+    employee (pick_gate), so nobody on the payroll gets a candidate interview invitation.
  5. Fill: while fewer than (open positions x FLASH_PARALLEL_CANDIDATES) candidates are in
     interviews, take the next ranked candidate (job_candidate_ranking_service: tenant, the
     requester's business units, the 5-year floor, the job's minimum, employment type by country),
@@ -337,6 +338,16 @@ def _acting_user(db: Session, mission: FlashMission, job: Jobs, now: datetime) -
 
 # --------------------------------------------------------------------------- gates and people
 
+def _current_employee(db: Session, candidate_id: str) -> bool:
+    """The candidate is (or is about to be) a BlitzenX employee -- any employee record that has
+    not EXITED. Such a person reaches a client through bench-first (CEO decision 6), not through
+    Flash's external interviews; someone who left may be a candidate again."""
+    from app.models.employee import Employee
+
+    return db.query(Employee.id).filter(Employee.candidate_id == candidate_id,
+                                        Employee.status != "EXITED").first() is not None
+
+
 def pick_gate(db: Session, mission: FlashMission, candidate: Candidate, user: Users, job: Jobs) -> Optional[str]:
     """Why Flash may not interview this candidate for this job now (None: it may). Run when the
     candidate is picked and again just before scheduling."""
@@ -348,6 +359,9 @@ def pick_gate(db: Session, mission: FlashMission, candidate: Candidate, user: Us
 
     if candidate.tenant_id != mission.tenant_id:
         return "another company's candidate"
+    if _current_employee(db, candidate.candidateID):
+        return ("already a BlitzenX employee: employees reach clients through bench-first (proposed by a "
+                "person), never a new interview")
     try:
         assert_experience_eligible(candidate, "schedule an interview")
     except ExperienceIneligible as exc:
