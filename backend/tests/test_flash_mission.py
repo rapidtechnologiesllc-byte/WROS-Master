@@ -391,6 +391,140 @@ def test_owner_who_left_hands_over_to_the_hiring_manager(db, on, world, queued):
     assert orphan.state == "BLOCKED" and orphan.block_reason == "owner_inactive"
 
 
+# --------------------------------------------------------------------------- blocks clear on their own
+
+def _block_task(db, mission):
+    return db.get(Task, mission.block_task_id)
+
+
+def _assert_unblocked(db, mission, task, person, words):
+    assert mission.state == "ACTIVE" and mission.block_reason is None and mission.block_task_id is None
+    assert task.status == "COMPLETED" and task.completed_at is not None
+    assert any(words in b and b.endswith("so the search continues.") for b in _events(db, person))
+
+
+def test_permission_block_clears_once_the_requester_may_schedule(db, on, world, queued):
+    skill = f"Rails{uid()}"
+    _cand(db, skill)
+    role = role_without(db, "interviews.create")
+    requester = user(db, role, "No Interviews", business_unit_id=world.unit.id)
+    job = _job(db, world, skill)
+    mission = _mission(db, world, job, owner=requester)
+    _sweep(db)
+    task = _block_task(db, mission)
+    assert mission.block_reason == "permission" and task.status == "NEW"
+    _sweep(db, NOW + timedelta(hours=1))
+    assert mission.state == "BLOCKED" and task.status == "NEW"  # the cause is still there
+    resource_ids = [r.id for r in db.query(Resource).filter(Resource.name == "interviews")]
+    for row in db.query(RoleTemplatePermission).filter(RoleTemplatePermission.role_template_id == role.id,
+                                                       RoleTemplatePermission.resource_id.in_(resource_ids)):
+        row.can_create = True
+    db.flush()
+    _sweep(db, NOW + timedelta(hours=2))
+    _assert_unblocked(db, mission, task, requester, "you can schedule interviews now")
+    assert [t.status for t in _tracks(db, mission)] == ["SCHEDULED"]
+
+
+def test_no_interviewer_block_clears_even_when_nothing_can_be_scheduled(db, on, world, queued):
+    from app.models.business_unit import BusinessUnit
+    from app.services.thunder_pause_service import set_thunder_paused
+
+    skill = f"Rails{uid()}"
+    _cand(db, skill)
+    headless = BusinessUnit(tenant_id=1, name=f"bu-{uid()}", display_name="Headless")
+    db.add(headless)
+    db.flush()
+    job = _job(db, world, skill, hiring_manager=None, unit=headless, client=None)
+    mission = _mission(db, world, job)
+    _sweep(db)
+    task = _block_task(db, mission)
+    assert mission.block_reason == "no_interviewer" and task.title.startswith("Assign an L1 interviewer")
+    set_thunder_paused(db, True, tenant_id=1)  # no new interview may be scheduled, so only the re-check can unblock
+    job.hiringManagerID = world.head.UserID
+    db.flush()
+    _sweep(db, NOW + timedelta(hours=1))
+    _assert_unblocked(db, mission, task, world.requester, "an interviewer is now available")
+    assert [t.status for t in _tracks(db, mission)] == ["PROPOSED"]  # waits for the pause to lift
+    set_thunder_paused(db, False, tenant_id=1)
+    _sweep(db, NOW + timedelta(hours=2))
+    assert [t.status for t in _tracks(db, mission)] == ["SCHEDULED"] and mission.state == "ACTIVE"
+
+
+def test_no_slot_block_clears_when_a_slot_opens(db, on, world, queued):
+    skill = f"Rails{uid()}"
+    cand = _cand(db, skill, tz="America/New_York")  # no business hours shared with the India interviewer
+    job = _job(db, world, skill)
+    mission = _mission(db, world, job)
+    _sweep(db)
+    assert mission.block_reason == "no_slot" and mission.block_task_id is None
+    later = NOW + timedelta(hours=settings.FLASH_NO_SLOT_ESCALATE_HOURS + 1)
+    _sweep(db, later)
+    task = _block_task(db, mission)
+    assert task.title.startswith("No interview slot for Rails Developer")
+    cand.timezone = "Asia/Kolkata"
+    db.flush()
+    assert missions.block_resolved(db, mission, job, world.requester, later)
+    _sweep(db, later + timedelta(hours=1))
+    _assert_unblocked(db, mission, task, world.requester, "the interview slot problem has cleared")
+    assert [t.status for t in _tracks(db, mission)] == ["SCHEDULED"]
+
+
+def test_owner_inactive_block_clears_when_the_owner_returns_or_a_manager_is_set(db, on, world, queued):
+    skill = f"Rails{uid()}"
+    _cand(db, skill)
+    for comes_back in (True, False):
+        job = _job(db, world, skill, hiring_manager=None)
+        leaver = user(db, world.role, "Leaver", business_unit_id=world.unit.id)
+        mission = _mission(db, world, job, owner=leaver)
+        leaver.terminated_at = NOW - timedelta(days=1)
+        db.flush()
+        _sweep(db)
+        task = _block_task(db, mission)
+        assert mission.block_reason == "owner_inactive" and task.assigned_to_user_id == world.recruiter.UserID
+        if comes_back:
+            leaver.terminated_at = None
+            owner = leaver
+        else:
+            job.hiringManagerID = world.head.UserID
+            owner = world.head
+        db.flush()
+        _sweep(db, NOW + timedelta(hours=1))
+        assert mission.requested_by_user_id == owner.UserID
+        _assert_unblocked(db, mission, task, owner, f"{owner.UserName} now runs the search")
+
+
+def test_a_changed_block_cause_closes_the_old_hand_off(db, on, world, queued):
+    from app.models.business_unit import BusinessUnit
+
+    skill = f"Rails{uid()}"
+    _cand(db, skill)
+    role = role_without(db, "interviews.create")
+    requester = user(db, role, "No Interviews", business_unit_id=world.unit.id)
+    headless = BusinessUnit(tenant_id=1, name=f"bu-{uid()}", display_name="Headless")
+    db.add(headless)
+    db.flush()
+    job = _job(db, world, skill, hiring_manager=None, unit=headless, client=None)
+    mission = _mission(db, world, job, owner=requester)
+    _sweep(db)
+    permission_task = _block_task(db, mission)
+    assert mission.block_reason == "permission"
+    for row in db.query(RoleTemplatePermission).filter(RoleTemplatePermission.role_template_id == role.id):
+        row.can_create = True
+    db.flush()
+    _sweep(db, NOW + timedelta(hours=1))
+    assert permission_task.status == "COMPLETED"
+    assert mission.state == "BLOCKED" and mission.block_reason == "no_interviewer"
+    assert _block_task(db, mission).status == "NEW"
+
+
+def test_an_unknown_block_reason_fails_fast(db, on, world):
+    job = _job(db, world, "x")
+    mission = _mission(db, world, job)
+    mission.state, mission.block_reason = "BLOCKED", "mystery"
+    with pytest.raises(ValueError, match="unknown reason"):
+        missions.block_resolved(db, mission, job, world.requester, NOW)
+
+
 # --------------------------------------------------------------------------- idempotency, control, guard
 
 def test_start_and_sweep_are_idempotent(db, on, world, queued):

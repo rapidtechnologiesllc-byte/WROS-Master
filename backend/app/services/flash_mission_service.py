@@ -9,6 +9,8 @@ advance(), in order:
     mission to the job's hiring manager, who is told in Flash; with nobody to take it the mission
     is BLOCKED(owner_inactive) and the recruiter gets a task.
  2. Tenant: the job must be in the mission's tenant; every query is tenant-filtered.
+    A BLOCKED mission re-checks its block cause first (block_resolved) on every sweep; once the
+    cause has gone it is ACTIVE again, its hand-off task is closed and the requester is told.
  3. Track progress (one track per candidate): a scheduled interview that ended awaits its verdict;
     Flash READS verdicts (interview_verdict_service, computed from people's feedback) and never
     writes one. PENDING -> chase the interviewer (and, after FLASH_FEEDBACK_CHASES_BEFORE_HM
@@ -257,6 +259,7 @@ def _block(db: Session, mission: FlashMission, now: datetime, reason: str, text:
     """BLOCKED for `reason`; said once. The task (title/description/link/assignee) is created once,
     right away or after `task_after` blocked."""
     if mission.state != "BLOCKED" or mission.block_reason != reason:
+        _close_block_task(db, mission)  # a different cause: the previous hand-off no longer applies
         mission.state, mission.block_reason, mission.blocked_since, mission.block_task_id = "BLOCKED", reason, now, None
         mission.state_reason = text
         _event(db, mission, f"blocked_{reason}", text)
@@ -268,11 +271,35 @@ def _block(db: Session, mission: FlashMission, now: datetime, reason: str, text:
     _set_next(mission, now, retry)
 
 
-def _unblock(db: Session, mission: FlashMission, text: Optional[str] = None) -> None:
-    if mission.state == "BLOCKED":
-        mission.state, mission.block_reason, mission.blocked_since, mission.block_task_id = "ACTIVE", None, None, None
-        mission.state_reason = None
-        _event(db, mission, "unblocked", text or "Unblocked; the search continues.", tell=bool(text))
+def _close_block_task(db: Session, mission: FlashMission) -> None:
+    """The block's hand-off task is done once its cause has gone (or the cause changed)."""
+    from app.models.task import Task
+
+    if mission.block_task_id is None:
+        return
+    task = db.query(Task).filter(Task.id == mission.block_task_id).first()
+    if task is not None and task.status not in OPEN_TASK_EXCLUDED:
+        task.status, task.completed_at = "COMPLETED", datetime.utcnow()
+    mission.block_task_id = None
+
+
+UNBLOCKED_WORDS = {"owner_inactive": "{owner} now runs the search",
+                   "permission": "you can schedule interviews now",
+                   "no_interviewer": "an interviewer is now available",
+                   "no_slot": "the interview slot problem has cleared"}
+
+
+def _unblock(db: Session, mission: FlashMission, job: Jobs) -> None:
+    """Back to ACTIVE: the hand-off task is closed and the requester is told the search goes on."""
+    if mission.state != "BLOCKED":
+        return
+    reason = mission.block_reason
+    _close_block_task(db, mission)
+    mission.state, mission.block_reason, mission.blocked_since, mission.state_reason = "ACTIVE", None, None, None
+    owner = db.query(Users).filter(Users.UserID == mission.requested_by_user_id).first()
+    why = UNBLOCKED_WORDS.get(reason, "the block has cleared").format(owner=_person(owner))
+    _event(db, mission, "unblocked", f"{_job_label(db, job)}: {why}, so the search continues.",
+           previous_reason=reason)
 
 
 def _track_status(db: Session, mission: FlashMission, track: FlashMissionCandidate, status: str, text: str, *,
@@ -288,8 +315,6 @@ def _track_status(db: Session, mission: FlashMission, track: FlashMissionCandida
 def _acting_user(db: Session, mission: FlashMission, job: Jobs, now: datetime) -> Optional[Users]:
     user = _active_user(db, mission.requested_by_user_id, mission.tenant_id)
     if user is not None:
-        if mission.block_reason == "owner_inactive":
-            _unblock(db, mission)
         return user
     manager = _active_user(db, job.hiringManagerID, mission.tenant_id)
     if manager is not None and manager.UserID != mission.requested_by_user_id:
@@ -300,8 +325,6 @@ def _acting_user(db: Session, mission: FlashMission, job: Jobs, now: datetime) -
                f"{_person(previous)} has left, so Flash's search for {label} is now yours (you are the hiring "
                f"manager). {mission_summary(db, mission)} Say \"pause my {job.jobTitle} search\" or \"cancel my "
                f"{job.jobTitle} search\" to change it.", previous_owner=previous.UserID if previous else None)
-        if mission.block_reason == "owner_inactive":
-            _unblock(db, mission)
         return manager
     _block(db, mission, now, "owner_inactive",
            f"The person who started Flash's search for {_job_label(db, job)} has left and the job has no active "
@@ -446,8 +469,7 @@ def _schedule(db: Session, mission: FlashMission, job: Jobs, user: Users, track:
     if candidate is not None and not candidate.job_id:
         candidate.job_id = job.jobID
     _create_calendar_event(db, interview, interviewer, candidate, label, level, graph_event_call)
-    if mission.state == "BLOCKED":
-        _unblock(db, mission)
+    _unblock(db, mission, job)
     mission.last_progress_at = now
     requester = db.query(Users).filter(Users.UserID == mission.requested_by_user_id).first()
     _track_status(db, mission, track, "SCHEDULED",
@@ -699,6 +721,50 @@ def _escalate_no_match(db: Session, mission: FlashMission, job: Jobs, now: datet
            "to help. The search stays open.")
 
 
+# --------------------------------------------------------------------------- blocks
+
+def _pending_rounds(db: Session, mission: FlashMission) -> List[tuple]:
+    """(track, level) waiting to be scheduled, in the order a sweep tries them: L2 rounds
+    (_reconcile) before L1 picks (_fill)."""
+    tracks = (db.query(FlashMissionCandidate)
+              .filter(FlashMissionCandidate.mission_id == mission.id,
+                      FlashMissionCandidate.status.in_(("ROUND_PASSED", "PROPOSED")))
+              .order_by(FlashMissionCandidate.id).all())
+    return ([(t, "L2") for t in tracks if t.status == "ROUND_PASSED"]
+            + [(t, "L1") for t in tracks if t.status == "PROPOSED"])
+
+
+def block_resolved(db: Session, mission: FlashMission, job: Jobs, user: Users, now: datetime, *,
+                   graph_call: Optional[Callable] = None) -> bool:
+    """Whether the cause of the mission's block has gone, checked fresh every sweep -- not only
+    when something new needs scheduling.
+    - owner_inactive: an active acting user was found (the caller only gets here with one).
+    - permission: the acting user may create and edit interviews.
+    - no_interviewer: every level waiting to be scheduled (L1 when nothing waits) has one.
+    - no_slot: the round the sweep tries first has a free slot, or nothing waits for one."""
+    from app.services.interview_slot_service import next_free_slot
+
+    reason = mission.block_reason
+    if reason == "owner_inactive":
+        return user is not None
+    if reason == "permission":
+        return _may_schedule(db, user)
+    pending = _pending_rounds(db, mission)
+    if reason == "no_interviewer":
+        levels = {level for _, level in pending} or {"L1"}
+        return all(resolve_interviewer(db, job, level, mission.tenant_id) is not None for level in levels)
+    if reason == "no_slot":
+        if not pending:
+            return True
+        track, level = pending[0]
+        candidate = db.query(Candidate).filter(Candidate.candidateID == track.candidate_id).first()
+        interviewer = resolve_interviewer(db, job, level, mission.tenant_id)
+        if candidate is None or interviewer is None:
+            return False  # not a slot problem any more; scheduling re-blocks with the real cause
+        return next_free_slot(db, interviewer, candidate, now=now, graph_call=graph_call) is not None
+    raise ValueError(f"Flash mission {mission.id} is blocked for an unknown reason {reason!r}")
+
+
 # --------------------------------------------------------------------------- advance / sweep
 
 def advance(db: Session, mission: FlashMission, now: datetime, *, graph_call: Optional[Callable] = None,
@@ -726,6 +792,8 @@ def advance(db: Session, mission: FlashMission, now: datetime, *, graph_call: Op
     user = _acting_user(db, mission, job, now)
     if user is None:
         return
+    if mission.state == "BLOCKED" and block_resolved(db, mission, job, user, now, graph_call=graph_call):
+        _unblock(db, mission, job)
     tracks = (db.query(FlashMissionCandidate).filter(FlashMissionCandidate.mission_id == mission.id)
               .order_by(FlashMissionCandidate.id).all())
     for track in tracks:
@@ -739,8 +807,8 @@ def advance(db: Session, mission: FlashMission, now: datetime, *, graph_call: Op
         return
     if not job.bench_first_checked:
         _bench_first(db, mission, job, user)
-    # A BLOCKED mission (no interviewer / slot / permission) simply tries again: scheduling
-    # unblocks it, or blocks it again without repeating the message
+    # A mission still BLOCKED (the cause is still there) tries again: scheduling unblocks it, or
+    # blocks it again without repeating the message
     scheduled = _fill(db, mission, job, user, now, filled, **calls)
     if mission.state == "BLOCKED":
         return
