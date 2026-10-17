@@ -40,7 +40,7 @@ def _run_worker_in_background(job_id: str) -> None:
     finally:
         db.close()
 
-@router.post("/candidates/bulk-import", response_model=BulkImportResponse, dependencies=[Depends(require_resource_permission("candidates", "create"))])
+@router.post("/candidates/bulk-import", response_model=BulkImportResponse, dependencies=[Depends(require_resource_permission("bulk-launch", "create"))])
 async def bulk_import(file: UploadFile, db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)):
     if not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be a .csv file.")
@@ -53,7 +53,7 @@ async def bulk_import(file: UploadFile, db: Session = Depends(get_db), current_u
     except CsvTooLarge as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-@router.post("/candidates/bulk-engage", response_model=BulkEngageResponse, dependencies=[Depends(require_resource_permission("candidates", "edit"))])
+@router.post("/candidates/bulk-engage", response_model=BulkEngageResponse, dependencies=[Depends(require_resource_permission("bulk-launch", "edit"))])
 def bulk_engage(payload: BulkEngageRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)):
     tenant_id = resolve_default_tenant_id(db)
     try:
@@ -63,7 +63,7 @@ def bulk_engage(payload: BulkEngageRequest, background_tasks: BackgroundTasks, d
     background_tasks.add_task(_run_worker_in_background, result["bulk_job_id"])
     return result
 
-@router.get("/candidates/bulk-jobs/{job_id}/status", response_model=BulkJobStatusResponse, dependencies=[Depends(require_resource_permission("candidates", "view"))])
+@router.get("/candidates/bulk-jobs/{job_id}/status", response_model=BulkJobStatusResponse, dependencies=[Depends(require_resource_permission("bulk-launch", "view"))])
 def bulk_job_status(job_id: str, db: Session = Depends(get_db)):
     status = get_bulk_job_status(db, job_id)
     if status is None:
@@ -72,17 +72,17 @@ def bulk_job_status(job_id: str, db: Session = Depends(get_db)):
 
 
 # Bulk Launch screen: active jobs, history, cancel
-@router.get("/candidates/bulk-import/jobs/active", dependencies=[Depends(require_resource_permission("candidates", "view"))])
+@router.get("/candidates/bulk-import/jobs/active", dependencies=[Depends(require_resource_permission("bulk-launch", "view"))])
 def active_bulk_jobs(db: Session = Depends(get_db)):
     return list_bulk_jobs(db, active_only=True)
 
 
-@router.get("/candidates/bulk-import/list", dependencies=[Depends(require_resource_permission("candidates", "view"))])
+@router.get("/candidates/bulk-import/list", dependencies=[Depends(require_resource_permission("bulk-launch", "view"))])
 def bulk_job_history(db: Session = Depends(get_db)):
     return list_bulk_jobs(db)
 
 
-@router.delete("/candidates/bulk-import/{job_id}/cancel", dependencies=[Depends(require_resource_permission("candidates", "edit"))])
+@router.delete("/candidates/bulk-import/{job_id}/cancel", dependencies=[Depends(require_resource_permission("bulk-launch", "edit"))])
 def cancel_bulk_import(job_id: str, db: Session = Depends(get_db)):
     status = cancel_bulk_job(db, job_id)
     if status is None:

@@ -332,7 +332,7 @@ def update_guidewire_certifications(
 
 @router.get(
     "/utilization-summary", response_model=UtilizationSummaryResponse,
-    dependencies=[Depends(require_resource_permission("employees", "view"))],
+    dependencies=[Depends(require_resource_permission("utilization-dashboard", "view"))],
     summary="Employee Utilization Dashboard (S-254) -- latest utilization per employee + low-utilization alerts",
 )
 def utilization_summary(
@@ -368,7 +368,7 @@ def utilization_summary(
 
 @router.get(
     "/bench-cost-summary", response_model=BenchCostSummaryResponse,
-    dependencies=[Depends(require_resource_permission("employees", "view"))],
+    dependencies=[Depends(require_resource_permission("utilization-dashboard", "view"))],
     summary="Bench Cost Visibility (S-255) -- daily/monthly/running bench cost per employee + total",
 )
 def bench_cost_summary(

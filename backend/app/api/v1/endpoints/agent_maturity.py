@@ -45,7 +45,7 @@ router = APIRouter(prefix="/admin/agents", tags=["admin-agents"])
 @router.get(
     "/maturity",
     response_model=AllAgentsMaturitiesResponse,
-    dependencies=[Depends(require_resource_permission("admin-settings", "view"))]
+    dependencies=[Depends(require_resource_permission("admin-agent-state", "view"))]
 )
 def get_all_agents_maturity(
     db: Session = Depends(get_db),
@@ -80,7 +80,7 @@ def get_all_agents_maturity(
 @router.get(
     "/maturity/{agent_name}",
     response_model=AgentMaturityDashboardResponse,
-    dependencies=[Depends(require_resource_permission("admin-settings", "view"))]
+    dependencies=[Depends(require_resource_permission("admin-agent-state", "view"))]
 )
 def get_agent_maturity_dashboard(
     agent_name: str,

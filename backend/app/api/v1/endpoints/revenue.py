@@ -107,7 +107,7 @@ def _alert_to_item(alert: ReconciliationAlert) -> ReconciliationAlertItem:
 @router.post(
     "/leakage/scan",
     dependencies=[
-        Depends(require_resource_permission("revenue", "create")),
+        Depends(require_resource_permission("sales-ops", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=Optional[LeakageFlagItem],
@@ -129,7 +129,7 @@ def scan_leakage(
 @router.post(
     "/leakage/{flag_id}/log-reason",
     dependencies=[
-        Depends(require_resource_permission("resources", "create")),
+        Depends(require_resource_permission("sales-ops", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=LeakageFlagItem,
@@ -155,7 +155,7 @@ def log_leakage_reason(
     "/leakage",
     response_model=LeakageFlagsResponse,
     summary="List active (unresolved) leakage flags (cached from daily scan)",
-    dependencies=[Depends(require_resource_permission("revenue", "view"))]
+    dependencies=[Depends(require_resource_permission("sales-ops", "view"))]
 )
 def list_leakage_flags(
     db: Session = Depends(get_db),
@@ -175,7 +175,7 @@ def list_leakage_flags(
 @router.post(
     "/reconciliation/scan",
     dependencies=[
-        Depends(require_resource_permission("resources", "create")),
+        Depends(require_resource_permission("sales-ops", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=ReconciliationScanResponse,
@@ -196,7 +196,7 @@ def scan_reconciliation(
 @router.get(
     "/reconciliation/alerts",
     dependencies=[
-        Depends(require_resource_permission("resources", "view")),
+        Depends(require_resource_permission("sales-ops", "view")),
         Depends(get_current_internal_user),
     ],
     response_model=ReconciliationAlertsResponse,
@@ -219,7 +219,7 @@ def list_reconciliation_alerts(
 @router.post(
     "/reconciliation/alerts/{alert_id}/resolve",
     dependencies=[
-        Depends(require_resource_permission("resources", "create")),
+        Depends(require_resource_permission("sales-ops", "create")),
         Depends(get_current_internal_user),
     ],
     response_model=ReconciliationAlertItem,

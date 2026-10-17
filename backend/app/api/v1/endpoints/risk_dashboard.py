@@ -26,12 +26,12 @@ from app.services.risk_dashboard_service import get_risk_dashboard
 
 router = APIRouter(prefix="/risk", tags=["risk-dashboard"])
 
-@router.get("/dashboard", response_model=RiskDashboardResponse, dependencies=[Depends(require_resource_permission("candidates", "view"))])
+@router.get("/dashboard", response_model=RiskDashboardResponse, dependencies=[Depends(require_resource_permission("risk-dashboard", "view"))])
 def risk_dashboard(db: Session = Depends(get_db)):
     tenant_id = resolve_default_tenant_id(db)
     return get_risk_dashboard(db, tenant_id)
 
-@router.post("/dashboard/candidates/{candidate_id}/add-to-queue", dependencies=[Depends(require_resource_permission("candidates", "edit"))])
+@router.post("/dashboard/candidates/{candidate_id}/add-to-queue", dependencies=[Depends(require_resource_permission("risk-dashboard", "edit"))])
 def add_candidate_to_queue(candidate_id: str, db: Session = Depends(get_db)):
     tenant_id = resolve_default_tenant_id(db)
     risk = db.query(CandidateDropRisk).filter(CandidateDropRisk.tenant_id == tenant_id, CandidateDropRisk.candidate_id == candidate_id).first()

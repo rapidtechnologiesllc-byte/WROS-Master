@@ -30,7 +30,7 @@ class ScreenDecisionRequest(BaseModel):
     notes: Optional[str] = None
 
 
-@router.get("", dependencies=[Depends(require_resource_permission("candidates", "view"))])
+@router.get("", dependencies=[Depends(require_resource_permission("convert-to-employee", "view"))])
 def list_pipelines(stage: Optional[str] = None, limit: int = 200, db: Session = Depends(get_db),
                    user=Depends(get_current_internal_user)):
     query = db.query(HiringPipeline).filter(HiringPipeline.closed_at.is_(None))
@@ -44,7 +44,7 @@ def list_pipelines(stage: Optional[str] = None, limit: int = 200, db: Session = 
          "blockers": p.blockers or [], "grandfathered": p.grandfathered} for p in rows]}
 
 
-@router.get("/candidate/{candidate_id}", dependencies=[Depends(require_resource_permission("candidates", "view"))])
+@router.get("/candidate/{candidate_id}", dependencies=[Depends(require_resource_permission("convert-to-employee", "view"))])
 def get_candidate_pipeline(candidate_id: str, db: Session = Depends(get_db)):
     try:
         pipeline = pipelines.get_or_create_pipeline(db, candidate_id)
@@ -55,7 +55,7 @@ def get_candidate_pipeline(candidate_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/candidate/{candidate_id}/screen",
-             dependencies=[Depends(require_resource_permission("candidates", "edit"))])
+             dependencies=[Depends(require_resource_permission("convert-to-employee", "edit"))])
 def screen_candidate(candidate_id: str, request: ScreenDecisionRequest, db: Session = Depends(get_db),
                      user=Depends(get_current_internal_user)):
     try:
@@ -70,7 +70,7 @@ def screen_candidate(candidate_id: str, request: ScreenDecisionRequest, db: Sess
 
 
 @router.post("/candidate/{candidate_id}/evaluate",
-             dependencies=[Depends(require_resource_permission("candidates", "edit"))])
+             dependencies=[Depends(require_resource_permission("convert-to-employee", "edit"))])
 def evaluate_candidate(candidate_id: str, db: Session = Depends(get_db), user=Depends(get_current_internal_user)):
     try:
         pipeline = pipelines.evaluate_and_act(db, candidate_id, "manual", actor=user.UserID)
@@ -80,7 +80,7 @@ def evaluate_candidate(candidate_id: str, db: Session = Depends(get_db), user=De
 
 
 @router.get("/candidate/{candidate_id}/onboarding",
-            dependencies=[Depends(require_resource_permission("candidates", "view"))])
+            dependencies=[Depends(require_resource_permission("convert-to-employee", "view"))])
 def candidate_onboarding(candidate_id: str, db: Session = Depends(get_db)):
     from app.models.candidate import Candidate
     from app.services.hiring_onboarding_service import portal_onboarding
@@ -92,7 +92,7 @@ def candidate_onboarding(candidate_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/preboarding-documents/{doc_id}/review",
-             dependencies=[Depends(require_resource_permission("candidates", "edit"))])
+             dependencies=[Depends(require_resource_permission("convert-to-employee", "edit"))])
 def review_preboarding_document(doc_id: int, request: DocumentReviewRequest, db: Session = Depends(get_db),
                                 user=Depends(get_current_internal_user)):
     from app.services.hiring_onboarding_service import OnboardingError, review_document

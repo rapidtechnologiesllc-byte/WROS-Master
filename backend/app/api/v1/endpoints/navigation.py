@@ -87,17 +87,13 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
         if not user_id:
             raise HTTPException(status_code=401, detail="User not identified")
 
-        # Load module/resource structure from init_resources.py
+        # Module/resource order from the contract; routes and labels from init_resources
         from app.seeds.init_resources import (MODULES_AND_RESOURCES, NAV_LABELS, NAV_TAB_RESOURCES,
                                              RESOURCE_EXTRA_PAGES, RESOURCE_ROUTES)
 
+        from app.contracts import MODULE_ICONS
+
         navigation_modules = {}
-        module_icons = {
-            "Personal": "LayoutDashboard", "Recruitment": "Users", "Workforce": "Users2",
-            "Finance": "BadgeDollarSign", "Sales": "Briefcase", "Project Management": "FolderKanban",
-            "Reporting": "BarChart3", "System": "Settings", "Executive": "TrendingUp",
-            "Admin": "Shield", "Executive Dashboards": "BarChart3", "AI & Automation": "Bot"
-        }
 
         # OPTIMIZATION: Batch load all user permissions ONCE (not per-resource)
         all_permissions = RoleTemplatePermissionService.get_user_permissions(db, user_id, tenant_id)
@@ -108,7 +104,7 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
         # Each page appears once, under the first module that lists it.
         seen_routes = set()
         for module_name, resource_names in MODULES_AND_RESOURCES.items():
-            module_icon = module_icons.get(module_name, "Briefcase")
+            module_icon = MODULE_ICONS.get(module_name, "Briefcase")
             navigation_modules[module_name] = {"label": module_name, "icon": module_icon, "items": []}
 
             for resource_name in resource_names:

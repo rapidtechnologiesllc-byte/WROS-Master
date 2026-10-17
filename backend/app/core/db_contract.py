@@ -242,27 +242,8 @@ def _initialize_rbac():
 
         catalog_tenant = primary_tenant_id(db)  # one shared module/resource catalog
 
-        # Define display names for modules (can enhance as needed)
-        module_display_names = {
-            "Personal": "Personal",
-            "Recruitment": "Recruitment",
-            "Workforce": "Workforce",
-            "Sales": "Sales",
-            "Project Management": "Project Management",
-            "Finance": "Finance",
-            "Reporting": "Reporting",
-            "System": "System",
-            "Executive": "Executive",
-            "Executive Dashboards": "Executive Dashboards",
-            "AI & Automation": "AI & Automation",
-            "Admin": "Admin",
-        }
-
-        # Use the authoritative contract structure
-        modules_data = {
-            module_name: module_display_names.get(module_name, module_name)
-            for module_name in MODULES_AND_RESOURCES.keys()
-        }
+        # Module display name = its contract name (renamed only through the contract)
+        modules_data = {module_name: module_name for module_name in MODULES_AND_RESOURCES.keys()}
 
         resources_data = MODULES_AND_RESOURCES
 
@@ -283,6 +264,9 @@ def _initialize_rbac():
             modules[module_name] = module
 
         db.commit()
+
+        # A resource the contract moved to another module keeps its row (and every grant on it)
+        _place_contract_resources(db, modules)
 
         # Create resources
         for module_name, resource_names in resources_data.items():
@@ -373,6 +357,36 @@ def _initialize_rbac():
 
     finally:
         db.close()
+
+def _place_contract_resources(db, modules) -> int:
+    """Regrouping the menu moves resources between modules in the contract. Grants and personal
+    overrides live on the Resource row, so a contract resource that has no row in its contract
+    module re-parents its existing canonical row (enabled first, then oldest) instead of getting a
+    new, grant-less row -- nobody gains or loses a permission because a menu group was renamed.
+    Modules no longer in the contract are then disabled (never deleted) by
+    _initialize_contract_catalog_only. Idempotent: a placed resource is left alone."""
+    from app.contracts.api_contract import MODULES_AND_RESOURCES
+
+    moved = 0
+    for module_name, resource_names in MODULES_AND_RESOURCES.items():
+        module = modules[module_name]
+        for resource_name in resource_names:
+            if db.query(Resource.id).filter(Resource.module_id == module.id, Resource.name == resource_name).first():
+                continue
+            existing = db.query(Resource).filter(Resource.name == resource_name) \
+                .order_by(Resource.enabled.desc(), Resource.id).first()
+            if existing is None:
+                continue  # brand-new resource: _initialize_rbac creates it
+            logger.info(f"[Contract] Moved resource {resource_name} (id {existing.id}) to module {module_name}")
+            existing.module_id = module.id
+            existing.enabled = True
+            moved += 1
+    if moved:
+        db.commit()
+        from app.services.role_template_permission_service import invalidate_permissions
+        invalidate_permissions()
+    return moved
+
 
 # Partner / BU Head role templates. Not system templates (those are seeded
 # with every permission); created once with this starting set, after which

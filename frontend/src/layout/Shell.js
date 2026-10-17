@@ -93,6 +93,8 @@ const iconForResource = (key) => ICON_MAP_BY_RESOURCE[String(key || "").replace(
 // Map icon names (strings from backend) to icon components
 const ICON_COMPONENTS_BY_NAME = {
   "Linkedin": Linkedin,
+  "LayoutDashboard": LayoutDashboard,
+  "Bot": Bot,
   "Users": Users,
   "Users2": Users2,
   "Briefcase": Briefcase,
