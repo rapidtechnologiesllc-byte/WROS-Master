@@ -31,8 +31,9 @@ RESOURCE_ROUTES = {
     "intervention-queue": "/recruiter/watch",
     "risk-dashboard": "/recruiter/watch",
     "thunder-analytics": "/recruiter/watch",
-    "candidate-review": "/hm-candidate-review",
-    "rehire-approval": "/recruiter/rehire-approvals",
+    # Hiring Manager Review: candidate review + rehire approvals, a tab each
+    "candidate-review": "/hm-review",
+    "rehire-approval": "/hm-review",
     # Workforce
     # bench / Staff Aug / Core: where every employee stands (CEO 2026-10-14)
     "workforce-overview": "/workforce",
@@ -93,8 +94,8 @@ NAV_LABELS = {
     "intervention-queue": "Recruiter Watch",
     "risk-dashboard": "Recruiter Watch",
     "thunder-analytics": "Recruiter Watch",
-    "candidate-review": "HM Candidate Review",
-    "rehire-approval": "Rehire Approvals",
+    "candidate-review": "Hiring Manager Review",
+    "rehire-approval": "Hiring Manager Review",
     "workforce-overview": "Workforce Overview",
     "htd-intake": "HTD Intake",
     "utilization-dashboard": "Utilization & Bench Cost",

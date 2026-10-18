@@ -104,6 +104,7 @@ ROUTE_MOVES = {
     "/submissions": "/pipeline", "/hiring-pipeline": "/pipeline",
     "/recruiter/intervention-queue": "/recruiter/watch", "/recruiter/risk-dashboard": "/recruiter/watch",
     "/recruiter/thunder-analytics": "/recruiter/watch",
+    "/hm-candidate-review": "/hm-review", "/recruiter/rehire-approvals": "/hm-review",
 }
 
 

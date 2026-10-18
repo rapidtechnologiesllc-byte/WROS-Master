@@ -193,7 +193,7 @@ export default function TopBar({
       "/allocations": ["Allocations"],
       "/projects": ["Projects"],
       "/htd-intake": ["HTD Intake"],
-      "/hm-candidate-review": ["HM Candidate Review"],
+      "/hm-review": ["Hiring Manager Review"],
       "/utilization-dashboard": ["Utilization Dashboard"],
       "/timesheets": ["Timesheets"],
       "/forecast": ["Forecast"],

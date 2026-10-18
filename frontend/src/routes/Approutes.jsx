@@ -53,7 +53,7 @@ import DemandConfirmationScreen from "../screens/DemandConfirmationScreen";
 import PipelineAndSubmissionsScreen from "../screens/PipelineAndSubmissionsScreen";
 import ProjectsScreen from "../screens/ProjectsScreen";
 import HtdIntakeScreen from "../screens/HtdIntakeScreen";
-import HmCandidateReviewScreen from "../screens/HmCandidateReviewScreen";
+import HmReviewScreen from "../screens/HmReviewScreen";
 import UtilizationDashboardScreen from "../screens/UtilizationDashboardScreen";
 import TimesheetsScreen from "../screens/TimesheetsScreen";
 import ForecastScreen from "../screens/ForecastScreen";
@@ -66,7 +66,6 @@ import CandidatePortalScreen from "../screens/CandidatePortalScreen";
 import EmailTemplatesScreen from "../screens/SettingsScreens/EmailTemplatesScreen";
 import APIKeysSettings from "../screens/APIKeysSettings";
 import RecruiterWatchScreen from "../screens/RecruiterWatchScreen";
-import RehireApprovalsScreen from "../screens/RehireApprovalsScreen";
 import BulkLaunchScreen from "../screens/BulkLaunchScreen";
 import TenantAIConfigScreen from "../screens/TenantAIConfigScreen";
 import MyTasksScreen from "../screens/MyTasksScreen";
@@ -565,7 +564,8 @@ function AuthenticatedApp() {
             <Route path="allocations" element={<Navigate to="/employees?tab=allocations" replace />} />
             <Route path="projects" element={<ProjectsScreen />} />
             <Route path="htd-intake" element={<HtdIntakeScreen />} />
-            <Route path="hm-candidate-review" element={<HmCandidateReviewScreen />} />
+            <Route path="hm-review" element={<HmReviewScreen />} />
+            <Route path="hm-candidate-review" element={<Navigate to="/hm-review?view=candidates" replace />} />
             <Route path="utilization-dashboard" element={<UtilizationDashboardScreen />} />
             <Route path="timesheets" element={<TimesheetsScreen />} />
             <Route path="forecast" element={<ForecastScreen />} />
@@ -586,7 +586,7 @@ function AuthenticatedApp() {
             <Route path="system-health" element={<SystemHealth />} />
             <Route path="recruiter/watch" element={<RecruiterWatchScreen />} />
             <Route path="recruiter/intervention-queue" element={<Navigate to="/recruiter/watch?view=queue" replace />} />
-            <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
+            <Route path="recruiter/rehire-approvals" element={<Navigate to="/hm-review?view=rehire" replace />} />
             <Route path="ceo-dashboard" element={<Navigate to="/" replace />} />
             <Route path="recruiter/risk-dashboard" element={<Navigate to="/recruiter/watch?view=risk" replace />} />
             <Route path="recruiter/thunder-analytics" element={<Navigate to="/recruiter/watch?view=thunder" replace />} />
