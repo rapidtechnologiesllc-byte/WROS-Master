@@ -217,43 +217,13 @@ export const getBusinessUnitId = () => {
 };
 
 /**
- * Get business unit name
+ * Check if user is a candidate. The account type the login endpoint returned decides this
+ * (CLAUDE.md: never a role name).
  */
-
-
-/**
- * Check if user can access full HRMS
- */
-
-
-/**
- * Check if user can access workspace
- */
-export const canAccessMyWorkspace = ({ permissionRole }) => {
-  const role = String(permissionRole || '').trim().toLowerCase();
-  return role !== 'candidate';
-};
-
-/**
- * Check if user is a candidate
- */
-export const isCandidateUser = ({ role, userType }) => {
-  const normalizedRole = String(role || '').trim().toUpperCase();
-  if (normalizedRole === 'CANDIDATE') return true;
+export const isCandidateUser = ({ userType }) => {
   const normalizedType = String(userType || '').trim().toLowerCase();
   return normalizedType === 'candidate';
 };
-
-/**
- * Get permission error message for UI display
- */
-
-
-/**
- * Get permission tooltip for UI display
- */
-
-
 
 export const canViewModule = (moduleName) => {
   const permissions = getStoredPermissions();

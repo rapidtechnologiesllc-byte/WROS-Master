@@ -418,7 +418,6 @@ export default function Shell({
             jobs={jobs}
             setSelectedCandidateData={setSelectedCandidateData}
             setSelectedJobId={setSelectedJobId}
-            hideTitle={true}
           />
           <div className="mt-4">
             <Outlet />

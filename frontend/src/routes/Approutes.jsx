@@ -34,7 +34,7 @@ import { adminRoutes } from "./AdminRoutes";
 import CandidateCreate from "../screens/CandidateCreate";
 import CandidateSearch from "../screens/CandidateSearch";
 import CandidateSelfService from "../screens/CandidateSelfService";
-import { canAccessMyWorkspace, hasPermission, homeDashboard, isCandidateUser } from "../utils/permissionsRoleTemplate";
+import { hasPermission, homeDashboard, isCandidateUser } from "../utils/permissionsRoleTemplate";
 import { useNavigate } from "react-router-dom";
 import CandidateDetailsWrapper from "./wrappers/CandidateDetailsWrapper";
 import JobWorkspaceWrapper from "./wrappers/JobWorkspaceWrapper";
@@ -304,7 +304,6 @@ export default function AppRoutes() {
   // Candidates get their own self-service app (decided before any hook runs)
   if (
     isCandidateUser({
-      role: localStorage.getItem("permission_role"),
       userType: String(localStorage.getItem("hrms_user_type") || "").trim().toLowerCase(),
     })
   ) {
@@ -491,11 +490,6 @@ function AuthenticatedApp() {
     return mapCandidateFromApi(res || {});
   };
 
-  const hasWorkspaceAccess = canAccessMyWorkspace({
-    permissionRole: storedRole,
-    jobTitle: storedJobTitle,
-  });
-
   // Root cause fix: Don't render Shell until permissions are loaded from /hr/me
   if (permissionsLoading) {
     return (
@@ -512,318 +506,277 @@ function AuthenticatedApp() {
     );
   }
 
-  if (hasWorkspaceAccess) {
-    return (
-      <>
-        <Routes>
+  return (
+    <>
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <Shell
+              role={storedRole}
+              onLogout={handleLogout}
+              candidates={candidates}
+              jobs={jobs}
+            />
+          }
+        >
           <Route
-            path="/"
+            index
             element={
-              <Shell
-                role={storedRole}
-                onLogout={handleLogout}
+              <DashboardRouter
+                jobTitle={storedJobTitle}
                 candidates={candidates}
                 jobs={jobs}
+                interviews={interviews}
+                offers={offers}
               />
             }
-          >
-            <Route
-              index
-              element={
-                <DashboardRouter
-                  jobTitle={storedJobTitle}
+          />
+
+          {/* Candidate-chat test simulator: not in the menu, reachable by URL for QA (ask-thunder) */}
+          <Route path="thunder" element={hasPermission("ask-thunder", "view") ? <ThunderChatScreen /> : <Navigate to="/" replace />} />
+
+          <Route path="resource-management" element={<Navigate to="/demand-vs-bench?view=bench" replace />} />
+
+          <Route path="core-pull" element={<CorePullScreen />} />
+          <Route path="client-management" element={<ClientManagementScreen />} />
+          <Route path="demand-confirmation" element={<DemandConfirmationScreen />} />
+          <Route path="employees" element={<EmployeesConsolidatedScreen />} />
+          <Route path="employee-conversion" element={<EmployeeConversionScreen />} />
+          <Route path="pipeline" element={<PipelineAndSubmissionsScreen />} />
+          <Route path="hiring-pipeline" element={<Navigate to="/pipeline?view=pipeline" replace />} />
+          <Route path="linkedin-pipeline" element={<LinkedInPipelineScreen />} />
+          <Route path="submissions" element={<Navigate to="/pipeline?view=submissions" replace />} />
+          <Route path="allocations" element={<Navigate to="/employees?tab=allocations" replace />} />
+          <Route path="projects" element={<ProjectsScreen />} />
+          <Route path="htd-intake" element={<HtdIntakeScreen />} />
+          <Route path="hm-review" element={<HmReviewScreen />} />
+          <Route path="hm-candidate-review" element={<Navigate to="/hm-review?view=candidates" replace />} />
+          <Route path="utilization-dashboard" element={<Navigate to="/workforce?view=utilization" replace />} />
+          <Route path="timesheets" element={<TimesheetsScreen />} />
+          <Route path="demand-vs-bench" element={<DemandVsBenchScreen />} />
+          <Route path="forecast" element={<Navigate to="/demand-vs-bench?view=forecast" replace />} />
+          <Route path="forecast-vs-actual" element={<ForecastVsActualScreen />} />
+          <Route path="invoices" element={<InvoicesScreen />} />
+          <Route path="invoice-management" element={<Navigate to="/invoices" replace />} />
+          <Route path="revenue" element={<RevenueScreen />} />
+          <Route path="opportunity-pipeline" element={<OpportunityPipelineScreen />} />
+          <Route path="executive-revenue-dashboard" element={<ExecutiveRevenueDashboardScreen />} />
+          <Route path="finance-operations" element={<Navigate to="/pnl?view=operations" replace />} />
+          <Route path="pnl" element={<PnlFinanceScreen />} />
+          <Route path="partner-roi" element={<Navigate to="/partner-dashboard" replace />} />
+          <Route path="ceo-fy-progress" element={<CEOUnifiedDashboard />} />
+          <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
+          <Route path="settings/locale" element={<TenantLocaleScreen />} />
+          <Route path="settings/templates" element={<EmailTemplatesScreen />} />
+          <Route path="api-keys" element={<APIKeysSettings />} />
+          <Route path="system-health" element={<SystemHealth />} />
+          <Route path="recruiter/watch" element={<RecruiterWatchScreen />} />
+          <Route path="recruiter/intervention-queue" element={<Navigate to="/recruiter/watch?view=queue" replace />} />
+          <Route path="recruiter/rehire-approvals" element={<Navigate to="/hm-review?view=rehire" replace />} />
+          <Route path="ceo-dashboard" element={<Navigate to="/" replace />} />
+          <Route path="recruiter/risk-dashboard" element={<Navigate to="/recruiter/watch?view=risk" replace />} />
+          <Route path="recruiter/thunder-analytics" element={<Navigate to="/recruiter/watch?view=thunder" replace />} />
+          <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
+          <Route path="admin/ai-config" element={<TenantAIConfigScreen />} />
+          <Route path="my-tasks" element={<MyTasksScreen />} />
+          <Route path="my-timesheet" element={<MyTimesheetScreen />} />
+          <Route path="my-expenses" element={<MyExpensesScreen />} />
+          <Route path="my-referrals" element={<MyReferralsScreen />} />
+          <Route path="admin/ticket-routing" element={<TicketRoutingAdminScreen />} />
+          <Route path="buddy-program" element={<BuddyProgramListScreen />} />
+          <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
+          <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
+          <Route path="admin/error-log" element={<ErrorLogScreen />} />
+          <Route path="admin/agent-config" element={<Navigate to="/admin/ai-config?tab=agents" replace />} />
+          <Route path="admin/users-access-control" element={<UsersAndAccessControl />} />
+          <Route path="admin/users-access-control/:section" element={<UsersAndAccessControl />} />
+          <Route path="admin/users-access-control/users/create" element={<UserFormPage />} />
+          <Route path="admin/users-access-control/users/:userId/edit" element={<UserFormPage />} />
+          {/* Business units are managed in one place: Users & Access Control > Business Units */}
+          <Route path="admin/business-units" element={<Navigate to="/admin/users-access-control/business-units" replace />} />
+          <Route path="admin/certifications" element={<CertificationManagementScreen />} />
+          <Route path="admin/agent-health" element={<AgentHealthScreen />} />
+          <Route path="admin/agent-state-dashboard" element={<Navigate to="/admin/agent-health?view=state" replace />} />
+          <Route path="admin/weekly-recap" element={<Navigate to="/admin/agent-health?view=recap" replace />} />
+          <Route path="admin/users-access-control/business-units/create" element={<BusinessUnitFormPage />} />
+          <Route path="admin/users-access-control/business-units/:buId/edit" element={<BusinessUnitFormPage />} />
+          <Route path="admin/users-access-control/delivery-centers/create" element={<DeliveryCenterFormPage />} />
+          <Route path="admin/users-access-control/delivery-centers/:dcId/edit" element={<DeliveryCenterFormPage />} />
+
+          <Route path="partner-dashboard" element={<PartnerHomeScreen />} />
+          <Route path="bi-explorer" element={<BIExplorerScreen />} />
+          <Route path="bu-head-dashboard" element={<BuHeadDashboardScreen />} />
+
+          <Route
+            path="candidates"
+            element={
+              <>
+                <SLABreachBanner />
+                <ConversationSearchBar />
+                <CandidateSearch
                   candidates={candidates}
                   jobs={jobs}
-                  interviews={interviews}
-                  offers={offers}
+                  onRefreshCandidates={refreshCandidates}
+                  onCreateCandidate={() => navigate("/candidates/create")}
                 />
-              }
-            />
+              </>
+            }
+          />
 
-            {/* Candidate-chat test simulator: not in the menu, reachable by URL for QA (ask-thunder) */}
-            <Route path="thunder" element={hasPermission("ask-thunder", "view") ? <ThunderChatScreen /> : <Navigate to="/" replace />} />
-
-            <Route path="resource-management" element={<Navigate to="/demand-vs-bench?view=bench" replace />} />
-
-            <Route path="core-pull" element={<CorePullScreen />} />
-            <Route path="client-management" element={<ClientManagementScreen />} />
-            <Route path="demand-confirmation" element={<DemandConfirmationScreen />} />
-            <Route path="employees" element={<EmployeesConsolidatedScreen />} />
-            <Route path="employee-conversion" element={<EmployeeConversionScreen />} />
-            <Route path="pipeline" element={<PipelineAndSubmissionsScreen />} />
-            <Route path="hiring-pipeline" element={<Navigate to="/pipeline?view=pipeline" replace />} />
-            <Route path="linkedin-pipeline" element={<LinkedInPipelineScreen />} />
-            <Route path="submissions" element={<Navigate to="/pipeline?view=submissions" replace />} />
-            <Route path="allocations" element={<Navigate to="/employees?tab=allocations" replace />} />
-            <Route path="projects" element={<ProjectsScreen />} />
-            <Route path="htd-intake" element={<HtdIntakeScreen />} />
-            <Route path="hm-review" element={<HmReviewScreen />} />
-            <Route path="hm-candidate-review" element={<Navigate to="/hm-review?view=candidates" replace />} />
-            <Route path="utilization-dashboard" element={<Navigate to="/workforce?view=utilization" replace />} />
-            <Route path="timesheets" element={<TimesheetsScreen />} />
-            <Route path="demand-vs-bench" element={<DemandVsBenchScreen />} />
-            <Route path="forecast" element={<Navigate to="/demand-vs-bench?view=forecast" replace />} />
-            <Route path="forecast-vs-actual" element={<ForecastVsActualScreen />} />
-            <Route path="invoices" element={<InvoicesScreen />} />
-            <Route path="invoice-management" element={<Navigate to="/invoices" replace />} />
-            <Route path="revenue" element={<RevenueScreen />} />
-            <Route path="opportunity-pipeline" element={<OpportunityPipelineScreen />} />
-            <Route path="executive-revenue-dashboard" element={<ExecutiveRevenueDashboardScreen />} />
-            <Route path="finance-operations" element={<Navigate to="/pnl?view=operations" replace />} />
-            <Route path="pnl" element={<PnlFinanceScreen />} />
-            <Route path="partner-roi" element={<Navigate to="/partner-dashboard" replace />} />
-            <Route path="ceo-fy-progress" element={<CEOUnifiedDashboard />} />
-            <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
-            <Route path="settings/locale" element={<TenantLocaleScreen />} />
-            <Route path="settings/templates" element={<EmailTemplatesScreen />} />
-            <Route path="api-keys" element={<APIKeysSettings />} />
-            <Route path="system-health" element={<SystemHealth />} />
-            <Route path="recruiter/watch" element={<RecruiterWatchScreen />} />
-            <Route path="recruiter/intervention-queue" element={<Navigate to="/recruiter/watch?view=queue" replace />} />
-            <Route path="recruiter/rehire-approvals" element={<Navigate to="/hm-review?view=rehire" replace />} />
-            <Route path="ceo-dashboard" element={<Navigate to="/" replace />} />
-            <Route path="recruiter/risk-dashboard" element={<Navigate to="/recruiter/watch?view=risk" replace />} />
-            <Route path="recruiter/thunder-analytics" element={<Navigate to="/recruiter/watch?view=thunder" replace />} />
-            <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
-            <Route path="admin/ai-config" element={<TenantAIConfigScreen />} />
-            <Route path="my-tasks" element={<MyTasksScreen />} />
-            <Route path="my-timesheet" element={<MyTimesheetScreen />} />
-            <Route path="my-expenses" element={<MyExpensesScreen />} />
-            <Route path="my-referrals" element={<MyReferralsScreen />} />
-            <Route path="admin/ticket-routing" element={<TicketRoutingAdminScreen />} />
-            <Route path="buddy-program" element={<BuddyProgramListScreen />} />
-            <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
-            <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
-            <Route path="admin/error-log" element={<ErrorLogScreen />} />
-            <Route path="admin/agent-config" element={<Navigate to="/admin/ai-config?tab=agents" replace />} />
-            <Route path="admin/users-access-control" element={<UsersAndAccessControl />} />
-            <Route path="admin/users-access-control/:section" element={<UsersAndAccessControl />} />
-            <Route path="admin/users-access-control/users/create" element={<UserFormPage />} />
-            <Route path="admin/users-access-control/users/:userId/edit" element={<UserFormPage />} />
-            {/* Business units are managed in one place: Users & Access Control > Business Units */}
-            <Route path="admin/business-units" element={<Navigate to="/admin/users-access-control/business-units" replace />} />
-            <Route path="admin/certifications" element={<CertificationManagementScreen />} />
-            <Route path="admin/agent-health" element={<AgentHealthScreen />} />
-            <Route path="admin/agent-state-dashboard" element={<Navigate to="/admin/agent-health?view=state" replace />} />
-            <Route path="admin/weekly-recap" element={<Navigate to="/admin/agent-health?view=recap" replace />} />
-            <Route path="admin/users-access-control/business-units/create" element={<BusinessUnitFormPage />} />
-            <Route path="admin/users-access-control/business-units/:buId/edit" element={<BusinessUnitFormPage />} />
-            <Route path="admin/users-access-control/delivery-centers/create" element={<DeliveryCenterFormPage />} />
-            <Route path="admin/users-access-control/delivery-centers/:dcId/edit" element={<DeliveryCenterFormPage />} />
-
-            <Route path="partner-dashboard" element={<PartnerHomeScreen />} />
-            <Route path="bi-explorer" element={<BIExplorerScreen />} />
-            <Route path="bu-head-dashboard" element={<BuHeadDashboardScreen />} />
-
-            <Route
-              path="candidates"
-              element={
-                <>
-                  <SLABreachBanner />
-                  <ConversationSearchBar />
-                  <CandidateSearch
-                    candidates={candidates}
-                    jobs={jobs}
-                    onRefreshCandidates={refreshCandidates}
-                    onCreateCandidate={() => navigate("/candidates/create")}
-                  />
-                </>
-              }
-            />
-
-            <Route
-              path="candidates/create"
-              element={
-                <CandidateCreate
-                  onSave={async (c) => {
-                    try {
-                      const fullCandidate = await fetchCandidateById(c.id);
-                      setCandidates((prev) => [fullCandidate, ...prev]);
-                      navigate(`/candidates/${fullCandidate.id}`);
-                    } catch (err) {
-                      console.error("Failed to fetch candidate after creation, adding minimal data:", err);
-                      // Add the candidate with minimal data if full fetch fails
-                      setCandidates((prev) => [c, ...prev]);
-                      navigate(`/candidates/${c.id}`);
-                    }
-                  }}
-                />
-              }
-            />
-
-            <Route
-              path="candidates/:candidateId"
-              element={
-                <CandidateDetailsWrapper
-                  refreshCandidates={refreshCandidates}
-                  fetchCandidateById={fetchCandidateById}
-                  updateCandidate={updateCandidate}
-                />
-              }
-            />
-
-            <Route
-              path="candidates/:candidateId/upload-documents"
-              element={
-                <DocumentUploadScreen candidateId={null} />
-              }
-            />
-
-            <Route
-              path="jobs"
-              element={
-                <JobsOverview
-                  jobs={jobs}
-                  onViewJob={(jobId) => {
-                    navigate(`/jobs/${jobId}/workspace`);
-                  }}
-                  onOpenJob={(jobId) => {
-                    navigate(`/jobs/${jobId}`);
-                  }}
-                  onPostToLinkedIn={async (jobId) => {
-                    try {
-                      const res = await postJobOnLinkedIn(jobId);
-                      notify(
-                        "LinkedIn",
-                        res?.message || "Job posted to LinkedIn.",
-                      );
-                    } catch (err) {
-                      notify(
-                        "LinkedIn",
-                        err.message || "Failed to post to LinkedIn.",
-                      );
-                    }
-                  }}
-                  onApproveJob={async (jobId) => {
-                    try {
-                      const response = await approveJob(jobId);
-                      await refreshJobs();
-                      notify(
-                        "Job",
-                        response?.message || `Approved job ${jobId}.`,
-                      );
-                    } catch (err) {
-                      notify("Job", err.message || "Failed to approve job.");
-                    }
-                  }}
-                  onDeleteJob={
-                    canDeleteJobs
-                      ? async (jobId) => {
-                          const ok = await confirmDialog(`Delete job ${jobId}?`);
-                          if (!ok) return;
-
-                          try {
-                            await deleteJob(jobId);
-                            await refreshJobs();
-                            notify("Job", `Deleted job ${jobId}.`);
-                          } catch (err) {
-                            notify(
-                              "Job",
-                              err.message || "Failed to delete job.",
-                            );
-                          }
-                        }
-                      : undefined
+          <Route
+            path="candidates/create"
+            element={
+              <CandidateCreate
+                onSave={async (c) => {
+                  try {
+                    const fullCandidate = await fetchCandidateById(c.id);
+                    setCandidates((prev) => [fullCandidate, ...prev]);
+                    navigate(`/candidates/${fullCandidate.id}`);
+                  } catch (err) {
+                    console.error("Failed to fetch candidate after creation, adding minimal data:", err);
+                    // Add the candidate with minimal data if full fetch fails
+                    setCandidates((prev) => [c, ...prev]);
+                    navigate(`/candidates/${c.id}`);
                   }
-                />
-              }
-            />
+                }}
+              />
+            }
+          />
 
-            <Route
-              path="jobs/create"
-              element={
-                <JobCreate
-                  onSave={(j) => {
-                    setJobs((prev) => [
-                      {
-                        ...j,
-                        hiringManagerName: j?.hiringManager || "-",
-                      },
-                      ...prev,
-                    ]);
-                    navigate(ROUTES.JOBS);
-                  }}
-                />
-              }
-            />
+          <Route
+            path="candidates/:candidateId"
+            element={
+              <CandidateDetailsWrapper
+                refreshCandidates={refreshCandidates}
+                fetchCandidateById={fetchCandidateById}
+                updateCandidate={updateCandidate}
+              />
+            }
+          />
 
-            <Route
-              path="jobs/:jobId/workspace"
-              element={
-                <JobWorkspaceWrapper
-                  users={users}
-                  candidates={candidates}
-                  notify={notify}
-                />
-              }
-            />
+          <Route
+            path="candidates/:candidateId/upload-documents"
+            element={
+              <DocumentUploadScreen candidateId={null} />
+            }
+          />
 
-            <Route
-              path="checklist-templates"
-              element={<ChecklistTemplatesScreen />}
-            />
+          <Route
+            path="jobs"
+            element={
+              <JobsOverview
+                jobs={jobs}
+                onViewJob={(jobId) => {
+                  navigate(`/jobs/${jobId}/workspace`);
+                }}
+                onOpenJob={(jobId) => {
+                  navigate(`/jobs/${jobId}`);
+                }}
+                onPostToLinkedIn={async (jobId) => {
+                  try {
+                    const res = await postJobOnLinkedIn(jobId);
+                    notify(
+                      "LinkedIn",
+                      res?.message || "Job posted to LinkedIn.",
+                    );
+                  } catch (err) {
+                    notify(
+                      "LinkedIn",
+                      err.message || "Failed to post to LinkedIn.",
+                    );
+                  }
+                }}
+                onApproveJob={async (jobId) => {
+                  try {
+                    const response = await approveJob(jobId);
+                    await refreshJobs();
+                    notify(
+                      "Job",
+                      response?.message || `Approved job ${jobId}.`,
+                    );
+                  } catch (err) {
+                    notify("Job", err.message || "Failed to approve job.");
+                  }
+                }}
+                onDeleteJob={
+                  canDeleteJobs
+                    ? async (jobId) => {
+                        const ok = await confirmDialog(`Delete job ${jobId}?`);
+                        if (!ok) return;
 
-            <Route
-              path="offers-listing"
-              element={
-                <OfferListing />
-              }
-            />
+                        try {
+                          await deleteJob(jobId);
+                          await refreshJobs();
+                          notify("Job", `Deleted job ${jobId}.`);
+                        } catch (err) {
+                          notify(
+                            "Job",
+                            err.message || "Failed to delete job.",
+                          );
+                        }
+                      }
+                    : undefined
+                }
+              />
+            }
+          />
 
-            {adminRoutes}
+          <Route
+            path="jobs/create"
+            element={
+              <JobCreate
+                onSave={(j) => {
+                  setJobs((prev) => [
+                    {
+                      ...j,
+                      hiringManagerName: j?.hiringManager || "-",
+                    },
+                    ...prev,
+                  ]);
+                  navigate(ROUTES.JOBS);
+                }}
+              />
+            }
+          />
 
-            <Route
-              path="*"
-              element={
-                <div className="mx-auto max-w-2xl p-12 text-center">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-2">Page not found</h2>
-                  <p className="text-gray-600">This screen doesn't exist yet, or the link is out of date.</p>
-                </div>
-              }
-            />
-          </Route>
-        </Routes>
-        <ToastContainer position="top-right" autoClose={3000} />
-      </>
-    );
-  }
+          <Route
+            path="jobs/:jobId/workspace"
+            element={
+              <JobWorkspaceWrapper
+                users={users}
+                candidates={candidates}
+                notify={notify}
+              />
+            }
+          />
 
-  // Fallback: user does not have workspace access
-  return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '100vh',
-      flexDirection: 'column',
-      fontFamily: 'Inter, system-ui, sans-serif',
-      color: '#666'
-    }}>
-      <div style={{ textAlign: 'center', maxWidth: '500px' }}>
-        <h1 style={{ fontSize: '2rem', marginBottom: '1rem', color: '#d32f2f' }}>
-          Access Denied
-        </h1>
-        <p style={{ fontSize: '1.1rem', marginBottom: '1.5rem' }}>
-          You do not have permission to access this workspace.
-        </p>
-        <button
-          onClick={() => {
-            localStorage.removeItem("hrms_token");
-            window.location.href = "/";
-          }}
-          style={{
-            padding: '0.75rem 1.5rem',
-            fontSize: '1rem',
-            backgroundColor: '#F58220',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer'
-          }}
-        >
-          Logout &amp; Sign In
-        </button>
-      </div>
-    </div>
+          <Route
+            path="checklist-templates"
+            element={<ChecklistTemplatesScreen />}
+          />
+
+          <Route
+            path="offers-listing"
+            element={
+              <OfferListing />
+            }
+          />
+
+          {adminRoutes}
+
+          <Route
+            path="*"
+            element={
+              <div className="mx-auto max-w-2xl p-12 text-center">
+                <h2 className="text-lg font-semibold text-gray-900 mb-2">Page not found</h2>
+                <p className="text-gray-600">This screen doesn't exist yet, or the link is out of date.</p>
+              </div>
+            }
+          />
+        </Route>
+      </Routes>
+      <ToastContainer position="top-right" autoClose={3000} />
+    </>
   );
 }
