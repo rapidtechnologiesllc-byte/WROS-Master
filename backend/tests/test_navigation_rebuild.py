@@ -102,6 +102,8 @@ INTENDED_ADDITIONS = {"/forecast-vs-actual": "forecasts"}  # route -> resource w
 # reached any of the parts reaches the merged screen (its tabs follow the same permissions).
 ROUTE_MOVES = {
     "/submissions": "/pipeline", "/hiring-pipeline": "/pipeline",
+    "/recruiter/intervention-queue": "/recruiter/watch", "/recruiter/risk-dashboard": "/recruiter/watch",
+    "/recruiter/thunder-analytics": "/recruiter/watch",
 }
 
 

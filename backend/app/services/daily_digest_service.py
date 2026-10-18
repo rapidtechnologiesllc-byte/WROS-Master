@@ -249,7 +249,7 @@ def format_whatsapp_digest(digest: Dict) -> str:
         risks_str = ", ".join(f"{r['name']} ({r['score']})" for r in digest["top_risks"])
         lines.append(f"⚠️ *Top Risks:* {risks_str}")
     lines.append("")
-    lines.append(f"View full dashboard: {Settings.FRONTEND_BASE_URL.rstrip('/')}/recruiter/risk-dashboard")
+    lines.append(f"View full dashboard: {Settings.FRONTEND_BASE_URL.rstrip('/')}/recruiter/watch?view=risk")
     return "\n".join(lines)
 
 def format_email_digest_html(digest: Dict) -> str:
@@ -272,7 +272,7 @@ def format_email_digest_html(digest: Dict) -> str:
     {link_list(digest['interviews_today'], lambda i: f"{i['name']} — {i['level']} — {i['local_time']} with {i['interviewer']}")}
     <h3>Top Risks</h3>
     {link_list(digest['top_risks'], lambda r: f"{r['name']} — {r['score']} ({r['top_signal']})")}
-    <p><a href="{Settings.FRONTEND_BASE_URL.rstrip('/')}/recruiter/risk-dashboard">View Full Dashboard</a></p>
+    <p><a href="{Settings.FRONTEND_BASE_URL.rstrip('/')}/recruiter/watch?view=risk">View Full Dashboard</a></p>
     <p>-- Thunder, your AI Recruiting Assistant<br/>BlitzenX</p>
     """
     return html

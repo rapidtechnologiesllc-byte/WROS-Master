@@ -27,9 +27,10 @@ RESOURCE_ROUTES = {
     "submissions": "/pipeline",
     "convert-to-employee": "/pipeline",
     "offer-letters": "/offers-listing",
-    "intervention-queue": "/recruiter/intervention-queue",
-    "risk-dashboard": "/recruiter/risk-dashboard",
-    "thunder-analytics": "/recruiter/thunder-analytics",
+    # Recruiter Watch: intervention queue + risk + Thunder analytics, a tab each
+    "intervention-queue": "/recruiter/watch",
+    "risk-dashboard": "/recruiter/watch",
+    "thunder-analytics": "/recruiter/watch",
     "candidate-review": "/hm-candidate-review",
     "rehire-approval": "/recruiter/rehire-approvals",
     # Workforce
@@ -89,6 +90,9 @@ NAV_LABELS = {
     "submissions": "Pipeline & Submissions",
     "convert-to-employee": "Pipeline & Submissions",
     "offer-letters": "Offers",
+    "intervention-queue": "Recruiter Watch",
+    "risk-dashboard": "Recruiter Watch",
+    "thunder-analytics": "Recruiter Watch",
     "candidate-review": "HM Candidate Review",
     "rehire-approval": "Rehire Approvals",
     "workforce-overview": "Workforce Overview",

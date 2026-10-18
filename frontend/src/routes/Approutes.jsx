@@ -65,10 +65,8 @@ import PublicThunderChatScreen from "../screens/PublicThunderChatScreen";
 import CandidatePortalScreen from "../screens/CandidatePortalScreen";
 import EmailTemplatesScreen from "../screens/SettingsScreens/EmailTemplatesScreen";
 import APIKeysSettings from "../screens/APIKeysSettings";
-import InterventionQueueScreen from "../screens/InterventionQueueScreen";
+import RecruiterWatchScreen from "../screens/RecruiterWatchScreen";
 import RehireApprovalsScreen from "../screens/RehireApprovalsScreen";
-import RiskDashboardScreen from "../screens/RiskDashboardScreen";
-import ThunderAnalyticsScreen from "../screens/ThunderAnalyticsScreen";
 import BulkLaunchScreen from "../screens/BulkLaunchScreen";
 import TenantAIConfigScreen from "../screens/TenantAIConfigScreen";
 import MyTasksScreen from "../screens/MyTasksScreen";
@@ -586,11 +584,12 @@ function AuthenticatedApp() {
             <Route path="settings/templates" element={<EmailTemplatesScreen />} />
             <Route path="api-keys" element={<APIKeysSettings />} />
             <Route path="system-health" element={<SystemHealth />} />
-            <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
+            <Route path="recruiter/watch" element={<RecruiterWatchScreen />} />
+            <Route path="recruiter/intervention-queue" element={<Navigate to="/recruiter/watch?view=queue" replace />} />
             <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
             <Route path="ceo-dashboard" element={<Navigate to="/" replace />} />
-            <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
-            <Route path="recruiter/thunder-analytics" element={<ThunderAnalyticsScreen />} />
+            <Route path="recruiter/risk-dashboard" element={<Navigate to="/recruiter/watch?view=risk" replace />} />
+            <Route path="recruiter/thunder-analytics" element={<Navigate to="/recruiter/watch?view=thunder" replace />} />
             <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
             <Route path="admin/ai-config" element={<TenantAIConfigScreen />} />
             <Route path="my-tasks" element={<MyTasksScreen />} />
