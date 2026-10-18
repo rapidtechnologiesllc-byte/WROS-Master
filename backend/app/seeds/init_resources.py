@@ -41,7 +41,7 @@ RESOURCE_ROUTES = {
     "timesheets": "/timesheets",
     "buddy-program": "/buddy-program",
     "htd-intake": "/htd-intake",
-    "resource-forecast": "/forecast",
+    "resource-forecast": "/demand-vs-bench",  # Demand vs Bench (forecast + bench matches tabs)
     "utilization-dashboard": "/workforce",  # a tab of Workforce Overview
     # Sales & Delivery
     "clients": "/client-management",
@@ -98,6 +98,7 @@ NAV_LABELS = {
     "rehire-approval": "Hiring Manager Review",
     "workforce-overview": "Workforce Overview",
     "htd-intake": "HTD Intake",
+    "resource-forecast": "Demand vs Bench",
     "utilization-dashboard": "Workforce Overview",
     "revenue": "P&L",
     "sales-ops": "Revenue Health",

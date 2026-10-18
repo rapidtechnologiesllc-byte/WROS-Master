@@ -40,7 +40,7 @@ import CandidateDetailsWrapper from "./wrappers/CandidateDetailsWrapper";
 import JobWorkspaceWrapper from "./wrappers/JobWorkspaceWrapper";
 import { ROUTES } from "../utils/Routes";
 import ThunderChatScreen from "../screens/ThunderChatScreen";
-import ResourceManagementScreen from "../screens/ResourceManagementScreen";
+import DemandVsBenchScreen from "../screens/DemandVsBenchScreen";
 import CorePullScreen from "../screens/CorePullScreen";
 import ClientManagementScreen from "../screens/ClientManagementScreen";
 import OpportunityPipelineScreen from "../screens/OpportunityPipelineScreen";
@@ -55,7 +55,6 @@ import ProjectsScreen from "../screens/ProjectsScreen";
 import HtdIntakeScreen from "../screens/HtdIntakeScreen";
 import HmReviewScreen from "../screens/HmReviewScreen";
 import TimesheetsScreen from "../screens/TimesheetsScreen";
-import ForecastScreen from "../screens/ForecastScreen";
 import ForecastVsActualScreen from "../screens/ForecastVsActualScreen";
 import InvoicesScreen from "../screens/InvoicesScreen";
 import RevenueScreen from "../screens/RevenueScreen";
@@ -546,10 +545,7 @@ function AuthenticatedApp() {
             {/* Candidate-chat test simulator: not in the menu, reachable by URL for QA (ask-thunder) */}
             <Route path="thunder" element={hasPermission("ask-thunder", "view") ? <ThunderChatScreen /> : <Navigate to="/" replace />} />
 
-            <Route
-              path="resource-management"
-              element={<ResourceManagementScreen />}
-            />
+            <Route path="resource-management" element={<Navigate to="/demand-vs-bench?view=bench" replace />} />
 
             <Route path="core-pull" element={<CorePullScreen />} />
             <Route path="client-management" element={<ClientManagementScreen />} />
@@ -567,7 +563,8 @@ function AuthenticatedApp() {
             <Route path="hm-candidate-review" element={<Navigate to="/hm-review?view=candidates" replace />} />
             <Route path="utilization-dashboard" element={<Navigate to="/workforce?view=utilization" replace />} />
             <Route path="timesheets" element={<TimesheetsScreen />} />
-            <Route path="forecast" element={<ForecastScreen />} />
+            <Route path="demand-vs-bench" element={<DemandVsBenchScreen />} />
+            <Route path="forecast" element={<Navigate to="/demand-vs-bench?view=forecast" replace />} />
             <Route path="forecast-vs-actual" element={<ForecastVsActualScreen />} />
             <Route path="invoices" element={<InvoicesScreen />} />
             <Route path="invoice-management" element={<Navigate to="/invoices" replace />} />
