@@ -66,8 +66,9 @@ RESOURCE_ROUTES = {
     "admin-agent-state": "/admin/agent-health",
     "admin-weekly-recap": "/admin/agent-health",
     "message-queue": "/admin/messagequeue",
-    "slm-dashboard": "/admin/slm-dashboard",
-    "slm-training-data": "/admin/slm-training",
+    # SLM Learning: model + training data + learning transcript, a tab each
+    "slm-dashboard": "/admin/slm",
+    "slm-training-data": "/admin/slm",
     "ai-config": "/admin/ai-config",
     # Admin & Settings
     "users-access-control": "/admin/users-access-control/users",
@@ -108,9 +109,9 @@ NAV_LABELS = {
     "goals": "Goals & Revenue",
     "bi-explorer": "BI Explorer",
     "admin-agent-state": "Agent Health",
-    "slm-dashboard": "SLM Dashboard",
+    "slm-dashboard": "SLM Learning",
     "admin-weekly-recap": "Agent Health",
-    "slm-training-data": "SLM Training Data",
+    "slm-training-data": "SLM Learning",
     "ai-config": "AI Config",
     "users-access-control": "Users & Access",
     "locale-currency": "Locale & Currency",
