@@ -77,8 +77,7 @@ import CEOUnifiedDashboard from "../screens/CEOUnifiedDashboard";
 import CFOAgentScreen from "../screens/CFOAgentScreen";
 import ConversationSearchBar from "../components/ConversationSearchBar";
 import SLABreachBanner from "../components/SLABreachBanner";
-import AdminAgentStateDashboard from "../screens/AdminAgentStateDashboard";
-import AdminWeeklyRecapDashboard from "../screens/AdminWeeklyRecapDashboard";
+import AgentHealthScreen from "../screens/AgentHealthScreen";
 import EmployeeConversionScreen from "../screens/EmployeeConversionScreen";
 import ForcePasswordReset from "../pages/ForcePasswordReset";
 import CertificationManagementScreen from "../screens/CertificationManagementScreen";
@@ -604,8 +603,9 @@ function AuthenticatedApp() {
             {/* Business units are managed in one place: Users & Access Control > Business Units */}
             <Route path="admin/business-units" element={<Navigate to="/admin/users-access-control/business-units" replace />} />
             <Route path="admin/certifications" element={<CertificationManagementScreen />} />
-            <Route path="admin/agent-state-dashboard" element={<AdminAgentStateDashboard />} />
-            <Route path="admin/weekly-recap" element={<AdminWeeklyRecapDashboard />} />
+            <Route path="admin/agent-health" element={<AgentHealthScreen />} />
+            <Route path="admin/agent-state-dashboard" element={<Navigate to="/admin/agent-health?view=state" replace />} />
+            <Route path="admin/weekly-recap" element={<Navigate to="/admin/agent-health?view=recap" replace />} />
             <Route path="admin/users-access-control/business-units/create" element={<BusinessUnitFormPage />} />
             <Route path="admin/users-access-control/business-units/:buId/edit" element={<BusinessUnitFormPage />} />
             <Route path="admin/users-access-control/delivery-centers/create" element={<DeliveryCenterFormPage />} />

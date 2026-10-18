@@ -62,8 +62,9 @@ RESOURCE_ROUTES = {
     "partner-dashboard": "/partner-dashboard",
     "bi-explorer": "/bi-explorer",
     # AI Operations
-    "admin-agent-state": "/admin/agent-state-dashboard",
-    "admin-weekly-recap": "/admin/weekly-recap",
+    # Agent Health: agent state + weekly recap, a tab each
+    "admin-agent-state": "/admin/agent-health",
+    "admin-weekly-recap": "/admin/agent-health",
     "message-queue": "/admin/messagequeue",
     "slm-dashboard": "/admin/slm-dashboard",
     "slm-training-data": "/admin/slm-training",
@@ -106,9 +107,9 @@ NAV_LABELS = {
     "forecasts": "Forecast vs Actual",
     "goals": "Goals & Revenue",
     "bi-explorer": "BI Explorer",
-    "admin-agent-state": "Agent State",
+    "admin-agent-state": "Agent Health",
     "slm-dashboard": "SLM Dashboard",
-    "admin-weekly-recap": "Weekly Recap",
+    "admin-weekly-recap": "Agent Health",
     "slm-training-data": "SLM Training Data",
     "ai-config": "AI Config",
     "users-access-control": "Users & Access",

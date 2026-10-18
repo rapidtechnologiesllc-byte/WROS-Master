@@ -106,6 +106,7 @@ ROUTE_MOVES = {
     "/recruiter/thunder-analytics": "/recruiter/watch",
     "/hm-candidate-review": "/hm-review", "/recruiter/rehire-approvals": "/hm-review",
     "/utilization-dashboard": "/workforce", "/forecast": "/demand-vs-bench", "/finance-operations": "/pnl",
+    "/admin/agent-state-dashboard": "/admin/agent-health", "/admin/weekly-recap": "/admin/agent-health",
 }
 
 
