@@ -625,7 +625,7 @@ def create_user(
             "status": "queued",
             "message_id": message_id,
             "user_email": request.user_email,
-            "polling_endpoint": f"/api/v1/tasks/{message_id}/status",
+            "polling_endpoint": f"/api/v1/message-queue/tasks/{message_id}/status",
             "polling_interval_seconds": 3
         }
 
@@ -813,7 +813,7 @@ def create_user_with_roles(
             "message_id": message_id,
             "user_email": request.user_email,
             "user_name": request.user_name,
-            "polling_endpoint": f"/api/v1/tasks/{message_id}/status",
+            "polling_endpoint": f"/api/v1/message-queue/tasks/{message_id}/status",
             "polling_interval_seconds": 3
         }
 

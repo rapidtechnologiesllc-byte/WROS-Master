@@ -26,9 +26,9 @@ def get_icon_for_resource(resource_name: str) -> str:
         "interview_feedback": "MessageSquare", "offer_approve": "CheckCircle",
         # Workforce
         "employees": "Users2", "allocations": "BarChart2", "projects": "FolderOpen",
-        "timesheets": "Clock", "training_certification": "Award", "buddy_program": "Users",
+        "timesheets": "Clock", "buddy_program": "Users",
         # Finance
-        "invoices": "Receipt", "expenses": "DollarSign", "reports": "BarChart3",
+        "invoices": "Receipt", "expenses": "DollarSign",
         "timesheets": "Clock", "revenue": "TrendingUp", "finance_operations": "Settings",
         # Admin
         "users": "Shield", "roles": "Lock", "role_templates": "Settings",

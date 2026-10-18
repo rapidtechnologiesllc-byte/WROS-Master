@@ -142,7 +142,7 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
         "skipped_duplicates": skipped_duplicates,
         "errors": errors,
         "message_ids": imported_message_ids,  # For polling candidate creation status
-        "polling_endpoint_template": "/api/v1/message-queue/status/{message_id}",
+        "polling_endpoint_template": "/api/v1/message-queue/tasks/{message_id}/status",
         "polling_interval_seconds": 2,
     }
 

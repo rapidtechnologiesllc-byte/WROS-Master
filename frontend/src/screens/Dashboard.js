@@ -10,6 +10,7 @@ import {
 import { Button, Card, StatusBadge } from "../components/ui";
 import { useNavigate } from "react-router-dom";
 import LinkedInActivityTable from "../components/LinkedInActivityTable";
+import { ROUTES } from "../utils/Routes";
 import { hasPermission, isOrgLevel } from "../utils/permissionsRoleTemplate";
 
 function StatCard({ title, value, icon, onClick }) {
@@ -149,7 +150,7 @@ export default function Dashboard({
           <Button
             variant="secondary"
             className="mt-3 w-full"
-            onClick={() => navigate("/offers")}
+            onClick={() => navigate(ROUTES.OFFERS_LISTING)}
           >
             Manage Offers
           </Button>

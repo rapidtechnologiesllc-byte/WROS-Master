@@ -209,6 +209,27 @@ def test_executive_duplicates_are_gone_from_the_catalogue():
     assert not {"ceo-dashboard", "cfo-dashboard", "bu-head-dashboard", "allocations", "ask-thunder"} & set(RESOURCE_ROUTES)
 
 
+RETIRED_RESOURCES = {"onboarding", "budget", "schedule", "payroll", "reports", "invoice-management",
+                     "executive-revenue-dashboard", "analytics", "ceo-dashboard-view", "cfo-dashboard-view",
+                     "partner-dashboard-view", "bu-head-dashboard-view"}
+
+
+def test_resources_that_gated_nothing_left_the_catalogue():
+    """CEO decision 4: they gated no screen and no API. Existing grants on them are disabled by
+    _initialize_contract_catalog_only, not deleted (test above)."""
+    from app.core.db_contract import LEADERSHIP_ROLES
+
+    in_contract = {r for names in MODULES_AND_RESOURCES.values() for r in names}
+    assert not RETIRED_RESOURCES & in_contract
+    for spec in LEADERSHIP_ROLES.values():  # a fresh database would refuse unknown names
+        assert not RETIRED_RESOURCES & {r for names in spec["permissions"].values() for r in names}
+    checked = set()
+    for path in (ENDPOINTS.parent.parent.parent).rglob("*.py"):
+        text = path.read_text()
+        checked |= {r for r in RETIRED_RESOURCES if f'"{r}",' in text and "permission" in text and path.name != "db_contract.py"}
+    assert not checked
+
+
 def _position(db, name, code, rank):
     from app.models.org_structure import OrgPosition
 

@@ -70,7 +70,6 @@ import RehireApprovalsScreen from "../screens/RehireApprovalsScreen";
 import RiskDashboardScreen from "../screens/RiskDashboardScreen";
 import ThunderAnalyticsScreen from "../screens/ThunderAnalyticsScreen";
 import BulkLaunchScreen from "../screens/BulkLaunchScreen";
-import AdminAgentConfig from "../screens/AdminAgentConfig";
 import TenantAIConfigScreen from "../screens/TenantAIConfigScreen";
 import MyTasksScreen from "../screens/MyTasksScreen";
 import MyTimesheetScreen from "../screens/MyTimesheetScreen";
@@ -89,7 +88,6 @@ import AdminWeeklyRecapDashboard from "../screens/AdminWeeklyRecapDashboard";
 import EmployeeConversionScreen from "../screens/EmployeeConversionScreen";
 import HiringPipelineScreen from "../screens/HiringPipelineScreen";
 import ForcePasswordReset from "../pages/ForcePasswordReset";
-import TrainingCertificationDashboard from "../screens/TrainingCertificationDashboard";
 import CertificationManagementScreen from "../screens/CertificationManagementScreen";
 import BIExplorerScreen from "../screens/BIExplorerScreen";
 import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
@@ -604,7 +602,7 @@ function AuthenticatedApp() {
             <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
             <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
             <Route path="admin/error-log" element={<ErrorLogScreen />} />
-            <Route path="admin/agent-config" element={<AdminAgentConfig />} />
+            <Route path="admin/agent-config" element={<Navigate to="/admin/ai-config?tab=agents" replace />} />
             <Route path="admin/users-access-control" element={<UsersAndAccessControl />} />
             <Route path="admin/users-access-control/:section" element={<UsersAndAccessControl />} />
             <Route path="admin/users-access-control/users/create" element={<UserFormPage />} />
@@ -619,7 +617,6 @@ function AuthenticatedApp() {
             <Route path="admin/users-access-control/delivery-centers/create" element={<DeliveryCenterFormPage />} />
             <Route path="admin/users-access-control/delivery-centers/:dcId/edit" element={<DeliveryCenterFormPage />} />
 
-            <Route path="training-certification" element={<TrainingCertificationDashboard />} />
             <Route path="partner-dashboard" element={<PartnerHomeScreen />} />
             <Route path="bi-explorer" element={<BIExplorerScreen />} />
             <Route path="bu-head-dashboard" element={<BuHeadDashboardScreen />} />

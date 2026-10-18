@@ -10,7 +10,7 @@
 // Hiring-Manager limitedMode single-interview review card (a different,
 // narrower context this merge doesn't touch).
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileText, X, Loader, Upload, AlertCircle, CheckCircle } from "lucide-react";
+import { FileText, X, Loader, AlertCircle, CheckCircle } from "lucide-react";
 import { hasPermission } from "../../utils/permissionsRoleTemplate";
 import {
   createCandidateHistoryEvent,
@@ -140,10 +140,6 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
   const [showLogInterviewModal, setShowLogInterviewModal] = useState(false);
   const [logInterviewNote, setLogInterviewNote] = useState("");
 
-  const [showTranscriptModal, setShowTranscriptModal] = useState(false);
-  const [transcriptFile, setTranscriptFile] = useState(null);
-  const [transcriptNote, setTranscriptNote] = useState("");
-  const [uploadingTranscript, setUploadingTranscript] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!candidateId) return;
@@ -664,57 +660,6 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
     }
   };
 
-  const handleUploadTranscript = async () => {
-    if (!transcriptFile) {
-      setActionError("Please select a transcript file");
-      return;
-    }
-    try {
-      setUploadingTranscript(true);
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const transcriptText = e.target.result;
-
-        // Send transcript to AI/Thunder service for intelligence analysis
-        try {
-          const response = await fetch(`/api/ai-agent/analyze-transcript`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              candidate_id: candidateId,
-              transcript: transcriptText,
-              note: transcriptNote,
-            }),
-          });
-
-          if (!response.ok) throw new Error("Failed to process transcript");
-
-          // Log the transcript upload as an activity
-          await createCandidateHistoryEvent(candidateId, {
-            event_type: "Interview Transcript Uploaded",
-            note: `Transcript analyzed and intelligence updated${transcriptNote ? `: ${transcriptNote}` : ""}`,
-          });
-
-          await fetchData();
-          setActionSuccess("Transcript processed and intelligence updated successfully");
-          setShowTranscriptModal(false);
-          setTranscriptFile(null);
-          setTranscriptNote("");
-          setUploadingTranscript(false);
-        } catch (err) {
-          console.error("Failed to process transcript", err);
-          setActionError("Failed to process transcript with AI service");
-          setUploadingTranscript(false);
-        }
-      };
-      reader.readAsText(transcriptFile);
-    } catch (err) {
-      console.error("Failed to read transcript file", err);
-      setActionError("Failed to read transcript file");
-      setUploadingTranscript(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="space-y-6">
@@ -843,7 +788,6 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
                           onViewDetails={() => openDetailsModal(interviewId)}
                           onReschedule={canEditInterviews ? () => openRescheduleModal(interview) : undefined}
                           onCancel={canEditInterviews ? () => openCancelModal(interview) : undefined}
-                          onUploadTranscript={() => setShowTranscriptModal(true)}
                         />
                       );
                     })}
@@ -854,10 +798,10 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
           )}
         </SectionCard>
 
-        <SectionCard title="Log Interview & Upload Transcripts">
+        <SectionCard title="Log Interview">
           <div className="space-y-4">
             <div className="text-sm text-gray-600">
-              Log feedback and upload transcripts for completed interviews, or manually add past interview details.
+              Log feedback for completed interviews, or manually add past interview details.
             </div>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button
@@ -867,14 +811,6 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
               >
                 <FileText className="h-4 w-4" />
                 Log Interview
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowTranscriptModal(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-              >
-                <Upload className="h-4 w-4" />
-                Upload Transcript
               </button>
             </div>
           </div>
@@ -1020,89 +956,6 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
         </div>
       )}
 
-      {/* Transcript Upload Modal */}
-      {showTranscriptModal && (
-        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
-            <div className="border-b px-6 py-5 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Upload Interview Transcript</h2>
-              <button
-                onClick={() => {
-                  setShowTranscriptModal(false);
-                  setTranscriptFile(null);
-                  setTranscriptNote("");
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Transcript File
-                </label>
-                <label className="flex items-center justify-center gap-2 cursor-pointer rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-6 hover:border-blue-400 hover:bg-blue-50 transition">
-                  <Upload className="h-5 w-5 text-gray-600" />
-                  <div className="text-center">
-                    <p className="text-sm font-medium text-gray-700">
-                      {transcriptFile ? transcriptFile.name : "Click to upload transcript"}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">TXT, DOC, or PDF files</p>
-                  </div>
-                  <input
-                    type="file"
-                    accept=".txt,.doc,.docx,.pdf"
-                    onChange={(e) => setTranscriptFile(e.target.files?.[0] || null)}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Additional Notes (Optional)
-                </label>
-                <textarea
-                  value={transcriptNote}
-                  onChange={(e) => setTranscriptNote(e.target.value)}
-                  placeholder="Add any context about this interview (e.g., Interview round, key topics discussed)"
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-500 resize-none h-24"
-                />
-              </div>
-
-              <div className="rounded-lg bg-blue-50 border border-blue-100 px-4 py-3">
-                <p className="text-xs text-blue-800">
-                  <strong>Note:</strong> Your interview transcript will be analyzed by our AI service to extract insights and automatically update candidate intelligence signals.
-                </p>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={() => {
-                    setShowTranscriptModal(false);
-                    setTranscriptFile(null);
-                    setTranscriptNote("");
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleUploadTranscript}
-                  disabled={uploadingTranscript || !transcriptFile}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {uploadingTranscript && <Loader className="h-4 w-4 animate-spin" />}
-                  Upload & Analyze
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Log Interview Modal */}
       {showLogInterviewModal && (
         <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
@@ -1190,7 +1043,6 @@ function InterviewRoundCard({
   onViewDetails,
   onReschedule,
   onCancel,
-  onUploadTranscript,
 }) {
   const interviewId = getInterviewId(interview);
   const roundName = interview?.panel_round_name || interview?.round_name || "Interview Round";
@@ -1253,12 +1105,6 @@ function InterviewRoundCard({
           {onCancel && (
             <button type="button" onClick={onCancel} className="inline-flex items-center rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100">
               Cancel
-            </button>
-          )}
-          {onUploadTranscript && (
-            <button type="button" onClick={onUploadTranscript} className="inline-flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-700 transition hover:bg-green-100">
-              <Upload className="h-4 w-4" />
-              Upload Transcript
             </button>
           )}
           {meetingLink ? (

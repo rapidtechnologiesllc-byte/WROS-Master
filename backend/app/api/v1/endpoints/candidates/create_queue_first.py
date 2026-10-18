@@ -265,7 +265,7 @@ async def create_candidate(
         return CreateCandidateResponse(
             status="queued",
             message_id=returned_message_id,
-            polling_endpoint=f"/api/v1/message-queue/status/{returned_message_id}",
+            polling_endpoint=f"/api/v1/message-queue/tasks/{returned_message_id}/status",
             polling_interval_seconds=2,
         )
 
