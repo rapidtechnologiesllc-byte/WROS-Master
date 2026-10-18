@@ -52,7 +52,7 @@ RESOURCE_ROUTES = {
     # Finance
     "invoices": "/invoices",
     "revenue": "/pnl",  # partner & org P&L
-    "finance-operations": "/finance-operations",
+    "finance-operations": "/pnl",  # a tab of P&L
     "sales-ops": "/revenue",  # revenue leakage & reconciliation
     "forecasts": "/forecast-vs-actual",  # its API (/forecast-vs-actual) checks forecasts
     # Leadership (CEO / CFO / BU Head dashboards are each person's Home, not menu items)
@@ -101,6 +101,7 @@ NAV_LABELS = {
     "resource-forecast": "Demand vs Bench",
     "utilization-dashboard": "Workforce Overview",
     "revenue": "P&L",
+    "finance-operations": "P&L",
     "sales-ops": "Revenue Health",
     "forecasts": "Forecast vs Actual",
     "goals": "Goals & Revenue",

@@ -105,7 +105,7 @@ ROUTE_MOVES = {
     "/recruiter/intervention-queue": "/recruiter/watch", "/recruiter/risk-dashboard": "/recruiter/watch",
     "/recruiter/thunder-analytics": "/recruiter/watch",
     "/hm-candidate-review": "/hm-review", "/recruiter/rehire-approvals": "/hm-review",
-    "/utilization-dashboard": "/workforce", "/forecast": "/demand-vs-bench",
+    "/utilization-dashboard": "/workforce", "/forecast": "/demand-vs-bench", "/finance-operations": "/pnl",
 }
 
 

@@ -199,7 +199,7 @@ export default function TopBar({
       "/revenue": ["Revenue"],
       "/opportunity-pipeline": ["Opportunity Pipeline"],
       "/executive-revenue-dashboard": ["Executive Revenue"],
-      "/finance-operations": ["Finance Operations"],
+      "/pnl": ["P&L"],
       "/thunder": ["Thunder Chat"],
       "/rbac": ["RBAC Settings"],
       "/hr-users": ["User Management"],

@@ -46,8 +46,7 @@ import ClientManagementScreen from "../screens/ClientManagementScreen";
 import OpportunityPipelineScreen from "../screens/OpportunityPipelineScreen";
 import MyExpensesScreen from "../screens/MyExpensesScreen";
 import ExecutiveRevenueDashboardScreen from "../screens/ExecutiveRevenueDashboardScreen";
-import FinanceOperationsScreen from "../screens/FinanceOperationsScreen";
-import PnlScreen from "../screens/PnlScreen";
+import PnlFinanceScreen from "../screens/PnlFinanceScreen";
 import ActivateAccount from "../pages/ActivateAccount";
 import DemandConfirmationScreen from "../screens/DemandConfirmationScreen";
 import PipelineAndSubmissionsScreen from "../screens/PipelineAndSubmissionsScreen";
@@ -571,8 +570,8 @@ function AuthenticatedApp() {
             <Route path="revenue" element={<RevenueScreen />} />
             <Route path="opportunity-pipeline" element={<OpportunityPipelineScreen />} />
             <Route path="executive-revenue-dashboard" element={<ExecutiveRevenueDashboardScreen />} />
-            <Route path="finance-operations" element={<FinanceOperationsScreen />} />
-            <Route path="pnl" element={<PnlScreen />} />
+            <Route path="finance-operations" element={<Navigate to="/pnl?view=operations" replace />} />
+            <Route path="pnl" element={<PnlFinanceScreen />} />
             <Route path="partner-roi" element={<Navigate to="/partner-dashboard" replace />} />
             <Route path="ceo-fy-progress" element={<CEOUnifiedDashboard />} />
             <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
