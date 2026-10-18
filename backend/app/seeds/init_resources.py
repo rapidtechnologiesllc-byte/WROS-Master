@@ -22,9 +22,10 @@ RESOURCE_ROUTES = {
     # Recruitment
     "candidates": "/candidates",
     "jobs": "/jobs",
-    "submissions": "/submissions",
-    # the hiring pipeline (screen -> ... -> bench -> client); manual conversion stays at /employee-conversion
-    "convert-to-employee": "/hiring-pipeline",
+    # Pipeline & Submissions: one screen, a tab per resource (CEO 2026-10-17); manual conversion
+    # stays at /employee-conversion
+    "submissions": "/pipeline",
+    "convert-to-employee": "/pipeline",
     "offer-letters": "/offers-listing",
     "intervention-queue": "/recruiter/intervention-queue",
     "risk-dashboard": "/recruiter/risk-dashboard",
@@ -85,7 +86,8 @@ RESOURCE_ROUTES = {
 NAV_LABELS = {
     "dashboard": "Home",
     "my-tasks": "My Tasks",
-    "convert-to-employee": "Hiring Pipeline",
+    "submissions": "Pipeline & Submissions",
+    "convert-to-employee": "Pipeline & Submissions",
     "offer-letters": "Offers",
     "candidate-review": "HM Candidate Review",
     "rehire-approval": "Rehire Approvals",

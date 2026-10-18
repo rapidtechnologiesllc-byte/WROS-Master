@@ -189,7 +189,7 @@ export default function TopBar({
       "/client-management": ["Client Management"],
       "/demand-confirmation": ["Demand Confirmation"],
       "/employees": ["Employee Directory"],
-      "/submissions": ["Submissions"],
+      "/pipeline": ["Pipeline & Submissions"],
       "/allocations": ["Allocations"],
       "/projects": ["Projects"],
       "/htd-intake": ["HTD Intake"],

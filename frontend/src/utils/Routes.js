@@ -17,6 +17,7 @@ export const ROUTES = {
   EMPLOYEE_CONVERSION: "/employee-conversion",
   HIRING_PIPELINE: "/hiring-pipeline",
   LINKEDIN_PIPELINE: "/linkedin-pipeline",
+  PIPELINE: "/pipeline",
   SUBMISSIONS: "/submissions",
   PROJECTS: "/projects",
   HTD_INTAKE: "/htd-intake",

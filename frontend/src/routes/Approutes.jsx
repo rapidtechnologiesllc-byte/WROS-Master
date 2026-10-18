@@ -50,7 +50,7 @@ import FinanceOperationsScreen from "../screens/FinanceOperationsScreen";
 import PnlScreen from "../screens/PnlScreen";
 import ActivateAccount from "../pages/ActivateAccount";
 import DemandConfirmationScreen from "../screens/DemandConfirmationScreen";
-import SubmissionsScreen from "../screens/SubmissionsScreen";
+import PipelineAndSubmissionsScreen from "../screens/PipelineAndSubmissionsScreen";
 import ProjectsScreen from "../screens/ProjectsScreen";
 import HtdIntakeScreen from "../screens/HtdIntakeScreen";
 import HmCandidateReviewScreen from "../screens/HmCandidateReviewScreen";
@@ -86,7 +86,6 @@ import SLABreachBanner from "../components/SLABreachBanner";
 import AdminAgentStateDashboard from "../screens/AdminAgentStateDashboard";
 import AdminWeeklyRecapDashboard from "../screens/AdminWeeklyRecapDashboard";
 import EmployeeConversionScreen from "../screens/EmployeeConversionScreen";
-import HiringPipelineScreen from "../screens/HiringPipelineScreen";
 import ForcePasswordReset from "../pages/ForcePasswordReset";
 import CertificationManagementScreen from "../screens/CertificationManagementScreen";
 import BIExplorerScreen from "../screens/BIExplorerScreen";
@@ -561,9 +560,10 @@ function AuthenticatedApp() {
             <Route path="demand-confirmation" element={<DemandConfirmationScreen />} />
             <Route path="employees" element={<EmployeesConsolidatedScreen />} />
             <Route path="employee-conversion" element={<EmployeeConversionScreen />} />
-            <Route path="hiring-pipeline" element={<HiringPipelineScreen />} />
+            <Route path="pipeline" element={<PipelineAndSubmissionsScreen />} />
+            <Route path="hiring-pipeline" element={<Navigate to="/pipeline?view=pipeline" replace />} />
             <Route path="linkedin-pipeline" element={<LinkedInPipelineScreen />} />
-            <Route path="submissions" element={<SubmissionsScreen />} />
+            <Route path="submissions" element={<Navigate to="/pipeline?view=submissions" replace />} />
             <Route path="allocations" element={<Navigate to="/employees?tab=allocations" replace />} />
             <Route path="projects" element={<ProjectsScreen />} />
             <Route path="htd-intake" element={<HtdIntakeScreen />} />

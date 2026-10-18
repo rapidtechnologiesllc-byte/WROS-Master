@@ -98,16 +98,22 @@ SEEDED_ROLES = {**{name: BEFORE_RESOURCES for name in SYSTEM_ROLES}, **BEFORE_LE
 # (its API checks forecasts), so a role holding only forecasts swaps /forecast for /forecast-vs-actual.
 INTENDED_REMOVALS = {"/ceo-fy-progress", "/cfo-dashboard", "/bu-head-dashboard", "/allocations", "/thunder"}
 INTENDED_ADDITIONS = {"/forecast-vs-actual": "forecasts"}  # route -> resource whose view grant adds it
+# Decision 3: merged screens. The old route redirects to the merged screen's tab; every role that
+# reached any of the parts reaches the merged screen (its tabs follow the same permissions).
+ROUTE_MOVES = {
+    "/submissions": "/pipeline", "/hiring-pipeline": "/pipeline",
+}
 
 
 def _expected_after(grants):
     before = {BEFORE_ROUTES[r] for r in grants if r in BEFORE_ROUTES}
     before |= {route for r, route in BEFORE_EXTRA.items() if r in grants}
+    moved = {ROUTE_MOVES.get(route, route) for route in before}
     added = {route for route, resource in INTENDED_ADDITIONS.items() if resource in grants}
     removed = set(INTENDED_REMOVALS)
     if "resource-forecast" not in grants:  # /forecast was only reachable through the Forecasts duplicate
         removed.add("/forecast")
-    return before, (before - removed) | added
+    return before, (moved - {ROUTE_MOVES.get(r, r) for r in removed}) | added
 
 
 @pytest.fixture
@@ -244,6 +250,21 @@ def test_the_partner_dashboard_is_listed_once_for_a_partner_whose_home_it_is(db)
     assert "/partner-dashboard" not in _routes(db, partner) and "/" in _routes(db, partner)
     # anyone else who may view it (e.g. leadership looking at a partner) keeps the menu item
     assert "/partner-dashboard" in _routes(db, _user_with(db, {"dashboard", "partner-dashboard"}))
+
+
+def test_merged_screens_have_one_menu_item_each(db):
+    from app.seeds.init_resources import NAV_LABELS, RESOURCE_ROUTES
+
+    items = [item for g in _menu(db, _user_with(db, BEFORE_RESOURCES)) for item in g["items"]]
+    routes = [item["route"] for item in items]
+    assert len(routes) == len(set(routes))
+    for old, new in ROUTE_MOVES.items():
+        assert old not in routes and new in routes
+        parts = {r for r, route in RESOURCE_ROUTES.items() if route == new}
+        assert len({NAV_LABELS.get(r) for r in parts}) == 1, f"{new}: parts disagree on the menu label"
+        # a role holding only one part still reaches the merged screen
+        for part in parts:
+            assert new in _routes(db, _user_with(db, {part}))
 
 
 def test_linkedin_pipeline_follows_candidates(db):
