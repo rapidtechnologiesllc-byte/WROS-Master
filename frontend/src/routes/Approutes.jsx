@@ -51,7 +51,6 @@ import PnlScreen from "../screens/PnlScreen";
 import ActivateAccount from "../pages/ActivateAccount";
 import DemandConfirmationScreen from "../screens/DemandConfirmationScreen";
 import SubmissionsScreen from "../screens/SubmissionsScreen";
-import AllocationsScreen from "../screens/AllocationsScreen";
 import ProjectsScreen from "../screens/ProjectsScreen";
 import HtdIntakeScreen from "../screens/HtdIntakeScreen";
 import HmCandidateReviewScreen from "../screens/HmCandidateReviewScreen";
@@ -80,7 +79,7 @@ import BuddyProgramListScreen from "../screens/BuddyProgramListScreen";
 import BuddyProgramScreen from "../screens/BuddyProgramScreen";
 import ExecutiveSignalScreen from "../screens/ExecutiveSignalScreen";
 import ErrorLogScreen from "../screens/ErrorLogScreen";
-import PartnerROIAgentScreen from "../screens/PartnerROIAgentScreen";
+import PartnerHomeScreen from "../screens/PartnerHomeScreen";
 import CEOUnifiedDashboard from "../screens/CEOUnifiedDashboard";
 import CFOAgentScreen from "../screens/CFOAgentScreen";
 import ConversationSearchBar from "../components/ConversationSearchBar";
@@ -92,7 +91,6 @@ import HiringPipelineScreen from "../screens/HiringPipelineScreen";
 import ForcePasswordReset from "../pages/ForcePasswordReset";
 import TrainingCertificationDashboard from "../screens/TrainingCertificationDashboard";
 import CertificationManagementScreen from "../screens/CertificationManagementScreen";
-import PartnerDashboard from "../screens/PartnerDashboard";
 import BIExplorerScreen from "../screens/BIExplorerScreen";
 import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
 import MyReferralsScreen from "../screens/MyReferralsScreen";
@@ -115,7 +113,7 @@ const DashboardRouter = ({ candidates, jobs, interviews, offers }) => {
     return <CFOAgentScreen />;
   }
   if (home === "partner") {
-    return <PartnerROIAgentScreen />;
+    return <PartnerHomeScreen />;
   }
   if (home === "bu_head") {
     return <BuHeadDashboardScreen />;
@@ -552,7 +550,8 @@ function AuthenticatedApp() {
               }
             />
 
-            <Route path="thunder" element={<ThunderChatScreen />} />
+            {/* Candidate-chat test simulator: not in the menu, reachable by URL for QA (ask-thunder) */}
+            <Route path="thunder" element={hasPermission("ask-thunder", "view") ? <ThunderChatScreen /> : <Navigate to="/" replace />} />
 
             <Route
               path="resource-management"
@@ -567,7 +566,7 @@ function AuthenticatedApp() {
             <Route path="hiring-pipeline" element={<HiringPipelineScreen />} />
             <Route path="linkedin-pipeline" element={<LinkedInPipelineScreen />} />
             <Route path="submissions" element={<SubmissionsScreen />} />
-            <Route path="allocations" element={<AllocationsScreen />} />
+            <Route path="allocations" element={<Navigate to="/employees?tab=allocations" replace />} />
             <Route path="projects" element={<ProjectsScreen />} />
             <Route path="htd-intake" element={<HtdIntakeScreen />} />
             <Route path="hm-candidate-review" element={<HmCandidateReviewScreen />} />
@@ -582,7 +581,7 @@ function AuthenticatedApp() {
             <Route path="executive-revenue-dashboard" element={<ExecutiveRevenueDashboardScreen />} />
             <Route path="finance-operations" element={<FinanceOperationsScreen />} />
             <Route path="pnl" element={<PnlScreen />} />
-            <Route path="partner-roi" element={<PartnerROIAgentScreen />} />
+            <Route path="partner-roi" element={<Navigate to="/partner-dashboard" replace />} />
             <Route path="ceo-fy-progress" element={<CEOUnifiedDashboard />} />
             <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
             <Route path="settings/locale" element={<TenantLocaleScreen />} />
@@ -591,7 +590,7 @@ function AuthenticatedApp() {
             <Route path="system-health" element={<SystemHealth />} />
             <Route path="recruiter/intervention-queue" element={<InterventionQueueScreen />} />
             <Route path="recruiter/rehire-approvals" element={<RehireApprovalsScreen />} />
-            <Route path="ceo-dashboard" element={<CEOUnifiedDashboard />} />
+            <Route path="ceo-dashboard" element={<Navigate to="/" replace />} />
             <Route path="recruiter/risk-dashboard" element={<RiskDashboardScreen />} />
             <Route path="recruiter/thunder-analytics" element={<ThunderAnalyticsScreen />} />
             <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
@@ -621,7 +620,7 @@ function AuthenticatedApp() {
             <Route path="admin/users-access-control/delivery-centers/:dcId/edit" element={<DeliveryCenterFormPage />} />
 
             <Route path="training-certification" element={<TrainingCertificationDashboard />} />
-            <Route path="partner-dashboard" element={<PartnerDashboard />} />
+            <Route path="partner-dashboard" element={<PartnerHomeScreen />} />
             <Route path="bi-explorer" element={<BIExplorerScreen />} />
             <Route path="bu-head-dashboard" element={<BuHeadDashboardScreen />} />
 

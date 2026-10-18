@@ -92,15 +92,22 @@ SYSTEM_ROLES = ("Super Admin", "Admin", "Manager", "User", "Ops")
 SEEDED_ROLES = {**{name: BEFORE_RESOURCES for name in SYSTEM_ROLES}, **BEFORE_LEADERSHIP}
 
 # The intended menu changes (CEO decisions 1 and 4). Nothing else may change for anyone.
-INTENDED_REMOVALS = set()
-INTENDED_ADDITIONS = {}  # route -> resource whose view grant adds it
+# Decision 1: the named CEO / CFO / BU Head dashboards are each person's Home ("/"), the Executive
+# Dashboards module duplicated them, "Forecasts" duplicated Resource Forecast's /forecast, Allocations is
+# the Employees > Allocations tab, Ask Thunder is a QA simulator. "Forecasts" now opens Forecast vs Actual
+# (its API checks forecasts), so a role holding only forecasts swaps /forecast for /forecast-vs-actual.
+INTENDED_REMOVALS = {"/ceo-fy-progress", "/cfo-dashboard", "/bu-head-dashboard", "/allocations", "/thunder"}
+INTENDED_ADDITIONS = {"/forecast-vs-actual": "forecasts"}  # route -> resource whose view grant adds it
 
 
 def _expected_after(grants):
     before = {BEFORE_ROUTES[r] for r in grants if r in BEFORE_ROUTES}
     before |= {route for r, route in BEFORE_EXTRA.items() if r in grants}
     added = {route for route, resource in INTENDED_ADDITIONS.items() if resource in grants}
-    return before, (before - INTENDED_REMOVALS) | added
+    removed = set(INTENDED_REMOVALS)
+    if "resource-forecast" not in grants:  # /forecast was only reachable through the Forecasts duplicate
+        removed.add("/forecast")
+    return before, (before - removed) | added
 
 
 @pytest.fixture
@@ -140,11 +147,11 @@ def _contract_resource(db, name):
     return resource
 
 
-def _user_with(db, view_resources, **role_fields):
+def _user_with(db, view_resources, job_title=None, **role_fields):
     """A user whose role template grants view on exactly these resources (those still in the contract)."""
     _tenant(db)
     role = RoleTemplate(tenant_id=1, name=f"nav-{_uid()}", display_name="Nav", hierarchy_level=5,
-                        org_level_access=False, enabled=True, **role_fields)
+                        enabled=True, **{"org_level_access": False, **role_fields})
     db.add(role)
     db.flush()
     in_contract = {r for names in MODULES_AND_RESOURCES.values() for r in names}
@@ -152,7 +159,7 @@ def _user_with(db, view_resources, **role_fields):
         db.add(RoleTemplatePermission(role_template_id=role.id, resource_id=_contract_resource(db, name).id,
                                       tenant_id=1, can_view=True))
     user = Users(UserID=f"U-{_uid()}", UserName="Nav User", UserEmail=f"n{_uid()}@x.com", UserPassword="x",
-                 UserRole="x", tenant_id=1, role_template_id=role.id)
+                 UserRole="x", tenant_id=1, role_template_id=role.id, job_title=job_title)
     db.add(user)
     db.flush()
     return user
@@ -188,6 +195,34 @@ def test_renamed_labels(db):
     assert labels["/admin/users-access-control/users"] == "Users & Access"
     assert labels["/revenue"] == "Revenue Health"
     assert labels["/pnl"] == "P&L"
+    assert labels["/forecast-vs-actual"] == "Forecast vs Actual"
+
+
+def test_executive_duplicates_are_gone_from_the_catalogue():
+    from app.seeds.init_resources import RESOURCE_ROUTES
+
+    in_contract = {r for names in MODULES_AND_RESOURCES.values() for r in names}
+    assert "Executive Dashboards" not in MODULES_AND_RESOURCES
+    assert not {r for r in in_contract if r.endswith("-dashboard-view")}
+    # still permission-only: authority.home_dashboard needs them to pick each person's Home
+    assert {"ceo-dashboard", "cfo-dashboard", "bu-head-dashboard"} <= in_contract
+    assert not {"ceo-dashboard", "cfo-dashboard", "bu-head-dashboard", "allocations", "ask-thunder"} & set(RESOURCE_ROUTES)
+
+
+def _position(db, name, code, rank):
+    from app.models.org_structure import OrgPosition
+
+    if db.query(OrgPosition).filter_by(name=name).first() is None:
+        db.add(OrgPosition(name=name, rank=rank, rbac_role_name=code))
+        db.flush()
+
+
+def test_the_partner_dashboard_is_listed_once_for_a_partner_whose_home_it_is(db):
+    _position(db, "Partner", "partner", 1)
+    partner = _user_with(db, {"dashboard", "partner-dashboard"}, job_title="Partner")
+    assert "/partner-dashboard" not in _routes(db, partner) and "/" in _routes(db, partner)
+    # anyone else who may view it (e.g. leadership looking at a partner) keeps the menu item
+    assert "/partner-dashboard" in _routes(db, _user_with(db, {"dashboard", "partner-dashboard"}))
 
 
 def test_linkedin_pipeline_follows_candidates(db):

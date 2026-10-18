@@ -156,6 +156,7 @@ MODULES_AND_RESOURCES = {
                          "core-pull", "resources", "work-orders", "budget", "schedule"],
     "Finance": ["invoices", "revenue", "finance-operations", "sales-ops", "forecasts", "expenses",
                 "payroll", "reports", "invoice-management", "executive-revenue-dashboard"],
+    # ceo/cfo/bu-head-dashboard: permission-only -- each is that person's Home (authority.home_dashboard)
     "Leadership": ["ceo-dashboard", "cfo-dashboard", "bu-head-dashboard", "goals", "executive-signal",
                    "partner-dashboard", "bi-explorer", "analytics"],
     "AI Operations": ["admin-agent-state", "admin-weekly-recap", "message-queue", "slm-dashboard",
@@ -164,14 +165,12 @@ MODULES_AND_RESOURCES = {
                          "organizational-hierarchy", "org-roles", "certifications", "checklists", "locale-currency",
                          "bulk-launch", "api-keys", "error-logs", "system-health", "ticket-routing",
                          "configuration", "admin-settings", "newsletters"],
-    "Executive Dashboards": ["ceo-dashboard-view", "cfo-dashboard-view", "partner-dashboard-view", "bu-head-dashboard-view"],
 }
 
 # Menu group icon per module (lucide icon names the client maps to components).
 MODULE_ICONS = {
     "Personal": "LayoutDashboard", "Recruitment": "Users", "Workforce": "Users2", "Sales & Delivery": "Briefcase",
     "Finance": "BadgeDollarSign", "Leadership": "TrendingUp", "AI Operations": "Bot", "Admin & Settings": "Settings",
-    "Executive Dashboards": "BarChart3",
 }
 
 # ============================================================================

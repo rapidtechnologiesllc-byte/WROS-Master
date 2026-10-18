@@ -95,6 +95,10 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
 
         navigation_modules = {}
 
+        # The dashboard that is this user's Home ("/") is not listed again under its own name
+        from app.core import authority
+        home_resource = authority.home_resource(db, current_user) if hasattr(current_user, 'UserID') else None
+
         # OPTIMIZATION: Batch load all user permissions ONCE (not per-resource)
         all_permissions = RoleTemplatePermissionService.get_user_permissions(db, user_id, tenant_id)
 
@@ -109,7 +113,7 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
 
             for resource_name in resource_names:
                 route = None if resource_name in NAV_TAB_RESOURCES else RESOURCE_ROUTES.get(resource_name)
-                if not route or route in seen_routes:
+                if not route or route in seen_routes or resource_name == home_resource:
                     continue
 
                 # The role's permission matrix decides, for every role (no super-user bypass).

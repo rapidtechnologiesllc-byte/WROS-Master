@@ -292,16 +292,7 @@ export const filterNavigationByModules = (navigationItems, allowedModules) => {
 };
 
 /**
- * Where an internal user lands after login: their home dashboard, which the server decides
- * from the role template's position (level + specialization) -- authority.home_dashboard.
- * Holding a dashboard's permission does not make it home (an admin role holds them all).
- * Routing config (home key -> route) only.
+ * Which dashboard Home ("/") shows: decided server-side from the role template's position
+ * (authority.home_dashboard); everyone lands on Home after login.
  */
-const HOME_ROUTES = {
-  ceo: '/ceo-fy-progress',
-  cfo: '/cfo-dashboard',
-  partner: '/partner-roi',
-  bu_head: '/bu-head-dashboard',
-};
 export const homeDashboard = () => getAuthority().home_dashboard || 'default';
-export const landingPath = (fallback) => HOME_ROUTES[homeDashboard()] || fallback;

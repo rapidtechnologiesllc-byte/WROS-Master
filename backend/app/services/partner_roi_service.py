@@ -1,236 +1,187 @@
-"""Partner ROI Agent — computes weekly Partner scorecard based on BlitzenX Operating Model KPIs."""
-from datetime import datetime, timedelta
+"""Partner performance (the Partner Home): KPIs, trend and prioritised actions for the business
+units a partner leads, per BU and in total.
+
+Scope is always an explicit set of business unit ids, chosen by the caller from the partner's own
+BUs (app.services.bu_leadership.partnered_business_units) -- a partner with several BUs sees every
+one of them, never only the BU on their user record.
+
+KPIs per BlitzenX Operating Model: invoiced revenue, gross margin (revenue-chain P&L), net new
+logos, practice utilization (billable hours / available hours of allocated staff) and YoY growth.
+"""
+import logging
+from datetime import datetime
+from typing import Dict, Iterable, List, Optional
+
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, or_, text
+
 from app.models.client import Client
-from app.models.opportunity import Opportunity
+from app.models.employee_allocation import EmployeeAllocation
 from app.models.invoice import Invoice, InvoiceLineItem
 from app.models.user import Users
-from app.models.employee import Employee
-from app.models.employee_allocation import EmployeeAllocation
-from app.models.demand import Demand
-from app.services.pnl_service import get_bu_pnl
+from app.services.revenue_chain_service import month_bounds, pnl
 from app.services.scope_helpers import allocation_in_bu, invoice_in_bu
-from app.services.client_revenue_dashboard_service import get_client_revenue_dashboard
-import logging
 from app.utils.agent_logger import log_agent_execution
 
-def get_partner_kpis(db: Session, partner_id: str, year_month: str = None) -> dict:
-    """
-    Compute Partner KPIs per BlitzenX Operating Model.
-    Partner KPIs: Revenue, Gross Margin, Net New Logos, Customer Satisfaction, Practice Utilization, Practice Growth, Thought Leadership, P&L.
+logger = logging.getLogger(__name__)
 
-    Args:
-        db: Database session
-        partner_id: Partner's UserID
-        year_month: YYYY-MM format; defaults to current month
+# Available hours per allocated person per month: 40 h/week x ~4.33 weeks
+AVAILABLE_HOURS_PER_MONTH = 173
+INVOICED_STATUSES = ("APPROVED", "SENT", "PAID")
+UTILIZATION_TARGET_PCT = 70
+MARGIN_FLOOR_PCT = 15
+NEW_LOGOS_FLOOR = 2
 
-    Returns:
-        dict with keys: revenue, gross_margin, net_new_logos, customer_satisfaction, practice_utilization,
-                       practice_growth, thought_leadership, pnl, period, partner_name, bu_id
-    """
+
+def _period(year_month: Optional[str]) -> tuple:
     if not year_month:
-        today = datetime.utcnow()
-        year_month = today.strftime("%Y-%m")
+        return datetime.utcnow().year, datetime.utcnow().month
+    try:
+        year, month = (int(part) for part in year_month.split("-"))
+    except ValueError as exc:
+        raise ValueError(f"year_month must be YYYY-MM, got {year_month!r}") from exc
+    if not 1 <= month <= 12:
+        raise ValueError(f"year_month must be YYYY-MM, got {year_month!r}")
+    return year, month
 
-    year, month = year_month.split("-")
-    year, month = int(year), int(month)
 
-    # Get partner and their BU
-    partner = db.query(Users).filter(Users.UserID == partner_id).first()
-    if not partner:
-        raise ValueError(f"Partner {partner_id} not found")
+def _bounds(year: int, month: int) -> tuple:
+    """[first of the month, first of the next month) as datetimes."""
+    ny, nm = _shift(year, month, -1)
+    return datetime(year, month, 1), datetime(ny, nm, 1)
 
-    # Partner owns exactly one BU per the Operating Model
-    bu_id = partner.business_unit_id
-    if not bu_id:
-        return {
-            "error": "Partner has no assigned Business Unit",
-            "partner_id": partner_id,
-            "partner_name": partner.UserName
-        }
 
-    # All KPIs scoped to this Partner's BU
-    period_start = datetime(year, month, 1)
-    if month == 12:
-        period_end = datetime(year + 1, 1, 1)
-    else:
-        period_end = datetime(year, month + 1, 1)
+def _shift(year: int, month: int, back: int) -> tuple:
+    index = year * 12 + (month - 1) - back
+    return index // 12, index % 12 + 1
 
-    # 1. Revenue: total invoiced revenue for this BU this month
-    invoices = db.query(func.sum(Invoice.total_usd_cents)).filter(
-        invoice_in_bu(bu_id),
-        Invoice.created_at >= period_start,
-        Invoice.created_at < period_end,
-        Invoice.status.in_(["APPROVED", "SENT", "PAID"])
-    ).scalar() or 0
 
-    revenue_usd_cents = invoices
-    revenue_usd = revenue_usd_cents / 100 if revenue_usd_cents else 0
+def _invoiced_cents(db: Session, bu_id: int, start, end) -> int:
+    return db.query(func.sum(Invoice.total_usd_cents)).filter(
+        invoice_in_bu(bu_id), Invoice.created_at >= start, Invoice.created_at < end,
+        Invoice.status.in_(INVOICED_STATUSES)).scalar() or 0
 
-    # 2. Gross Margin: (Revenue - Fully Loaded Cost) / Revenue
-    pnl = get_bu_pnl(db, business_unit_id=bu_id, year=year, month=month)
 
-    # 3. Net New Logos: new clients added this month to this BU (status=ACTIVE, first invoice this month)
-    new_clients = db.query(func.count(Client.id)).filter(
-        Client.business_unit_id == bu_id,
-        Client.status == "ACTIVE",
-        Client.created_at >= period_start,
-        Client.created_at < period_end
-    ).scalar() or 0
-
-    # 4. Customer Satisfaction: placeholder (no satisfaction data model exists yet)
-    # Would come from post-project surveys once implemented
-    customer_satisfaction = None
-
-    # 5. Practice Utilization: billable hours / total available hours for allocated employees
-    # Available hours = 40 hours/week, roughly 4.33 weeks/month = 173 hours
-    allocated_employees = db.query(func.count(func.distinct(EmployeeAllocation.employee_id))).filter(
-        allocation_in_bu(bu_id),
-        EmployeeAllocation.start_date <= period_end,
-        # Open-ended or ending inside/after the period (was AND: never true)
-        or_(
-            EmployeeAllocation.end_date.is_(None),
-            EmployeeAllocation.end_date >= period_start
-        )
-    ).scalar() or 0
-
-    available_hours = allocated_employees * 173 if allocated_employees > 0 else 1
-
-    # Billable hours from invoices (approximation: invoice line items have hours)
+def _bu_month(db: Session, bu_id: int, year: int, month: int, pnl_rows: Dict[int, dict]) -> dict:
+    """Raw monthly figures for one BU (summable across BUs)."""
+    start, end = _bounds(year, month)
+    prev_start, prev_end = _bounds(year - 1, month)
+    allocated = db.query(func.count(func.distinct(EmployeeAllocation.employee_id))).filter(
+        allocation_in_bu(bu_id), EmployeeAllocation.start_date < end,
+        or_(EmployeeAllocation.end_date.is_(None), EmployeeAllocation.end_date >= start)).scalar() or 0
     billable_hours = float(db.query(func.sum(InvoiceLineItem.hours)).join(
-        Invoice, Invoice.id == InvoiceLineItem.invoice_id
-    ).filter(
-        invoice_in_bu(bu_id),
-        Invoice.created_at >= period_start,
-        Invoice.created_at < period_end
-    ).scalar() or 0)
+        Invoice, Invoice.id == InvoiceLineItem.invoice_id).filter(
+        invoice_in_bu(bu_id), Invoice.created_at >= start, Invoice.created_at < end).scalar() or 0)
+    row = pnl_rows.get(bu_id) or {}
+    margin_known = row.get("margin_usd_cents") is not None  # None: a salary/cost rate is missing
+    return {
+        "revenue_usd_cents": _invoiced_cents(db, bu_id, start, end),
+        "prior_year_revenue_usd_cents": _invoiced_cents(db, bu_id, prev_start, prev_end),
+        "net_new_logos": db.query(func.count(Client.id)).filter(
+            Client.business_unit_id == bu_id, Client.status == "ACTIVE",
+            Client.created_at >= start, Client.created_at < end).scalar() or 0,
+        "allocated_headcount": allocated,
+        "billable_hours": billable_hours,
+        "pnl_revenue_usd_cents": (row.get("revenue_usd_cents") or 0) if margin_known else 0,
+        "pnl_usd_cents": row["margin_usd_cents"] if margin_known else 0,
+    }
 
-    practice_utilization_pct = (billable_hours / available_hours * 100) if available_hours > 0 else 0
 
-    # 6. Practice Growth: YoY revenue growth
-    # Previous year same month
-    prev_year = year - 1 if month >= 1 else year - 1
-    prev_month = month
-    prev_period_start = datetime(prev_year, prev_month, 1)
-    if prev_month == 12:
-        prev_period_end = datetime(prev_year + 1, 1, 1)
-    else:
-        prev_period_end = datetime(prev_year, prev_month + 1, 1)
+def _kpis(raw: List[dict]) -> dict:
+    """KPIs from the summed raw figures of one or more BUs."""
+    total = {key: sum(r[key] for r in raw) for key in (
+        "revenue_usd_cents", "prior_year_revenue_usd_cents", "net_new_logos", "allocated_headcount",
+        "billable_hours", "pnl_revenue_usd_cents", "pnl_usd_cents")}
+    available = total["allocated_headcount"] * AVAILABLE_HOURS_PER_MONTH
+    prior = total["prior_year_revenue_usd_cents"]
+    margin = (total["pnl_usd_cents"] / total["pnl_revenue_usd_cents"] * 100) if total["pnl_revenue_usd_cents"] else 0
+    return {
+        "revenue_usd": total["revenue_usd_cents"] / 100,
+        "revenue_usd_cents": total["revenue_usd_cents"],
+        "gross_margin_pct": round(margin, 1),
+        "pnl_usd": total["pnl_usd_cents"] / 100,
+        "pnl_usd_cents": total["pnl_usd_cents"],
+        "pnl_margin_pct": round(margin, 1),
+        "net_new_logos": total["net_new_logos"],
+        "practice_utilization_pct": round(total["billable_hours"] / available * 100, 1) if available else 0,
+        # No prior-year revenue -> growth is undefined, reported as 0 (never +infinity)
+        "practice_growth_yoy_pct": round((total["revenue_usd_cents"] - prior) / prior * 100, 1) if prior else 0,
+        "billable_hours": total["billable_hours"],
+        "allocated_headcount": total["allocated_headcount"],
+    }
 
-    prev_invoices = db.query(func.sum(Invoice.total_usd_cents)).filter(
-        invoice_in_bu(bu_id),
-        Invoice.created_at >= prev_period_start,
-        Invoice.created_at < prev_period_end,
-        Invoice.status.in_(["APPROVED", "SENT", "PAID"])
-    ).scalar() or 0
 
-    # No prior-year revenue -> growth is undefined, not +infinity
-    growth_pct = ((revenue_usd_cents - prev_invoices) / prev_invoices * 100) if prev_invoices else 0
+def _month_pnl(db: Session, year: int, month: int, bu_ids: Iterable[int]) -> Dict[int, dict]:
+    start, end = month_bounds(year, month)
+    wanted = set(bu_ids)
+    return {row["key"]: row for row in pnl(db, start=start, end=end)["by_business_unit"] if row["key"] in wanted}
 
-    # 7. Thought Leadership: placeholder (would track articles/speaking/etc.)
-    thought_leadership = None
 
-    # 8. P&L (from pnl_service)
-    pnl_margin = (pnl.get("margin_pct") or 0) if pnl else 0
+def _partner(db: Session, partner_id: str) -> Users:
+    partner = db.query(Users).filter(Users.UserID == partner_id).first()
+    if partner is None:
+        raise ValueError(f"Partner {partner_id} not found")
+    return partner
 
+
+def get_partner_kpis(db: Session, partner_id: str, business_unit_ids: Iterable[int],
+                     year_month: Optional[str] = None) -> dict:
+    """One month's KPIs over the given BUs in total, plus each BU's own."""
+    bu_ids = sorted(set(business_unit_ids))
+    partner = _partner(db, partner_id)
+    year, month = _period(year_month)
+    pnl_rows = _month_pnl(db, year, month, bu_ids)
+    raw = {bu_id: _bu_month(db, bu_id, year, month, pnl_rows) for bu_id in bu_ids}
     result = {
         "partner_id": partner_id,
         "partner_name": partner.UserName,
-        "bu_id": bu_id,
-        "period": year_month,
-        "revenue_usd": revenue_usd,
-        "revenue_usd_cents": revenue_usd_cents,
-        "gross_margin_pct": pnl_margin,
-        "net_new_logos": new_clients,
-        "customer_satisfaction_score": customer_satisfaction,
-        "practice_utilization_pct": round(practice_utilization_pct, 1),
-        "practice_growth_yoy_pct": round(growth_pct, 1),
-        "thought_leadership_score": thought_leadership,
-        "pnl_usd": ((pnl.get("gross_margin_usd_cents") or 0) / 100) if pnl else 0,
-        "pnl_usd_cents": (pnl.get("gross_margin_usd_cents") or 0) if pnl else 0,
-        "pnl_margin_pct": pnl_margin,
-        "billable_hours": billable_hours,
-        "allocated_headcount": allocated_employees
+        "business_unit_ids": bu_ids,
+        "period": f"{year:04d}-{month:02d}",
+        **_kpis(list(raw.values())),
+        "by_business_unit": [{"business_unit_id": bu_id, **_kpis([raw[bu_id]])} for bu_id in bu_ids],
     }
-
-    log_agent_execution(
-        db=db,
-        agent_name="Partner ROI Agent",
-        action_taken="get_partner_kpis",
-        tenant_id=partner_id,
-        action_data={
-            "bu_id": bu_id,
-            "revenue_usd_cents": revenue_usd_cents,
-            "gross_margin_pct": pnl_margin,
-            "new_logos": new_clients
-        },
-        success=True,
-    )
-
+    log_agent_execution(db=db, agent_name="Partner ROI Agent", action_taken="get_partner_kpis",
+                        tenant_id=str(partner.tenant_id),
+                        action_data={"business_unit_ids": bu_ids, "period": result["period"],
+                                     "revenue_usd_cents": result["revenue_usd_cents"]}, success=True)
     return result
 
-def get_partner_trend(db: Session, partner_id: str, months_back: int = 6) -> list:
-    """Get Partner's KPI trend over last N months."""
-    partner = db.query(Users).filter(Users.UserID == partner_id).first()
-    if not partner:
-        raise ValueError(f"Partner {partner_id} not found")
 
-    today = datetime.utcnow()
+def get_partner_trend(db: Session, partner_id: str, business_unit_ids: Iterable[int], months_back: int = 6,
+                      year_month: Optional[str] = None) -> List[dict]:
+    """Total KPIs over the given BUs for each of the months_back months ending with year_month
+    (default: the current month), oldest first."""
+    if not 1 <= months_back <= 24:
+        raise ValueError("months_back must be between 1 and 24")
+    bu_ids = sorted(set(business_unit_ids))
+    _partner(db, partner_id)
+    year, month = _period(year_month)
     trend = []
+    for back in range(months_back - 1, -1, -1):
+        y, m = _shift(year, month, back)
+        pnl_rows = _month_pnl(db, y, m, bu_ids)
+        trend.append({"period": f"{y:04d}-{m:02d}",
+                      **_kpis([_bu_month(db, bu_id, y, m, pnl_rows) for bu_id in bu_ids])})
+    return trend
 
-    for i in range(months_back):
-        month_offset = today - timedelta(days=today.day) - timedelta(days=30 * i)
-        year_month = month_offset.strftime("%Y-%m")
-        kpis = get_partner_kpis(db, partner_id, year_month)
-        if "error" not in kpis:
-            trend.append(kpis)
 
-    return sorted(trend, key=lambda x: x["period"])
-
-def get_partner_actions(db: Session, partner_id: str) -> list:
-    """Generate prioritized action items for Partner based on KPIs."""
-    kpis = get_partner_kpis(db, partner_id)
-
-    if "error" in kpis:
-        return []
-
+def get_partner_actions(kpis: dict) -> List[dict]:
+    """Prioritised action items from a KPI set (get_partner_kpis)."""
     actions = []
-
-    # Low utilization warning
-    if kpis["practice_utilization_pct"] < 70:
-        actions.append({
-            "priority": "HIGH",
-            "category": "UTILIZATION",
-            "message": f"Practice utilization at {kpis['practice_utilization_pct']}% — below 70% target. Review open demands and bench allocation.",
-            "metric": "practice_utilization_pct"
-        })
-
-    # Margin concern
-    if kpis["pnl_margin_pct"] < 15:
-        actions.append({
-            "priority": "HIGH",
-            "category": "MARGIN",
-            "message": f"Gross margin at {kpis['pnl_margin_pct']}% — below 20% target. Review pricing and delivery costs.",
-            "metric": "pnl_margin_pct"
-        })
-
-    # Growth trend
+    if kpis["practice_utilization_pct"] < UTILIZATION_TARGET_PCT:
+        actions.append({"priority": "HIGH", "category": "UTILIZATION", "metric": "practice_utilization_pct",
+                        "message": f"Practice utilization at {kpis['practice_utilization_pct']}% -- below "
+                                   f"{UTILIZATION_TARGET_PCT}% target. Review open demands and bench allocation."})
+    if kpis["pnl_margin_pct"] < MARGIN_FLOOR_PCT:
+        actions.append({"priority": "HIGH", "category": "MARGIN", "metric": "pnl_margin_pct",
+                        "message": f"Gross margin at {kpis['pnl_margin_pct']}% -- below {MARGIN_FLOOR_PCT}%. "
+                                   "Review pricing and delivery costs."})
     if kpis["practice_growth_yoy_pct"] < 0:
-        actions.append({
-            "priority": "MEDIUM",
-            "category": "GROWTH",
-            "message": f"Year-over-year revenue declined {abs(kpis['practice_growth_yoy_pct'])}% — accelerate new customer acquisition.",
-            "metric": "practice_growth_yoy_pct"
-        })
-
-    # Low new logos
-    if kpis["net_new_logos"] < 2:
-        actions.append({
-            "priority": "MEDIUM",
-            "category": "LOGOS",
-            "message": f"Only {kpis['net_new_logos']} new logos this month — increase pipeline activity.",
-            "metric": "net_new_logos"
-        })
-
-    return sorted(actions, key=lambda x: ({"HIGH": 0, "MEDIUM": 1, "LOW": 2}.get(x["priority"], 3), x["category"]))
+        actions.append({"priority": "MEDIUM", "category": "GROWTH", "metric": "practice_growth_yoy_pct",
+                        "message": f"Year-over-year revenue declined {abs(kpis['practice_growth_yoy_pct'])}% -- "
+                                   "accelerate new customer acquisition."})
+    if kpis["net_new_logos"] < NEW_LOGOS_FLOOR:
+        actions.append({"priority": "MEDIUM", "category": "LOGOS", "metric": "net_new_logos",
+                        "message": f"Only {kpis['net_new_logos']} new logos this month -- increase pipeline activity."})
+    order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+    return sorted(actions, key=lambda a: (order[a["priority"]], a["category"]))

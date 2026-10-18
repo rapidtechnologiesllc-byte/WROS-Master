@@ -35,7 +35,6 @@ RESOURCE_ROUTES = {
     # bench / Staff Aug / Core: where every employee stands (CEO 2026-10-14)
     "workforce-overview": "/workforce",
     "employees": "/employees",
-    "allocations": "/allocations",
     "timesheets": "/timesheets",
     "buddy-program": "/buddy-program",
     "htd-intake": "/htd-intake",
@@ -52,11 +51,8 @@ RESOURCE_ROUTES = {
     "revenue": "/pnl",  # partner & org P&L
     "finance-operations": "/finance-operations",
     "sales-ops": "/revenue",  # revenue leakage & reconciliation
-    "forecasts": "/forecast",
-    # Leadership
-    "ceo-dashboard": "/ceo-fy-progress",
-    "cfo-dashboard": "/cfo-dashboard",
-    "bu-head-dashboard": "/bu-head-dashboard",
+    "forecasts": "/forecast-vs-actual",  # its API (/forecast-vs-actual) checks forecasts
+    # Leadership (CEO / CFO / BU Head dashboards are each person's Home, not menu items)
     # FY goal tree (Org > Location > Partner > BU) + executive revenue
     "goals": "/executive-revenue-dashboard",
     "executive-signal": "/executive-signal",
@@ -69,7 +65,6 @@ RESOURCE_ROUTES = {
     "slm-dashboard": "/admin/slm-dashboard",
     "slm-training-data": "/admin/slm-training",
     "ai-config": "/admin/ai-config",
-    "ask-thunder": "/thunder",
     # Admin & Settings
     "users-access-control": "/admin/users-access-control/users",
     "role-templates": "/admin/users-access-control/role-templates",
@@ -84,11 +79,6 @@ RESOURCE_ROUTES = {
     "error-logs": "/admin/error-log",
     "system-health": "/system-health",
     "ticket-routing": "/admin/ticket-routing",
-    # Executive Dashboards (duplicates of the Leadership items)
-    "ceo-dashboard-view": "/ceo-fy-progress",
-    "cfo-dashboard-view": "/cfo-dashboard",
-    "partner-dashboard-view": "/partner-dashboard",
-    "bu-head-dashboard-view": "/bu-head-dashboard",
 }
 
 # Menu labels where title-casing the resource name reads wrong
@@ -104,10 +94,7 @@ NAV_LABELS = {
     "utilization-dashboard": "Utilization & Bench Cost",
     "revenue": "P&L",
     "sales-ops": "Revenue Health",
-    "forecasts": "Forecasts",
-    "ceo-dashboard": "CEO Dashboard",
-    "cfo-dashboard": "CFO Dashboard",
-    "bu-head-dashboard": "BU Head Dashboard",
+    "forecasts": "Forecast vs Actual",
     "goals": "Goals & Revenue",
     "bi-explorer": "BI Explorer",
     "admin-agent-state": "Agent State",
@@ -120,6 +107,9 @@ NAV_LABELS = {
     "api-keys": "API Keys",
     "error-logs": "Error Logs",
 }
+
+# Not menu items, on purpose: allocations (Employees > Allocations tab; /allocations redirects there)
+# and ask-thunder (the /thunder candidate-chat test simulator, reachable by URL for QA).
 
 # Resources whose page is a tab of another page (Users & Access Control):
 # they keep their route (deep links, permissions) but are not menu items.
