@@ -748,7 +748,7 @@ def _rehire_review_to_response(db: Session, review: InterviewRehireReview) -> Re
 
 @router.get(
     "/rehire-reviews",
-    dependencies=[Depends(require_resource_permission("interviews", "view"))],
+    dependencies=[Depends(require_resource_permission("rehire-approval", "view"))],
     response_model=RehireReviewListResponse,
 )
 def list_rehire_reviews(
@@ -776,7 +776,7 @@ def list_rehire_reviews(
 
 @router.post(
     "/rehire-reviews/{review_id}/decide",
-    dependencies=[Depends(require_resource_permission("interviews", "can_edit"))],
+    dependencies=[Depends(require_resource_permission("rehire-approval", "edit"))],
     response_model=RehireReviewResponse,
 )
 def decide_rehire_review_endpoint(
@@ -2023,7 +2023,7 @@ def get_interviewer_workload(
 
 @router.get(
     "/hm-review/my-candidates", response_model=HMCandidateReviewListResponse,
-    dependencies=[Depends(require_resource_permission("interviews", "view"))],
+    dependencies=[Depends(require_resource_permission("candidate-review", "view"))],
     summary="S-102/HRMS-P207 -- the caller's own hiring-manager candidate review list: profile + all interview feedback per candidate",
 )
 def get_my_hiring_manager_candidate_review(

@@ -11,6 +11,7 @@ from app.api.v1.endpoints.documents import router as documents_router
 from app.api.v1.endpoints.offer_letters import router as offer_letters_router
 from app.api.v1.endpoints.newsletter import router as newsletter_router
 from app.api.v1.endpoints.checklists import router as checklists_router
+from app.api.v1.endpoints.checklist_templates import router as checklist_templates_router
 from app.api.v1.endpoints.candidate_status import router as candidate_status_router
 from app.api.v1.endpoints.ats import router as ats_router
 from app.api.v1.endpoints.email import router as email_router
@@ -153,6 +154,7 @@ router.include_router(router=documents_router)
 router.include_router(router=offer_letters_router)
 router.include_router(router=newsletter_router)
 router.include_router(router=checklists_router)
+router.include_router(router=checklist_templates_router)
 router.include_router(router=candidate_status_router)
 router.include_router(router=ats_router)
 router.include_router(router=email_router)

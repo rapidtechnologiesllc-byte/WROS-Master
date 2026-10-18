@@ -46,6 +46,11 @@ def test_linkedin_pipeline_follows_candidates_for_any_role_that_can_view_candida
 
 
 def test_no_candidates_permission_means_no_linkedin_pipeline(db):
+    from app.models.tenant import Tenant
+
+    if db.query(Tenant).filter_by(id=1).first() is None:  # passes alone and in any test order
+        db.add(Tenant(id=1, name="test-tenant"))
+        db.flush()
     role = RoleTemplate(tenant_id=1, name=f"none-{uuid.uuid4().hex[:8]}", display_name="None",
                         hierarchy_level=1, org_level_access=False, enabled=True)
     db.add(role)

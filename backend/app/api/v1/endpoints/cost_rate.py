@@ -50,12 +50,12 @@ router = APIRouter(tags=["cost-rate"])
     "/cost-rate-configs",
     response_model=CostRateConfigResponse,
     status_code=201,
-    dependencies=[Depends(require_resource_permission("revenue", "create"))]
+    dependencies=[Depends(require_resource_permission("finance-operations", "create"))]
 )
 def create_cost_rate_config(
     body: SetCostRateConfigRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
 ):
     try:
         return set_cost_rate_config(
@@ -69,12 +69,12 @@ def create_cost_rate_config(
 @router.get(
     "/employees/{employee_id}/fully-loaded-cost",
     response_model=FullyLoadedCostResponse,
-    dependencies=[Depends(require_resource_permission("revenue", "view"))]
+    dependencies=[Depends(require_resource_permission("finance-operations", "view"))]
 )
 def fully_loaded_cost(
     employee_id: str, business_unit_id: Optional[int] = None,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
 ):
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
     if employee is None:
@@ -91,12 +91,12 @@ def fully_loaded_cost(
 @router.get(
     "/blended-delivery-rate/bu/{business_unit_id}",
     response_model=BlendedDeliveryRateResponse,
-    dependencies=[Depends(require_resource_permission("revenue", "view"))]
+    dependencies=[Depends(require_resource_permission("finance-operations", "view"))]
 )
 def blended_delivery_rate(
     business_unit_id: int, year: int, month: int,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
 ):
     rate = calculate_blended_delivery_rate(db, business_unit_id=business_unit_id, year=year, month=month)
     return BlendedDeliveryRateResponse(
@@ -107,12 +107,12 @@ def blended_delivery_rate(
 @router.get(
     "/pnl/bu/{business_unit_id}",
     response_model=BuPnlResponse,
-    dependencies=[Depends(require_resource_permission("revenue", "view"))]
+    dependencies=[Depends(require_resource_permission("finance-operations", "view"))]
 )
 def bu_pnl(
     business_unit_id: int, year: int, month: int,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
 ):
     return get_bu_pnl(db, business_unit_id=business_unit_id, year=year, month=month)
 
@@ -121,12 +121,12 @@ def bu_pnl(
     "/reserve-fund/entries",
     response_model=ReserveFundEntryResponse,
     status_code=201,
-    dependencies=[Depends(require_resource_permission("revenue", "create"))]
+    dependencies=[Depends(require_resource_permission("finance-operations", "create"))]
 )
 def create_reserve_fund_entry(
     body: RecordReserveFundEntryRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
 ):
     try:
         return record_reserve_fund_entry(
@@ -141,24 +141,24 @@ def create_reserve_fund_entry(
 @router.get(
     "/reserve-fund/bu/{business_unit_id}/status",
     response_model=ReserveFundStatusResponse,
-    dependencies=[Depends(require_resource_permission("revenue", "view"))]
+    dependencies=[Depends(require_resource_permission("finance-operations", "view"))]
 )
 def reserve_fund_status(
     business_unit_id: int, year: int, month: int,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
 ):
     return get_reserve_fund_status(db, business_unit_id=business_unit_id, as_of_year=year, as_of_month=month)
 
 @router.get(
     "/hiring-affordability/bu/{business_unit_id}",
     response_model=HiringAffordabilityResponse,
-    dependencies=[Depends(require_resource_permission("revenue", "view"))]
+    dependencies=[Depends(require_resource_permission("finance-operations", "view"))]
 )
 def hiring_affordability(
     business_unit_id: int, proposed_annual_salary_usd_cents: int, year: int, month: int,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
 ):
     return check_hiring_affordability(
         db, business_unit_id=business_unit_id,
@@ -169,12 +169,12 @@ def hiring_affordability(
     "/intercompany-settlements",
     response_model=IntercompanySettlementResponse,
     status_code=201,
-    dependencies=[Depends(require_resource_permission("revenue", "create"))]
+    dependencies=[Depends(require_resource_permission("finance-operations", "create"))]
 )
 def create_intercompany_settlement(
     body: RecordIntercompanySettlementRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
 ):
     try:
         return record_intercompany_settlement(
@@ -189,23 +189,23 @@ def create_intercompany_settlement(
 @router.get(
     "/intercompany-settlements",
     response_model=list[IntercompanySettlementResponse],
-    dependencies=[Depends(require_resource_permission("revenue", "view"))]
+    dependencies=[Depends(require_resource_permission("finance-operations", "view"))]
 )
 def list_intercompany_settlements(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
 ):
     return list_settlements(db, tenant_id=current_user.tenant_id)
 
 @router.get(
     "/intercompany-settlements/entity/{entity}/net-position",
     response_model=EntityNetPositionResponse,
-    dependencies=[Depends(require_resource_permission("revenue", "view"))]
+    dependencies=[Depends(require_resource_permission("finance-operations", "view"))]
 )
 def entity_net_position(
     entity: str,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
 ):
     return EntityNetPositionResponse(
         entity=entity, net_position_usd_cents=get_entity_net_position(db, entity=entity, tenant_id=current_user.tenant_id),
@@ -215,12 +215,12 @@ def entity_net_position(
     "/bank-transactions",
     response_model=BankTransactionResponse,
     status_code=201,
-    dependencies=[Depends(require_resource_permission("revenue", "create"))]
+    dependencies=[Depends(require_resource_permission("finance-operations", "create"))]
 )
 def create_bank_transaction(
     body: RecordBankTransactionRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
 ):
     try:
         return record_bank_transaction(
@@ -235,13 +235,13 @@ def create_bank_transaction(
 @router.post(
     "/bank-transactions/{transaction_id}/match",
     response_model=BankTransactionResponse,
-    dependencies=[Depends(require_resource_permission("revenue", "create"))]
+    dependencies=[Depends(require_resource_permission("finance-operations", "create"))]
 )
 def match_bank_transaction(
     transaction_id: int,
     body: MatchTransactionRequest,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
 ):
     """Match a recorded bank credit to an invoice; a SENT invoice becomes PAID on that date."""
     from app.models.bank_reconciliation import BankTransaction
@@ -261,11 +261,11 @@ def match_bank_transaction(
 @router.get(
     "/bank-transactions/unreconciled",
     response_model=list[BankTransactionResponse],
-    dependencies=[Depends(require_resource_permission("revenue", "view"))]
+    dependencies=[Depends(require_resource_permission("finance-operations", "view"))]
 )
 def list_unreconciled_transactions(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
 ):
     return get_unreconciled_transactions(db, tenant_id=current_user.tenant_id)
 
@@ -273,11 +273,11 @@ def list_unreconciled_transactions(
 @router.get(
     "/bank-transactions/unmatched-paid-invoices",
     response_model=list[UnmatchedPaidInvoiceResponse],
-    dependencies=[Depends(require_resource_permission("revenue", "view"))]
+    dependencies=[Depends(require_resource_permission("finance-operations", "view"))]
 )
 def list_unmatched_paid_invoices(
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
 ):
     return [UnmatchedPaidInvoiceResponse(invoice_id=i.id, client_id=i.client_id, total_usd_cents=i.total_usd_cents)
             for i in get_unmatched_paid_invoices(db, tenant_id=current_user.tenant_id)]
@@ -286,11 +286,11 @@ def list_unmatched_paid_invoices(
 @router.get(
     "/pnl/org",
     response_model=OrgPnlSummaryResponse,
-    dependencies=[Depends(require_resource_permission("revenue", "view"))]
+    dependencies=[Depends(require_resource_permission("finance-operations", "view"))]
 )
 def org_pnl(
     year: int, month: int,
     db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+    current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
 ):
     return get_org_pnl_summary(db, year=year, month=month, tenant_id=current_user.tenant_id)

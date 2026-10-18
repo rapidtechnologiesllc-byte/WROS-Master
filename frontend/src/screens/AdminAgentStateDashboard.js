@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Tag, Button, Table, Spin, Alert, Row, Col, Statistic, Progress, Drawer, Empty, Badge } from 'antd';
-import { TrophyOutlined, StarOutlined, ThunderboltOutlined, CheckCircleOutlined, WarningOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { TrophyOutlined, StarOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { getAllAgentsMaturities, getAgentMaturityDashboard } from '../services/api/adminDashboard';
 
 const AgentStateDashboard = () => {
-  const navigate = useNavigate();
+  const [loadError, setLoadError] = useState(null);
   const [agents, setAgents] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState(null);
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -23,6 +22,7 @@ const AgentStateDashboard = () => {
     try {
       setLoading(true);
       const response = await getAllAgentsMaturities();
+      setLoadError(null);
       if (response.agents) {
         const allAgents = response.agents;
         setAgents(allAgents);
@@ -48,6 +48,7 @@ const AgentStateDashboard = () => {
       }
     } catch (error) {
       console.error('Failed to fetch agents dashboard:', error);
+      setLoadError(`Failed to load agents: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -60,6 +61,7 @@ const AgentStateDashboard = () => {
       setDrawerVisible(true);
     } catch (error) {
       console.error('Failed to fetch agent details:', error);
+      setLoadError(`Failed to load ${agentName}: ${error.message}`);
     }
   };
 
@@ -170,6 +172,7 @@ const AgentStateDashboard = () => {
 
   return (
     <div style={{ padding: '20px' }}>
+      {loadError && <Alert type="error" showIcon message={loadError} style={{ marginBottom: 20 }} />}
       <Card title="Agent State Dashboard" style={{ marginBottom: 20 }}>
         <Alert
           message="Team Performance Overview"
@@ -241,9 +244,6 @@ const AgentStateDashboard = () => {
                     {(agent.maturity_level || 0).toFixed(0)}%
                   </p>
                   <p style={{ fontSize: '12px', color: '#666' }}>Maturity Score</p>
-                  <Button type="primary" size="small" style={{ marginTop: '10px' }}>
-                    Gift Recognition
-                  </Button>
                 </Card>
               </Col>
             ))}
@@ -313,16 +313,6 @@ const AgentStateDashboard = () => {
                   <Empty description="No metrics available" />
                 )}
               </Card>
-            </Col>
-
-            <Col span={24}>
-              <Button
-                type="primary"
-                block
-                onClick={() => navigate(`/admin/agents/${selectedAgent.current_maturity?.agent_name}`)}
-              >
-                View Detailed Dashboard
-              </Button>
             </Col>
           </Row>
         </Drawer>

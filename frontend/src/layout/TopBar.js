@@ -4,7 +4,7 @@ import { useTheme } from "../context/ThemeContext";
 import { Button, Input } from "../components/ui";
 import { getHrMe, changeHrMePassword, updateWhatsAppNumber } from "../services/api/users";
 import { getNotifications, markNotificationRead } from "../services/api/notifications";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import cx from "../utils/cx";
 import ThunderActivityFeedPanel from "../components/activity/ThunderActivityFeedPanel";
 import BUSwitcher from "../components/BUSwitcher";
@@ -53,7 +53,6 @@ export default function TopBar({
   jobs = [],
   setSelectedCandidateData,
   setSelectedJobId,
-  hideTitle = false,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -82,7 +81,6 @@ export default function TopBar({
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationsRef = useRef(null);
-  const location = useLocation();
 
   const loadNotifications = async () => {
     try {
@@ -173,56 +171,6 @@ export default function TopBar({
     setShowNewPassword(false);
     setShowPasswordModal(true);
   };
-  const crumbs = useMemo(() => {
-    const path = location.pathname;
-    const pathMap = {
-      "/": ["Dashboard"],
-      "/candidates": ["Candidates"],
-      "/candidates/create": ["Create Candidate"],
-      "/jobs": ["Jobs"],
-      "/jobs/create": ["Create Job"],
-      "/my-tasks": ["My Tasks"],
-      "/my-timesheet": ["My Timesheet"],
-      "/my-expenses": ["My Expenses"],
-      "/resource-management": ["Resource Management"],
-      "/core-pull": ["Core Pull"],
-      "/client-management": ["Client Management"],
-      "/demand-confirmation": ["Demand Confirmation"],
-      "/employees": ["Employee Directory"],
-      "/submissions": ["Submissions"],
-      "/allocations": ["Allocations"],
-      "/projects": ["Projects"],
-      "/htd-intake": ["HTD Intake"],
-      "/hm-candidate-review": ["HM Candidate Review"],
-      "/utilization-dashboard": ["Utilization Dashboard"],
-      "/timesheets": ["Timesheets"],
-      "/forecast": ["Forecast"],
-      "/invoices": ["Invoices"],
-      "/revenue": ["Revenue"],
-      "/opportunity-pipeline": ["Opportunity Pipeline"],
-      "/executive-revenue-dashboard": ["Executive Revenue"],
-      "/finance-operations": ["Finance Operations"],
-      "/thunder": ["Thunder Chat"],
-      "/rbac": ["RBAC Settings"],
-      "/hr-users": ["User Management"],
-      "/settings/locale": ["Locale Settings"],
-      "/settings/templates": ["Message Templates"],
-      "/settings/api-keys": ["API Keys Configuration"],
-      "/admin/ticket-routing": ["Ticket Routing"],
-      "/admin/ai-config": ["AI Configuration"],
-      "/admin/error-log": ["Error Log"],
-      "/admin/settings": ["Admin Settings"],
-      "/admin/weekly-recap": ["Weekly Recap"],
-      "/buddy-program": ["Buddy Program"],
-      "/executive-signal": ["Executive Signal"],
-    };
-    // Check exact path first, then partial matches
-    if (pathMap[path]) return pathMap[path];
-    for (const [key, value] of Object.entries(pathMap)) {
-      if (path.startsWith(key) && key !== "/") return value;
-    }
-    return ["Dashboard"];
-  }, [location.pathname]);
   const filteredCandidates = useMemo(() => {
     return candidates
       .filter((candidate) =>
@@ -247,15 +195,7 @@ export default function TopBar({
       <div className="rounded-2xl border bg-white dark:bg-gray-800 dark:border-gray-700 px-5 py-4 shadow-sm">
         <div className="flex justify-between items-center">
           <div className="flex w-full items-center">
-            {!hideTitle && (
-              <div className="min-w-fit">
-                <div className="text-base font-bold text-gray-900 dark:text-gray-100">
-                  {crumbs[crumbs.length - 1]}
-                </div>
-              </div>
-            )}
-
-            <div ref={searchRef} className={`relative flex-1 max-w-2xl ${hideTitle ? "" : "ml-6"}`}>
+            <div ref={searchRef} className="relative flex-1 max-w-2xl">
               <Search className="absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
               <input
                 type="text"

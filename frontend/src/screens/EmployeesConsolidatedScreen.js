@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Users, Briefcase, Grid3x3, UserPlus, RefreshCw, AlertCircle } from "lucide-react";
 import { Card, Button, StatusBadge } from "../components/ui";
 import cx from "../utils/cx";
+import useTabParam from "../utils/useTabParam";
 import {
   getAllEmployees,
   getEmployeeEscalations,
@@ -591,8 +592,11 @@ function ResourcesTab() {
   );
 }
 
+const EMPLOYEE_TABS = ["list", "allocations", "resources"];
+
 export default function EmployeesConsolidatedScreen() {
-  const [activeTab, setActiveTab] = useState("list");
+  // ?tab=allocations is where the retired /allocations menu item lands
+  const [activeTab, setActiveTab] = useTabParam(EMPLOYEE_TABS);
 
   return (
     <div className="space-y-6">

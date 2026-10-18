@@ -141,31 +141,35 @@ class NavigationResponse(BaseModel):
 # RESOURCE CONTRACTS (Used by both frontend and backend)
 # ============================================================================
 
+# Module order is menu order; resource order inside a module is item order (navigation.py).
+# A resource listed here but in no RESOURCE_ROUTES entry (init_resources) is permission-only.
+# Moving a resource to another module keeps its grants: db_contract re-parents the existing row.
 MODULES_AND_RESOURCES = {
-    "Personal": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "ask-flash", "notifications", "activity-feed"],
-    "Recruitment": ["candidates", "jobs", "submissions", "interviews", "offer-letters",
-                    "intervention-queue", "rehire-approval", "candidate-review",
-                    "risk-dashboard", "thunder-analytics", "bulk-launch",
-                    "checklists", "flash-missions"],
-    "Workforce": ["employees", "onboarding", "allocations", "timesheets", "htd-intake", "buddy-program", "convert-to-employee",
-                  "utilization-dashboard", "resource-forecast", "workforce-overview"],
-    "Sales": ["clients", "opportunities", "sales-ops", "pipeline-management",
-              "demand-confirmation"],
-    "Project Management": ["projects", "resources", "budget", "schedule", "core-pull", "work-orders"],
-    "Finance": ["invoices", "expenses", "payroll", "reports",
-                "forecasts", "invoice-management", "finance-operations", "executive-revenue-dashboard",
-                "revenue"],
-    "Reporting": ["analytics", "bi-explorer"],
-    "System": ["configuration", "api-keys", "error-logs",
-               "system-health", "slm-training-data", "message-queue", "ticket-routing",
-               "ai-config", "locale-currency", "agents", "newsletters"],
-    "Executive": ["ceo-dashboard", "cfo-dashboard", "partner-dashboard", "executive-signal",
-                  "admin-agent-state", "admin-weekly-recap", "bu-head-dashboard", "goals"],
-    "Admin": ["users-access-control", "admin-settings", "certifications", "role-templates",
-              "business-units", "delivery-centers", "organizational-hierarchy",
-              "org-roles"],
-    "Executive Dashboards": ["ceo-dashboard-view", "cfo-dashboard-view", "partner-dashboard-view", "bu-head-dashboard-view"],
-    "AI & Automation": ["ask-thunder", "slm-dashboard"],
+    "Personal": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "ask-flash", "notifications",
+                 "activity-feed"],
+    "Recruitment": ["candidates", "jobs", "submissions", "convert-to-employee", "offer-letters",
+                    "intervention-queue", "risk-dashboard", "thunder-analytics",
+                    "candidate-review", "rehire-approval", "interviews", "flash-missions"],
+    "Workforce": ["workforce-overview", "employees", "allocations", "timesheets", "buddy-program", "htd-intake",
+                  "resource-forecast", "utilization-dashboard"],
+    "Sales & Delivery": ["clients", "opportunities", "pipeline-management", "demand-confirmation", "projects",
+                         "core-pull", "resources", "work-orders"],
+    "Finance": ["invoices", "revenue", "finance-operations", "sales-ops", "forecasts", "expenses"],
+    # ceo/cfo/bu-head-dashboard: permission-only -- each is that person's Home (authority.home_dashboard)
+    "Leadership": ["ceo-dashboard", "cfo-dashboard", "bu-head-dashboard", "goals", "executive-signal",
+                   "partner-dashboard", "bi-explorer"],
+    "AI Operations": ["admin-agent-state", "admin-weekly-recap", "message-queue", "slm-dashboard",
+                      "slm-training-data", "ai-config", "agents", "ask-thunder"],
+    "Admin & Settings": ["users-access-control", "role-templates", "business-units", "delivery-centers",
+                         "organizational-hierarchy", "org-roles", "certifications", "checklists", "locale-currency",
+                         "bulk-launch", "api-keys", "error-logs", "system-health", "ticket-routing",
+                         "configuration", "admin-settings", "newsletters"],
+}
+
+# Menu group icon per module (lucide icon names the client maps to components).
+MODULE_ICONS = {
+    "Personal": "LayoutDashboard", "Recruitment": "Users", "Workforce": "Users2", "Sales & Delivery": "Briefcase",
+    "Finance": "BadgeDollarSign", "Leadership": "TrendingUp", "AI Operations": "Bot", "Admin & Settings": "Settings",
 }
 
 # ============================================================================
@@ -386,6 +390,7 @@ __all__ = [
     "RolePermissions",
     "RoleTemplate",
     "MODULES_AND_RESOURCES",
+    "MODULE_ICONS",
     "validate_login_request",
     "validate_login_response",
     "validate_navigation_response",

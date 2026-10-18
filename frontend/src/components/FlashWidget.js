@@ -25,15 +25,8 @@ import {
 } from "../services/api/flash";
 import { reportDefect } from "../services/api/defects";
 import cx from "../utils/cx";
-import { NAV_ITEMS } from "../layout/navItems";
+import { getScreenLabels } from "../services/api/navigation";
 import ScreenErrorDisplay from "./ScreenErrorDisplay";
-
-// Real module names, not free text -- pulled from the same nav config
-// that drives the sidebar, so "Affected Screen" always maps to an
-// actual screen instead of whatever a reporter happens to type.
-const AFFECTED_SCREEN_OPTIONS = Array.from(
-  new Set(Object.values(NAV_ITEMS).map((item) => item.label)),
-).sort((a, b) => a.localeCompare(b));
 
 // The query parameter of a deep link into Flash: ?flash=<kind>:<ref>
 const FLASH_PARAM = "flash";
@@ -57,6 +50,9 @@ export default function FlashWidget() {
   const [reportForm, setReportForm] = useState({ description: "", screen: "", screenOther: "", severity: "MEDIUM", blocking: false });
   const [reporting, setReporting] = useState(false);
   const [screenError, setScreenError] = useState(null);
+  // "Affected Screen" options: the screens in the user's own menu (GET /hr/me/navigation),
+  // so a report always names a real screen instead of free text
+  const [screenOptions, setScreenOptions] = useState([]);
   const [actionSuccess, setActionSuccess] = useState(null);
   const scrollRef = useRef(null);
   const lastIdRef = useRef(null);
@@ -117,6 +113,14 @@ export default function FlashWidget() {
   }, [applyConversation]);
 
   // The conversation is kept on the server: load it on any screen, after any reload
+  // Load the screen list when the report form opens (the sidebar already fetched the menu)
+  useEffect(() => {
+    if (!showReportModal) return;
+    getScreenLabels()
+      .then(setScreenOptions)
+      .catch((err) => setScreenError(`Could not load the screen list: ${err.message}`));
+  }, [showReportModal]);
+
   useEffect(() => {
     refresh();
   }, [refresh]);
@@ -276,7 +280,7 @@ export default function FlashWidget() {
                   className="w-full rounded-lg border px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-bx-orange"
                 >
                   <option value="" disabled>Select the screen with the issue…</option>
-                  {AFFECTED_SCREEN_OPTIONS.map((label) => (
+                  {screenOptions.map((label) => (
                     <option key={label} value={label}>{label}</option>
                   ))}
                   <option value="Other">Other (not listed)</option>

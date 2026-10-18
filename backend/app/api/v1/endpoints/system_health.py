@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 @router.get(
     "/health",
-    dependencies=[Depends(require_resource_permission("admin-settings", "view"))],
+    dependencies=[Depends(require_resource_permission("system-health", "view"))],
 )
 async def get_system_health() -> Dict[str, Any]:
     """

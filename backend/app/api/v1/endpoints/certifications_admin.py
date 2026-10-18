@@ -7,6 +7,7 @@ from app.core.tenant_context import tenant_id_of
 from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 import logging
 from pydantic import BaseModel
@@ -56,10 +57,15 @@ class KPITargetResponse(BaseModel):
     class Config:
         from_attributes = True
 
+def _visible_to(current_user):
+    """The caller's tenant's certifications, plus legacy rows created before tenant_id existed."""
+    return or_(Certification.tenant_id == tenant_id_of(current_user), Certification.tenant_id.is_(None))
+
+
 @router.post(
     "/create",
     response_model=CertificationResponse,
-    dependencies=[Depends(require_resource_permission("configuration", "edit"))],
+    dependencies=[Depends(require_resource_permission("certifications", "create"))],
 )
 def create_certification(
     request: CertificationRequest,
@@ -69,7 +75,8 @@ def create_certification(
     """Create a new certification template."""
     # Check if cert_code already exists
     existing = db.query(Certification).filter(
-        Certification.cert_code == request.cert_code
+        Certification.cert_code == request.cert_code,
+        Certification.tenant_id == tenant_id_of(current_user),
     ).first()
 
     if existing:
@@ -94,17 +101,17 @@ def create_certification(
 @router.get(
     "/list",
     response_model=List[CertificationResponse],
-    dependencies=[Depends(require_resource_permission("configuration", "edit"))],
+    dependencies=[Depends(require_resource_permission("certifications", "view"))],
 )
-def list_certifications(db: Session = Depends(get_db)):
-    """List all certification templates."""
-    certs = db.query(Certification).order_by(Certification.cert_name).all()
+def list_certifications(db: Session = Depends(get_db), current_user=Depends(get_current_internal_user)):
+    """The tenant's certification templates."""
+    certs = db.query(Certification).filter(_visible_to(current_user)).order_by(Certification.cert_name).all()
     return certs
 
 @router.post(
     "/assign-target",
     response_model=KPITargetResponse,
-    dependencies=[Depends(require_resource_permission("configuration", "edit"))],
+    dependencies=[Depends(require_resource_permission("certifications", "edit"))],
 )
 def assign_kpi_target(
     request: KPITargetRequest,
@@ -113,12 +120,14 @@ def assign_kpi_target(
 ):
     """Assign a certification target to an employee."""
     # Verify employee exists
-    employee = db.query(Employee).filter(Employee.id == request.employee_id).first()
+    employee = db.query(Employee).filter(Employee.id == request.employee_id,
+                                         Employee.tenant_id == tenant_id_of(current_user)).first()
     if not employee:
         raise HTTPException(status_code=404, detail=f"Employee {request.employee_id} not found")
 
     # Verify certification exists
-    cert = db.query(Certification).filter(Certification.id == request.certification_id).first()
+    cert = db.query(Certification).filter(Certification.id == request.certification_id,
+                                          _visible_to(current_user)).first()
     if not cert:
         raise HTTPException(status_code=404, detail=f"Certification {request.certification_id} not found")
 

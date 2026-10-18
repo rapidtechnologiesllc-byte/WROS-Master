@@ -196,16 +196,28 @@ def heads_a_business_unit(db: Session, user: Optional[Users]) -> bool:
         BusinessUnitLocationHead.head_user_id == user.UserID).first() is not None
 
 
-def home_dashboard(db: Session, user: Optional[Users]) -> str:
-    """CFO is a designation on the role (never a department name); the BU Head home is for
-    people who actually head a business unit (levels 13-15 share that position code)."""
+def _home(db: Session, user: Optional[Users]):
     code, designation = position(db, user)
     home = CFO_HOME if designation == "cfo" else HOME_BY_POSITION.get(code)
     if home and home[0] == "bu_head" and not heads_a_business_unit(db, user):
         home = None
     if home and has_permission(db, user, f"{home[1]}.view"):
-        return home[0]
-    return "default"
+        return home
+    return None
+
+
+def home_dashboard(db: Session, user: Optional[Users]) -> str:
+    """CFO is a designation on the role (never a department name); the BU Head home is for
+    people who actually head a business unit (levels 13-15 share that position code)."""
+    home = _home(db, user)
+    return home[0] if home else "default"
+
+
+def home_resource(db: Session, user: Optional[Users]) -> Optional[str]:
+    """The dashboard resource that is this user's Home ("/"), or None for the general dashboard.
+    The menu never lists that dashboard a second time under its own name (CEO 2026-10-17)."""
+    home = _home(db, user)
+    return home[1] if home else None
 
 
 def summary(db: Session, user: Optional[Users]) -> dict:

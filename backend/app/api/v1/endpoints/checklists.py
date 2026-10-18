@@ -2,8 +2,7 @@
 Checklist API Endpoints
 
 HR/Admin Routes  (prefix: /checklist/hr)
-  - Template CRUD
-  - Template item CRUD
+  - Template and template item CRUD: checklist_templates.py (gated by "checklists")
   - Assign template to candidate
   - View / manually complete candidate items
 
@@ -24,25 +23,16 @@ from app.services.checklist_assignment_service import (
     ChecklistAlreadyAssigned,
     activate_first_queue_item,
     assign_template,
+    checklist_response,
 )
 from app.models.checklist import (
     ChecklistTemplate,
-    ChecklistTemplateItem,
     CandidateChecklist,
     CandidateChecklistItem,
 )
 from app.models.candidate import Candidate
 from app.schemas.checklist import (
     AssignChecklistRequest,
-    ChecklistActionResponse,
-    ChecklistItemCreate,
-    ChecklistItemResponse,
-    ChecklistItemUpdate,
-    ChecklistTemplateCreate,
-    ChecklistTemplateListResponse,
-    ChecklistTemplateResponse,
-    ChecklistTemplateSummary,
-    ChecklistTemplateUpdate,
     CandidateChecklistItemResponse,
     CandidateChecklistListResponse,
     CandidateChecklistResponse,
@@ -54,54 +44,6 @@ router = APIRouter(prefix="/checklist", tags=["checklist"])
 # ===========================================================================
 # HELPERS
 # ===========================================================================
-
-def _build_checklist_response(checklist: CandidateChecklist) -> CandidateChecklistResponse:
-    """Convert a CandidateChecklist ORM object to a CandidateChecklistResponse."""
-    item_responses = [
-        CandidateChecklistItemResponse(
-            id=item.id,
-            checklist_id=item.checklist_id,
-            template_item_id=item.template_item_id,
-            title=item.title,
-            description=item.description,
-            item_type=item.item_type,
-            order_index=item.order_index,
-            status=item.status,
-            due_date=item.due_date,
-            activated_at=item.activated_at,
-            submitted_at=item.submitted_at,
-            completed_at=item.completed_at,
-        )
-        for item in checklist.items
-    ]
-
-    total = len(item_responses)
-    completed = sum(1 for i in item_responses if i.status == "completed")
-    submitted = sum(1 for i in item_responses if i.status == "submitted")
-    todo_count = sum(1 for i in item_responses if i.item_type == "todo")
-    queue_count = sum(1 for i in item_responses if i.item_type == "queue")
-    active_queue = next(
-        (i for i in item_responses if i.item_type == "queue" and i.status == "active"),
-        None,
-    )
-
-    return CandidateChecklistResponse(
-        id=checklist.id,
-        candidate_id=checklist.candidate_id,
-        template_id=checklist.template_id,
-        template_name=checklist.template_name,
-        assigned_by_user_id=checklist.assigned_by_user_id,
-        assigned_at=checklist.assigned_at,
-        status=checklist.status,
-        completed_at=checklist.completed_at,
-        items=item_responses,
-        total_items=total,
-        completed_items=completed,
-        submitted_items=submitted,
-        todo_items=todo_count,
-        queue_items=queue_count,
-        active_queue_item=active_queue,
-    )
 
 def _activate_first_queue_item(db: Session, checklist_id: int) -> None:
     activate_first_queue_item(db, checklist_id)
@@ -172,231 +114,6 @@ def _complete_item_logic(
     return next_item
 
 # ===========================================================================
-# HR — TEMPLATE CRUD
-# ===========================================================================
-
-@router.post(
-    "/hr/templates",
-    response_model=ChecklistTemplateResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
-    summary="Create a new checklist template",
-)
-def create_template(
-    request: ChecklistTemplateCreate,
-    db: Session = Depends(get_db),
-    user=Depends(get_current_internal_user),
-):
-    """Create a reusable checklist template, optionally with initial items."""
-    template = ChecklistTemplate(
-        name=request.name,
-        description=request.description,
-        created_by_user_id=user.UserID,
-    )
-    db.add(template)
-    db.flush()  # get template.id before adding items
-
-    for idx, item_data in enumerate(request.items or []):
-        item = ChecklistTemplateItem(
-            template_id=template.id,
-            title=item_data.title,
-            description=item_data.description,
-            item_type=item_data.item_type,
-            order_index=item_data.order_index if item_data.order_index else idx,
-            due_days_offset=item_data.due_days_offset,
-        )
-        db.add(item)
-
-    db.commit()
-    db.refresh(template)
-    return template
-
-@router.get(
-    "/hr/templates",
-    response_model=ChecklistTemplateListResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
-    summary="List all checklist templates",
-)
-def list_templates(
-    db: Session = Depends(get_db),
-    user=Depends(get_current_internal_user),
-):
-    templates = db.query(ChecklistTemplate).order_by(ChecklistTemplate.created_at.desc()).all()
-    summaries = [
-        ChecklistTemplateSummary(
-            id=t.id,
-            name=t.name,
-            description=t.description,
-            created_by_user_id=t.created_by_user_id,
-            created_at=t.created_at,
-            item_count=len(t.items),
-        )
-        for t in templates
-    ]
-    return ChecklistTemplateListResponse(total=len(summaries), templates=summaries)
-
-@router.get(
-    "/hr/templates/{template_id}",
-    response_model=ChecklistTemplateResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "view"))],
-    summary="Get a single template with all its items",
-)
-def get_template(
-    template_id: int,
-    db: Session = Depends(get_db),
-    user=Depends(get_current_internal_user),
-):
-    template = db.query(ChecklistTemplate).filter(ChecklistTemplate.id == template_id).first()
-    if not template:
-        raise HTTPException(status_code=404, detail=f"Template {template_id} not found.")
-    return template
-
-@router.put(
-    "/hr/templates/{template_id}",
-    response_model=ChecklistTemplateResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
-    summary="Update template name / description",
-)
-def update_template(
-    template_id: int,
-    request: ChecklistTemplateUpdate,
-    db: Session = Depends(get_db),
-    user=Depends(get_current_internal_user),
-):
-    template = db.query(ChecklistTemplate).filter(ChecklistTemplate.id == template_id).first()
-    if not template:
-        raise HTTPException(status_code=404, detail=f"Template {template_id} not found.")
-
-    if request.name is not None:
-        template.name = request.name
-    if request.description is not None:
-        template.description = request.description
-
-    db.commit()
-    db.refresh(template)
-    return template
-
-@router.delete(
-    "/hr/templates/{template_id}",
-    response_model=ChecklistActionResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
-    summary="Delete a template (cascade deletes its items)",
-)
-def delete_template(
-    template_id: int,
-    db: Session = Depends(get_db),
-    user=Depends(get_current_internal_user),
-):
-    template = db.query(ChecklistTemplate).filter(ChecklistTemplate.id == template_id).first()
-    if not template:
-        raise HTTPException(status_code=404, detail=f"Template {template_id} not found.")
-
-    db.delete(template)
-    db.commit()
-    return ChecklistActionResponse(
-        status="success",
-        message=f"Template '{template.name}' (ID {template_id}) deleted.",
-    )
-
-# ===========================================================================
-# HR — TEMPLATE ITEM CRUD
-# ===========================================================================
-
-@router.post(
-    "/hr/templates/{template_id}/items",
-    response_model=ChecklistItemResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
-    summary="Add an item to a checklist template",
-)
-def add_template_item(
-    template_id: int,
-    request: ChecklistItemCreate,
-    db: Session = Depends(get_db),
-    user=Depends(get_current_internal_user),
-):
-    template = db.query(ChecklistTemplate).filter(ChecklistTemplate.id == template_id).first()
-    if not template:
-        raise HTTPException(status_code=404, detail=f"Template {template_id} not found.")
-
-    item = ChecklistTemplateItem(
-        template_id=template_id,
-        title=request.title,
-        description=request.description,
-        item_type=request.item_type,
-        order_index=request.order_index,
-        due_days_offset=request.due_days_offset,
-    )
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    return item
-
-@router.put(
-    "/hr/templates/{template_id}/items/{item_id}",
-    response_model=ChecklistItemResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
-    summary="Update a template item",
-)
-def update_template_item(
-    template_id: int,
-    item_id: int,
-    request: ChecklistItemUpdate,
-    db: Session = Depends(get_db),
-    user=Depends(get_current_internal_user),
-):
-    item = (
-        db.query(ChecklistTemplateItem)
-        .filter(
-            ChecklistTemplateItem.id == item_id,
-            ChecklistTemplateItem.template_id == template_id,
-        )
-        .first()
-    )
-    if not item:
-        raise HTTPException(status_code=404, detail=f"Item {item_id} not found in template {template_id}.")
-
-    if request.title is not None:
-        item.title = request.title
-    if request.description is not None:
-        item.description = request.description
-    if request.item_type is not None:
-        item.item_type = request.item_type
-    if request.order_index is not None:
-        item.order_index = request.order_index
-    if request.due_days_offset is not None:
-        item.due_days_offset = request.due_days_offset
-
-    db.commit()
-    db.refresh(item)
-    return item
-
-@router.delete(
-    "/hr/templates/{template_id}/items/{item_id}",
-    response_model=ChecklistActionResponse,
-    dependencies=[Depends(require_resource_permission("candidates", "edit"))],
-    summary="Delete a template item",
-)
-def delete_template_item(
-    template_id: int,
-    item_id: int,
-    db: Session = Depends(get_db),
-    user=Depends(get_current_internal_user),
-):
-    item = (
-        db.query(ChecklistTemplateItem)
-        .filter(
-            ChecklistTemplateItem.id == item_id,
-            ChecklistTemplateItem.template_id == template_id,
-        )
-        .first()
-    )
-    if not item:
-        raise HTTPException(status_code=404, detail=f"Item {item_id} not found in template {template_id}.")
-
-    db.delete(item)
-    db.commit()
-    return ChecklistActionResponse(status="success", message=f"Item {item_id} deleted.")
-
-# ===========================================================================
 # HR — ASSIGN CHECKLIST TO CANDIDATE
 # ===========================================================================
 
@@ -413,7 +130,7 @@ def assign_checklist(
 ):
     """
     Copies all items from the template into a new CandidateChecklist.
-    - Todo items start as 'pending' (candidate can complete anytime).
+    - To-do items start as 'pending' (candidate can complete anytime).
     - Queue items: only the first (lowest order_index) becomes 'active';
       all others remain 'pending' until triggered by the previous completion.
     """
@@ -434,7 +151,7 @@ def assign_checklist(
 
     db.commit()
     db.refresh(checklist)
-    return _build_checklist_response(checklist)
+    return checklist_response(checklist)
 
 # ===========================================================================
 # HR — VIEW & MANAGE CANDIDATE CHECKLISTS
@@ -464,7 +181,7 @@ def get_candidate_checklists(
     return CandidateChecklistListResponse(
         candidate_id=candidate_id,
         total_checklists=len(checklists),
-        checklists=[_build_checklist_response(c) for c in checklists],
+        checklists=[checklist_response(c) for c in checklists],
     )
 
 @router.put(
@@ -479,7 +196,7 @@ def hr_complete_item(
     user=Depends(get_current_internal_user),
 ):
     """
-    HR can mark any todo or active queue item complete on behalf of a candidate.
+    HR can mark any to-do or active queue item complete on behalf of a candidate.
     Queue items automatically activate the next queue item.
     """
     item = db.query(CandidateChecklistItem).filter(CandidateChecklistItem.id == item_id).first()
@@ -555,7 +272,7 @@ def get_my_checklists(
     return CandidateChecklistListResponse(
         candidate_id=user.candidateID,
         total_checklists=len(checklists),
-        checklists=[_build_checklist_response(c) for c in checklists],
+        checklists=[checklist_response(c) for c in checklists],
     )
 
 # ===========================================================================

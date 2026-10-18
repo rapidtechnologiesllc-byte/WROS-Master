@@ -14,8 +14,6 @@ import {
   verifyMfa,
   verifyStaffEmailOtp,
 } from "../services/api/auth";
-import { getHrMe } from "../services/api/users";
-import { landingPath } from "../utils/permissionsRoleTemplate";
 
 export default function AuthPage() {
   const [loading, setLoading] = useState(false);
@@ -76,17 +74,6 @@ export default function AuthPage() {
       setError(err.message || "Unable to validate email. Please try again or contact the help desk if the problem persists.");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const getCurrentUser = async () => {
-    try {
-      const response = await getHrMe();
-      const user = response;
-      return user;
-    } catch (error) {
-      console.error(`[AuthPage] Failed to fetch user details: ${error.message}`, error);
-      throw new Error(`Failed to fetch user details: ${error.message}`);
     }
   };
 
@@ -188,8 +175,7 @@ export default function AuthPage() {
         localStorage.setItem("hrms_user_email", data.user_email);
       }
 
-      // Landing page: the first screen the role template permits (never the role's name)
-      redirectPath = landingPath(redirectPath);
+      // Everyone lands on Home ("/"), which renders the role's own dashboard (authority.home_dashboard)
     }
 
     if (offer2faOptIn) {

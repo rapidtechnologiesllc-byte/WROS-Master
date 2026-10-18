@@ -227,7 +227,10 @@ def test_candidate_to_partner_and_org_pnl(db, api, world):
     assert bu["revenue_usd_cents"] >= hours * RATE
 
     # the partner and CFO screens' endpoints answer
-    ok(client.get(f"/api/v1/agents/partner-roi/{world['partner'].UserID}/kpis", headers=admin_h))
+    home = ok(client.get(f"/api/v1/dashboards/partner/performance?partner_user_id={world['partner'].UserID}"
+                         f"&year_month={MONDAY:%Y-%m}", headers=admin_h))
+    assert home["data"]["kpis"]["business_unit_ids"] == [world["unit"].id]
+    assert home["data"]["kpis"]["revenue_usd_cents"] >= 0 and len(home["data"]["trend"]) == 6
     ok(client.get("/api/v1/agents/cfo/financial-snapshot", headers=admin_h))
     ok(client.get("/api/v1/agents/cfo/bu-comparison", headers=admin_h))
     breakdown = ok(client.get(f"/api/v1/agents/cfo/cost-breakdown?year_month={MONDAY:%Y-%m}", headers=admin_h))

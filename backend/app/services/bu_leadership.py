@@ -11,7 +11,7 @@ BU, or heads it in any company, sees all of that BU. Per-company heads decide ap
 routing (head_for_client) and who is shown as running each location.
 """
 import logging
-from typing import Dict, Iterable, Optional, Set
+from typing import Dict, Iterable, List, Optional, Set
 
 from sqlalchemy.orm import Session
 
@@ -37,9 +37,18 @@ def head_user_id(db: Session, business_unit_id: Optional[int], company_id: Optio
     return row[0] if row else None
 
 
+def partnered_business_units(db: Session, partner_user_id: str, tenant_id: Optional[int] = None) -> List[BusinessUnit]:
+    """The business units this person is the Partner of (BusinessUnit.partner_user_id), by name;
+    within one tenant when tenant_id is given."""
+    query = db.query(BusinessUnit).filter(BusinessUnit.partner_user_id == partner_user_id)
+    if tenant_id is not None:
+        query = query.filter(BusinessUnit.tenant_id == tenant_id)
+    return query.order_by(BusinessUnit.name).all()
+
+
 def led_business_units(db: Session, user: Users) -> Set[int]:
     """BUs this user leads: those they partner, and those they head in any company."""
-    partnered = {bu_id for (bu_id,) in db.query(BusinessUnit.id).filter(BusinessUnit.partner_user_id == user.UserID)}
+    partnered = {bu.id for bu in partnered_business_units(db, user.UserID)}
     headed = {bu_id for (bu_id,) in db.query(BusinessUnitLocationHead.business_unit_id)
               .filter(BusinessUnitLocationHead.head_user_id == user.UserID)}
     return partnered | headed

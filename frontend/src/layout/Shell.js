@@ -93,6 +93,8 @@ const iconForResource = (key) => ICON_MAP_BY_RESOURCE[String(key || "").replace(
 // Map icon names (strings from backend) to icon components
 const ICON_COMPONENTS_BY_NAME = {
   "Linkedin": Linkedin,
+  "LayoutDashboard": LayoutDashboard,
+  "Bot": Bot,
   "Users": Users,
   "Users2": Users2,
   "Briefcase": Briefcase,
@@ -122,62 +124,20 @@ const ICON_COMPONENTS_BY_NAME = {
   "Award": UserPlus,
 };
 
-// Map resource keys to their correct admin paths
-const RESOURCE_KEY_TO_PATH = {
-  "users": "/admin/users-access-control/users",
-  "business_units": "/admin/users-access-control/business-units",
-  "delivery_centers": "/admin/users-access-control/delivery-centers",
-  "organizational_hierarchy": "/admin/users-access-control/organizational-hierarchy",
-  "role_templates": "/admin/users-access-control/role-templates",
-  "certifications": "/admin/users-access-control/certifications",
-  "error_log": "/admin/users-access-control/error-log",
-  "message_templates": "/admin/users-access-control/message-templates",
-};
-
-// Fetch pre-built navigation from backend (already filtered by permissions)
+// Menu from the backend (already filtered by the role template's permissions); each item
+// carries its route, so the client keeps no path table of its own.
 async function fetchNavigationFromBackend() {
-  try {
-    const { apiRequest } = await import("../services/api/client");
-    const result = await apiRequest("/api/v1/hr/me/navigation", { method: "GET" });
-    // apiRequest returns { data, response } where data is already parsed JSON
-    // So we need result?.data?.data to get the nested structure
-    let navData = result?.data?.data;
-
-    console.log("[Shell] Navigation response structure:", { result, navData, resultData: result?.data });
-
-    // Fallback: if result.data is already the groups structure, use it directly
-    if (!navData && result?.data?.groups) {
-      navData = result.data;
-      console.log("[Shell] Using fallback navData from result.data");
-    }
-    if (!navData) {
-      throw new Error("Navigation response missing data structure");
-    }
-
-    if (!navData.groups || !Array.isArray(navData.groups)) {
-      throw new Error(`Navigation response missing or invalid groups array. navData.groups=${navData.groups}`);
-    }
-    // Backend returns: { groups: [ { label, icon, items: [{key, label, icon, route}] } ] }
-    // Transform items to use route for navigation - REQUIRES all fields to be present
-    const groups = navData.groups.map(group => {
-      if (!group.items || !Array.isArray(group.items)) {
-        throw new Error(`Navigation group "${group.label}" missing items array`);
-      }
-
-      return {
-        ...group,
-        items: group.items.map(item => ({
-          key: item.key,
-          label: item.label,
-          icon: iconForResource(item.key),
-          path: item.route || RESOURCE_KEY_TO_PATH[item.key] || `/${item.key.replace(/_/g, "-")}`, // Admin path mapping, then fallback
-        }))
-      };
-    });return groups;
-  } catch (error) {
-    console.error(`Failed to fetch navigation from backend: ${error.message}`, error);
-    throw error;
-  }
+  const { getNavigationGroups } = await import("../services/api/navigation");
+  const groups = await getNavigationGroups();
+  return groups.map((group) => ({
+    ...group,
+    items: group.items.map((item) => ({
+      key: item.key,
+      label: item.label,
+      icon: iconForResource(item.key),
+      path: item.route,
+    })),
+  }));
 }
 
 
@@ -458,7 +418,6 @@ export default function Shell({
             jobs={jobs}
             setSelectedCandidateData={setSelectedCandidateData}
             setSelectedJobId={setSelectedJobId}
-            hideTitle={true}
           />
           <div className="mt-4">
             <Outlet />

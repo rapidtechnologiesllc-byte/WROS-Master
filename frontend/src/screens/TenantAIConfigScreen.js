@@ -10,13 +10,18 @@ import { Bot, Clock, Gauge, Mail, Power, RefreshCw, X } from "lucide-react";
 import { Tabs } from "antd";
 import { Card, Button, Input, TextArea, Select } from "../components/ui";
 import { getTenantAIConfig, updateTenantAIConfig } from "../services/api/tenantAiConfig";
-import AdminAgentStateDashboard from "./AdminAgentStateDashboard";
 import AgentStandupsScreen from "./AgentStandupsScreen";
+import AdminAgentConfig from "./AdminAgentConfig";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
+import useTabParam from "../utils/useTabParam";
 import { confirmDialog } from "../utils/dialogs";
 
 const GREETING_CHANNELS = ["BOTH_PARALLEL", "WHATSAPP_FIRST", "EMAIL_FIRST"];
 
 export default function TenantAIConfigScreen() {
+  const canSeeAgents = hasPermission("agents", "view");
+  // ?tab=agents is where the retired /admin/agent-config route lands
+  const [activeTab, setActiveTab] = useTabParam(["config", "standups", ...(canSeeAgents ? ["agents"] : [])]);
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -127,21 +132,21 @@ export default function TenantAIConfigScreen() {
       )
     },
     {
-      key: "dashboard",
-      label: "Agent Dashboard",
-      children: <AdminAgentStateDashboard />
-    },
-    {
       key: "standups",
       label: "Standups & Scrum",
       children: <AgentStandupsScreen />
-    }
+    },
+    // Agent pipeline config (/admin/agents/config checks the "agents" resource)
+    ...(canSeeAgents
+      ? [{ key: "agents", label: "Agent Pipeline", children: <AdminAgentConfig /> }]
+      : []),
   ];
 
   return (
     <Tabs
       items={tabItems}
-      defaultActiveKey="config"
+      activeKey={activeTab}
+      onChange={setActiveTab}
       style={{ backgroundColor: "#fff", borderRadius: "8px", padding: "16px" }}
     />
   );
