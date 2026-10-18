@@ -54,7 +54,6 @@ import PipelineAndSubmissionsScreen from "../screens/PipelineAndSubmissionsScree
 import ProjectsScreen from "../screens/ProjectsScreen";
 import HtdIntakeScreen from "../screens/HtdIntakeScreen";
 import HmReviewScreen from "../screens/HmReviewScreen";
-import UtilizationDashboardScreen from "../screens/UtilizationDashboardScreen";
 import TimesheetsScreen from "../screens/TimesheetsScreen";
 import ForecastScreen from "../screens/ForecastScreen";
 import ForecastVsActualScreen from "../screens/ForecastVsActualScreen";
@@ -566,7 +565,7 @@ function AuthenticatedApp() {
             <Route path="htd-intake" element={<HtdIntakeScreen />} />
             <Route path="hm-review" element={<HmReviewScreen />} />
             <Route path="hm-candidate-review" element={<Navigate to="/hm-review?view=candidates" replace />} />
-            <Route path="utilization-dashboard" element={<UtilizationDashboardScreen />} />
+            <Route path="utilization-dashboard" element={<Navigate to="/workforce?view=utilization" replace />} />
             <Route path="timesheets" element={<TimesheetsScreen />} />
             <Route path="forecast" element={<ForecastScreen />} />
             <Route path="forecast-vs-actual" element={<ForecastVsActualScreen />} />

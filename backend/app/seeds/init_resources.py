@@ -42,7 +42,7 @@ RESOURCE_ROUTES = {
     "buddy-program": "/buddy-program",
     "htd-intake": "/htd-intake",
     "resource-forecast": "/forecast",
-    "utilization-dashboard": "/utilization-dashboard",
+    "utilization-dashboard": "/workforce",  # a tab of Workforce Overview
     # Sales & Delivery
     "clients": "/client-management",
     "opportunities": "/opportunity-pipeline",
@@ -98,7 +98,7 @@ NAV_LABELS = {
     "rehire-approval": "Hiring Manager Review",
     "workforce-overview": "Workforce Overview",
     "htd-intake": "HTD Intake",
-    "utilization-dashboard": "Utilization & Bench Cost",
+    "utilization-dashboard": "Workforce Overview",
     "revenue": "P&L",
     "sales-ops": "Revenue Health",
     "forecasts": "Forecast vs Actual",
