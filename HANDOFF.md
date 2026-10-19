@@ -83,6 +83,13 @@ login page is not wired to a WROS session (callback returns `?sso=unavailable`).
 
 ## Deploying
 
+**Decision (CEO, 2026-10-19): deploys are manual only.** There is no budget for
+GitHub Actions, so the workflows in `.github/workflows/` do not run and are kept
+only as reference. The gate is run by hand before every deploy, on the dev
+machine: the whole backend suite (`tests/DEPLOY_GATE` = `tests/`, against
+`TEST_DATABASE_URL`, must be 0 failures) and `npm run build` for the frontend.
+Do not deploy a commit that has not passed both locally.
+
 The `HRMS` user has **no usable sudo** (`sudo -l` lists NOPASSWD ALL, but every
 `sudo -n` asks for a password) and the server **cannot `git fetch`**. So:
 
@@ -90,25 +97,21 @@ The `HRMS` user has **no usable sudo** (`sudo -l` lists NOPASSWD ALL, but every
   ssh. It fetches a git bundle, `pip install`s, refuses to restart if `import
   app.main` fails, restarts by killing the uvicorn process (unit has
   `Restart=always`), health-checks `/health` for 200, **rolls back** on failure,
-  installs the worker cron and restarts the worker. `test-and-deploy.yml` calls
-  it. Manual deploy from a dev machine (ssh key in `~/.ssh` works, port 22587):
+  installs the worker cron and restarts the worker. Manual deploy from a dev machine (ssh key in `~/.ssh` works, port 22587):
   ```
   SHA=$(git rev-parse HEAD); SERVER_SHA=$(ssh -p 22587 HRMS@46.224.149.7 "git -C /home/HRMS/WROS-Master rev-parse HEAD")
   git bundle create /tmp/deploy.bundle "$SERVER_SHA..HEAD"
   scp -P 22587 /tmp/deploy.bundle HRMS@46.224.149.7:/tmp/wros-deploy.bundle
   ssh -p 22587 HRMS@46.224.149.7 "bash -s -- /tmp/wros-deploy.bundle $SHA" < backend/scripts/deploy_backend.sh
   ```
-- **Frontend:** `deploy.yml` (build in CI, scp to `frontend/build-new`, swap). nginx
-  root is `/home/HRMS/WROS-Master/frontend/build/build`. Manual: `npm run build`
-  locally, upload to `frontend/build-new/build`, `mv build build-prev-<ts>; mv build-new build`.
-- **CI deploys now run** (runners came back) and can finish out of order — one
-  reverted prod for ~4.5h. Both deploy paths now refuse older commits
-  (`deploy_backend.sh` ancestry check; frontend `DEPLOYED_COMMIT_TIME`) and run
-  one at a time. Pipe the script from git (`git show HEAD:backend/scripts/deploy_backend.sh |
+- **Frontend:** nginx root is `/home/HRMS/WROS-Master/frontend/build/build`.
+  `npm run build` locally, upload to `frontend/build-new/build`,
+  `mv build build-prev-<ts>; mv build-new build`.
+- `deploy_backend.sh` refuses commits older than the one deployed (ancestry
+  check). Pipe the script from git (`git show HEAD:backend/scripts/deploy_backend.sh |
   ssh ... bash -s -- ...`) — the Windows working copy has CRLF.
-- **Old note:** today's jobs failed with "not
-  acquired by Runner" (hosted-runner capacity / billing on the account). The new
-  backend deploy path was exercised manually (3 deploys today), not from CI.
+- Back up the DB before each deploy (`/home/HRMS/backups/pre-deploy-<ts>.dump`),
+  as done for every deploy since 2026-10-13.
 
 ### Candidate profile (`db07713e`)
 
