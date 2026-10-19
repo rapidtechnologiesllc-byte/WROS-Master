@@ -104,8 +104,8 @@ class TestPhase2Integration:
             db,
             candidate_id=test_candidate.candidateID,
             referral_id=referral.referral_id,
-            referred_by_employee_id=test_user.UserID,
-            referred_by_employee_name="John Smith"
+            referrer_name="John Smith",
+            recorded_by_user_id=test_user.UserID,
         )
         log_referral_status_changed(
             db,

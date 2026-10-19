@@ -1706,6 +1706,9 @@ def _migrate_company_partner_structure(db: Session):
     steps = [
         ("departments.business_unit_id nullable",
          "ALTER TABLE app_schema.departments ALTER COLUMN business_unit_id DROP NOT NULL"),
+        # A referral recorded on Add Candidate need not name a job
+        ("employee_referrals.job_id nullable",
+         "ALTER TABLE app_schema.employee_referrals ALTER COLUMN job_id DROP NOT NULL"),
         ("business_unit_companies from business_units.location_id", """
             INSERT INTO app_schema.business_unit_companies (tenant_id, business_unit_id, company_id, created_at)
             SELECT bu.tenant_id, bu.id, bu.location_id, now()

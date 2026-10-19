@@ -82,15 +82,14 @@ def test_finance_sees_the_whole_tenant_and_nothing_from_another_tenant(db, world
 
 
 def test_a_hire_creates_the_bonus_and_finance_marks_it_paid(db, world):
-    recorded = EmployeeReferralService.record_referral(
-        db, job_id="job-2", referring_employee_id=world.alice.employee.id,
-        referred_candidate_email=f"r{factories.uid()}@x.com", referred_candidate_name="Ravi")
-    assert recorded["status"] == "recorded", recorded
-    hired = EmployeeReferralService.update_referral_status(db, recorded["referral_id"], "HIRED")
+    candidate = factories.candidate(db, candidateFirstName="Ravi")
+    referral = EmployeeReferralService.record_candidate_referral(db, candidate, world.alice.employee.id)
+    db.commit()
+    hired = EmployeeReferralService.update_referral_status(db, referral.referral_id, "HIRED")
     assert hired["status"] == "updated", hired
 
     def pending():
-        return [b for b in EmployeeReferralService.get_pending_bonuses(db) if b["referral_id"] == recorded["referral_id"]]
+        return [b for b in EmployeeReferralService.get_pending_bonuses(db) if b["referral_id"] == referral.referral_id]
 
     assert len(pending()) == 1
     assert EmployeeReferralService.mark_bonus_paid(db, pending()[0]["bonus_id"])["status"] == "paid"

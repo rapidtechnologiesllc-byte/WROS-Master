@@ -3,13 +3,34 @@ import logging
 
 from sqlalchemy.orm import Session
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+from app.core.config import settings as app_settings
 from app.models.referral import EmployeeReferral, JobReferralSettings, ReferralBonus
 from app.models.employee import Employee
 from app.models.candidate import Candidate
 import uuid
 
 logger = logging.getLogger(__name__)
+
+# Bonus when the job has no referral settings of its own (REFERRAL_BONUS_DEFAULT_USD_CENTS)
+DEFAULT_REFERRAL_BONUS_USD_CENTS = app_settings.REFERRAL_BONUS_DEFAULT_USD_CENTS
+
+# People who have left cannot be named as a referrer
+NOT_REFERABLE_STATUSES = ("EXITED",)
+
+# Candidate pipeline status -> referral status shown on My Referrals
+PIPELINE_TO_REFERRAL_STATUS = {
+    "Applied": "PENDING",
+    "Screening": "SCREENING",
+    "Interview": "INTERVIEW_SCHEDULED",
+    "OfferApproval": "OFFERED",
+    "Pre-onboarding-Approval": "OFFERED",
+    "Pre-Onboarding": "HIRED",
+    "Hired": "HIRED",
+    "Onboarded": "HIRED",
+    "EMPLOYEE": "HIRED",
+    "Rejected": "REJECTED",
+}
 
 class EmployeeReferralService:
     """Service for managing employee referrals."""
@@ -19,7 +40,7 @@ class EmployeeReferralService:
         db: Session,
         job_id: str,
         enable_referrals: bool = True,
-        referral_bonus_amount_usd_cents: int = 50000,  # $500 default
+        referral_bonus_amount_usd_cents: int = DEFAULT_REFERRAL_BONUS_USD_CENTS,
     ) -> Dict[str, Any]:
         """Create referral settings when a job is created."""
 
@@ -109,121 +130,113 @@ class EmployeeReferralService:
             raise
 
     @staticmethod
-    def record_referral(
-        db: Session,
-        job_id: str,
-        referring_employee_id: str,
-        referred_candidate_email: str,
-        referred_candidate_name: str,
-    ) -> Dict[str, Any]:
-        """Record an employee referral."""
-
-        try:
-            # Get job referral settings to get bonus amount
-            settings = db.query(JobReferralSettings).filter(
-                JobReferralSettings.job_id == job_id
-            ).first()
-
-            bonus_amount = (
-                settings.referral_bonus_amount_usd_cents if settings else 50000
-            )  # $500 default
-
-            referral = EmployeeReferral(
-                referral_id=f"ref_{uuid.uuid4().hex[:12]}",
-                job_id=job_id,
-                referring_employee_id=referring_employee_id,
-                referred_candidate_email=referred_candidate_email,
-                referred_candidate_name=referred_candidate_name,
-                referral_source="EMPLOYEE_REFERRAL",
-                referral_status="PENDING",
-                referral_bonus_amount_usd_cents=bonus_amount,
-            )
-
-            db.add(referral)
-
-            if settings:
-                settings.total_referrals_received += 1
-            db.commit()  # the referral is saved whether or not the job has referral settings
-
-            return {
-                "status": "recorded",
-                "referral_id": referral.referral_id,
-                "job_id": job_id,
-                "referring_employee": referring_employee_id,
-                "candidate": referred_candidate_name,
-                "bonus_potential": bonus_amount / 100,
-            }
-
-        except Exception:
-
-            db.rollback()
-
-            raise
+    def referable_employees(db: Session, tenant_id: int) -> List[Dict[str, Any]]:
+        """Employees who can be named as the referrer on Add Candidate: everyone in the
+        tenant who has not left."""
+        rows = (db.query(Employee)
+                .filter(Employee.tenant_id == tenant_id, Employee.status.notin_(NOT_REFERABLE_STATUSES))
+                .order_by(Employee.first_name, Employee.last_name)
+                .all())
+        return [{"id": e.id, "name": f"{e.first_name} {e.last_name}".strip(), "email": e.email} for e in rows]
 
     @staticmethod
-    def link_candidate_to_referral(
+    def record_candidate_referral(
         db: Session,
-        candidate_id: str,
-        referral_id: str,
-    ) -> Dict[str, Any]:
-        """Link an existing candidate to a referral after creation.
+        candidate: Candidate,
+        referring_employee_id: str,
+        job_id: Optional[str] = None,
+    ) -> EmployeeReferral:
+        """Record that an employee referred this candidate and link the two.
 
-        Called when a candidate is created via referral flow.
-        Logs the linking event for audit trail.
+        The one write path for referrals (Add Candidate -> candidate creation handler).
+        No commit: the caller commits the candidate and its referral together. The referrer
+        must be a current employee of the candidate's tenant (ValueError otherwise: a bad
+        id is a caller bug, never retried).
         """
-        try:
-            from app.services.candidate_activity_service import (
-                log_referral_linked,
-                log_referral_status_changed,
-            )
+        employee = db.query(Employee).filter(Employee.id == referring_employee_id).first()
+        if (employee is None or employee.tenant_id != candidate.tenant_id
+                or employee.status in NOT_REFERABLE_STATUSES):
+            raise ValueError(f"Referring employee {referring_employee_id} is not a current employee of this tenant")
 
-            # Get candidate and referral
-            candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
-            if not candidate:
-                return {"status": "error", "message": f"Candidate {candidate_id} not found"}
+        settings = (db.query(JobReferralSettings).filter(JobReferralSettings.job_id == job_id).first()
+                    if job_id else None)
+        if settings is not None and settings.enable_referrals is False:
+            raise ValueError(f"Job {job_id} does not accept referrals")
+        bonus_cents = (settings.referral_bonus_amount_usd_cents if settings and settings.referral_bonus_amount_usd_cents
+                       else DEFAULT_REFERRAL_BONUS_USD_CENTS)
 
-            referral = db.query(EmployeeReferral).filter(
-                EmployeeReferral.referral_id == referral_id
-            ).first()
-            if not referral:
-                return {"status": "error", "message": f"Referral {referral_id} not found"}
+        referral = EmployeeReferral(
+            referral_id=f"ref_{uuid.uuid4().hex[:12]}",
+            job_id=job_id,
+            referring_employee_id=employee.id,
+            referred_candidate_id=candidate.candidateID,
+            referred_candidate_email=candidate.candidateEmail,
+            referred_candidate_name=" ".join(
+                p for p in (candidate.candidateFirstName, candidate.candidateLastName) if p),
+            referral_source="EMPLOYEE_REFERRAL",
+            referral_status="PENDING",
+            referral_bonus_amount_usd_cents=bonus_cents,
+        )
+        db.add(referral)
+        if settings is not None:
+            settings.total_referrals_received = (settings.total_referrals_received or 0) + 1
+        db.flush()
 
-            # Link candidate to referral
-            candidate.referral_id = referral_id
-            candidate.recruitment_source = "EMPLOYEE_REFERRAL"
-            db.commit()
+        candidate.referral_id = referral.referral_id
+        candidate.recruitment_source = "EMPLOYEE_REFERRAL"
 
-            # Log the linking and status change
-            try:
-                log_referral_linked(
-                    db,
-                    candidate_id=candidate_id,
-                    referral_id=referral_id,
-                    referred_by_employee_id=referral.referring_employee_id,
-                    referred_by_employee_name=f"Employee {referral.referring_employee_id}",
-                )
-                log_referral_status_changed(
-                    db,
-                    candidate_id=candidate_id,
-                    referral_id=referral_id,
-                    old_status="NONE",
-                    new_status=referral.referral_status,
-                )
-                db.commit()
-                logger.info(f"Logged referral linking for candidate {candidate_id} to referral {referral_id}")
-            except Exception as log_err:
-                logger.warning(f"Failed to log referral linking: {log_err}, but linking succeeded")
+        from app.services.candidate_activity_service import log_referral_linked
+        log_referral_linked(
+            db,
+            candidate_id=candidate.candidateID,
+            referral_id=referral.referral_id,
+            referrer_name=f"{employee.first_name} {employee.last_name}".strip(),
+            recorded_by_user_id=candidate.created_by_user_id,
+        )
+        return referral
 
-            return {
-                "status": "linked",
-                "candidate_id": candidate_id,
-                "referral_id": referral_id,
-                "referral_status": referral.referral_status,
-            }
+    @staticmethod
+    def sync_with_pipeline_status(db: Session, candidate: Candidate, pipeline_status: str) -> Optional[str]:
+        """Move the candidate's referral to the stage that matches their pipeline status.
 
-        except Exception:
-            db.rollback()
-            raise
+        Called by the candidate status-change handler. No commit (the handler commits).
+        Returns the new referral status, or None when nothing changed. A paid bonus is final.
+        """
+        if not candidate.referral_id:
+            return None
+        new_status = PIPELINE_TO_REFERRAL_STATUS.get(pipeline_status)
+        referral = db.query(EmployeeReferral).filter(EmployeeReferral.referral_id == candidate.referral_id).first()
+        if new_status is None or referral is None or referral.referral_status in (new_status, "BONUS_PAID"):
+            return None
+        old_status = referral.referral_status
+        EmployeeReferralService._set_status(db, referral, new_status)
+
+        from app.services.candidate_activity_service import log_referral_status_changed
+        log_referral_status_changed(
+            db,
+            candidate_id=candidate.candidateID,
+            referral_id=referral.referral_id,
+            old_status=old_status,
+            new_status=new_status,
+        )
+        return new_status
+
+    @staticmethod
+    def _set_status(db: Session, referral: EmployeeReferral, new_status: str) -> None:
+        """Set the status; the first move to HIRED creates the pending bonus for Finance."""
+        old_status = referral.referral_status
+        referral.referral_status = new_status
+        referral.updated_at = datetime.utcnow()
+        if new_status == "HIRED" and old_status != "HIRED":
+            already = db.query(ReferralBonus).filter(ReferralBonus.referral_id == referral.referral_id).first()
+            if already is None:
+                db.add(ReferralBonus(
+                    bonus_id=f"bon_{uuid.uuid4().hex[:12]}",
+                    referral_id=referral.referral_id,
+                    referring_employee_id=referral.referring_employee_id,
+                    bonus_amount_usd_cents=referral.referral_bonus_amount_usd_cents,
+                    payment_status="PENDING",
+                ))
 
     @staticmethod
     def update_referral_status(
@@ -240,20 +253,7 @@ class EmployeeReferralService:
                 return {"status": "error", "message": "Referral not found"}
 
             old_status = referral.referral_status
-            referral.referral_status = new_status
-            referral.updated_at = datetime.utcnow()
-
-            # When candidate is hired, prepare bonus payment
-            if new_status == "HIRED" and old_status != "HIRED":
-                referral_bonus = ReferralBonus(
-                    bonus_id=f"bon_{uuid.uuid4().hex[:12]}",
-                    referral_id=referral_id,
-                    referring_employee_id=referral.referring_employee_id,
-                    bonus_amount_usd_cents=referral.referral_bonus_amount_usd_cents,
-                    payment_status="PENDING",
-                )
-                db.add(referral_bonus)
-
+            EmployeeReferralService._set_status(db, referral, new_status)
             db.commit()
 
             return {
