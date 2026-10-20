@@ -2,7 +2,7 @@
 
 **Built:** 2026-10-13 by validating ~430 unique documents and the 346 open GitHub issues against `main` (`a91e408d`).
 **Rule:** an item is listed only if it was checked against the current code. Status documents that only made claims were archived (see `archive/README.md`).
-**Production:** `hrms.blitzenx.com` runs `cc13565f` (deployed 2026-10-14 over SSH; the whole backend suite passes as the gate).
+**Production:** `hrms.blitzenx.com` runs `a91f6288` (deployed 2026-10-20 over SSH, backend + frontend, on top of `9105f708`; DB backup `pre-deploy-20261020-050911.dump`; the whole backend suite, 912 tests, passed as the gate).
 
 Other live documents: `HANDOFF.md` (deploy procedure, prod state) · `docs/OPEN_REQUIREMENTS_BACKLOG.md` (246 open backlog stories) · `CLAUDE.md` (rules) · `LOCAL_DEVELOPMENT.md`, `DEVELOPER_ONBOARDING.md` (setup).
 
