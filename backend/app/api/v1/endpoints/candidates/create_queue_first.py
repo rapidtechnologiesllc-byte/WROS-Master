@@ -125,6 +125,15 @@ def _validate_referral(db: Session, request: "CreateCandidateRequest", source: s
         from app.models.user import Jobs
         if db.query(Jobs.jobID).filter(Jobs.jobID == request.job_id, Jobs.tenant_id == tenant_id).first() is None:
             raise HTTPException(status_code=400, detail="The selected job does not exist")
+    # Already in the system (same email/phone match creation uses): only a dormant candidate
+    # can be referred; otherwise warn now, before anything is queued
+    from app.services.candidate_service import find_duplicate_candidate
+    from app.services.employee_referral_service import EmployeeReferralService
+    existing, _ = find_duplicate_candidate(db, email=request.get_email(), mobile=request.get_mobile())
+    if existing is not None:
+        block = EmployeeReferralService.existing_candidate_referral_block(db, existing)
+        if block:
+            raise HTTPException(status_code=409, detail=block)
 
 
 class CreateCandidateResponse(BaseModel):

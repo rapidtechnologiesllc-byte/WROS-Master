@@ -162,12 +162,15 @@ def test_rejection_discussion_in_the_bubble_becomes_follow_up_tasks(db, org, api
     tasks = db.query(Task).filter(Task.id.in_([i["task_id"] for i in request.follow_up_plan])).all()
     assert len(tasks) == 2 and all(t.due_date for t in tasks) and request.chat_state is None
 
-    later = TODAY + timedelta(days=50)  # no new review while follow-ups are open
+    # Follow-up periods run from the real decision time (decided_at uses the clock), so the
+    # sweep dates are counted from it, not from the fixed TODAY (else the test expires)
+    decided = request.decided_at.date()
+    later = decided + timedelta(days=50)  # no new review while follow-ups are open
     assert service.run_daily_sweep(db, today=later).get("requested", 0) == 0
     for t in tasks:
         t.status = "COMPLETED"
     db.commit()
-    assert service.run_daily_sweep(db, today=TODAY + timedelta(days=10)).get("requested", 0) == 0
+    assert service.run_daily_sweep(db, today=decided + timedelta(days=10)).get("requested", 0) == 0
     assert service.run_daily_sweep(db, today=later)["requested"] == 1
 
 

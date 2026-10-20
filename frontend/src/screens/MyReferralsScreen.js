@@ -195,6 +195,8 @@ export default function MyReferralsScreen() {
                         <p className="text-xs text-green-600 font-medium mt-1">✓ Bonus Paid</p>
                       ) : status === "REJECTED" ? (
                         <p className="text-xs text-gray-500 mt-1">Not eligible</p>
+                      ) : status === "SUPERSEDED" ? (
+                        <p className="text-xs text-gray-500 mt-1">Replaced by a later referral</p>
                       ) : status === "HIRED" ? (
                         <p className="text-xs text-blue-600 font-medium mt-1">⏳ Pending Payment</p>
                       ) : (

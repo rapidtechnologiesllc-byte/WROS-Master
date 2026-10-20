@@ -34,7 +34,7 @@ def get_all_referrals(
         "status": "retrieved",
         "total_referrals": len(referrals),
         "total_potential_bonus": sum(r["referral_bonus_amount"] for r in referrals if not r["bonus_paid"]
-                                     and r["referral_status"] != "REJECTED"),
+                                     and r["referral_status"] not in ("REJECTED", "SUPERSEDED")),
         "referrals": referrals,
     }
 

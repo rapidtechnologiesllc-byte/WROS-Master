@@ -328,12 +328,26 @@ def update_candidate_status(
 
     # Track old status for event emission
     old_pipeline_status = cs.piplineStatus if cs else None
+    old_account_status = cs.status if cs else None
 
     # Apply updates
     changed_fields = []
     if request.status is not None:
         cs.status = request.status
         changed_fields.append(f"status → {request.status}")
+        if request.status != old_account_status:
+            # Archive / Unarchive goes on the candidate's History (same transaction)
+            from app.services.candidate_contact_policy import ARCHIVED_STATUS
+            archived = request.status == ARCHIVED_STATUS
+            db.add(CandidateHistory(
+                candidateID=candidate_id,
+                event_type="Archived" if archived else "Unarchived",
+                note=("Archived: hidden from the candidate list and no outreach" if archived
+                      else "Unarchived: back in the candidate list; outreach allowed again"),
+                performed_by_id=getattr(user, "UserID", None),
+                performed_by_name=getattr(user, "UserName", None) or "System",
+                event_at=datetime.utcnow(),
+            ))
 
     if request.pipeline_status is not None:
         cs.piplineStatus = request.pipeline_status

@@ -3,6 +3,7 @@ employee; the candidate creation handler saves the referral and links the candid
 same transaction; the referral then follows the candidate's pipeline (pending bonus on hire)
 and shows on My Referrals."""
 import uuid
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -156,6 +157,71 @@ def test_a_candidate_without_a_referrer_has_no_referral(db, world):
 def test_a_bad_referrer_fails_the_message_without_retry(db, world):
     with pytest.raises(ValueError):
         _create_through_handler(db, {**_form(), "referring_employee_id": world.exited.id})
+
+
+# --- referring someone already in the system ---------------------------------------------
+
+def _post_referral(client, world, email):
+    with patch("app.services.message_queue_service.MessageQueueService.enqueue",
+               return_value={"task_id": "t", "message_id": "m"}) as enqueue, \
+            patch("app.models.channel_queue.ChannelQueueItem"), \
+            patch("app.core.database.SessionLocal"):
+        response = client.post("/api/v1/candidates/create", headers=_headers(world.user),
+                               json=_form(candidate_email=email, referring_employee_id=world.referrer.id))
+    return response, enqueue
+
+
+def test_an_active_existing_candidate_is_refused_with_a_warning(client, db, world):
+    existing = factories.candidate(db, candidateFirstName="Asha", candidateLastName="Rao")
+    db.commit()
+    response, enqueue = _post_referral(client, world, existing.candidateEmail)
+    assert response.status_code == 409
+    assert "already in the system and active" in response.json()["detail"]
+    assert "Asha Rao" in response.json()["detail"]
+    enqueue.assert_not_called()
+
+
+def test_a_recently_rejected_candidate_is_refused(client, db, world):
+    from app.models.candidate_rejection import CandidateRejection
+    old = datetime.utcnow() - timedelta(days=200)
+    existing = factories.candidate(db, candidateCreatedAt=old)
+    db.add(CandidateRejection(candidate_id=existing.candidateID, rejection_reason="Skills", tenant_id=1,
+                              rejected_at=datetime.utcnow() - timedelta(days=70)))
+    db.commit()
+    response, enqueue = _post_referral(client, world, existing.candidateEmail)
+    assert response.status_code == 409
+    assert "cannot be contacted until" in response.json()["detail"]
+    enqueue.assert_not_called()
+
+
+def test_a_dormant_candidate_can_be_referred_and_the_referral_is_credited(client, db, world):
+    old = datetime.utcnow() - timedelta(days=61)
+    existing = factories.candidate(db, candidateCreatedAt=old)
+    stale = EmployeeReferral(referral_id=f"ref-{factories.uid()}", referring_employee_id=world.referrer.id,
+                             referred_candidate_id=existing.candidateID, referral_status="PENDING",
+                             referral_bonus_amount_usd_cents=50000)
+    db.add(stale)
+    db.flush()
+    existing.referral_id = stale.referral_id
+    db.commit()
+
+    response, enqueue = _post_referral(client, world, existing.candidateEmail)
+    assert response.status_code == 200, response.text
+    enqueue.assert_called_once()
+
+    candidate = _create_through_handler(db, {**enqueue.call_args.kwargs["data"]})
+    assert candidate.candidateID == existing.candidateID
+    assert candidate.referral_id != stale.referral_id
+    assert db.get(EmployeeReferral, candidate.referral_id).referral_status == "PENDING"
+    assert db.get(EmployeeReferral, stale.referral_id).referral_status == "SUPERSEDED"
+
+
+def test_the_handler_rechecks_an_existing_candidate(db, world):
+    existing = factories.candidate(db)  # active: created just now
+    db.commit()
+    with pytest.raises(ValueError, match="already in the system and active"):
+        _create_through_handler(db, {**_form(candidate_email=existing.candidateEmail),
+                                     "referring_employee_id": world.referrer.id})
 
 
 # --- pipeline sync and My Referrals -----------------------------------------------------

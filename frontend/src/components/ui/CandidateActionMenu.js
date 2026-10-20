@@ -62,7 +62,7 @@ const CandidateActionMenu = ({
             disabled={!candidate?.phone}
             onClick={() => {
               if (!candidate?.phone) return;
-              const cleanedPhone = candidate.candidate_mobile.replace(/\D/g, "");
+              const cleanedPhone = String(candidate.phone).replace(/\D/g, "");
               if (!cleanedPhone) {
                 return;
               }
@@ -81,14 +81,21 @@ const CandidateActionMenu = ({
           >
             Add Feedback
           </button>
-          <button
-            className="block w-full px-4 py-3 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
-            onClick={() => {
-              handleActiveStatus("Inactive", candidate?.id);
-            }}
-          >
-            Archive
-          </button>
+          {candidate?.archived ? (
+            <button
+              className="block w-full px-4 py-3 text-left text-sm font-medium text-green-700 transition-colors hover:bg-green-50"
+              onClick={() => handleActiveStatus("Active", candidate?.id)}
+            >
+              Unarchive
+            </button>
+          ) : (
+            <button
+              className="block w-full px-4 py-3 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+              onClick={() => handleActiveStatus("Inactive", candidate?.id)}
+            >
+              Archive
+            </button>
+          )}
           <button
             className="block w-full px-4 py-3 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
             onClick={() => {
