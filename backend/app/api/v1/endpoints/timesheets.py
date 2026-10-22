@@ -163,6 +163,35 @@ def _get_timesheet_or_404(db: Session, timesheet_id: str, user: Users) -> Timesh
         raise HTTPException(status_code=404, detail="Timesheet not found.")
     return timesheet
 
+@router.get(
+    "/allocations",
+    summary="Active allocations a timesheet can be started for (the New Weekly Timesheet picker)",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
+)
+def timesheet_allocations(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Every ACTIVE allocation the caller may start a draft for (the same scope as POST
+    /weekly-draft), grouped by employee for an employee -> allocation picker."""
+    from app.api.v1.endpoints.allocations import _to_item as allocation_to_item
+
+    rows = db.query(EmployeeAllocation).filter(
+        EmployeeAllocation.tenant_id == current_user.tenant_id, EmployeeAllocation.status == "ACTIVE",
+        or_(allocation_filter(db, current_user), EmployeeAllocation.employee_id.in_(_own_employee_ids(current_user))),
+    ).order_by(EmployeeAllocation.start_date.desc()).all()
+    employees = {}
+    for allocation in rows:
+        item = allocation_to_item(db, allocation)
+        entry = employees.setdefault(item.employee_id, {"employee_id": item.employee_id,
+                                                        "employee_name": item.employee_name, "allocations": []})
+        entry["allocations"].append({
+            "id": item.id, "client_name": item.client_name, "demand_job_title": item.demand_job_title,
+            "start_date": item.start_date, "end_date": item.end_date,
+        })
+    return {"employees": sorted(employees.values(), key=lambda e: e["employee_name"].lower())}
+
+
 @router.post(
     "/weekly-draft",
     response_model=TimesheetItem,
@@ -194,6 +223,7 @@ def create_draft(
     db.commit()
     try:
         MessageQueueService.enqueue(
+            tenant_id=timesheet.tenant_id,
             task_name="timesheet_created",
             data={
                 "timesheet_id": timesheet.id,
@@ -206,7 +236,7 @@ def create_draft(
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to create timesheet {timesheet.id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to create timesheet")
+        raise HTTPException(status_code=500, detail="Saved, but the follow-up event could not be queued (create timesheet); retry or tell support.")
     return _to_item(db, timesheet)
 
 @router.put(
@@ -234,6 +264,7 @@ def upsert_timesheet_entries(
     db.commit()
     try:
         MessageQueueService.enqueue(
+            tenant_id=timesheet.tenant_id,
             task_name="timesheet_entries_updated",
             data={
                 "timesheet_id": timesheet.id,
@@ -247,7 +278,7 @@ def upsert_timesheet_entries(
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to update timesheet entries {timesheet.id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to update timesheet")
+        raise HTTPException(status_code=500, detail="Saved, but the follow-up event could not be queued (update timesheet); retry or tell support.")
 
 @router.post(
     "/{timesheet_id}/submit",
@@ -275,6 +306,7 @@ def submit(
     try:
         # Queue timesheet_submitted for manager dashboard & commission recalculation
         MessageQueueService.enqueue(
+            tenant_id=timesheet.tenant_id,
             task_name="timesheet_submitted",
             data={
                 "timesheet_id": timesheet_id,
@@ -289,7 +321,7 @@ def submit(
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to submit timesheet {timesheet_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to submit timesheet")
+        raise HTTPException(status_code=500, detail="Saved, but the follow-up event could not be queued (submit timesheet); retry or tell support.")
 
 @router.post(
     "/{timesheet_id}/approve",
@@ -312,6 +344,7 @@ def approve(
     db.commit()
     try:
         MessageQueueService.enqueue(
+            tenant_id=timesheet.tenant_id,
             task_name="timesheet_approved",
             data={
                 "timesheet_id": timesheet_id,
@@ -324,7 +357,7 @@ def approve(
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to approve timesheet {timesheet_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to approve timesheet")
+        raise HTTPException(status_code=500, detail="Saved, but the follow-up event could not be queued (approve timesheet); retry or tell support.")
 
 @router.post(
     "/{timesheet_id}/reject",
@@ -350,6 +383,7 @@ def reject(
     db.commit()
     try:
         MessageQueueService.enqueue(
+            tenant_id=timesheet.tenant_id,
             task_name="timesheet_rejected",
             data={
                 "timesheet_id": timesheet_id,
@@ -363,7 +397,7 @@ def reject(
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to reject timesheet {timesheet_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to reject timesheet")
+        raise HTTPException(status_code=500, detail="Saved, but the follow-up event could not be queued (reject timesheet); retry or tell support.")
 
 @router.post(
     "/{timesheet_id}/reopen",
@@ -386,6 +420,7 @@ def reopen(
     db.commit()
     try:
         MessageQueueService.enqueue(
+            tenant_id=timesheet.tenant_id,
             task_name="timesheet_reopened",
             data={
                 "timesheet_id": timesheet_id,
@@ -398,7 +433,7 @@ def reopen(
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to reopen timesheet {timesheet_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to reopen timesheet")
+        raise HTTPException(status_code=500, detail="Saved, but the follow-up event could not be queued (reopen timesheet); retry or tell support.")
 
 
 @router.get(
@@ -463,6 +498,7 @@ def scan_anomalies(
     db.commit()
     try:
         MessageQueueService.enqueue(
+            tenant_id=timesheet.tenant_id,
             task_name="timesheet_anomalies_scanned",
             data={
                 "timesheet_id": timesheet_id,
@@ -474,7 +510,7 @@ def scan_anomalies(
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to scan timesheet anomalies {timesheet_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to scan anomalies")
+        raise HTTPException(status_code=500, detail="Saved, but the follow-up event could not be queued (scan anomalies); retry or tell support.")
 
 @router.get(
     "/{timesheet_id}/anomalies",
@@ -532,6 +568,7 @@ def create_dispute(
     db.commit()
     try:
         MessageQueueService.enqueue(
+            tenant_id=timesheet.tenant_id,
             task_name="dispute_raised",
             data={
                 "dispute_id": dispute.id,
@@ -546,7 +583,7 @@ def create_dispute(
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to create dispute for timesheet {timesheet_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to raise dispute")
+        raise HTTPException(status_code=500, detail="Saved, but the follow-up event could not be queued (raise dispute); retry or tell support.")
 
 @router.get(
     "/{timesheet_id}/disputes",
@@ -600,6 +637,7 @@ def resolve_dispute_endpoint(
     db.commit()
     try:
         MessageQueueService.enqueue(
+            tenant_id=current_user.tenant_id,
             task_name="dispute_resolved",
             data={
                 "dispute_id": dispute_id,
@@ -614,5 +652,5 @@ def resolve_dispute_endpoint(
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to resolve dispute {dispute_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to resolve dispute")
+        raise HTTPException(status_code=500, detail="Saved, but the follow-up event could not be queued (resolve dispute); retry or tell support.")
 

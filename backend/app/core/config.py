@@ -327,6 +327,9 @@ class Settings:
     FX_INR_PER_USD: float = float(os.getenv("FX_INR_PER_USD") or 85)
     # Paid hours in a month (40h x 52 weeks / 12); turns monthly loaded cost into an hourly cost
     STANDARD_MONTHLY_HOURS: float = float(os.getenv("STANDARD_MONTHLY_HOURS", "173.33"))
+    # My Timesheet: how many weeks before the current one an employee may open and fill. Never more
+    # than the submission window (app.models.timesheet.MAX_SUBMISSION_LOOKBACK_WEEKS)
+    TIMESHEET_SELF_SERVICE_BACK_WEEKS: int = int(os.getenv("TIMESHEET_SELF_SERVICE_BACK_WEEKS", "4"))
     # planned billable hours per business day for projected revenue (allocation x utilization)
     STANDARD_DAILY_HOURS: float = float(os.getenv("STANDARD_DAILY_HOURS", "8"))
 

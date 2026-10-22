@@ -2,9 +2,9 @@
 // Lock) + S-222 (Manager Approval) -- the "time tracking" link in
 // Avinash's stated MVP chain (candidate -> ... -> assign project ->
 // time tracking -> resource management).
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Clock, RefreshCw, Send, CheckCircle2, XCircle, RotateCcw, AlertTriangle, MessageSquareWarning } from "lucide-react";
-import { Card, Button, Input, TextArea } from "../components/ui";
+import { Card, Button, Input, Select, TextArea } from "../components/ui";
 import cx from "../utils/cx";
 import {
   createWeeklyDraft,
@@ -14,8 +14,8 @@ import {
   rejectTimesheet,
   reopenTimesheet,
   getTimesheets,
+  getTimesheetAllocations,
   scanTimesheetAnomalies,
-  getTimesheetAnomalies,
   raiseTimesheetDispute,
   getTimesheetDisputes,
   resolveTimesheetDispute,
@@ -48,28 +48,50 @@ const STATUS_STYLES = {
   DISPUTED: "border-purple-200 bg-purple-50 text-purple-800",
 };
 
+// local calendar date: toISOString() would shift to UTC and give the previous day east of UTC
 function addDays(isoDate, days) {
   const d = new Date(`${isoDate}T00:00:00`);
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function CreateTimesheetForm({ onCreated }) {
   const [open, setOpen] = useState(false);
+  const [people, setPeople] = useState(null);
+  const [employeeId, setEmployeeId] = useState("");
   const [allocationId, setAllocationId] = useState("");
   const [weekStart, setWeekStart] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const openForm = async () => {
+    setOpen(true);
+    setError("");
+    try {
+      setPeople(await getTimesheetAllocations());
+    } catch (err) {
+      setPeople([]);
+      setError(`Could not load allocations: ${err.message}`);
+    }
+  };
+
+  const employee = (people || []).find((p) => p.employee_id === employeeId);
+  const pickEmployee = (id) => {
+    setEmployeeId(id);
+    const chosen = (people || []).find((p) => p.employee_id === id);
+    setAllocationId(chosen && chosen.allocations.length === 1 ? chosen.allocations[0].id : "");
+  };
+
   const handleSubmit = async () => {
-    if (!allocationId.trim() || !weekStart) {
-      setError("Allocation ID and week-starting Monday are both required.");
+    if (!allocationId || !weekStart) {
+      setError("Pick the employee, their allocation and the week-starting Monday.");
       return;
     }
     setSaving(true);
     setError("");
     try {
-      await createWeeklyDraft(allocationId.trim(), weekStart);
+      await createWeeklyDraft(allocationId, weekStart);
+      setEmployeeId("");
       setAllocationId("");
       setWeekStart("");
       setOpen(false);
@@ -83,7 +105,7 @@ function CreateTimesheetForm({ onCreated }) {
 
   if (!open) {
     return (
-      <Button variant="primary" onClick={() => setOpen(true)}>
+      <Button variant="primary" onClick={openForm}>
         <Clock className="h-4 w-4" /> New Weekly Timesheet
       </Button>
     );
@@ -96,8 +118,26 @@ function CreateTimesheetForm({ onCreated }) {
           {error}
         </div>
       ) : null}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Input label="Allocation ID" value={allocationId} onChange={setAllocationId} placeholder="allocation UUID" />
+      {people && people.length === 0 && !error ? (
+        <div className="mb-3 text-xs text-gray-500">Nobody you can see has an active allocation.</div>
+      ) : null}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Select
+          label="Employee"
+          value={employeeId}
+          onChange={pickEmployee}
+          options={[{ value: "", label: people ? "Pick an employee" : "Loading…" },
+            ...(people || []).map((p) => ({ value: p.employee_id, label: p.employee_name }))]}
+        />
+        <Select
+          label="Allocation"
+          value={allocationId}
+          onChange={setAllocationId}
+          options={[{ value: "", label: employee ? "Pick an allocation" : "Pick an employee first" },
+            ...(employee ? employee.allocations : []).map((a) => ({
+              value: a.id, label: `${a.client_name} · ${a.demand_job_title} (from ${a.start_date})`,
+            }))]}
+        />
         <Input label="Week starting (Monday)" type="date" value={weekStart} onChange={setWeekStart} />
       </div>
       <div className="mt-3 flex gap-2">
@@ -531,7 +571,7 @@ export default function TimesheetsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -542,11 +582,11 @@ export default function TimesheetsScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter]);
 
   useEffect(() => {
     load();
-  }, [statusFilter]);
+  }, [load]);
 
   return (
     <div className="grid gap-4">

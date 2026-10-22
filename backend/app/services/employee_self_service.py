@@ -38,10 +38,19 @@ class NotYourAllocation(Exception):
 class NotYourTimesheet(Exception):
     pass
 
+class WeekOutsideWindow(Exception):
+    """The requested week is not a Monday, is in the future, or is older than the self-service window."""
+
+NO_LINKED_EMPLOYEE_MESSAGE = (
+    "Your login isn't linked to an employee record, so there is no timesheet for you yet. "
+    "Ask HR to add you on the Employees screen (Import employees or Add employee)."
+)
+
 def resolve_current_employee(db: Session, current_user: Users) -> Employee:
     employee = db.query(Employee).filter(Employee.wros_user_id == current_user.UserID).first()
     if not employee:
-        raise NoLinkedEmployeeRecord(f"No employee record is linked to user {current_user.UserID!r}.")
+        logger.info(f"[MyTimesheet] user {current_user.UserID} has no linked employee record")
+        raise NoLinkedEmployeeRecord(NO_LINKED_EMPLOYEE_MESSAGE)
     return employee
 
 def get_my_active_allocations(db: Session, employee: Employee) -> List[EmployeeAllocation]:
@@ -53,14 +62,50 @@ def _current_week_monday(today: Optional[date] = None) -> date:
     today = today or date.today()
     return today - timedelta(days=today.weekday())
 
-def get_or_start_my_current_week_timesheet(db: Session, employee: Employee, allocation_id: str, *, today: Optional[date] = None) -> Timesheet:
+def self_service_back_weeks() -> int:
+    """settings.TIMESHEET_SELF_SERVICE_BACK_WEEKS, never past the submission window (a week the
+    employee could open but never submit is a trap): misconfiguration fails loudly."""
+    from app.core.config import settings
+    from app.models.timesheet import MAX_SUBMISSION_LOOKBACK_WEEKS
+
+    weeks = settings.TIMESHEET_SELF_SERVICE_BACK_WEEKS
+    if weeks < 0 or weeks > MAX_SUBMISSION_LOOKBACK_WEEKS:
+        raise RuntimeError(
+            f"TIMESHEET_SELF_SERVICE_BACK_WEEKS={weeks} must be between 0 and the "
+            f"{MAX_SUBMISSION_LOOKBACK_WEEKS}-week submission window.")
+    return weeks
+
+def allowed_weeks(today: Optional[date] = None) -> List[date]:
+    """The Mondays an employee may fill: this week first, then each earlier week in the window."""
+    monday = _current_week_monday(today)
+    return [monday - timedelta(weeks=n) for n in range(self_service_back_weeks() + 1)]
+
+def _check_week(week_starting: date, today: Optional[date]) -> date:
+    weeks = allowed_weeks(today)
+    if week_starting.weekday() != 0:
+        raise WeekOutsideWindow(f"{week_starting} is not a Monday: a timesheet week starts on Monday.")
+    if week_starting > weeks[0]:
+        raise WeekOutsideWindow(f"The week of {week_starting} has not started yet.")
+    if week_starting < weeks[-1]:
+        raise WeekOutsideWindow(
+            f"The week of {week_starting} is more than {len(weeks) - 1} week(s) back; "
+            "ask your approver or HR to handle older weeks.")
+    return week_starting
+
+def get_or_start_my_week_timesheet(db: Session, employee: Employee, allocation_id: str, *,
+                                   week_starting: Optional[date] = None, today: Optional[date] = None) -> Timesheet:
+    """The draft for one week (this week when week_starting is None), created if missing."""
     from app.services.timesheet_service import create_weekly_draft
 
     allocation = db.query(EmployeeAllocation).filter(EmployeeAllocation.id == allocation_id).first()
     if not allocation or allocation.employee_id != employee.id:
         raise NotYourAllocation(f"Allocation {allocation_id!r} does not belong to you.")
 
-    monday = _current_week_monday(today)
+    monday = _check_week(week_starting, today) if week_starting else _current_week_monday(today)
+    if (allocation.end_date and monday > allocation.end_date) or monday + timedelta(days=6) < allocation.start_date:
+        raise WeekOutsideWindow(
+            f"The week of {monday} is outside this allocation ({allocation.start_date} to "
+            f"{allocation.end_date or 'open'}).")
     timesheet = create_weekly_draft(db, allocation, monday, tenant_id=allocation.tenant_id)
     db.commit()
     db.refresh(timesheet)

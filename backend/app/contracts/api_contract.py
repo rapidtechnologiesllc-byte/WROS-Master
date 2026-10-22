@@ -271,7 +271,6 @@ class MessageType(str, Enum):
     CANDIDATE_CREATE = "create_candidate"
     CANDIDATE_UPDATE = "update_candidate"
     CANDIDATE_DELETE = "delete_candidate"
-    CANDIDATE_CONVERT = "convert_candidate_to_employee"
     INTERVIEW_SCHEDULED = "interview_scheduled"
     OFFER_GENERATED = "offer_generated"
     EMPLOYEE_ONBOARDED = "employee_onboarded"
@@ -326,11 +325,6 @@ QUEUE_ROUTING_CONFIG = {
     MessageType.CANDIDATE_DELETE: QueueRoutingConfig(
         message_type=MessageType.CANDIDATE_DELETE,
         required_permission="candidate.delete_event",
-        default_queue=QueueType.CANDIDATE_QUEUE
-    ),
-    MessageType.CANDIDATE_CONVERT: QueueRoutingConfig(
-        message_type=MessageType.CANDIDATE_CONVERT,
-        required_permission="candidate.convert_event",
         default_queue=QueueType.CANDIDATE_QUEUE
     ),
     MessageType.INTERVIEW_SCHEDULED: QueueRoutingConfig(
