@@ -83,6 +83,19 @@ def transition_employee_status(
     db.add(history)
     return employee
 
+def place_unallocated_joiner(db: Session, employee: Employee, *, changed_by: Optional[str],
+                             bench_since: Optional[date] = None) -> None:
+    """An ACTIVE employee with no allocation: a billable one goes to the BENCH and into the bench
+    pool from their first bench day (joining date unless given), so every bench view counts them
+    from the same date; a non-billable (internal) one stays ACTIVE -- never bench."""
+    from app.services.resource_management_service import mark_employee_on_bench
+
+    if not employee.is_billable:
+        return
+    transition_employee_status(db, employee, "BENCH", reason="Joined, not yet allocated", changed_by=changed_by)
+    mark_employee_on_bench(db, employee, reason="NEWLY_JOINED", since=bench_since or employee.joining_date)
+
+
 def activate_joined_employees(db: Session, *, today: Optional[date] = None, employee_ids=None) -> int:
     """PRE_JOINING employees whose joining date has arrived join: ALLOCATED when they
     already hold an ACTIVE allocation (placed before joining), otherwise on the BENCH.
@@ -103,7 +116,7 @@ def activate_joined_employees(db: Session, *, today: Optional[date] = None, empl
             transition_employee_status(db, employee, "ALLOCATED", reason=f"Joined onto allocation {allocated.id}",
                                        changed_by="system")
         else:
-            transition_employee_status(db, employee, "BENCH", reason="Joined, not yet allocated", changed_by="system")
+            place_unallocated_joiner(db, employee, changed_by="system")
         moved += 1
     if moved:
         db.commit()

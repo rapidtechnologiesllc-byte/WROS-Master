@@ -109,7 +109,8 @@ def test_employee_writes_stay_inside_scope(w, chain, api):
     assert api.post(w.partner_a, f"/api/v1/employees/{b_emp}/mark-bench", json={"reason": "OTHER"}).status_code == 404
     created = api.post(w.partner_a, "/api/v1/employees", json={
         "first_name": "New", "last_name": "Hire", "email": f"{uid()}@emp.test",
-        "joining_date": str(date.today()), "business_unit_id": w.bu_b.id})
+        "joining_date": str(date.today()), "business_unit_id": w.bu_b.id, "base_salary_usd_cents": 100_000,
+        "billable": True})
     assert created.status_code == 403
 
 

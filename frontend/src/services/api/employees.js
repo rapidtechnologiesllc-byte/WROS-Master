@@ -2,6 +2,28 @@
 // S-247 (View Bench Pool) + S-248 (Bench Aging Report).
 import { apiRequest } from "./client";
 
+// Employee import (one creation path: a CSV, or one row from the Add employee form)
+export const getEmployeeImportTemplate = async () => {
+  const { data } = await apiRequest("/employees/import/template", { method: "GET" });
+  if (!data || !Array.isArray(data.columns)) throw new Error("Unexpected response: no import columns.");
+  return data;
+};
+
+export const dryRunEmployeeImport = async (file) => {
+  const body = new FormData();
+  body.append("file", file);
+  const { data } = await apiRequest("/employees/import/dry-run", { method: "POST", body });
+  return data;
+};
+
+export const applyEmployeeImport = async (token, file) => {
+  const body = new FormData();
+  body.append("token", token);
+  body.append("file", file);
+  const { data } = await apiRequest("/employees/import/apply", { method: "POST", body });
+  return data;
+};
+
 export const createEmployee = async (payload) => {
   const { data } = await apiRequest("/employees", {
     method: "POST",

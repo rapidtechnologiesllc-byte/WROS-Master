@@ -330,6 +330,9 @@ class Settings:
     # My Timesheet: how many weeks before the current one an employee may open and fill. Never more
     # than the submission window (app.models.timesheet.MAX_SUBMISSION_LOOKBACK_WEEKS)
     TIMESHEET_SELF_SERVICE_BACK_WEEKS: int = int(os.getenv("TIMESHEET_SELF_SERVICE_BACK_WEEKS", "4"))
+    # Bulk employee import: how long a dry run's token stays valid, and the largest file accepted
+    EMPLOYEE_IMPORT_TOKEN_TTL_MINUTES: int = int(os.getenv("EMPLOYEE_IMPORT_TOKEN_TTL_MINUTES", "60"))
+    EMPLOYEE_IMPORT_MAX_ROWS: int = int(os.getenv("EMPLOYEE_IMPORT_MAX_ROWS", "2000"))
     # planned billable hours per business day for projected revenue (allocation x utilization)
     STANDARD_DAILY_HOURS: float = float(os.getenv("STANDARD_DAILY_HOURS", "8"))
 

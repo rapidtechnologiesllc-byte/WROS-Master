@@ -1452,6 +1452,11 @@ def _apply_schema_migrations(db: Session):
                             f"ALTER TABLE app_schema.api_keys_config ALTER COLUMN {column} TYPE VARCHAR(512)",
                             lock_timeout=True)
 
+    # Employee import + billable (CEO 2026-10-22): every existing employee stays billable until set
+    _migration_step(db, "employees.is_billable",
+                    "ALTER TABLE IF EXISTS app_schema.employees "
+                    "ADD COLUMN IF NOT EXISTS is_billable BOOLEAN NOT NULL DEFAULT TRUE")
+
     # Migration 2: candidate_status.thunder_assigned_at (when Thunder was assigned)
     _migration_step(db, "candidate_status.thunder_assigned_at",
                     "ALTER TABLE IF EXISTS app_schema.candidate_status "

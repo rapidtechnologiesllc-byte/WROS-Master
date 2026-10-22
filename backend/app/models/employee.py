@@ -64,7 +64,8 @@ ALLOWED_STATUS_TRANSITIONS = {
     "ON_LEAVE": {"ACTIVE"},
     # The hiring pipeline puts every new employee on the BENCH (BGV cleared, joined), where
     # they run the Buddy Program: graduating or exiting it must be reachable from here too.
-    "BENCH": {"ALLOCATED", "NOTICE_PERIOD", "SPECIALITY_READY", "PERFORMANCE_MANAGED"},
+    # ACTIVE: a bench employee reclassified as non-billable (internal staff are never bench)
+    "BENCH": {"ALLOCATED", "NOTICE_PERIOD", "SPECIALITY_READY", "PERFORMANCE_MANAGED", "ACTIVE"},
     "ALLOCATED": {"BENCH", "ON_LEAVE", "NOTICE_PERIOD"},
     "NOTICE_PERIOD": {"EXITED"},
     "EXITED": set(),  # terminal
@@ -130,6 +131,12 @@ class Employee(Base):
 
     base_salary_usd_cents = Column(Integer, nullable=True)  # monthly
     billing_rate_usd_cents = Column(Integer, nullable=True)  # hourly
+    # Billable (client-facing) or non-billable (internal: HR, finance, recruiters, delivery leads).
+    # Chosen when the employee is added. Non-billable people are never bench; their cost is
+    # overhead, not bench loss (CEO 2026-10-22)
+    is_billable = Column(Boolean, nullable=False, default=True, server_default="true")
+    # Derived, never set by hand: NON_BILLABLE when not is_billable, else ALLOCATED with an ACTIVE
+    # allocation, else BENCH -- see app.services.bench_service.sync_billing_classification
     billing_classification = Column(Enum(*BILLING_CLASSIFICATIONS, name="billing_classification", native_enum=False, create_constraint=True), nullable=False, default="BENCH")
     work_location = Column(Enum(*WORK_LOCATIONS, name="work_location", native_enum=False, create_constraint=True), nullable=False, default="REMOTE")
 

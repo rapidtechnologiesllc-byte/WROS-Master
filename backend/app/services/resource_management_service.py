@@ -52,7 +52,7 @@ _BUDDY_PROGRAM_BLOCKING_STATUSES = ("IN_PROGRESS", "EXTENDED")
 # ---------------------------------------------------------------------------
 
 def mark_employee_on_bench(
-    db: Session, employee: Employee, *, reason: str = "PROJECT_ENDED",
+    db: Session, employee: Employee, *, reason: str = "PROJECT_ENDED", since: Optional[date] = None,
 ) -> BenchPoolEntry:
     """
     Upserts this employee's bench_pool row AND opens a bench_periods
@@ -73,6 +73,11 @@ def mark_employee_on_bench(
     """
     if reason not in BENCH_PERIOD_REASONS:
         raise ValueError(f"reason must be one of {BENCH_PERIOD_REASONS}, got '{reason}'.")
+    # since: the real first bench day when it is not today (an imported employee who came off
+    # their last project earlier, a hire who joined before the queue worker ran)
+    start = since or date.today()
+    if start > date.today():
+        raise ValueError(f"Bench start {start} is in the future.")
 
     existing = db.query(BenchPoolEntry).filter(BenchPoolEntry.employee_id == employee.id).first()
     if not existing:
@@ -80,7 +85,7 @@ def mark_employee_on_bench(
         existing = BenchPoolEntry(
             tenant_id=employee.tenant_id,
             employee_id=employee.id,
-            available_from=date.today(),
+            available_from=start,
             skill_tags=employee.current_skills,
             bench_cost_usd_cents=round(monthly_cost / 30) if monthly_cost else None,
         )
@@ -95,7 +100,7 @@ def mark_employee_on_bench(
     if not open_period:
         db.add(BenchPeriod(
             tenant_id=employee.tenant_id, employee_id=employee.id,
-            bench_start_date=date.today(), reason_for_bench=reason,
+            bench_start_date=start, reason_for_bench=reason,
         ))
         db.flush()
 

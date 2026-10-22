@@ -83,7 +83,7 @@ def employer_company_for(db, job, bu_id):
     return companies[0] if len(companies) == 1 else None
 
 
-def _place_new_hire(db, user, role, parent_node_id, bu_id, company_id, require_seat):
+def place_new_hire(db, user, role, parent_node_id, bu_id, company_id, require_seat):
     """Connect the new hire to the org chart: their role's level, reporting to the given seat
     or -- autonomously -- to the BU head of their business unit in their employer company.
     On the conversion screen (require_seat) a placement the reporting rules refuse fails the
@@ -187,7 +187,7 @@ class EmployeeConversionService:
                        company_id=final_company_id, current_title=posting_title, **fields)
         db.add(emp)
         db.flush()
-        _place_new_hire(db, user, role, parent_node_id, final_bu_id, final_company_id, require_seat)
+        place_new_hire(db, user, role, parent_node_id, final_bu_id, final_company_id, require_seat)
         hist = EmployeeEngineHistory(tenant_id=tid, employee_id=emp.id, from_engine=None, to_engine="SPECIALITY", changed_by=changed_by, reason="Initial hire")
         db.add(hist)
         db.flush()
@@ -216,7 +216,9 @@ class EmployeeConversionService:
         if joining_date <= date.today():
             # transition only; the caller commits the whole conversion
             from app.services.employee_service import transition_employee_status
+            from app.services.employee_service import place_unallocated_joiner
+
             transition_employee_status(db, emp, "ACTIVE", reason="Joining date reached", changed_by=changed_by)
-            transition_employee_status(db, emp, "BENCH", reason="Cleared hiring, on the bench", changed_by=changed_by)
+            place_unallocated_joiner(db, emp, changed_by=changed_by)
         return user, emp
 

@@ -37,7 +37,9 @@ export const getAllocations = async (filters = {}) => {
   if (filters.demandId) params.set("demand_id", filters.demandId);
   const qs = params.toString();
   const { data } = await apiRequest(`/allocations${qs ? `?${qs}` : ""}`, { method: "GET" });
-  return data;
+  // the API wraps the list ({allocations: [...]}); callers get the list
+  if (!data || !Array.isArray(data.allocations)) throw new Error("Unexpected response: no allocations list.");
+  return data.allocations;
 };
 
 export const endAllocation = async (allocationId, endDate) => {
