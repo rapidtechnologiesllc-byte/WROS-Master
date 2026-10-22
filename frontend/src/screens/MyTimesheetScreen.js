@@ -2,11 +2,11 @@
 // 2026-08-04 (app.services.employee_self_service) on top of the
 // already-real, already-tested HR-operated timesheet engine. Every
 // employee only ever sees/edits their OWN allocation and timesheet.
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { X, AlertTriangle, CheckCircle } from "lucide-react";
 import { Card, Button, Select } from "../components/ui";
 import {
-  getMyAllocations, getMyCurrentTimesheet, getMyTimesheetHistory, logMyHours, submitMyTimesheet,
+  getMyAllocations, getMyTimesheetForWeek, getMyTimesheetHistory, getMyTimesheetWeeks, logMyHours, submitMyTimesheet,
 } from "../services/api/myTimesheet";
 
 const STATUS_STYLES = {
@@ -22,64 +22,81 @@ function weekDays(weekStartingDate) {
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
-    return d.toISOString().slice(0, 10);
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${d.getFullYear()}-${month}-${day}`;
   });
+}
+
+function weekLabel(monday, index) {
+  if (index === 0) return `This week (from ${monday})`;
+  if (index === 1) return `Last week (from ${monday})`;
+  return `Week of ${monday}`;
 }
 
 export default function MyTimesheetScreen() {
   const [allocations, setAllocations] = useState([]);
   const [allocationId, setAllocationId] = useState("");
+  const [weeks, setWeeks] = useState([]);
+  const [week, setWeek] = useState("");
   const [timesheet, setTimesheet] = useState(null);
   const [hours, setHours] = useState({});
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // the server's own reason when this login has no employee record (404), shown instead of the screen
+  const [notLinked, setNotLinked] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
 
-  const loadAllocations = async () => {
-    setActionError(null);
-    try {
-      const allocs = await getMyAllocations();
-      setAllocations(allocs || []);
-      if (allocs?.length) setAllocationId(allocs[0].id);
-    } catch {
-      setActionError("Could not load your project allocations.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadTimesheet = async (id) => {
-    if (!id) return;
-    setActionError(null);
-    try {
-      const ts = await getMyCurrentTimesheet(id);
-      setTimesheet(ts);
-      const byDate = {};
-      (ts.entries || []).forEach((e) => { byDate[e.entry_date] = String(e.hours); });
-      setHours(byDate);
-    } catch {
-      setActionError("Could not load this week's timesheet.");
-    }
-  };
-
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     try {
       setHistory(await getMyTimesheetHistory());
-    } catch {
-      // non-critical -- history is a secondary view
+    } catch (err) {
+      setActionError(`Could not load your recent timesheets: ${err.message}`);
     }
-  };
-
-  useEffect(() => {
-    loadAllocations();
-    loadHistory();
   }, []);
 
   useEffect(() => {
-    if (allocationId) loadTimesheet(allocationId);
-  }, [allocationId]);
+    const load = async () => {
+      setActionError(null);
+      try {
+        const [allocs, allowedWeeks] = await Promise.all([getMyAllocations(), getMyTimesheetWeeks()]);
+        setAllocations(allocs);
+        setWeeks(allowedWeeks);
+        if (allocs.length) setAllocationId(allocs[0].id);
+        if (allowedWeeks.length) setWeek(allowedWeeks[0]);
+        await loadHistory();
+      } catch (err) {
+        if (err.status === 404) {
+          setNotLinked(err.message);
+        } else {
+          setActionError(`Could not load your project allocations: ${err.message}`);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [loadHistory]);
+
+  useEffect(() => {
+    if (!allocationId || !week) return;
+    const loadTimesheet = async () => {
+      setActionError(null);
+      setTimesheet(null);
+      try {
+        const ts = await getMyTimesheetForWeek(allocationId, week);
+        setTimesheet(ts);
+        const byDate = {};
+        (ts.entries || []).forEach((e) => { byDate[e.entry_date] = String(e.hours); });
+        setHours(byDate);
+      } catch (err) {
+        setActionError(`Could not open the week of ${week}: ${err.message}`);
+      }
+    };
+    loadTimesheet();
+  }, [allocationId, week]);
 
   const handleSave = async () => {
     if (!timesheet) return;
@@ -116,7 +133,17 @@ export default function MyTimesheetScreen() {
 
   if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
 
-  if (allocations.length === 0) {
+  if (notLinked) {
+    return (
+      <div className="p-6 max-w-3xl mx-auto">
+        <Card>
+          <p className="text-sm text-gray-700">{notLinked}</p>
+        </Card>
+      </div>
+    );
+  }
+
+  if (allocations.length === 0 && !actionError) {
     return (
       <div className="p-6 max-w-3xl mx-auto">
         <Card>
@@ -162,8 +189,17 @@ export default function MyTimesheetScreen() {
           </button>
         </div>
       )}
-      {allocations.length > 1 && (
-        <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-3">
+        {weeks.length > 1 && (
+          <div className="w-64">
+            <Select
+              value={week}
+              onChange={setWeek}
+              options={weeks.map((w, i) => ({ value: w, label: weekLabel(w, i) }))}
+            />
+          </div>
+        )}
+        {allocations.length > 1 && (
           <div className="w-64">
             <Select
               value={allocationId}
@@ -171,8 +207,8 @@ export default function MyTimesheetScreen() {
               options={allocations.map((a) => ({ value: a.id, label: `${a.demand_job_title} (${a.role || "assigned"})` }))}
             />
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {timesheet && (
         <Card
