@@ -22,13 +22,11 @@ const STATUS_STYLES = {
 function Modal({ title, onClose, children, wide }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-      <Card className={cx("w-full overflow-y-auto", wide ? "max-w-6xl max-h-[90vh]" : "max-w-2xl max-h-[90vh]")}>
-        <div className="flex items-center justify-between border-b p-4">
-          <h2 className="text-lg font-semibold">{title}</h2>
-          <Button variant="ghost" onClick={onClose}><X className="h-4 w-4" /></Button>
-        </div>
-        <div className="p-4">{children}</div>
-      </Card>
+      <div className={cx("max-h-[90vh] w-full overflow-y-auto", wide ? "max-w-6xl" : "max-w-2xl")}>
+        <Card title={title} right={<Button variant="ghost" onClick={onClose}><X className="h-4 w-4" /></Button>}>
+          {children}
+        </Card>
+      </div>
     </div>
   );
 }

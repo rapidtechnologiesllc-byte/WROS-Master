@@ -330,7 +330,8 @@ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-      <Card className="w-full max-w-2xl max-h-96 overflow-y-auto">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <Card>
         <div className="flex items-center justify-between border-b p-4">
           <h2 className="text-lg font-semibold">
             {employee.first_name} {employee.last_name}
@@ -461,6 +462,7 @@ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
           </Button>
         </div>
       </Card>
+      </div>
     </div>
   );
 }

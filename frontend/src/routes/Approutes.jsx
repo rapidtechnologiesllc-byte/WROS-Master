@@ -66,6 +66,7 @@ import RecruiterWatchScreen from "../screens/RecruiterWatchScreen";
 import BulkLaunchScreen from "../screens/BulkLaunchScreen";
 import TenantAIConfigScreen from "../screens/TenantAIConfigScreen";
 import MyTasksScreen from "../screens/MyTasksScreen";
+import TimesheetApprovalScreen from "../screens/TimesheetApprovalScreen";
 import MyTimesheetScreen from "../screens/MyTimesheetScreen";
 import TicketRoutingAdminScreen from "../screens/TicketRoutingAdminScreen";
 import BuddyProgramListScreen from "../screens/BuddyProgramListScreen";
@@ -581,6 +582,8 @@ function AuthenticatedApp() {
           <Route path="admin/ai-config" element={<TenantAIConfigScreen />} />
           <Route path="my-tasks" element={<MyTasksScreen />} />
           <Route path="my-timesheet" element={<MyTimesheetScreen />} />
+          <Route path="timesheet-approvals" element={<TimesheetApprovalScreen />} />
+          <Route path="timesheet-approvals/:timesheetId" element={<TimesheetApprovalScreen />} />
           <Route path="my-expenses" element={<MyExpensesScreen />} />
           <Route path="my-referrals" element={<MyReferralsScreen />} />
           <Route path="admin/ticket-routing" element={<TicketRoutingAdminScreen />} />

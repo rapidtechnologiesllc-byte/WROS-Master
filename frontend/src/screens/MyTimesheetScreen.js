@@ -3,6 +3,7 @@
 // already-real, already-tested HR-operated timesheet engine. Every
 // employee only ever sees/edits their OWN allocation and timesheet.
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { X, AlertTriangle, CheckCircle } from "lucide-react";
 import { Card, Button, Select } from "../components/ui";
 import {
@@ -48,6 +49,11 @@ export default function MyTimesheetScreen() {
   const [notLinked, setNotLinked] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
+  const [response, setResponse] = useState("");
+  // a resubmit task links here with ?week=YYYY-MM-DD&allocation=<id>
+  const [searchParams] = useSearchParams();
+  const linkedWeek = searchParams.get("week");
+  const linkedAllocation = searchParams.get("allocation");
 
   const loadHistory = useCallback(async () => {
     try {
@@ -64,8 +70,9 @@ export default function MyTimesheetScreen() {
         const [allocs, allowedWeeks] = await Promise.all([getMyAllocations(), getMyTimesheetWeeks()]);
         setAllocations(allocs);
         setWeeks(allowedWeeks);
-        if (allocs.length) setAllocationId(allocs[0].id);
-        if (allowedWeeks.length) setWeek(allowedWeeks[0]);
+        const linkedAlloc = allocs.find((a) => a.id === linkedAllocation);
+        if (allocs.length) setAllocationId((linkedAlloc || allocs[0]).id);
+        if (allowedWeeks.length) setWeek(allowedWeeks.includes(linkedWeek) ? linkedWeek : allowedWeeks[0]);
         await loadHistory();
       } catch (err) {
         if (err.status === 404) {
@@ -78,7 +85,7 @@ export default function MyTimesheetScreen() {
       }
     };
     load();
-  }, [loadHistory]);
+  }, [loadHistory, linkedAllocation, linkedWeek]);
 
   useEffect(() => {
     if (!allocationId || !week) return;
@@ -122,8 +129,9 @@ export default function MyTimesheetScreen() {
     setActionError(null);
     setActionSuccess(null);
     try {
-      const submitted = await submitMyTimesheet(timesheet.id);
+      const submitted = await submitMyTimesheet(timesheet.id, response.trim());
       setTimesheet(submitted);
+      setResponse("");
       setActionSuccess("Timesheet submitted for approval.");
       loadHistory();
     } catch (err) {
@@ -155,7 +163,10 @@ export default function MyTimesheetScreen() {
 
   const days = timesheet ? weekDays(timesheet.week_starting_date) : [];
   const total = days.reduce((sum, d) => sum + (Number(hours[d]) || 0), 0);
-  const editable = timesheet && timesheet.status === "DRAFT";
+  // a rejected week is edited in place (the first change reopens it) or answered with a response
+  const editable = timesheet && (timesheet.status === "DRAFT" || timesheet.status === "REJECTED");
+  const rejection = timesheet?.rejection;
+  const flaggedDays = rejection?.flagged_dates || [];
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
@@ -219,9 +230,11 @@ export default function MyTimesheetScreen() {
             </span>
           }
         >
-          {timesheet.status === "REJECTED" && timesheet.rejection_reason && (
+          {rejection && (
             <div className="mb-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-bx px-3 py-2">
-              Rejected: {timesheet.rejection_reason}
+              <div className="font-semibold">Rejected: {rejection.reason}</div>
+              {flaggedDays.length ? <div>Days to fix: {flaggedDays.join(", ")}</div> : null}
+              <div className="mt-1 text-gray-700">Change the entries, or explain below why they are right, then submit again.</div>
             </div>
           )}
           <div className="grid grid-cols-7 gap-2 mb-4">
@@ -231,12 +244,13 @@ export default function MyTimesheetScreen() {
                   {new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { weekday: "short" })}
                 </div>
                 <input
+                  title={flaggedDays.includes(d) ? "Flagged by your approver" : undefined}
                   type="number"
                   min="0"
                   max="24"
                   step="0.5"
                   disabled={!editable}
-                  className="w-full text-center text-sm border border-bx-border rounded-bx px-1 py-2 outline-none focus:border-bx-orange disabled:bg-bx-light disabled:text-gray-400"
+                  className={`w-full text-center text-sm border rounded-bx px-1 py-2 outline-none focus:border-bx-orange disabled:bg-bx-light disabled:text-gray-400 ${flaggedDays.includes(d) ? "border-red-500 bg-red-50" : "border-bx-border"}`}
                   value={hours[d] ?? ""}
                   onChange={(e) => setHours({ ...hours, [d]: e.target.value })}
                 />
@@ -244,6 +258,15 @@ export default function MyTimesheetScreen() {
             ))}
           </div>
           <p className="text-sm text-gray-600 mb-3">Total: <span className="font-semibold text-bx-navy">{total}</span> hours</p>
+          {editable && rejection && (
+            <textarea
+              className="mb-2 w-full rounded-bx border border-bx-border px-2 py-1 text-sm"
+              rows={2}
+              placeholder="Your response to the rejection (required if you resubmit without changes)"
+              value={response}
+              onChange={(e) => setResponse(e.target.value)}
+            />
+          )}
           {editable && (
             <div className="flex gap-2">
               <Button variant="secondary" disabled={saving} onClick={handleSave}>{saving ? "Saving..." : "Save"}</Button>

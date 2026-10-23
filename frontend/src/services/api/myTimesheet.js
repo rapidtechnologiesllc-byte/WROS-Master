@@ -32,8 +32,11 @@ export const logMyHours = async (timesheetId, entries) => {
   return data;
 };
 
-export const submitMyTimesheet = async (timesheetId) => {
-  const { data } = await apiRequest(`/my/timesheet/${timesheetId}/submit`, { method: "POST" });
+// response: the employee's answer to a rejection (required when the entries did not change)
+export const submitMyTimesheet = async (timesheetId, response) => {
+  const { data } = await apiRequest(`/my/timesheet/${timesheetId}/submit`, {
+    method: "POST", body: JSON.stringify({ response: response || null }),
+  });
   return data;
 };
 

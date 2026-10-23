@@ -28,14 +28,12 @@ from sqlalchemy.orm import Session
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.task import Task
-from app.models.user import Users
 from app.models.timesheet import (
     MAX_SUBMISSION_LOOKBACK_WEEKS,
     MAX_WEEKLY_HOURS,
     Timesheet,
     TimesheetEntry,
 )
-from app.services.email_service import EmailService
 
 logger = logging.getLogger(__name__)
 
@@ -215,34 +213,7 @@ def approve_timesheet(db: Session, timesheet: Timesheet, approved_by: Optional[s
     timesheet.approved_at = datetime.utcnow()
     db.add(timesheet)
 
-    # HRMS-0902: Send approval notifications to employee and approver.
-    # This is async-friendly but runs inline for now (no event bus).
-    # Notification failures do NOT block the approval.
-    try:
-        employee = db.query(Employee).filter(Employee.id == timesheet.employee_id).first()
-        if employee and employee.email:
-            total_hours = float(timesheet.total_hours or 0)
-            week_starting = timesheet.week_starting_date.strftime("%Y-%m-%d") if timesheet.week_starting_date else "unknown"
-
-            # approved_by is the approver's UserID
-            approver = db.query(Users).filter(Users.UserID == approved_by).first() if approved_by else None
-            approver_name = (approver.UserName if approver else None) or "HR/Manager"
-            approver_email = approver.UserEmail if approver else None
-
-            EmailService.notify_timesheet_approved(
-                employee_email=employee.email,
-                employee_name=f"{employee.first_name} {employee.last_name}".strip() or "Employee",
-                approver_email=approver_email,
-                approver_name=approver_name,
-                week_starting_date=week_starting,
-                total_hours=total_hours,
-            )
-            logger.info(f"[Timesheet] Approval notifications sent for timesheet {timesheet.id}")
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        # Log but don't raise — notifications should never block business logic
-        logger.warning(f"[Timesheet] Failed to send approval notifications for {timesheet.id}: {e}")
-
+    # the employee and approver are told by timesheet_approval_service (email + Flash), after commit
     return timesheet
 
 def reject_timesheet(db: Session, timesheet: Timesheet, reason: str) -> Timesheet:
@@ -266,17 +237,6 @@ def reopen_for_editing(db: Session, timesheet: Timesheet) -> Timesheet:
     timesheet.status = "DRAFT"
     db.add(timesheet)
     return timesheet
-
-def bulk_approve(db: Session, timesheets: List[Timesheet], approved_by: Optional[str] = None) -> dict:
-    approved = 0
-    failed = []
-    for ts in timesheets:
-        try:
-            approve_timesheet(db, ts, approved_by=approved_by)
-            approved += 1
-        except InvalidTimesheetTransition as exc:
-            failed.append({"id": ts.id, "reason": str(exc)})
-    return {"approved": approved, "failed": failed}
 
 def create_weekly_draft_batch(db: Session) -> dict:
     """

@@ -47,12 +47,25 @@ class TimesheetItem(BaseModel):
     approved_at: Optional[datetime] = None
     rejection_reason: Optional[str] = None
     entries: List[TimesheetEntryItem] = []
+    # on a rejected week: {reason, flagged_dates, revision} from the approval loop
+    rejection: Optional[dict] = None
 
 class TimesheetListResponse(BaseModel):
     timesheets: List[TimesheetItem]
 
 class RejectTimesheetRequest(BaseModel):
     reason: str = Field(..., min_length=20)
+    # days the approver marks as the problem (inside the timesheet's week)
+    flagged_dates: List[date] = []
+
+class ApproveTimesheetRequest(BaseModel):
+    comment: Optional[str] = None
+    # on a resubmission: the approver confirms the earlier rejection is addressed (required then)
+    addressed: bool = False
+
+class SubmitTimesheetRequest(BaseModel):
+    # the employee's answer to a rejection; required when the entries did not change
+    response: Optional[str] = None
 
 class BulkApproveRequest(BaseModel):
     timesheet_ids: List[str]

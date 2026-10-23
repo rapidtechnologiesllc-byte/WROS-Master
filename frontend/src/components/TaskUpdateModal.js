@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { Button, Input, Select, TextArea } from "./ui";
 import { getTaskUpdateOptions, getTaskUpdates, logTaskUpdate } from "../services/api/tasks";
+import TaskComments from "./TaskComments";
 
 const EMPTY_FORM = {
   activity_type: "",
@@ -176,6 +177,7 @@ export default function TaskUpdateModal({ task, onClose, onSaved }) {
             </ul>
           )}
         </div>
+        <TaskComments taskId={task.id} />
       </div>
     </div>
   );

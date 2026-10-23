@@ -67,7 +67,18 @@ def interview_needs_decision(db: Session, user: Users) -> List[Decision]:
             for verdict, panel, job, candidate in rows]
 
 
-PROVIDERS = (core_cert_pending, interview_needs_decision)
+def timesheet_approvals_pending(db: Session, user: Users) -> List[Decision]:
+    """Submitted timesheets routed to this user (timesheet_approval_service)."""
+    from app.services.timesheet_approval_service import APPROVAL_PATH, pending_for
+
+    return [Decision("timesheet_approval", str(review.id),
+                     f"Approve timesheet: {employee.first_name} {employee.last_name} week of "
+                     f"{timesheet.week_starting_date} ({float(timesheet.total_hours or 0):g}h)",
+                     APPROVAL_PATH.format(timesheet_id=timesheet.id))
+            for review, timesheet, employee in pending_for(db, user)]
+
+
+PROVIDERS = (core_cert_pending, interview_needs_decision, timesheet_approvals_pending)
 
 
 def pending_decisions(db: Session, user: Users) -> List[Decision]:

@@ -111,7 +111,7 @@ def get_or_start_my_week_timesheet(db: Session, employee: Employee, allocation_i
     db.refresh(timesheet)
     return timesheet
 
-def _get_own_timesheet_or_raise(db: Session, employee: Employee, timesheet_id: str) -> Timesheet:
+def own_timesheet(db: Session, employee: Employee, timesheet_id: str) -> Timesheet:
     timesheet = db.query(Timesheet).filter(Timesheet.id == timesheet_id).first()
     if not timesheet or timesheet.employee_id != employee.id:
         raise NotYourTimesheet(f"Timesheet {timesheet_id!r} does not belong to you.")
@@ -120,17 +120,8 @@ def _get_own_timesheet_or_raise(db: Session, employee: Employee, timesheet_id: s
 def submit_my_entries(db: Session, employee: Employee, timesheet_id: str, entries: List[dict]) -> Timesheet:
     from app.services.timesheet_service import upsert_entries
 
-    timesheet = _get_own_timesheet_or_raise(db, employee, timesheet_id)
+    timesheet = own_timesheet(db, employee, timesheet_id)
     upsert_entries(db, timesheet, entries)
-    db.commit()
-    db.refresh(timesheet)
-    return timesheet
-
-def submit_my_timesheet(db: Session, employee: Employee, timesheet_id: str) -> Timesheet:
-    from app.services.timesheet_service import submit_timesheet
-
-    timesheet = _get_own_timesheet_or_raise(db, employee, timesheet_id)
-    submit_timesheet(db, timesheet)
     db.commit()
     db.refresh(timesheet)
     return timesheet
