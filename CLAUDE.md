@@ -2086,9 +2086,9 @@ See MEMORY.md for full EPIC-04 scope. Next focus:
 ## Known Issues & Workarounds
 
 ### Port Management
-- **CRITICAL:** Kill stray port 8080 processes at session start
-- 8080 is MAIN backend port (not remote dummy)
-- Use task manager or `netstat -ano | findstr :8080`
+- **CRITICAL:** Kill stray port 8081 processes at session start
+- 8081 is the local backend port (the frontend calls it: frontend/.env, setupProxy.js)
+- Use task manager or `netstat -ano | findstr :8081`
 
 ### Login Credentials (Testing)
 Current test users for local development:
