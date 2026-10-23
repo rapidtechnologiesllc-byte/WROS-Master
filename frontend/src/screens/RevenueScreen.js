@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { AlertOctagon, RefreshCw, GitCompareArrows, LineChart } from "lucide-react";
 import { Card, Button, Input, Select, TextArea } from "../components/ui";
 import { listClients } from "../services/api/clients";
+import { getProjects } from "../services/api/projects";
 import cx from "../utils/cx";
 import {
   scanRevenueLeakage,
@@ -24,10 +25,17 @@ function ScanLeakageForm({ onScanned }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(undefined);
+  const [projects, setProjects] = useState([]);
+
+  useEffect(() => {
+    getProjects()
+      .then((data) => setProjects(data?.projects || []))
+      .catch((err) => setError(err.message || "Failed to load projects."));
+  }, []);
 
   const handleScan = async () => {
     if (!projectId.trim() || !periodStart || !periodEnd) {
-      setError("Project ID and both period dates are required.");
+      setError("A project and both period dates are required.");
       return;
     }
     setBusy(true);
@@ -49,7 +57,12 @@ function ScanLeakageForm({ onScanned }) {
         <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</div>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-3">
-        <Input label="Project ID" value={projectId} onChange={setProjectId} placeholder="project UUID" />
+        <Select
+          label="Project"
+          value={projectId}
+          onChange={setProjectId}
+          options={[{ value: "", label: "Select a project" }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
+        />
         <Input label="Period start" type="date" value={periodStart} onChange={setPeriodStart} />
         <Input label="Period end" type="date" value={periodEnd} onChange={setPeriodEnd} />
       </div>
@@ -111,12 +124,6 @@ function LeakageFlagRow({ flag, onChanged }) {
   const severity = getSeverityBadge(flag.unbilled_hours);
   const lastScanned = flag.last_scanned_at || new Date().toISOString();
   const scanFreq = "Daily at 2 AM UTC";
-
-  const leakageTypeExplanation = {
-    "partial_billing": "Amount approved for billing does not match amount invoiced to client",
-    "unbilled_hours": "Employee hours approved but not yet billed to client",
-    "amount_variance": "Dollar amount mismatch between approval and invoice",
-  };
 
   return (
     <div className="rounded-lg border px-3 py-2">

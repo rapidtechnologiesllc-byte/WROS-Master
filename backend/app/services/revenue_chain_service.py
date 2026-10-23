@@ -171,10 +171,11 @@ def chain_lines(
     db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
     client_id: Optional[str] = None, partner_user_id: Optional[str] = None,
     employee_id: Optional[str] = None, costs: Optional[CostBook] = None,
-    business_unit_ids: Optional[Set[int]] = None,
+    business_unit_ids: Optional[Set[int]] = None, client_ids: Optional[Iterable[str]] = None,
 ) -> List[Dict]:
     """Every client-allocated timesheet whose week starts in [start, end], traced end to end.
-    business_unit_ids (None = all) keeps only lines of clients in those business units."""
+    business_unit_ids (None = all) keeps only lines of clients in those business units;
+    client_ids (None = all) only lines of those clients."""
     costs = costs or CostBook(db)
     query = db.query(Timesheet, EmployeeAllocation).join(
         EmployeeAllocation, Timesheet.allocation_id == EmployeeAllocation.id
@@ -183,6 +184,11 @@ def chain_lines(
         query = query.filter(EmployeeAllocation.tenant_id == tenant_id)
     if client_id:
         query = query.filter(EmployeeAllocation.client_id == client_id)
+    if client_ids is not None:
+        client_ids = list(client_ids)
+        if not client_ids:
+            return []
+        query = query.filter(EmployeeAllocation.client_id.in_(client_ids))
     if employee_id:
         query = query.filter(Timesheet.employee_id == employee_id)
     rows = query.order_by(Timesheet.week_starting_date, Timesheet.id).all()
@@ -267,6 +273,17 @@ def chain_lines(
             "flags": flags,
         })
     return lines
+
+
+def earned_revenue(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
+                   client_ids: Optional[Iterable[str]] = None,
+                   business_unit_ids: Optional[Set[int]] = None) -> int:
+    """THE revenue figure for a period (USD cents): work billed or approved in it, by timesheet
+    week -- the P&L's income line. Forecast vs Actual, the BU Head's month to date and the client
+    revenue dashboard all read this, so no screen counts a month's revenue differently."""
+    lines = chain_lines(db, start=start, end=end, tenant_id=tenant_id, client_ids=client_ids,
+                        business_unit_ids=business_unit_ids)
+    return sum(line["earned_usd_cents"] for line in lines)
 
 
 AMOUNTS = ("billable_hours", "billed_usd_cents", "collected_usd_cents", "unbilled_usd_cents",
