@@ -652,16 +652,17 @@ def _apply_create(db: Session, spec: Spec, uploader: Users) -> Tuple[Employee, U
             place_unallocated_joiner(db, employee, changed_by=uploader.UserID, bench_since=spec.bench_since)
     elif spec.job is not None:
         _allocate(db, employee, spec, uploader)  # placed before joining: ALLOCATED when the joiner job runs
+    from app.services.bench_service import sync_billing_classification
+
+    sync_billing_classification(db, employee)
     return employee, user, created
 
 
 def _apply_update(db: Session, employee: Employee, spec: Spec, uploader: Users) -> Tuple[Optional[Users], bool]:
-    from app.services.employee_service import place_unallocated_joiner, transition_employee_status
-    from app.services.resource_management_service import remove_employee_from_bench
+    from app.services.bench_service import set_billable, sync_billing_classification
 
-    was_billable = employee.is_billable
     for column, value in _employee_fields(spec).items():
-        if value is not None:
+        if value is not None and column != "is_billable":
             setattr(employee, column, value)
     if spec.manager is not None:
         manager_employee = db.query(Employee).filter(Employee.wros_user_id == spec.manager.UserID).first()
@@ -676,17 +677,12 @@ def _apply_update(db: Session, employee: Employee, spec: Spec, uploader: Users) 
         _graduate_existing(db, employee, uploader)
     if spec.core_certified and not employee.core_certified:
         _certify_core(db, employee, uploader)
-    if was_billable and not spec.billable and employee.status == "BENCH":
-        remove_employee_from_bench(db, employee)
-        transition_employee_status(db, employee, "ACTIVE", reason="Imported as non-billable (internal)",
-                                   changed_by=uploader.UserID)
+    set_billable(db, employee, spec.billable, changed_by=uploader.UserID)
     if spec.job is not None and not db.query(EmployeeAllocation).filter(
             EmployeeAllocation.employee_id == employee.id, EmployeeAllocation.demand_id == spec.job.jobID,
             EmployeeAllocation.status == "ACTIVE").first():
         _allocate(db, employee, spec, uploader)
-    elif not was_billable and spec.billable and employee.status == "ACTIVE" and not db.query(EmployeeAllocation).filter(
-            EmployeeAllocation.employee_id == employee.id, EmployeeAllocation.status == "ACTIVE").first():
-        place_unallocated_joiner(db, employee, changed_by=uploader.UserID, bench_since=date.today())
+    sync_billing_classification(db, employee)
     db.add(employee)
     return user, created
 

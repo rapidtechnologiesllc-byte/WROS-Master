@@ -641,7 +641,7 @@ def _bench_first(db: Session, mission: FlashMission, job: Jobs, user: Users) -> 
     proposed = []
     rows = (db.query(Employee).join(BenchPoolEntry, BenchPoolEntry.employee_id == Employee.id)
             .filter(Employee.tenant_id == mission.tenant_id, Employee.candidate_id.isnot(None),
-                    bu_filter(db, user, Employee.bu_id)).all()) if job_skills else []
+                    Employee.is_billable.is_(True), bu_filter(db, user, Employee.bu_id)).all()) if job_skills else []
     for employee in rows:
         candidate = db.query(Candidate).filter(Candidate.candidateID == employee.candidate_id).first()
         if candidate is None:

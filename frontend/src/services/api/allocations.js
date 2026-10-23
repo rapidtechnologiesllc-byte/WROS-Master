@@ -13,6 +13,7 @@ export const createAllocation = async ({
   role,
   allowConcurrent,
   billingRateUsdCents,
+  billable,
 }) => {
   const { data } = await apiRequest("/allocations", {
     method: "POST",
@@ -26,6 +27,8 @@ export const createAllocation = async ({
       role: role || undefined,
       allow_concurrent: !!allowConcurrent,
       billing_rate_usd_cents: billingRateUsdCents || undefined,
+      // undefined = the project's (client projects billable, internal projects not)
+      billable: typeof billable === "boolean" ? billable : undefined,
     }),
   });
   return data;

@@ -15,6 +15,7 @@ import {
   getEmployeeEscalations,
   raiseEmployeeEscalation,
   resolveEmployeeEscalation,
+  updateEmployeeBillable,
   updateEmployeeCertifications,
   updateEmployeeOrganization,
 } from "../services/api/employees";
@@ -281,6 +282,18 @@ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
 
   const CERT_LEVELS = ["None", "ACE", "Associate", "Specialist"];
 
+  const [billableMessage, setBillableMessage] = useState("");
+  const toggleBillable = async () => {
+    setBillableMessage("");
+    try {
+      await updateEmployeeBillable(employee.id, !employee.is_billable);
+      setBillableMessage(employee.is_billable ? "Now non-billable (internal): off the bench" : "Now billable");
+      onRefresh();
+    } catch (err) {
+      setBillableMessage(`Could not change: ${err.message}`);
+    }
+  };
+
   const saveOrganization = async () => {
     setSaving(true);
     setOrgMessage("");
@@ -358,6 +371,10 @@ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
             <div>
               <div className="font-semibold text-gray-700">Allocated</div>
               <div>{employee.allocated_pct}% · {employee.is_billable ? "billable" : "internal (non-billable)"}</div>
+              <button type="button" className="text-xs text-blue-700 hover:underline" onClick={toggleBillable}>
+                Make {employee.is_billable ? "non-billable (internal)" : "billable"}
+              </button>
+              {billableMessage ? <div className="text-xs text-gray-600">{billableMessage}</div> : null}
             </div>
             <div>
               <div className="font-semibold text-gray-700">Login</div>

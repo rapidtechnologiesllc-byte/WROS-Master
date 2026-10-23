@@ -115,6 +115,9 @@ class Project(Base):
 
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)
+    # Client work is billable; an internal project (bench training, internal tools) is not: its
+    # allocations default to non-billable and their hours are never invoiced (CEO 2026-10-22)
+    is_billable = Column(Boolean, nullable=False, default=True, server_default="true")
 
     created_at = Column(DateTime, server_default=func.now())
     created_by = Column(String(512), nullable=True)

@@ -316,6 +316,28 @@ def update_employee_organization(
     return {"employee_id": employee.id, "company_id": employee.company_id, "business_unit_id": employee.bu_id}
 
 
+class EmployeeBillableUpdate(BaseModel):
+    billable: bool
+
+
+@router.put("/{employee_id}/billable", dependencies=[Depends(require_resource_permission("employees", "edit"))])
+def update_employee_billable(
+    employee_id: str,
+    body: EmployeeBillableUpdate,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Billable (client-facing: bench when not on a project) or non-billable (internal: overhead,
+    never bench). Moves the person on or off the bench in the same transaction."""
+    from app.services.bench_service import set_billable
+
+    employee = _get_employee_or_404(db, employee_id, current_user)
+    set_billable(db, employee, body.billable, changed_by=current_user.UserID)
+    db.commit()
+    db.refresh(employee)
+    return _to_item(db, employee)
+
+
 @router.put("/{employee_id}/certifications", dependencies=[Depends(require_resource_permission("employees", "edit"))])
 def update_guidewire_certifications(
     employee_id: str,

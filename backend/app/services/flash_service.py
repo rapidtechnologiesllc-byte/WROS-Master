@@ -533,7 +533,8 @@ def find_available_bench_employees(db: Session, user: Users, query_text: str, *,
     entries = (
         db.query(BenchPoolEntry, Employee)
         .join(Employee, BenchPoolEntry.employee_id == Employee.id)
-        .filter(Employee.tenant_id == user.tenant_id, bu_filter(db, user, Employee.bu_id))
+        .filter(Employee.tenant_id == user.tenant_id, bu_filter(db, user, Employee.bu_id),
+                Employee.is_billable.is_(True))
         .order_by(BenchPoolEntry.created_at.desc())
         .limit(200)
         .all()

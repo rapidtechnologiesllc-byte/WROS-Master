@@ -257,7 +257,9 @@ def get_latest_utilization_by_employee(
 def get_current_bench_pool(db: Session, tenant_id: Optional[int] = None) -> List[BenchPoolEntry]:
     """HRMS-1105's 30-minute scan reads this -- 'near-real-time bench-
     pool composition' per that story's own prerequisite on HRMS-0510."""
-    query = db.query(BenchPoolEntry)
+    # billable staff only: an internal employee is never bench (bench_service), whatever a stale row says
+    query = db.query(BenchPoolEntry).join(Employee, Employee.id == BenchPoolEntry.employee_id).filter(
+        Employee.is_billable.is_(True))
     if tenant_id is not None:
         query = query.filter(BenchPoolEntry.tenant_id == tenant_id)
     return query.order_by(BenchPoolEntry.available_from.asc()).all()

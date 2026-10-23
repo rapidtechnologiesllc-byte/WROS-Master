@@ -14,6 +14,7 @@ export default function AllocationForm({ presetEmployeeId, presetProjectId, onCa
   const [utilizationPct, setUtilizationPct] = useState("100");
   const [billRate, setBillRate] = useState("");
   const [allowConcurrent, setAllowConcurrent] = useState(false);
+  const [billable, setBillable] = useState(""); // "" = from the project
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -68,6 +69,7 @@ export default function AllocationForm({ presetEmployeeId, presetProjectId, onCa
         utilizationPct: utilizationPct ? Number(utilizationPct) : undefined,
         billingRateUsdCents: billRate ? Math.round(parseFloat(billRate) * 100) : undefined,
         allowConcurrent,
+        billable: billable === "" ? undefined : billable === "yes",
       });
       onSaved();
     } catch (err) {
@@ -101,6 +103,13 @@ export default function AllocationForm({ presetEmployeeId, presetProjectId, onCa
         <Input label="Start Date" type="date" value={startDate} onChange={setStartDate} />
         <Input label="End Date" type="date" value={endDate} onChange={setEndDate} />
         <Input label="Utilization %" type="number" value={utilizationPct} onChange={setUtilizationPct} placeholder="100" />
+        <Select
+          label="Billable time?"
+          value={billable}
+          onChange={setBillable}
+          options={[{ value: "", label: "From the project" }, { value: "yes", label: "Billable" },
+            { value: "no", label: "Non-billable (never invoiced)" }]}
+        />
       </div>
       {job && (
         <div className="mt-2 text-xs text-gray-600">

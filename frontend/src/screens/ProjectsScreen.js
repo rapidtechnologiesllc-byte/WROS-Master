@@ -46,6 +46,7 @@ function CreateProjectForm({ onCreated }) {
   const [clientId, setClientId] = useState("");
   const [clientList, setClientList] = useState([]);
   const [name, setName] = useState("");
+  const [isBillable, setIsBillable] = useState(true); // false: an internal project, never invoiced
   // Delivery Engine is fully derived from the selected client's own
   // Line Type -- not a separate manual choice. There is no SI Partner
   // field: client_id IS the SI partner (PWC/EY/etc. are just Client
@@ -128,6 +129,7 @@ function CreateProjectForm({ onCreated }) {
         end_client: deliveryEngine === "SPECIALITY" && endClient.trim() ? endClient.trim() : null,
         client_partner: deliveryEngine === "CORE" && clientPartner.trim() ? clientPartner.trim() : null,
         business_type: deliveryEngine === "CORE" ? businessType : null,
+        is_billable: isBillable,
       });
       setClientId("");
       setName("");
@@ -159,6 +161,10 @@ function CreateProjectForm({ onCreated }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <Select label="Client" value={clientId} onChange={handleClientChange} options={clientOptions} />
         <Input label="Project Name" value={name} onChange={setName} placeholder="PolicyCenter Rollout" />
+        <label className="flex items-center gap-2 text-xs text-gray-700">
+          <input type="checkbox" checked={!isBillable} onChange={(e) => setIsBillable(!e.target.checked)} />
+          Internal project (non-billable: its time is never invoiced)
+        </label>
         <Input label="Delivery Engine" value={deliveryEngine || "Select a client first"} onChange={() => {}} disabled={true} />
         <Select label="Currency" value={currency} onChange={setCurrency} options={currencyOptions} />
         {deliveryEngine === "SPECIALITY" ? (

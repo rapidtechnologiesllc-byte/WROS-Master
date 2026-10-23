@@ -109,3 +109,12 @@ export const resolveEmployeeEscalation = async (escalationId, resolutionNote) =>
   });
   return data;
 };
+
+// Billable (bench when off projects) or non-billable (internal staff: overhead, never bench)
+export const updateEmployeeBillable = async (employeeId, billable) => {
+  const { data } = await apiRequest(`/employees/${employeeId}/billable`, {
+    method: "PUT",
+    body: JSON.stringify({ billable }),
+  });
+  return data;
+};

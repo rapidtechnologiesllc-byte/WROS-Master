@@ -66,7 +66,8 @@ ALLOWED_STATUS_TRANSITIONS = {
     # they run the Buddy Program: graduating or exiting it must be reachable from here too.
     # ACTIVE: a bench employee reclassified as non-billable (internal staff are never bench)
     "BENCH": {"ALLOCATED", "NOTICE_PERIOD", "SPECIALITY_READY", "PERFORMANCE_MANAGED", "ACTIVE"},
-    "ALLOCATED": {"BENCH", "ON_LEAVE", "NOTICE_PERIOD"},
+    # ACTIVE: a non-billable (internal) employee whose allocation ends -- never bench
+    "ALLOCATED": {"BENCH", "ON_LEAVE", "NOTICE_PERIOD", "ACTIVE"},
     "NOTICE_PERIOD": {"EXITED"},
     "EXITED": set(),  # terminal
     # Cleared for Specialty deployment -- resumes the normal ACTIVE-style

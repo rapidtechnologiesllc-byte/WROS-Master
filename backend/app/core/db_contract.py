@@ -94,6 +94,11 @@ def initialize_database():
         logger.info("[Contract] Step 8: Seeding Thunder email variants...")
         _initialize_thunder_variants()
 
+        # Step 9: the bench pool matches the bench rule (billable, joined, no active allocation),
+        # from each person's real first bench day; billing_classification derived (idempotent)
+        logger.info("[Contract] Step 9: Reconciling the bench pool...")
+        _initialize_bench_pool()
+
         logger.info("[OK] Database contract validated - all systems ready")
 
     except Exception as e:
@@ -166,6 +171,16 @@ def _initialize_linkedin_outreach_tasks():
         logger.error(f"[Contract] LinkedIn outreach task backfill failed (startup continues): {e}", exc_info=True)
     finally:
         db.close()
+
+def _initialize_bench_pool():
+    from app.services.bench_service import reconcile_bench_pool
+
+    db = SessionLocal()
+    try:
+        reconcile_bench_pool(db)
+    finally:
+        db.close()
+
 
 def _initialize_thunder_variants():
     """Seed approved Thunder email copy that is missing."""
@@ -1456,6 +1471,13 @@ def _apply_schema_migrations(db: Session):
     _migration_step(db, "employees.is_billable",
                     "ALTER TABLE IF EXISTS app_schema.employees "
                     "ADD COLUMN IF NOT EXISTS is_billable BOOLEAN NOT NULL DEFAULT TRUE")
+    # existing projects and allocations are client work: billable
+    _migration_step(db, "projects.is_billable",
+                    "ALTER TABLE IF EXISTS app_schema.projects "
+                    "ADD COLUMN IF NOT EXISTS is_billable BOOLEAN NOT NULL DEFAULT TRUE")
+    _migration_step(db, "employee_allocations.billable",
+                    "ALTER TABLE IF EXISTS app_schema.employee_allocations "
+                    "ADD COLUMN IF NOT EXISTS billable BOOLEAN NOT NULL DEFAULT TRUE")
 
     # Migration 2: candidate_status.thunder_assigned_at (when Thunder was assigned)
     _migration_step(db, "candidate_status.thunder_assigned_at",

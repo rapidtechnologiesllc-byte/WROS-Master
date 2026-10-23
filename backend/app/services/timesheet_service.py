@@ -143,6 +143,8 @@ def upsert_entries(db: Session, timesheet: Timesheet, entries: List[dict]) -> Ti
         entry_date = entry["entry_date"]
         hours = entry["hours"]
         entry_type = entry.get("entry_type", "BILLABLE")
+        if allocation is not None and not allocation.billable and entry_type == "BILLABLE":
+            entry_type = "NON_BILLABLE"  # internal time is never billable, whatever the form sent
 
         if entry_date > today:
             raise InvalidTimesheetEntry(f"Cannot log hours for a future date: {entry_date}.")

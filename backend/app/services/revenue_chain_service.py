@@ -10,8 +10,11 @@ never disagree:
 - *Delivery cost* of a line = billable hours x the employee's hourly loaded
   cost (monthly salary + statutory + overhead from CostRateConfig, divided by
   STANDARD_MONTHLY_HOURS).
-- *Bench cost* = the rest of each employee's loaded payroll for the period
-  (prorated by days employed) that no billable hour covered.
+- *Bench cost* = the rest of each BILLABLE employee's loaded payroll for the
+  period (prorated by days employed) that no billable hour covered.
+- *Overhead (non-billable staff)* = the same for non-billable (internal) staff:
+  their cost is overhead, never bench loss (CEO 2026-10-22). delivery + bench +
+  overhead = every employee's loaded payroll for the period.
 - *Revenue* in the P&L is earned revenue (billed + approved-unbilled work in
   the period, by timesheet week). Cash collected is reported beside it.
 - *Expense cost* = manager-approved expenses dated in the period, attributed through
@@ -277,7 +280,7 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
     staff = staff.all()
     units = {u.id: u for u in db.query(BusinessUnit).all()}
 
-    bench_rows: Dict = defaultdict(lambda: {"bench_cost_usd_cents": 0, "missing": []})
+    bench_rows: Dict = defaultdict(lambda: {"bench_cost_usd_cents": 0, "overhead_cost_usd_cents": 0, "missing": []})
     missing_cost = sorted({line["employee_id"] for line in lines if line["cost_usd_cents"] is None})
     for employee in staff:
         unit = units.get(employee.bu_id)
@@ -288,14 +291,16 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
             if employee.id not in missing_cost:
                 missing_cost.append(employee.id)
             continue
-        bench_rows[bucket]["bench_cost_usd_cents"] += max(0, payroll - delivery_by_employee.get(employee.id, 0))
+        uncovered = max(0, payroll - delivery_by_employee.get(employee.id, 0))
+        bench_rows[bucket]["bench_cost_usd_cents" if employee.is_billable else "overhead_cost_usd_cents"] += uncovered
 
     expenses, pending_expenses = _expenses(db, start, end, tenant_id, units, business_unit_ids)
 
     def expense_for(index: int, key) -> int:
         return sum(e["amount"] for e in expenses if e["key"][index] == key)
 
-    def section(revenue_lines: List[Dict], bench: int, bench_missing: List[str], expense: int) -> Dict:
+    def section(revenue_lines: List[Dict], bench: int, bench_missing: List[str], expense: int,
+                overhead: int = 0) -> Dict:
         totals = _totals(revenue_lines)
         delivery = totals.pop("cost_usd_cents")
         complete = totals.pop("cost_data_complete") and not bench_missing
@@ -303,8 +308,8 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
         out = {
             **totals, "revenue_usd_cents": totals["earned_usd_cents"],
             "delivery_cost_usd_cents": delivery, "bench_cost_usd_cents": bench,
-            "expense_cost_usd_cents": expense,
-            "total_cost_usd_cents": delivery + bench + expense, "cost_data_complete": complete,
+            "overhead_cost_usd_cents": overhead, "expense_cost_usd_cents": expense,
+            "total_cost_usd_cents": delivery + bench + overhead + expense, "cost_data_complete": complete,
         }
         return _with_margin(out, out["revenue_usd_cents"], out["total_cost_usd_cents"], complete)
 
@@ -316,7 +321,7 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
             rows.append({"key": k, "name": names.get(k), **section(
                 [line for line in lines if line[line_key] == k],
                 sum(b["bench_cost_usd_cents"] for b in bench), [m for b in bench for m in b["missing"]],
-                expense_for(index, k),
+                expense_for(index, k), sum(b["overhead_cost_usd_cents"] for b in bench),
             )})
         return sorted(rows, key=lambda r: r["revenue_usd_cents"], reverse=True)
 
@@ -336,7 +341,8 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
                      row["cost_data_complete"])
 
     org = section(lines, sum(b["bench_cost_usd_cents"] for b in bench_rows.values()),
-                  [m for b in bench_rows.values() for m in b["missing"]], sum(e["amount"] for e in expenses))
+                  [m for b in bench_rows.values() for m in b["missing"]], sum(e["amount"] for e in expenses),
+                  sum(b["overhead_cost_usd_cents"] for b in bench_rows.values()))
     by_company = _company_pnl(db, lines, staff, costs, delivery_by_employee, expenses, start, end, tenant_id)
     return {
         "start": start.isoformat(), "end": end.isoformat(), **org,
@@ -370,7 +376,7 @@ def _company_pnl(db: Session, lines: List[Dict], staff, costs, delivery_by_emplo
     by_name.update({c.company_code.lower(): c.id for c in companies if c.company_code})
     client_company = dict(db.query(Client.id, Client.contracting_company_id))
     employee_company = {e.id: e.company_id for e in staff}
-    rows: Dict = defaultdict(lambda: {"revenue": 0, "delivery": 0, "bench": 0, "expense": 0,
+    rows: Dict = defaultdict(lambda: {"revenue": 0, "delivery": 0, "bench": 0, "overhead": 0, "expense": 0,
                                       "ic_revenue": 0, "ic_cost": 0, "complete": True})
     for line in lines:
         rows[client_company.get(line["client_id"])]["revenue"] += line.get("earned_usd_cents") or 0
@@ -384,7 +390,8 @@ def _company_pnl(db: Session, lines: List[Dict], staff, costs, delivery_by_emplo
         if payroll is None:
             rows[employee.company_id]["complete"] = False
             continue
-        rows[employee.company_id]["bench"] += max(0, payroll - delivery_by_employee.get(employee.id, 0))
+        rows[employee.company_id]["bench" if employee.is_billable else "overhead"] += \
+            max(0, payroll - delivery_by_employee.get(employee.id, 0))
     for e in expenses:
         rows[client_company.get(e["key"][2]) if e["key"][2] else None]["expense"] += e["amount"]
     settlements = db.query(IntercompanySettlement).filter(
@@ -399,13 +406,14 @@ def _company_pnl(db: Session, lines: List[Dict], staff, costs, delivery_by_emplo
     out = []
     for key, r in rows.items():
         revenue = r["revenue"] + r["ic_revenue"]
-        cost = r["delivery"] + r["bench"] + r["expense"] + r["ic_cost"]
+        cost = r["delivery"] + r["bench"] + r["overhead"] + r["expense"] + r["ic_cost"]
         out.append(_with_margin({
             "key": key, "name": names.get(key, ("Group (parent company)", None))[0],
             "company_code": names.get(key, (None, None))[1],
             "revenue_usd_cents": revenue, "external_revenue_usd_cents": r["revenue"],
             "intercompany_revenue_usd_cents": r["ic_revenue"], "intercompany_cost_usd_cents": r["ic_cost"],
             "delivery_cost_usd_cents": r["delivery"], "bench_cost_usd_cents": r["bench"],
+            "overhead_cost_usd_cents": r["overhead"],
             "expense_cost_usd_cents": r["expense"], "total_cost_usd_cents": cost,
             "cost_data_complete": r["complete"],
         }, revenue, cost, r["complete"]))
