@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Button, Input, Select } from "./ui";
 import { createAllocation, getAllocationDropdowns } from "../services/api/allocations";
 import { MarginLine, useMarginPreview } from "./AllocationMargin";
+import { getClientContacts } from "../services/api/clients";
+import { listWorkOrders } from "../services/api/workOrders";
 
 export default function AllocationForm({ presetEmployeeId, presetProjectId, onCancel, onSaved }) {
   const [employeeId, setEmployeeId] = useState(presetEmployeeId || "");
@@ -21,6 +23,11 @@ export default function AllocationForm({ presetEmployeeId, presetProjectId, onCa
   const [loading, setLoading] = useState(true);
   const [employees, setEmployees] = useState([]);
   const [jobs, setJobs] = useState([]);
+  // the client's timesheet approver for this placement and the client PO it bills against
+  const [approverEmail, setApproverEmail] = useState("");
+  const [workOrderId, setWorkOrderId] = useState("");
+  const [approverContacts, setApproverContacts] = useState([]);
+  const [workOrders, setWorkOrders] = useState([]);
 
   useEffect(() => {
     getAllocationDropdowns()
@@ -55,9 +62,24 @@ export default function AllocationForm({ presetEmployeeId, presetProjectId, onCa
     billable: billable === "" ? undefined : billable === "yes",
     startDate: startDate || undefined,
   }, Boolean(employeeId && jobId));
+  const jobClientId = job?.client_id;
+
+  useEffect(() => {
+    setApproverContacts([]);
+    setWorkOrders([]);
+    if (!jobClientId) return;
+    getClientContacts(jobClientId)
+      .then((data) => setApproverContacts((data?.contacts || []).filter((c) => c.role_type === "TIMESHEET_APPROVER")))
+      .catch((err) => setError(`Could not load the client's contacts: ${err.message}`));
+    listWorkOrders({ clientId: jobClientId })
+      .then((list) => setWorkOrders(list.filter((w) => w.status !== "ENDED")))
+      .catch((err) => setError(`Could not load the client's work orders: ${err.message}`));
+  }, [jobClientId]);
 
   const pickJob = (id) => {
     setJobId(id);
+    setApproverEmail("");
+    setWorkOrderId("");
     const picked = jobs.find((j) => j.id === id);
     setBillRate(picked?.billing_rate_usd_cents ? String(picked.billing_rate_usd_cents / 100) : "");
   };
@@ -80,6 +102,8 @@ export default function AllocationForm({ presetEmployeeId, presetProjectId, onCa
         billingRateUsdCents: billRate ? Math.round(parseFloat(billRate) * 100) : undefined,
         allowConcurrent,
         billable: billable === "" ? undefined : billable === "yes",
+        timesheetApproverEmail: approverEmail || undefined,
+        workOrderId: workOrderId || undefined,
       });
       onSaved(created);
     } catch (err) {
@@ -119,6 +143,25 @@ export default function AllocationForm({ presetEmployeeId, presetProjectId, onCa
           onChange={setBillable}
           options={[{ value: "", label: "From the project" }, { value: "yes", label: "Billable" },
             { value: "no", label: "Non-billable (never invoiced)" }]}
+        />
+        {approverContacts.length ? (
+          <Select
+            label="Client timesheet approver"
+            value={approverEmail}
+            onChange={setApproverEmail}
+            options={[{ value: "", label: "None" },
+              ...approverContacts.map((c) => ({ value: c.email.toLowerCase(), label: `${c.name} (${c.email})` }))]}
+          />
+        ) : (
+          <Input label="Client timesheet approver email" value={approverEmail} onChange={setApproverEmail}
+            placeholder="optional" />
+        )}
+        <Select
+          label="Client PO (work order)"
+          value={workOrderId}
+          onChange={setWorkOrderId}
+          options={[{ value: "", label: workOrders.length ? "None" : "No work orders for this client" },
+            ...workOrders.map((w) => ({ value: w.id, label: `${w.po_number}${w.end_date ? ` (ends ${w.end_date})` : ""}` }))]}
         />
       </div>
       {job && (

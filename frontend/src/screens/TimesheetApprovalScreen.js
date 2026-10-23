@@ -9,7 +9,8 @@ import { CheckCircle2, XCircle, ArrowLeft } from "lucide-react";
 import { Button, Card } from "../components/ui";
 import cx from "../utils/cx";
 import {
-  approveTimesheetReview, getMyTimesheetApprovals, getTimesheetApproval, rejectTimesheetReview,
+  approveTimesheetReview, getMyTimesheetApprovals, getTimesheetApproval, openClientEvidence, rejectTimesheetReview,
+  requestClientApproval, uploadClientEvidence,
 } from "../services/api/timesheetApprovals";
 
 const MIN_REASON = 20; // the server's rule (RejectTimesheetRequest); shown so nobody types blind
@@ -34,6 +35,83 @@ function ApprovalList() {
           </li>
         ))}
       </ul>
+    </Card>
+  );
+}
+
+const CLIENT_STATUS_TEXT = {
+  CLIENT_PENDING: "waiting for the client",
+  CLIENT_APPROVED: "approved by the client",
+  CLIENT_REJECTED: "rejected by the client",
+};
+
+// The client approves its own timesheets: who was asked, the link's state, and the two ways to
+// record the client's approval (re-send the link, or upload the client's approved timesheet).
+function ClientApprovalCard({ timesheetId, client, onChanged }) {
+  const [file, setFile] = useState(null);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const request = client.request;
+
+  const run = async (action) => {
+    setBusy(true);
+    setError("");
+    try {
+      onChanged(await action());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card title="Client approval"
+      subtitle={client.status ? `This week is ${CLIENT_STATUS_TEXT[client.status] || client.status}` : "Not requested yet"}>
+      {error ? <div className="mb-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
+      <div className="space-y-1 text-sm text-gray-700">
+        <div>Client approver on the placement: {client.placement_approver_email || <span className="italic">none set</span>}</div>
+        {request ? (
+          <div>
+            Latest request: {request.decision.toLowerCase()}
+            {request.method === "EVIDENCE" ? ` · evidence ${request.evidence_filename} uploaded by ${request.recorded_by}` : ""}
+            {request.emailed_at ? ` · emailed to ${request.approver_email} ${request.emailed_at.slice(0, 16).replace("T", " ")}` : ""}
+            {request.decision === "PENDING" && request.expires_at ? ` · link expires ${request.expires_at.slice(0, 10)}` : ""}
+            {request.reason ? ` · "${request.reason}"` : ""}
+          </div>
+        ) : null}
+        {client.approved_at ? <div>Client-approved at {client.approved_at.slice(0, 16).replace("T", " ")}</div> : null}
+        {request?.method === "EVIDENCE" ? (
+          <button type="button" className="text-sm font-semibold text-blue-700 hover:underline"
+            onClick={() => openClientEvidence(timesheetId).catch((err) => setError(err.message))}>
+            Open the uploaded evidence
+          </button>
+        ) : null}
+      </div>
+      {client.can_request ? (
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <div>
+            <Button variant="secondary" disabled={busy || !client.placement_approver_email}
+              onClick={() => run(() => requestClientApproval(timesheetId))}>
+              {request?.emailed_at ? "Send the client a new link" : "Email the client approver"}
+            </Button>
+            {!client.placement_approver_email ? (
+              <div className="mt-1 text-xs text-gray-500">Set the approver on the client's Billing setup tab first.</div>
+            ) : null}
+          </div>
+          <div>
+            <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.xls,.xlsx"
+              onChange={(e) => setFile(e.target.files?.[0] || null)} className="text-sm" />
+            <input className="mt-1 w-full rounded-lg border px-3 py-1.5 text-sm" placeholder="Note (e.g. approved in Fieldglass)"
+              value={note} onChange={(e) => setNote(e.target.value)} />
+            <Button className="mt-1" variant="primary" disabled={busy || !file}
+              onClick={() => run(() => uploadClientEvidence(timesheetId, file, note.trim()))}>
+              Upload the client's approved timesheet
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </Card>
   );
 }
@@ -155,6 +233,10 @@ function ApprovalDetail({ timesheetId }) {
       ) : (
         <Card><div className="text-sm text-gray-600">Decision: {view.decision || "none"}. Nothing for you to do here.</div></Card>
       )}
+
+      {view.client_approval ? (
+        <ClientApprovalCard timesheetId={timesheetId} client={view.client_approval} onChanged={setView} />
+      ) : null}
 
       <Card title="History">
         <ul className="text-sm">

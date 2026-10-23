@@ -161,6 +161,16 @@ def _initialize_default_handlers():
     except Exception as e:
         logger.error(f"[Registry] CRITICAL: Failed to register send_invoice_email handler: {e}", exc_info=True)
 
+    try:
+        from app.services.message_handlers.send_client_timesheet_approval_handler import (
+            SendClientTimesheetApprovalHandler,
+        )
+        MessageHandlerRegistry.register("send_client_timesheet_approval", SendClientTimesheetApprovalHandler.process)
+        logger.info("[Registry] Registered send_client_timesheet_approval handler")
+    except Exception as e:
+        logger.error(f"[Registry] CRITICAL: Failed to register send_client_timesheet_approval handler: {e}",
+                     exc_info=True)
+
     # Register ops alert handler (NEW - Phase 3/4 stale message detection)
     try:
         from app.services.message_handlers.ops_alert_handler import OpsAlertHandler

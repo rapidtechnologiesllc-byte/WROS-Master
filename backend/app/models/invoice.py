@@ -17,7 +17,7 @@ import logging
 import uuid
 
 from sqlalchemy import (
-    Column, Date, DateTime, Enum, ForeignKey, Integer,
+    Column, Date, DateTime, Enum, ForeignKey, Index, Integer,
     Numeric, String, func,
 )
 
@@ -61,7 +61,33 @@ class Invoice(Base):
     sent_at = Column(DateTime, nullable=True)
     paid_at = Column(DateTime, nullable=True)
 
+    # Compliance (CEO 2026-10-23): the company that issues it (the client's contracting company;
+    # NULL = the tenant itself), stored at generation; a gapless number per issuing company
+    # (invoice_numbering); the client's PO number(s) from the placements' work orders; and the due
+    # date = sent date + the client's payment terms, stored when it is sent (AR ages by it).
+    issuing_company_id = Column(String(512), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True, index=True)
+    invoice_seq = Column(Integer, nullable=True)
+    invoice_number = Column(String(64), nullable=True)
+    po_numbers = Column(String(512), nullable=True)
+    due_date = Column(Date, nullable=True, index=True)
+
     created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        Index("uq_invoice_number_per_tenant", "tenant_id", "invoice_number", unique=True),
+    )
+
+
+class InvoiceNumberSequence(Base):
+    """The last number issued per issuing company (issuer_key: the company id, or "tenant:<id>"
+    when the tenant itself issues). Taken under a row lock inside the generating transaction, so
+    numbers are sequential and gapless: a rolled-back generation rolls its number back too."""
+    __tablename__ = "invoice_number_sequences"
+
+    issuer_key = Column(String(512), primary_key=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    company_id = Column(String(512), ForeignKey("locations.id", ondelete="SET NULL"), nullable=True)
+    last_number = Column(Integer, nullable=False, default=0)
 
 class InvoiceLineItem(Base):
     __tablename__ = "invoice_line_items"
@@ -77,3 +103,5 @@ class InvoiceLineItem(Base):
     hours = Column(Numeric(6, 2), nullable=False)
     rate_usd_cents = Column(Integer, nullable=False)
     amount_usd_cents = Column(Integer, nullable=False)
+    # the client PO this line bills against (the allocation's work order), printed on the line
+    po_number = Column(String(512), nullable=True)

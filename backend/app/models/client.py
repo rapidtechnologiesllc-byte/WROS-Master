@@ -111,6 +111,10 @@ class Client(Base):
     billing_address = Column(Text, nullable=True)
     billing_currency = Column(Enum(*BILLING_CURRENCIES, name="billing_currency", native_enum=False, create_constraint=True), nullable=False, default="USD")
     payment_terms_days = Column(Integer, nullable=False, default=30)
+    # Client timesheet approval (CEO 2026-10-23): a client whose AP pays only against hours its own
+    # approver signed off. After the internal approval the week waits for the client (emailed link
+    # or uploaded VMS evidence) and is not invoiced until then (client_timesheet_approval_service).
+    requires_client_timesheet_approval = Column(Boolean, nullable=False, default=False, server_default="false")
     credit_limit_usd_cents = Column(Integer, nullable=True)
     tax_id_client = Column(String(512), nullable=True)
 

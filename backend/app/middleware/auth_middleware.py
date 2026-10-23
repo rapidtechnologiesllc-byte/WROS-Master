@@ -59,6 +59,19 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         "/public/thunder-chat/start",
         "/public/thunder-chat/message",
         "/public/thunder-chat/history",
+        # the router is mounted under /api/v1 (the frontend's apiRequest adds it): without these
+        # the careers chat answered 401 to every visitor
+        "/api/v1/public/thunder-chat/start",
+        "/api/v1/public/thunder-chat/message",
+        "/api/v1/public/thunder-chat/history",
+        # Client timesheet approval page (client_timesheet_approval_service): the client's approver
+        # has no account; the single-use token in the request body is the credential
+        "/api/v1/public/client-timesheet-approval/view",
+        "/api/v1/public/client-timesheet-approval/approve",
+        "/api/v1/public/client-timesheet-approval/reject",
+        "/public/client-timesheet-approval/view",
+        "/public/client-timesheet-approval/approve",
+        "/public/client-timesheet-approval/reject",
         # S-002/HRMS-0402 -- Meta calls this directly, no bearer token
         # possible. Security is Meta's own hub.verify_token handshake
         # (GET) and X-Hub-Signature-256 HMAC (POST) -- see

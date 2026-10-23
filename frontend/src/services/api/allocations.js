@@ -14,6 +14,8 @@ export const createAllocation = async ({
   allowConcurrent,
   billingRateUsdCents,
   billable,
+  timesheetApproverEmail,
+  workOrderId,
 }) => {
   const { data } = await apiRequest("/allocations", {
     method: "POST",
@@ -29,6 +31,8 @@ export const createAllocation = async ({
       billing_rate_usd_cents: billingRateUsdCents || undefined,
       // undefined = the project's (client projects billable, internal projects not)
       billable: typeof billable === "boolean" ? billable : undefined,
+      timesheet_approver_email: timesheetApproverEmail || undefined,
+      work_order_id: workOrderId || undefined,
     }),
   });
   return data;
@@ -38,6 +42,7 @@ export const getAllocations = async (filters = {}) => {
   const params = new URLSearchParams();
   if (filters.employeeId) params.set("employee_id", filters.employeeId);
   if (filters.demandId) params.set("demand_id", filters.demandId);
+  if (filters.clientId) params.set("client_id", filters.clientId);
   const qs = params.toString();
   const { data } = await apiRequest(`/allocations${qs ? `?${qs}` : ""}`, { method: "GET" });
   // the API wraps the list ({allocations: [...]}); callers get the list
@@ -122,6 +127,17 @@ export const updateRenewal = async (allocationId, { renewalStatus, ownerUserId, 
   const { data } = await apiRequest(`/allocations/${allocationId}/renewal`, {
     method: "PUT",
     body: JSON.stringify({ renewal_status: renewalStatus, owner_user_id: ownerUserId, note, reason }),
+  });
+  return data;
+};
+
+// The placement's client timesheet approver and client PO (work order); "" clears a field
+export const setPlacementBilling = async (allocationId, { timesheetApproverEmail, workOrderId }) => {
+  const body = {};
+  if (timesheetApproverEmail !== undefined) body.timesheet_approver_email = timesheetApproverEmail;
+  if (workOrderId !== undefined) body.work_order_id = workOrderId;
+  const { data } = await apiRequest(`/allocations/${encodeURIComponent(allocationId)}/client-billing`, {
+    method: "PUT", body: JSON.stringify(body),
   });
   return data;
 };

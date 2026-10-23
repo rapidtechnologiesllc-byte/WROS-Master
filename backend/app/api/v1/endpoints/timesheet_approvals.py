@@ -14,10 +14,17 @@ GET  /timesheet-approvals                       my pending approvals
 GET  /timesheet-approvals/{timesheet_id}        entries, revision, previous rejection, response, diff
 POST /timesheet-approvals/{timesheet_id}/approve {comment, addressed}
 POST /timesheet-approvals/{timesheet_id}/reject  {reason, flagged_dates}
+
+Client approval (clients that approve their own timesheets, client_timesheet_approval_service):
+POST /timesheet-approvals/{timesheet_id}/client-request    (re)send the client approver the link
+POST /timesheet-approvals/{timesheet_id}/client-evidence   upload the client's approved timesheet
+GET  /timesheet-approvals/{timesheet_id}/client-evidence   download it
 """
+import os
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -85,3 +92,59 @@ def reject(timesheet_id: str, body: RejectTimesheetRequest,
     run_approval_step(db, lambda: approvals.reject(db, timesheet, current_user, reason=body.reason,
                                                    flagged_dates=body.flagged_dates))
     return approvals.review_view(db, timesheet, current_user)
+
+
+def _client_step(db: Session, step):
+    from app.services import client_timesheet_approval_service as client_approvals
+
+    try:
+        result = step()
+    except client_approvals.NotAllowed as exc:
+        db.rollback()
+        raise HTTPException(status_code=403, detail=str(exc))
+    except client_approvals.ClientApprovalError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
+    db.commit()
+    return result
+
+
+@router.post("/{timesheet_id}/client-request", dependencies=[Depends(require_resource_permission("my-tasks", "view"))],
+             summary="Send (or re-send) the client's approver the approve / reject link")
+def request_client_approval(timesheet_id: str, current_user: Users = Depends(get_current_internal_user),
+                            db: Session = Depends(get_db)):
+    from app.services import client_timesheet_approval_service as client_approvals
+
+    timesheet = _timesheet_for(db, timesheet_id, current_user)
+    _client_step(db, lambda: client_approvals.request_again(db, timesheet, current_user))
+    client_approvals.queue_email(db, timesheet)
+    return approvals.review_view(db, timesheet, current_user)
+
+
+@router.post("/{timesheet_id}/client-evidence", dependencies=[Depends(require_resource_permission("my-tasks", "view"))],
+             summary="Upload the client's approved timesheet (e.g. the VMS export): the week becomes client-approved")
+async def upload_client_evidence(timesheet_id: str, file: UploadFile = File(...), note: Optional[str] = Form(None),
+                                 current_user: Users = Depends(get_current_internal_user),
+                                 db: Session = Depends(get_db)):
+    from app.core.config import settings
+    from app.services import client_timesheet_approval_service as client_approvals
+
+    timesheet = _timesheet_for(db, timesheet_id, current_user)
+    data = await file.read(settings.CLIENT_TIMESHEET_EVIDENCE_MAX_BYTES + 1)
+    _client_step(db, lambda: client_approvals.record_evidence(
+        db, timesheet, current_user, filename=file.filename, content_type=file.content_type, data=data, note=note))
+    return approvals.review_view(db, timesheet, current_user)
+
+
+@router.get("/{timesheet_id}/client-evidence", dependencies=[Depends(require_resource_permission("my-tasks", "view"))],
+            summary="The client's approved timesheet uploaded as evidence")
+def download_client_evidence(timesheet_id: str, current_user: Users = Depends(get_current_internal_user),
+                             db: Session = Depends(get_db)):
+    from app.services import client_timesheet_approval_service as client_approvals
+
+    timesheet = _timesheet_for(db, timesheet_id, current_user)
+    evidence = client_approvals.evidence_for(db, timesheet)
+    if evidence is None or not os.path.isfile(evidence.evidence_path):
+        raise HTTPException(status_code=404, detail="No client approval evidence uploaded.")
+    return FileResponse(evidence.evidence_path, media_type=evidence.evidence_content_type,
+                        filename=evidence.evidence_filename)

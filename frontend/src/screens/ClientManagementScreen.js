@@ -16,7 +16,7 @@
 // after creation, in the client detail view -- see ClientContactsPanel
 // contact (enforced server-side, unchanged).
 import { useEffect, useState, useMemo } from "react";
-import { Building2, Plus, Pencil, TrendingUp, Users, X } from "lucide-react";
+import { Building2, Plus, Pencil, Users, X } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
 import {
   listClients, createClient, updateClient, getClient,
@@ -26,6 +26,7 @@ import { getClientInvestmentPosition } from "../services/api/expenses";
 import { listBusinessUnits } from "../services/api/rbac";
 import { getHrMe } from "../services/api/users";
 import { apiRequest } from "../services/api/client";
+import { BillingSetupPanel, WorkOrdersPanel } from "../components/ClientBillingTabs";
 
 // Our companies (Users & Access Control > Companies): BX-US, BX-IN
 const COMPANIES_PATH = "/api/v1/api/admin/users-access-control/delivery-centers";
@@ -71,18 +72,14 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [], comp
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [users, setUsers] = useState([]);
-  const [usersLoaded, setUsersLoaded] = useState(false);
 
   useEffect(() => {
     // Account manager choices = users from Users & Access Control
     listAccountManagerOptions()
-      .then((list) => {
-        setUsers(list);
-        setUsersLoaded(true);
-      })
+      .then((list) => setUsers(list))
       .catch((err) => {
         console.error("[ClientForm] Failed to load users:", err);
-        setUsersLoaded(true);
+        setError(`Could not load the account manager list: ${err.message}`);
       });
   }, []);
 
@@ -127,9 +124,16 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [], comp
     try {
       if (mode === "edit") {
         const { company_name, company_short_name, country, line_type, website, tier, billing_currency, business_unit_id, notes, account_manager_user_id, contracting_company_id } = form;
+        const terms = Number(form.payment_terms_days);
+        if (!Number.isInteger(terms) || terms < 0) {
+          setError("Payment terms must be a whole number of days.");
+          return;
+        }
         await updateClient(form.id, {
           company_name, company_short_name, country, line_type, website, tier, billing_currency, business_unit_id, notes, account_manager_user_id: account_manager_user_id || null,
           contracting_company_id: contracting_company_id || "",
+          payment_terms_days: terms,
+          requires_client_timesheet_approval: Boolean(form.requires_client_timesheet_approval),
         });
       } else {
         await createClient({
@@ -183,7 +187,20 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [], comp
         {mode === "edit" && (
           <Select label="Status" value={form.status || "PROSPECT"} onChange={set("status")} options={CLIENT_STATUSES} />
         )}
+        {mode === "edit" && (
+          <Input label="Payment terms (days)" type="number" value={String(form.payment_terms_days ?? "")} onChange={set("payment_terms_days")} />
+        )}
       </div>
+      {mode === "edit" && (
+        <label className="mt-3 flex items-center gap-2 text-sm text-gray-800">
+          <input
+            type="checkbox"
+            checked={Boolean(form.requires_client_timesheet_approval)}
+            onChange={(e) => set("requires_client_timesheet_approval")(e.target.checked)}
+          />
+          The client approves its own timesheets before they are invoiced
+        </label>
+      )}
 
       {mode === "create" ? (
         <div className="mt-3 text-xs text-gray-500">
@@ -273,6 +290,8 @@ export default function ClientManagementScreen() {
         contracting_company_id: full.contracting_company_id || "",
         account_manager_user_id: full.account_manager_user_id || "",
         notes: full.notes || "",
+        payment_terms_days: full.payment_terms_days ?? 30,
+        requires_client_timesheet_approval: Boolean(full.requires_client_timesheet_approval),
       });
     } catch (err) {
       console.error("Failed to load client details:", err);
@@ -318,6 +337,15 @@ export default function ClientManagementScreen() {
       setInvestmentPositionError(err.message || "Failed to load investment position.");
     }
     loadContacts(c.id);
+  };
+
+  // Billing setup changed the client: show the saved values
+  const reloadDetail = async (clientId) => {
+    try {
+      setDetailClient(await getClient(clientId));
+    } catch (err) {
+      setDetailError(err.message || "Failed to reload client details.");
+    }
   };
 
   const handleCloseDetail = () => {
@@ -410,6 +438,9 @@ export default function ClientManagementScreen() {
           contactsLoading={contactsLoading}
           contactsError={contactsError}
           onContactAdded={() => loadContacts(detailClient.id)}
+          onClientChanged={() => reloadDetail(detailClient.id)}
+          onEdit={() => handleEditClick(detailClient)}
+          editLoading={editLoadingId === detailClient.id}
           onClose={handleCloseDetail}
           businessUnits={businessUnits}
         />
@@ -506,8 +537,10 @@ function ClientContactsPanel({ clientId, contacts, loading, error, onContactAdde
 
 function ClientDetailModal({
   client, loading, error, investmentPosition, investmentPositionError,
-  contacts, contactsLoading, contactsError, onContactAdded, onClose, businessUnits = [],
+  contacts, contactsLoading, contactsError, onContactAdded, onClientChanged, onEdit, editLoading, onClose,
+  businessUnits = [],
 }) {
+  const [tab, setTab] = useState("details");
   const [selectedBU, setSelectedBU] = useState(String(client?.business_unit_id || ""));
   const [selectedAccountManager, setSelectedAccountManager] = useState(String(client?.account_manager_user_id || ""));
   const [buSaving, setBuSaving] = useState(false);
@@ -620,10 +653,27 @@ function ClientDetailModal({
                 <h2 className="text-2xl font-bold text-gray-900">{client.company_name}</h2>
               </div>
               <div className="mt-2">{getStatusBadge(client.status)}</div>
+              <div className="mt-4 flex gap-1">
+                {[["details", "Details"], ["billing", "Billing setup"], ["work-orders", "Work Orders"]].map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setTab(key)}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${tab === key ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
-            <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
-              <X className="h-6 w-6" />
-            </button>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={onEdit} disabled={editLoading}>
+                <Pencil className="h-4 w-4" /> {editLoading ? "Loading…" : "Edit details"}
+              </Button>
+              <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
+                <X className="h-6 w-6" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -633,6 +683,10 @@ function ClientDetailModal({
             <div className="py-12 text-center text-sm text-gray-500">Loading client details…</div>
           ) : error ? (
             <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
+          ) : tab === "billing" ? (
+            <BillingSetupPanel client={client} contacts={contacts} onClientChanged={onClientChanged} />
+          ) : tab === "work-orders" ? (
+            <WorkOrdersPanel client={client} />
           ) : (
             <>
               {/* Company Details */}
@@ -674,6 +728,7 @@ function ClientDetailModal({
                 <FieldRow label="Tier" value={client.tier} />
                 <FieldRow label="Billing Currency" value={client.billing_currency} />
                 <FieldRow label="Payment Terms (days)" value={client.payment_terms_days} />
+                <FieldRow label="Client approves timesheets" value={client.requires_client_timesheet_approval ? "Yes" : "No"} />
                 <FieldRow label="Billing Address" value={client.billing_address} />
                 <FieldRow label="Contract Start" value={client.contract_start_date} />
                 <FieldRow label="Contract End" value={client.contract_end_date} />

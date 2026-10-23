@@ -43,6 +43,7 @@ class WorkOrderItem(BaseModel):
     sow_reference: Optional[str] = None
     demand_id: str
     client_id: str
+    client_name: Optional[str] = None
     employee_id: Optional[str] = None
     project_id: Optional[str] = None
     billing_rate_usd_cents: int
@@ -52,6 +53,8 @@ class WorkOrderItem(BaseModel):
     invoicing_contact_email: Optional[str] = None
     invoicing_contact_name: Optional[str] = None
     status: str
+    # placements (allocations) billing against this PO
+    placement_count: int = 0
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 

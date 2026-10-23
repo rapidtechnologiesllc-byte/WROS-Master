@@ -53,7 +53,7 @@ def create_work_order(
 
     Args:
         tenant_id: Tenant ID (scoped access)
-        po_number: Client-assigned PO number (must be unique per tenant)
+        po_number: Client-assigned PO number (one PO may cover several placements, so it is not unique)
         demand_id: Link to Demand (DIRECT or Opportunity-sourced)
         client_id: Bill-to Client
         billing_rate_usd_cents: Billing rate to client (USD cents)
@@ -73,6 +73,10 @@ def create_work_order(
     Raises:
         WorkOrderValidationError: If business rules violated
     """
+    po_number = (po_number or "").strip()
+    if not po_number:
+        raise WorkOrderValidationError("The client's PO number is required.")
+
     # Validate demand exists
     demand = db.query(Demand).filter(Demand.id == demand_id, Demand.tenant_id == tenant_id).first()
     if not demand:
@@ -82,6 +86,9 @@ def create_work_order(
     client = db.query(Client).filter(Client.id == client_id, Client.tenant_id == tenant_id).first()
     if not client:
         raise WorkOrderValidationError(f"Client {client_id} not found in tenant {tenant_id}")
+    # the PO authorises billing this client for this client's job, never another client's
+    if demand.client_id and demand.client_id != client_id:
+        raise WorkOrderValidationError(f"Job {demand_id} belongs to a different client than {client.company_name}.")
 
     # Validate employee if provided
     if employee_id:
@@ -94,6 +101,8 @@ def create_work_order(
         project = db.query(Project).filter(Project.id == project_id, Project.tenant_id == tenant_id).first()
         if not project:
             raise WorkOrderValidationError(f"Project {project_id} not found in tenant {tenant_id}")
+        if project.client_id != client_id:
+            raise WorkOrderValidationError(f"Project {project.name} belongs to a different client.")
 
     # Validate dates
     if end_date and end_date < start_date:
@@ -177,6 +186,8 @@ def update_work_order(
         ).first()
         if not project:
             raise WorkOrderValidationError(f"Project {project_id} not found in tenant {work_order.tenant_id}")
+        if project.client_id != work_order.client_id:
+            raise WorkOrderValidationError(f"Project {project.name} belongs to a different client than this PO.")
         work_order.project_id = project_id
 
     if invoicing_contact_email is not None:
@@ -236,6 +247,55 @@ def get_all_work_orders(db: Session, tenant_id: int, status: Optional[str] = Non
         query = query.filter(WorkOrder.status == status)
     return query.all()
 
+
+def run_po_expiry_alerts(db: Session, today: Optional[date] = None) -> dict:
+    """Daily (scheduled job po_expiry_alerts, internal only): every ACTIVE client PO ending within
+    PO_EXPIRY_ALERT_DAYS (or already past its end and still ACTIVE) gets one open Finance task, so
+    it is renewed before hours stop being invoiceable (invoice_service refuses hours after a PO's
+    end). Idempotent: one open task per work order."""
+    from datetime import timedelta
+
+    from app.core.config import settings
+    from app.models.employee_allocation import EmployeeAllocation
+    from app.models.task import Task
+    from app.services.invoice_service import invoice_approvers
+    from app.services.task_service import create_task
+
+    today = today or date.today()
+    horizon = today + timedelta(days=settings.PO_EXPIRY_ALERT_DAYS)
+    expiring = db.query(WorkOrder).filter(WorkOrder.status == "ACTIVE", WorkOrder.end_date.isnot(None),
+                                          WorkOrder.end_date <= horizon).order_by(WorkOrder.end_date).all()
+    raised, failed = 0, []
+    for work_order in expiring:
+        title = f"PO expiring: {work_order.po_number} ends {work_order.end_date} ({work_order.id[:8]})"
+        if db.query(Task.id).filter(Task.title == title, Task.status.notin_(("COMPLETED", "CANCELLED"))).first():
+            continue
+        try:
+            client = db.get(Client, work_order.client_id)
+            placements = db.query(EmployeeAllocation).filter(EmployeeAllocation.work_order_id == work_order.id,
+                                                             EmployeeAllocation.status == "ACTIVE").count()
+            days = (work_order.end_date - today).days
+            when = f"ends in {days} day(s)" if days >= 0 else f"ended {-days} day(s) ago"
+            approvers = invoice_approvers(db, work_order.tenant_id)
+            assignee = approvers[0].UserID if approvers else None
+            create_task(
+                db, title=title, priority="HIGH" if days <= 7 else "MEDIUM", tenant_id=work_order.tenant_id,
+                category="FINANCE", assigned_to_user_id=assignee,
+                visibility_scope="ASSIGNEE_MANAGER_DEPARTMENT" if assignee else "ORG_WIDE",
+                description=(f"{client.company_name if client else 'The client'}'s PO {work_order.po_number} "
+                             f"{when} ({work_order.end_date}); {placements} active placement(s) bill against it. "
+                             "Hours dated after its end date cannot be invoiced: get the extension or the new PO "
+                             "from the client and update the work order (Clients > Work Orders)."),
+                link="/clients")
+            db.commit()
+            raised += 1
+        except Exception as exc:
+            db.rollback()
+            logger.error(f"[POExpiry] work order {work_order.id} failed: {exc}", exc_info=True)
+            failed.append(work_order.id)
+    logger.info(f"[POExpiry] {len(expiring)} expiring, {raised} task(s) raised, {len(failed)} failed")
+    return {"expiring": len(expiring), "raised": raised, "failed": len(failed), "failed_ids": failed[:50]}
+
 def end_work_order(db: Session, work_order: WorkOrder, end_date: Optional[date] = None) -> WorkOrder:
     """End a work order (set status to ENDED and optional end date)."""
     work_order.status = "ENDED"
@@ -264,3 +324,40 @@ def resume_work_order(db: Session, work_order: WorkOrder) -> WorkOrder:
     work_order.updated_at = datetime.utcnow()
     db.add(work_order)
     return work_order
+
+
+_UNSET = object()
+
+
+def set_placement_billing(db: Session, allocation, *, approver_email=_UNSET, work_order_id=_UNSET):
+    """A placement's client billing set-up: its client timesheet approver (validated against the
+    client's TIMESHEET_APPROVER contacts when it has any) and the client PO it bills against (same
+    tenant and client; a PO naming another employee, or an ENDED PO, is refused). Pass only what
+    changes; an empty value clears it. The caller commits."""
+    from app.services.client_timesheet_approval_service import ClientApprovalError, validate_approver_email
+
+    client = db.get(Client, allocation.client_id)
+    if client is None:
+        raise WorkOrderValidationError(f"Allocation {allocation.id} has no client.")
+    if approver_email is not _UNSET:
+        try:
+            allocation.timesheet_approver_email = validate_approver_email(db, client, approver_email)
+        except ClientApprovalError as exc:
+            raise WorkOrderValidationError(str(exc)) from exc
+    if work_order_id is not _UNSET:
+        if not work_order_id:
+            allocation.work_order_id = None
+        else:
+            work_order = db.query(WorkOrder).filter(WorkOrder.id == work_order_id,
+                                                    WorkOrder.tenant_id == allocation.tenant_id).first()
+            if work_order is None:
+                raise WorkOrderValidationError(f"Work order {work_order_id} not found.")
+            if work_order.client_id != allocation.client_id:
+                raise WorkOrderValidationError(f"PO {work_order.po_number} belongs to a different client than this placement.")
+            if work_order.employee_id and work_order.employee_id != allocation.employee_id:
+                raise WorkOrderValidationError(f"PO {work_order.po_number} names a different employee.")
+            if work_order.status == "ENDED":
+                raise WorkOrderValidationError(f"PO {work_order.po_number} has ended; link the placement to its current PO.")
+            allocation.work_order_id = work_order.id
+    db.add(allocation)
+    return allocation

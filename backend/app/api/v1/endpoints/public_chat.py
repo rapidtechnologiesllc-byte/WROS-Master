@@ -8,8 +8,9 @@ Real, unauthenticated candidate-facing chat widget (careers page / job
 listing) — a second real intake channel alongside WhatsApp, not an
 internal test tool. See app.services.public_chat_service for the full
 rationale and app.middleware.auth_middleware.AuthenticationMiddleware.
-PUBLIC_ROUTES for the exemption from the global auth gate. Covered by
-the app-wide RateLimitMiddleware (app/main.py) like every other route.
+PUBLIC_ROUTES for the exemption from the global auth gate. Limited per
+client IP by app.core.rate_limiter.public_rate_limit (there is no app-wide
+rate-limit middleware: app/main.py does not install RateLimitMiddleware).
 
 Routes:
   POST /public/thunder-chat/start
@@ -32,6 +33,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import require_resource_permission
 from app.core.logging import logger
+from app.core.rate_limiter import public_rate_limit
 from app.schemas.public_chat import (
     PublicChatHistoryItem,
     PublicChatHistoryResponse,
@@ -51,7 +53,8 @@ from app.services.public_chat_service import (
 from app.services.thunder_service import ConsentNotGiven, DuplicateMessageSuppressed
 from app.services.whatsapp_routing_service import ConversationOwnedByHuman
 
-router = APIRouter(prefix="/public/thunder-chat", tags=["public-thunder-chat"])
+router = APIRouter(prefix="/public/thunder-chat", tags=["public-thunder-chat"],
+                   dependencies=[Depends(public_rate_limit("thunder-chat"))])
 
 @router.post(
     "/start",

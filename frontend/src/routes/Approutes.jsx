@@ -48,6 +48,7 @@ import MyExpensesScreen from "../screens/MyExpensesScreen";
 import ExecutiveRevenueDashboardScreen from "../screens/ExecutiveRevenueDashboardScreen";
 import PnlFinanceScreen from "../screens/PnlFinanceScreen";
 import ActivateAccount from "../pages/ActivateAccount";
+import ClientTimesheetApproval from "../pages/ClientTimesheetApproval";
 import DemandConfirmationScreen from "../screens/DemandConfirmationScreen";
 import PipelineAndSubmissionsScreen from "../screens/PipelineAndSubmissionsScreen";
 import ProjectsScreen from "../screens/ProjectsScreen";
@@ -264,6 +265,12 @@ export default function AppRoutes() {
   // Before the ?token= handling below: this token is NOT a session token.
   if (window.location.pathname.startsWith("/activate")) {
     return <ActivateAccount />;
+  }
+
+  // The client's timesheet approver from the emailed single-use link: no account, no login.
+  // Before the ?token= handling below: this token is NOT a session token.
+  if (window.location.pathname.startsWith("/client-timesheet-approval")) {
+    return <ClientTimesheetApproval />;
   }
 
   // S-017/HRMS-0417 -- Candidate Self-Service Web Portal. The token in

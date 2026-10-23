@@ -85,7 +85,12 @@ class EmployeeAllocation(Base):
 
     client_reporting_manager_contact_id = Column(String(512), ForeignKey("client_contacts.id"), nullable=True)
     # HRMS-0902 -- the RM/Admin who approves this allocation's timesheets.
+    # the client's timesheet approver for this placement (a TIMESHEET_APPROVER client contact when
+    # the client has any): emailed the approval link when the client requires client approval
     timesheet_approver_email = Column(String(300), nullable=True)
+    # the client PO / work order this placement bills against: its PO number goes on the invoice
+    # and hours after its end date are not invoiced
+    work_order_id = Column(String(512), ForeignKey("work_orders.id", ondelete="SET NULL"), nullable=True, index=True)
     billing_rate_usd_cents = Column(Integer, nullable=True)
     # Billable client time or non-billable (internal) time; defaults from the project. Entries on a
     # non-billable allocation are NON_BILLABLE and never invoiced (CEO 2026-10-22)

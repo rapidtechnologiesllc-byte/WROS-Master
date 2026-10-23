@@ -327,7 +327,7 @@ def _executive_extras(db: Session, *, client_ids, pipeline_by_bu: dict, total_pi
             {"key": "revenue_leakage", "label": "Revenue Leakage", "severity": "high", "value": leakage_flags,
              "detail": "Approved hours not invoiced (unexplained)"},
             {"key": "overdue_invoices", "label": "Overdue Invoices", "severity": "medium", "value": len(overdue),
-             "detail": "Sent and unpaid past the grace period"},
+             "detail": "Sent and unpaid past its due date (client payment terms)"},
             {"key": "bench_aging", "label": f"Bench Aging > {BENCH_AGING_DAYS}d", "severity": "medium", "value": bench_aging,
              "detail": f"On the bench more than {BENCH_AGING_DAYS} days", "link": "/workforce/bench"},
             {"key": "unallocated", "label": "On the bench", "severity": "low", "value": len(unallocated),

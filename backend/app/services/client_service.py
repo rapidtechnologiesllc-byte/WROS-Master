@@ -192,6 +192,7 @@ def add_client_contact(
 EDITABLE_CLIENT_FIELDS = {
     "company_name", "company_short_name", "industry", "country", "client_type", "line_type",
     "website", "tier", "billing_address", "billing_currency", "payment_terms_days",
+    "requires_client_timesheet_approval",
     "tax_id_client", "contract_start_date", "contract_end_date",
     "contract_url", "nda_signed", "nda_url", "notes",
 }
@@ -226,6 +227,14 @@ def update_client_details(db: Session, client: Client, updates: dict) -> Client:
     unknown = set(updates) - EDITABLE_CLIENT_FIELDS
     if unknown:
         raise ClientValidationError(f"Not editable via this path: {sorted(unknown)}")
+    # payment terms set every invoice's due date and AR chasing: a whole number of days, never blank
+    if "payment_terms_days" in updates:
+        terms = updates["payment_terms_days"]
+        if terms is None or isinstance(terms, bool) or not isinstance(terms, int) or terms < 0:
+            raise ClientValidationError("Payment terms must be a whole number of days (0 or more).")
+    if "requires_client_timesheet_approval" in updates and not isinstance(
+            updates["requires_client_timesheet_approval"], bool):
+        raise ClientValidationError("Client timesheet approval must be on or off.")
 
     new_name = updates.get("company_name")
     if new_name is not None and new_name.strip() != client.company_name:

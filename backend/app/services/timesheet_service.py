@@ -215,6 +215,11 @@ def approve_timesheet(db: Session, timesheet: Timesheet, approved_by: Optional[s
     timesheet.approved_at = datetime.utcnow()
     db.add(timesheet)
 
+    # a client that approves its own timesheets is asked next (CLIENT_PENDING); invoicing waits for it
+    from app.services.client_timesheet_approval_service import on_internal_approval
+
+    on_internal_approval(db, timesheet, approved_by)
+
     # the employee and approver are told by timesheet_approval_service (email + Flash), after commit
     return timesheet
 

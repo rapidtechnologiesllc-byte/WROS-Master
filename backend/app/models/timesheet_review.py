@@ -34,5 +34,8 @@ class TimesheetReview(Base):
     # on a resubmission: the approver confirmed the earlier rejection is addressed
     addressed_confirmed = Column(Boolean, nullable=False, default=False)
     resubmit_task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True)
+    # a rejection by the client's approver (emailed link) rather than by an internal user: the
+    # revision records the client's decision on the internally approved entries
+    client_decision_email = Column(String(300), nullable=True)
 
     __table_args__ = (UniqueConstraint("timesheet_id", "revision", name="uq_timesheet_review_revision"),)

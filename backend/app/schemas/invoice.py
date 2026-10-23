@@ -20,6 +20,8 @@ class InvoiceLineItemItem(BaseModel):
     hours: float
     rate_usd_cents: int
     amount_usd_cents: int
+    employee_name: Optional[str] = None
+    po_number: Optional[str] = None
 
 class InvoiceItem(BaseModel):
     id: str
@@ -39,6 +41,14 @@ class InvoiceItem(BaseModel):
     delivery_channel: Optional[str] = None
     delivery_status: Optional[str] = None
     delivery_to: Optional[str] = None
+    # compliance: the real invoice number, its issuing company, the client PO(s), the due date
+    invoice_number: Optional[str] = None
+    issuing_company_id: Optional[str] = None
+    issuing_company_name: Optional[str] = None
+    po_numbers: Optional[str] = None
+    due_date: Optional[date] = None
+    client_name: Optional[str] = None
+    project_name: Optional[str] = None
 
 class RecordExternalDeliveryRequest(BaseModel):
     note: str  # how it was delivered, e.g. "uploaded to the client's Ariba portal"

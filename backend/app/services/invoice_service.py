@@ -66,6 +66,15 @@ def invoice_approvers(db: Session, tenant_id: Optional[int]) -> list:
     users = [u for u in query.order_by(Users.CreatedAt).all() if is_invoice_approver(db, u)]
     return sorted(users, key=lambda u: authority.level(db, u))
 
+class ClientApprovalMissing(Exception):
+    """The client requires its own approver to sign off timesheets (Client.requires_client_timesheet_
+    approval) and some weeks in the period are not client-approved yet."""
+
+
+class PurchaseOrderExpired(Exception):
+    """Billable hours dated after the end of the client PO (work order) the placement bills against."""
+
+
 class AlreadyInvoiced(Exception):
     """A timesheet already sits on another invoice: billing it again would charge the client twice."""
 
@@ -117,7 +126,9 @@ def generate_invoice(
 ) -> Invoice:
     """
     R-10: EVERY timesheet in scope must be APPROVED, no partial invoicing around a stuck one;
-    all blockers are reported at once. Hours are billed by the day they were worked, so a
+    all blockers are reported at once. A client that approves its own timesheets must have
+    approved every week billed (ClientApprovalMissing), and no hours may be dated after the end of
+    the client PO the placement bills against (PurchaseOrderExpired). Hours are billed by the day they were worked, so a
     week straddling two months is split between them. A timesheet is never billed twice:
     not for an overlapping period, and never beyond its approved billable hours. The
     project row is locked so two simultaneous generations cannot both bill it.
@@ -161,6 +172,17 @@ def generate_invoice(
             )
         raise NothingToInvoice("Cannot generate invoice -- no billable hours in this period.")
 
+    from app.services.client_timesheet_approval_service import describe, not_client_approved
+
+    waiting = not_client_approved(db, [ts for ts, _ in to_bill])
+    if waiting:
+        raise ClientApprovalMissing(
+            f"Cannot generate invoice -- the client approves its own timesheets and {len(waiting)} week(s) in this "
+            f"period are not client-approved yet: {describe(db, waiting)}. The client approver approves from the "
+            "emailed link, or the internal approver uploads the client's approved timesheet on the timesheet's "
+            "approval page (/timesheet-approvals/<timesheet>)."
+        )
+
     allocations = {
         a.id: a for a in db.query(EmployeeAllocation).filter(
             EmployeeAllocation.id.in_({ts.allocation_id for ts, _ in to_bill})
@@ -187,6 +209,22 @@ def generate_invoice(
         raise ValueError(f"Allocation(s) {foreign} belong to a different client than project {project.id}; "
                          "fix the allocation before invoicing.")
 
+    work_orders = _work_orders(db, allocations.values())
+    past_po = _hours_after_po_end(db, to_bill, allocations, work_orders, period_start, period_end)
+    if past_po:
+        raise PurchaseOrderExpired(
+            "Cannot generate invoice -- hours are dated after the end of the client PO they bill against: "
+            f"{'; '.join(past_po)}. Extend the PO (Clients > Work Orders) or move the placement to its new PO, "
+            "then generate again."
+        )
+
+    from app.models.client import Client
+    from app.services.invoice_numbering import assign_number
+
+    client = db.get(Client, project.client_id)
+    if client is None:
+        raise ValueError(f"Project {project.id} has no client; cannot invoice it.")
+
     # every amount is USD cents (R-09); the invoice says so rather than labelling USD with
     # the client's display currency
     invoice = Invoice(
@@ -196,19 +234,58 @@ def generate_invoice(
     db.add(invoice)
     db.flush()
 
-    total = 0
+    total, po_numbers = 0, []
     for ts, hours in to_bill:
-        rate = rate_of[ts.id]
+        allocation = allocations[ts.allocation_id]
+        rate = rate_of[ts.id]  # the rate in force for that week (allocation history)
         amount = round(rate * hours)
         total += amount
+        work_order = work_orders.get(allocation.work_order_id)
+        po_number = work_order.po_number if work_order else None
+        if po_number and po_number not in po_numbers:
+            po_numbers.append(po_number)
         db.add(InvoiceLineItem(
             invoice_id=invoice.id, employee_id=ts.employee_id, timesheet_id=ts.id,
-            hours=hours, rate_usd_cents=rate, amount_usd_cents=amount,
+            hours=hours, rate_usd_cents=rate, amount_usd_cents=amount, po_number=po_number,
         ))
 
     invoice.total_usd_cents = total
+    invoice.po_numbers = ", ".join(po_numbers) or None
+    assign_number(db, invoice, client)  # issuer + gapless number, rolled back with this transaction
     db.add(invoice)
     return invoice
+
+
+def _work_orders(db: Session, allocations) -> dict:
+    from app.models.work_order import WorkOrder
+
+    ids = {a.work_order_id for a in allocations if a.work_order_id}
+    return {w.id: w for w in db.query(WorkOrder).filter(WorkOrder.id.in_(ids))} if ids else {}
+
+
+def _hours_after_po_end(db: Session, to_bill, allocations, work_orders, period_start, period_end) -> List[str]:
+    """'<PO> ended <date>: <n>h on <days>' for every billed timesheet with billable hours dated after
+    its PO's end date (inside the period)."""
+    from app.models.timesheet import TimesheetEntry
+
+    problems = []
+    for ts, _hours in to_bill:
+        work_order = work_orders.get(allocations[ts.allocation_id].work_order_id)
+        if work_order is None or work_order.end_date is None:
+            continue
+        end = work_order.end_date
+        entries = db.query(TimesheetEntry).filter(TimesheetEntry.timesheet_id == ts.id).all()
+        if entries:
+            late = [e for e in entries if e.entry_type == "BILLABLE" and float(e.hours or 0) > 0
+                    and period_start <= e.entry_date <= period_end and e.entry_date > end]
+            hours, days = sum(float(e.hours) for e in late), sorted(e.entry_date.isoformat() for e in late)
+        else:  # hours without daily entries are dated to the week's Monday
+            late = ts.week_starting_date > end and period_start <= ts.week_starting_date <= period_end
+            hours = float(ts.billable_hours or 0) if late else 0.0
+            days = [ts.week_starting_date.isoformat()] if late else []
+        if hours > 0:
+            problems.append(f"PO {work_order.po_number} ended {end}: {hours:g}h on {', '.join(days)}")
+    return problems
 
 def approve_invoice(db: Session, invoice: Invoice, *, approved_by: str) -> Invoice:
     """BR-0907-02: Draft->Approved is always an explicit action by Finance at Senior Manager
@@ -288,10 +365,15 @@ def _send_still_queued(db: Session, delivery) -> bool:
 
 
 def mark_invoice_sent(db: Session, invoice: Invoice, *, sent_at: Optional[datetime] = None) -> Invoice:
+    """APPROVED -> SENT. The due date is fixed now: sent date + the client's payment terms (AR ages
+    by it, app.services.ar_followup_service)."""
+    from app.services.invoice_numbering import due_date_for
+
     if invoice.status != "APPROVED":
         raise InvalidInvoiceTransition(f"Cannot send an invoice in status '{invoice.status}'.")
     invoice.status = "SENT"
     invoice.sent_at = sent_at or datetime.utcnow()
+    invoice.due_date = due_date_for(db, invoice, invoice.sent_at)
     db.add(invoice)
     return invoice
 

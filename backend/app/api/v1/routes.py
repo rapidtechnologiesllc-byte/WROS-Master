@@ -50,6 +50,7 @@ from app.api.v1.endpoints.cost_rate import router as cost_rate_router
 from app.api.v1.endpoints.margin_policies import router as margin_policies_router
 from app.api.v1.endpoints.revenue_chain import router as revenue_chain_router
 from app.api.v1.endpoints.public_chat import router as public_chat_router
+from app.api.v1.endpoints.client_timesheet_approval import router as client_timesheet_approval_router
 from app.api.v1.endpoints.flash import router as flash_router
 from app.api.v1.endpoints.whatsapp_webhook import router as whatsapp_webhook_router
 from app.api.v1.endpoints.portal_messages import router as portal_messages_router
@@ -195,6 +196,7 @@ router.include_router(router=cost_rate_router)
 router.include_router(router=margin_policies_router)
 router.include_router(router=revenue_chain_router)
 router.include_router(router=public_chat_router)
+router.include_router(router=client_timesheet_approval_router)
 router.include_router(router=flash_router)
 router.include_router(router=whatsapp_webhook_router)
 router.include_router(router=webhooks_router)
