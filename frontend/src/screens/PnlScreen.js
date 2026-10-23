@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { BarChart3, RefreshCw } from "lucide-react";
 import { Card, Button, Input, Table } from "../components/ui";
-import { getChainLines, getPnl } from "../services/api/revenueChain";
+import { getChainLines, getChainSummary, getPnl } from "../services/api/revenueChain";
 
 const usd = (cents) =>
   cents == null ? "—" : `$${(cents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -28,6 +28,15 @@ const MONEY_COLUMNS = [
   { key: "margin_pct", header: "Margin %", cell: (r) => pct(r.margin_pct) },
 ];
 
+// A project's margin is its income less the delivery cost of the hours worked on it; bench,
+// internal staff and expenses are not attributed to projects (they stay in the org P&L above).
+const PROJECT_COLUMNS = [
+  { key: "name", header: "Project", cell: (r) => r.name || "No project (cannot invoice)" },
+  { key: "hours", header: "Billable hours", cell: (r) => r.billable_hours },
+  ...MONEY_COLUMNS.filter((c) => ["revenue", "collected", "unbilled", "delivery", "margin", "margin_pct"].includes(c.key)),
+  { key: "complete", header: "Cost known", cell: (r) => (r.cost_data_complete ? "Yes" : "No: salary or cost rate missing") },
+];
+
 function Tile({ label, value, hint }) {
   return (
     <div className="rounded-2xl border bg-white px-4 py-3">
@@ -42,6 +51,7 @@ export default function PnlScreen() {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [country, setCountry] = useState(""); // "" = every location
   const [report, setReport] = useState(null);
+  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [partner, setPartner] = useState(null);
@@ -52,7 +62,12 @@ export default function PnlScreen() {
     setLoading(true);
     setError("");
     try {
-      setReport(await getPnl(start, end, country));
+      const [pnl, byProject] = await Promise.all([
+        getPnl(start, end, country),
+        getChainSummary(start, end, "project", country),
+      ]);
+      setReport(pnl);
+      setProjects(byProject?.rows || []);
     } catch (err) {
       setError(err.message || "Failed to load the P&L.");
     } finally {
@@ -214,6 +229,16 @@ export default function PnlScreen() {
               columns={[{ key: "name", header: "Business unit", cell: (r) => r.name || "Unassigned" }, ...MONEY_COLUMNS]}
               rows={report.by_business_unit}
             />
+          </Card>
+          <Card
+            title="By project"
+            subtitle="Income and delivery cost of the work booked to each project this month (by timesheet week). Bench, internal staff and expenses stay in the org totals above."
+          >
+            {projects.length === 0 ? (
+              <div className="py-6 text-center text-sm text-gray-500">No project work this month.</div>
+            ) : (
+              <Table columns={PROJECT_COLUMNS} rows={projects} />
+            )}
           </Card>
           <Card title="By client">
             <Table

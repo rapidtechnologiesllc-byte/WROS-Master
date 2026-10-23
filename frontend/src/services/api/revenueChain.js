@@ -11,6 +11,15 @@ export const getPnl = async (start, end, country) => {
   return data;
 };
 
+// The same lines rolled up by one dimension (employee, candidate, job, project, client,
+// business_unit, partner); country (ISO, optional) keeps work done from that location only.
+export const getChainSummary = async (start, end, groupBy, country) => {
+  const params = new URLSearchParams({ start, end, group_by: groupBy });
+  if (country) params.set("country", country);
+  const { data } = await apiRequest(`/revenue-chain/summary?${params.toString()}`, { method: "GET" });
+  return data;
+};
+
 export const getChainLines = async (start, end, { partnerUserId, clientId } = {}) => {
   const params = new URLSearchParams({ start, end });
   if (partnerUserId) params.set("partner_user_id", partnerUserId);

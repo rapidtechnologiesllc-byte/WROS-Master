@@ -1632,6 +1632,10 @@ def _apply_schema_migrations(db: Session):
         "intercompany_settlements": [
             ("business_unit_id", "INTEGER NULL REFERENCES app_schema.business_units(id) ON DELETE SET NULL"),
         ],
+        # The project manager who owns delivery (PATCH /projects/{id})
+        "projects": [
+            ("manager_user_id", 'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
+        ],
         # Production startup crashed on role_templates.hierarchy_level
         # (2026-10-05); the rest were found by the same full scan.
         "role_templates": [
@@ -1699,6 +1703,12 @@ def _apply_schema_migrations(db: Session):
             _migration_step(db, f"{table_name}.{column_name}",
                             f"ALTER TABLE IF EXISTS app_schema.{table_name} "
                             f"ADD COLUMN IF NOT EXISTS {column_name} {column_def}")
+    # Indexes on the foreign keys added above (create_all makes them on a fresh database)
+    for index_name, table_column in (
+        ("ix_projects_manager_user_id", "projects(manager_user_id)"),
+    ):
+        _migration_step(db, f"index {index_name}",
+                        f"CREATE INDEX IF NOT EXISTS {index_name} ON app_schema.{table_column}")
 
     # (org_level_access is set once by _initialize_role_authority.)
 

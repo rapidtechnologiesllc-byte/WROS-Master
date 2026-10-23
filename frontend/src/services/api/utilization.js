@@ -13,13 +13,10 @@ export const getBenchCostSummary = async () => {
   return data;
 };
 
-// S-223/HRMS-0904 -- the compute step behind the dashboard above:
-// billable hours (from approved timesheets) vs available hours for a
-// given week, snapshotted per employee.
-export const recordUtilization = async (employeeId, weekStartingDate) => {
-  const { data } = await apiRequest(`/employees/${employeeId}/record-utilization`, {
-    method: "POST",
-    body: JSON.stringify({ week_starting_date: weekStartingDate }),
-  });
+// S-223/HRMS-0904 -- the compute step behind the dashboard above: billable hours (approved
+// timesheets) vs available hours per week. The weekly utilization_snapshot job runs it for every
+// billable employee; this recomputes the recent weeks now for the employees the caller can see.
+export const recomputeUtilization = async () => {
+  const { data } = await apiRequest("/employees/utilization/recompute", { method: "POST" });
   return data;
 };
