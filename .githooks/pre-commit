@@ -210,7 +210,14 @@ echo "[PHASE 7] Testing Validation (Gates 44-50)"
 if echo "$STAGED_PYTHON_FILES" | grep -q "^backend/"; then
     echo "[TESTING] Running the deploy-gate suite..."
     if [ -z "$TEST_DATABASE_URL" ] && [ -f backend/.env ]; then
-        TEST_DATABASE_URL=$(grep -E '^DATABASE_URL=' backend/.env | head -1 | cut -d= -f2- | sed -E 's#/[^/?]+(\?|$)#/wros_test\1#')
+        # The fixtures drop and recreate the schema, so two checkouts committing at once must not
+        # share a database: a linked worktree gets wros_<worktree folder>_test, the main checkout
+        # keeps wros_test.
+        TEST_DB_NAME=wros_test
+        if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then
+            TEST_DB_NAME="wros_$(basename "$(git rev-parse --show-toplevel)" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9\n' '_')_test"
+        fi
+        TEST_DATABASE_URL=$(grep -E '^DATABASE_URL=' backend/.env | head -1 | cut -d= -f2- | sed -E "s#/[^/?]+(\?|\$)#/${TEST_DB_NAME}\1#")
         export TEST_DATABASE_URL
     fi
     if (cd backend && python -m pytest -q --tb=short -p no:cacheprovider -o log_cli=false $(grep -v '^#' tests/DEPLOY_GATE)); then

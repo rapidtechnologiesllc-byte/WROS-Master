@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import Dashboard from "../screens/Dashboard";
 import JobCreate from "../screens/JobCreate";
 import JobsOverview from "../screens/JobsOverview";
-import ChecklistTemplatesScreen from "../screens/ChecklistTemplatesScreen";
+import TemplatesAndChecklistsScreen from "../screens/TemplatesAndChecklistsScreen";
 import UsersAndAccessControl from "../screens/UsersAndAccessControl";
 import UserFormPage from "../screens/UserFormPage";
 import EmployeesConsolidatedScreen from "../screens/EmployeesConsolidatedScreen";
@@ -60,7 +60,6 @@ import RevenueScreen from "../screens/RevenueScreen";
 import TenantLocaleScreen from "../screens/TenantLocaleScreen";
 import PublicThunderChatScreen from "../screens/PublicThunderChatScreen";
 import CandidatePortalScreen from "../screens/CandidatePortalScreen";
-import EmailTemplatesScreen from "../screens/SettingsScreens/EmailTemplatesScreen";
 import APIKeysSettings from "../screens/APIKeysSettings";
 import RecruiterWatchScreen from "../screens/RecruiterWatchScreen";
 import BulkLaunchScreen from "../screens/BulkLaunchScreen";
@@ -569,7 +568,7 @@ function AuthenticatedApp() {
           <Route path="ceo-fy-progress" element={<CEOUnifiedDashboard />} />
           <Route path="cfo-dashboard" element={<CFOAgentScreen />} />
           <Route path="settings/locale" element={<TenantLocaleScreen />} />
-          <Route path="settings/templates" element={<EmailTemplatesScreen />} />
+          <Route path="settings/templates" element={<Navigate to="/checklist-templates?view=email" replace />} />
           <Route path="api-keys" element={<APIKeysSettings />} />
           <Route path="system-health" element={<SystemHealth />} />
           <Route path="recruiter/watch" element={<RecruiterWatchScreen />} />
@@ -756,7 +755,7 @@ function AuthenticatedApp() {
 
           <Route
             path="checklist-templates"
-            element={<ChecklistTemplatesScreen />}
+            element={<TemplatesAndChecklistsScreen />}
           />
 
           <Route

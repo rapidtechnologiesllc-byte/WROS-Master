@@ -208,6 +208,7 @@ def test_renamed_labels(db):
     assert labels["/revenue"] == "Revenue Health"
     assert labels["/pnl"] == "P&L"
     assert labels["/forecast-vs-actual"] == "Forecast vs Actual"
+    assert labels["/checklist-templates"] == "Templates & Checklists"
 
 
 def test_executive_duplicates_are_gone_from_the_catalogue():
@@ -356,6 +357,10 @@ SCREEN_APIS = {
     ("checklist_templates.py", "/hr/templates", "post"): "checklists",
     ("checklist_templates.py", "/hr/templates/{template_id}", "put"): "checklists",
     ("checklist_templates.py", "/hr/templates/{template_id}/items", "post"): "checklists",
+    # Email Templates is a tab of Templates & Checklists (CEO 2026-10-23); it was gated by candidates
+    ("email_templates.py", "", "get"): "checklists",
+    ("email_templates.py", "/{stage}", "put"): "checklists",
+    ("email_templates.py", "/{stage}/preview", "get"): "checklists",
     ("hiring_pipeline.py", "", "get"): "convert-to-employee",
     ("hiring_pipeline.py", "/candidate/{candidate_id}/evaluate", "post"): "convert-to-employee",
     ("employees.py", "/utilization-summary", "get"): "utilization-dashboard",

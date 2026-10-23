@@ -77,7 +77,7 @@ RESOURCE_ROUTES = {
     "delivery-centers": "/admin/users-access-control/delivery-centers",
     "organizational-hierarchy": "/admin/users-access-control/organizational-hierarchy",
     "certifications": "/admin/certifications",
-    "checklists": "/checklist-templates",
+    "checklists": "/checklist-templates",  # Templates & Checklists: checklists + email templates tabs
     "locale-currency": "/settings/locale",
     "bulk-launch": "/recruiter/bulk-launch",
     "api-keys": "/api-keys",
@@ -114,6 +114,7 @@ NAV_LABELS = {
     "slm-training-data": "SLM Learning",
     "ai-config": "AI Config",
     "users-access-control": "Users & Access",
+    "checklists": "Templates & Checklists",
     "locale-currency": "Locale & Currency",
     "api-keys": "API Keys",
     "error-logs": "Error Logs",
