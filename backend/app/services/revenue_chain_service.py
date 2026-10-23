@@ -206,6 +206,10 @@ def chain_lines(
     clients = _by_id(db, Client, Client.id, (a.client_id for _, a in rows))
     units = _by_id(db, BusinessUnit, BusinessUnit.id, (c.business_unit_id for c in clients.values()))
     partners = _by_id(db, Users, Users.UserID, (u.partner_user_id for u in units.values()))
+    # the bill rate in force in each week: a rate change never reprices a past week
+    from app.services.employee_allocation_service import RateHistory
+
+    rates = RateHistory(db, (a.id for _, a in rows))
 
     lines = []
     for ts, allocation in rows:
@@ -220,7 +224,7 @@ def chain_lines(
         job = jobs.get(allocation.demand_id)
         project = projects.get(allocation.project_id)
         hours = float(ts.billable_hours or 0)
-        rate = allocation.billing_rate_usd_cents
+        rate = rates.rate(allocation, ts.week_starting_date)
 
         billed = [i for i in invoice_lines.get(ts.id, [])
                   if invoices.get(i.invoice_id) and invoices[i.invoice_id].status in BILLED_STATUSES]

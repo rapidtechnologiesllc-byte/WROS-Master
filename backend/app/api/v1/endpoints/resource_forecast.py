@@ -25,6 +25,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.core.data_scope import allocation_filter
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
@@ -54,7 +55,9 @@ def expiring_allocations(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    buckets = get_expiring_allocations(db, tenant_id=current_user.tenant_id)
+    # only allocations in the caller's business units (employee's or client's BU, CEO 2026-10-12)
+    buckets = get_expiring_allocations(db, tenant_id=current_user.tenant_id,
+                                       scope=allocation_filter(db, current_user))
     return ExpiringAllocationsResponse(
         under_30_days=[ExpiringAllocationItem(**e) for e in buckets["under_30_days"]],
         thirty_to_60_days=[ExpiringAllocationItem(**e) for e in buckets["30_to_60_days"]],

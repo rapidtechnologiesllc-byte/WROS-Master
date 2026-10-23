@@ -299,6 +299,11 @@ def execute_core_pull(
     )
     db.add(new_allocation)
     db.flush()
+    # the margin guard on the new Core placement: below the floor it waits for approval (no Core
+    # timesheet until then) -- Core Pull is not exempt from the rate card (CEO 2026-10-23)
+    from app.services.employee_allocation_service import apply_margin_guard
+
+    apply_margin_guard(db, new_allocation, employee, core_demand, changed_by=None, reason=f"Core-Pull {event.id}")
 
     if employee.delivery_engine != "CORE":
         employee.delivery_engine = "CORE"
@@ -323,8 +328,8 @@ def execute_core_pull(
                     f"Effective today. Please plan replacement sourcing."
                 ),
             )
-        except Exception:
-            pass  # best-effort -- never blocks the transfer itself
+        except Exception as exc:  # best-effort -- never blocks the transfer itself, but logged
+            logger.error(f"[CorePull] could not notify the Speciality RM of {event.id}: {exc}", exc_info=True)
     if bu_head is not None:
         try:
             send_notification(
@@ -334,8 +339,8 @@ def execute_core_pull(
                     f"Specialty pool now at {guard['pool_size_after_move']} Core-Certified."
                 ),
             )
-        except Exception:
-            pass
+        except Exception as exc:  # best-effort, logged
+            logger.error(f"[CorePull] could not notify the BU Head of {event.id}: {exc}", exc_info=True)
 
     return event
 
@@ -394,7 +399,7 @@ def override_core_pull(
                     f"{OVERRIDE_ALERT_WINDOW_DAYS} days. Core pool may be insufficient."
                 ),
             )
-        except Exception:
-            pass
+        except Exception as exc:  # best-effort, logged
+            logger.error(f"[CorePull] could not alert the director about overrides: {exc}", exc_info=True)
 
     return event
