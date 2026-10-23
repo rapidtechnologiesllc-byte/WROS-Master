@@ -50,14 +50,12 @@ class BUHeadDashboardService:
             return {}
         today = today or date.today()
 
+        from app.services.bench_service import headcount_snapshot
+
         team = db.query(Employee).filter(_working(bu_id)).all()
-        allocated_ids = {
-            employee_id for (employee_id,) in db.query(EmployeeAllocation.employee_id).filter(
-                EmployeeAllocation.status == "ACTIVE",
-                EmployeeAllocation.employee_id.in_([e.id for e in team] or [""]),
-            )
-        }
-        bench = [e for e in team if e.id not in allocated_ids]
+        # the bench rule shared by every surface (bench_service): billable, joined, no ACTIVE allocation
+        snapshot = headcount_snapshot(db, bu_ids={bu_id}, today=today)
+        bench = snapshot["bench"]
 
         costs = CostBook(db)
         bench_daily = [costs.period(e, today, today) for e in bench]
@@ -86,14 +84,17 @@ class BUHeadDashboardService:
             _clients(bu_id), EmployeeAllocation.status == "ACTIVE",
         ).group_by(Project.id, Project.name).all()
 
-        team_count, utilized = len(team), len(team) - len(bench)
+        team_count, billable_count, utilized = len(team), len(snapshot["billable"]), len(snapshot["allocated"])
         return {
             "bu_name": bu.name,
             "team_size": {
                 "total": team_count,
+                "billable": billable_count,
+                "non_billable": len(snapshot["non_billable"]),
                 "utilized": utilized,
                 "bench": len(bench),
-                "utilization_percent": round(utilized / team_count * 100, 1) if team_count else 0,
+                # of billable people: internal staff are never "unutilized"
+                "utilization_percent": round(utilized / billable_count * 100, 1) if billable_count else 0,
             },
             "revenue": {
                 "mtd_usd": int(revenue_mtd // 100),

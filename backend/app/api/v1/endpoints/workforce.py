@@ -14,6 +14,9 @@ Routes:
   GET  /workforce/overview                  counts per group and flag (the dashboard)
   GET  /workforce/overview?group=<KEY>      plus the people in that group (its page)
   GET  /workforce/overview?flag=<key>       plus the people with that flag
+  GET  /workforce/bench[?group=&business_unit_id=]
+                                            the bench groups' people with days on bench, bench loss,
+                                            what they earned while allocated and the net
 """
 from typing import Optional
 
@@ -51,3 +54,27 @@ def get_workforce_overview(
     if flag and flag not in FLAG_KEYS:
         raise HTTPException(status_code=404, detail=f"Unknown workforce flag '{flag}'.")
     return workforce_overview(db, current_user, group=group, flag=flag)
+
+
+@router.get(
+    "/bench",
+    dependencies=[
+        Depends(require_resource_permission("workforce-overview", "view")),
+        Depends(get_current_internal_user),
+    ],
+    summary="Bench drill-down: days on bench, bench loss vs what each person earned while allocated",
+)
+def get_bench(
+    group: Optional[str] = None,
+    business_unit_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Money columns only for callers who may see the P&L (revenue.view); everyone with the
+    Workforce Overview sees who is on the bench and for how long."""
+    from app.services.bench_service import bench_report
+
+    try:
+        return bench_report(db, current_user, group=group, business_unit_id=business_unit_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))

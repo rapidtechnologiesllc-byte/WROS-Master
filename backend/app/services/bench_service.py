@@ -108,3 +108,116 @@ def reconcile_bench_pool(db: Session, today: Optional[date] = None) -> Dict[str,
     if added or removed or reclassified:
         logger.info(f"[Bench] pool reconciled: {result}")
     return result
+
+
+# --------------------------------------------------------------------------- reading the bench
+
+BENCH_GROUPS = ("BENCH_IN_BUDDY", "BENCH_READY", "BENCH_CORE_READY")
+BENCH_PATH = "/workforce/bench"
+
+
+def bench_since(db: Session, employee: Employee, today: Optional[date] = None) -> date:
+    """First day of the current bench spell: the bench pool row (kept by every write and the
+    startup reconciliation); a missing row is a data fault, logged, and read from history."""
+    entry = db.query(BenchPoolEntry).filter(BenchPoolEntry.employee_id == employee.id).first()
+    if entry is not None:
+        return entry.available_from
+    logger.error(f"[Bench] {employee.id} is on the bench with no bench pool row; using allocation history")
+    return bench_start_from_history(db, employee, today)
+
+
+def headcount_snapshot(db: Session, *, tenant_id: Optional[int] = None, bu_ids=None,
+                       today: Optional[date] = None) -> Dict:
+    """Billable headcount, who of them is allocated and who is on the bench (with bench days):
+    the numbers every dashboard shows. bu_ids None = every business unit."""
+    today = today or date.today()
+    query = db.query(Employee).filter(Employee.status.notin_(NOT_HEADCOUNT))
+    if tenant_id is not None:
+        query = query.filter(Employee.tenant_id == tenant_id)
+    if bu_ids is not None:
+        query = query.filter(Employee.bu_id.in_(list(bu_ids) or [-1]))
+    working = query.all()
+    ids = [e.id for e in working]
+    active = {row[0] for row in db.query(EmployeeAllocation.employee_id).filter(
+        EmployeeAllocation.status == "ACTIVE", EmployeeAllocation.employee_id.in_(ids))} if ids else set()
+    billable = [e for e in working if e.is_billable]
+    bench = [e for e in billable if e.id not in active]
+    pool = {p.employee_id: p.available_from for p in db.query(BenchPoolEntry).filter(
+        BenchPoolEntry.employee_id.in_([e.id for e in bench]))} if bench else {}
+    days = {e.id: (today - (pool.get(e.id) or bench_since(db, e, today))).days for e in bench}
+    return {"working": working, "billable": billable, "allocated": [e for e in billable if e.id in active],
+            "non_billable": [e for e in working if not e.is_billable], "bench": bench, "bench_days": days}
+
+
+def bench_report(db: Session, user, *, group: Optional[str] = None, business_unit_id: Optional[int] = None,
+                 today: Optional[date] = None, financials: Optional[bool] = None) -> Dict:
+    """The bench screen: everyone in the Workforce Overview bench groups the caller can see, with
+    days on bench, the cost of that bench time (loaded payroll from the P&L's CostBook for each
+    bench day -- the same figure the P&L books as bench cost), what they earned while allocated
+    (revenue minus delivery cost from the revenue chain) and the net. Sorted by bench loss.
+    financials None = whether the caller may see P&L figures."""
+    from app.core.revenue_visibility_scope import can_view_pnl
+    from app.models.business_unit import BusinessUnit
+    from app.models.location import Location
+    from app.services.revenue_chain_service import CostBook, chain_lines
+    from app.services.workforce_report_service import GROUPS, workforce_overview
+
+    today = today or date.today()
+    if group is not None and group not in BENCH_GROUPS:
+        raise ValueError(f"'{group}' is not a bench group ({', '.join(BENCH_GROUPS)}).")
+    show_money = can_view_pnl(db, user) if financials is None else financials
+    labels = {key: label for key, label, _ in GROUPS}
+    people = []
+    for key in ((group,) if group else BENCH_GROUPS):
+        for person in workforce_overview(db, user, group=key)["selection"]["people"]:
+            people.append((key, person))
+    employees = {e.id: e for e in db.query(Employee).filter(Employee.id.in_([p["employee_id"] for _, p in people]))} \
+        if people else {}
+    if business_unit_id is not None:
+        people = [(k, p) for k, p in people if employees[p["employee_id"]].bu_id == business_unit_id]
+    units = {u.id: u for u in db.query(BusinessUnit).filter(BusinessUnit.id.in_({e.bu_id for e in employees.values()}))}
+    companies = {c.id: c for c in db.query(Location).filter(Location.id.in_({e.company_id for e in employees.values()}))}
+    costs = CostBook(db)
+    rows, missing = [], []
+    for key, person in people:
+        employee = employees[person["employee_id"]]
+        since = bench_since(db, employee, today)
+        unit, company = units.get(employee.bu_id), companies.get(employee.company_id)
+        row = {
+            "employee_id": employee.id, "name": person["name"], "group": key, "group_label": labels[key],
+            "business_unit_id": employee.bu_id, "business_unit": (unit.display_name or unit.name) if unit else None,
+            "location": company.name if company else None, "country": company.country if company else None,
+            "bench_since": since.isoformat(), "bench_days": (today - since).days,
+            "daily_cost_usd_cents": None, "bench_loss_usd_cents": None, "earned_usd_cents": None,
+            "delivery_cost_usd_cents": None, "allocated_margin_usd_cents": None, "net_usd_cents": None,
+        }
+        if show_money:
+            loss = costs.period(employee, since, today)
+            lines = chain_lines(db, start=employee.joining_date, end=today, employee_id=employee.id, costs=costs)
+            earned = sum(line["earned_usd_cents"] or 0 for line in lines)
+            line_costs = [line["cost_usd_cents"] for line in lines]
+            delivery = None if any(c is None for c in line_costs) else sum(line_costs)
+            if loss is None or delivery is None:
+                missing.append(employee.id)
+            row.update({
+                "daily_cost_usd_cents": costs.period(employee, today, today), "bench_loss_usd_cents": loss,
+                "earned_usd_cents": earned, "delivery_cost_usd_cents": delivery,
+                "allocated_margin_usd_cents": earned - delivery if delivery is not None else None,
+                "net_usd_cents": (earned - delivery - loss) if (delivery is not None and loss is not None) else None,
+            })
+        rows.append(row)
+    rows.sort(key=lambda r: (r["bench_loss_usd_cents"] is None, -(r["bench_loss_usd_cents"] or 0), -r["bench_days"]))
+
+    def total(field):
+        return sum(r[field] or 0 for r in rows) if show_money else None
+
+    return {
+        "as_of": today.isoformat(), "group": group, "business_unit_id": business_unit_id,
+        "financials_visible": show_money, "cost_data_complete": not missing, "missing_cost_employee_ids": missing,
+        "groups": [{"key": k, "label": labels[k]} for k in BENCH_GROUPS],
+        "totals": {"people": len(rows), "bench_days": sum(r["bench_days"] for r in rows),
+                   "bench_loss_usd_cents": total("bench_loss_usd_cents"), "earned_usd_cents": total("earned_usd_cents"),
+                   "allocated_margin_usd_cents": total("allocated_margin_usd_cents"),
+                   "net_usd_cents": total("net_usd_cents"), "daily_cost_usd_cents": total("daily_cost_usd_cents")},
+        "employees": rows,
+    }

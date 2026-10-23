@@ -1,7 +1,8 @@
+import { Link } from "react-router-dom";
 import FinancialOutlookPanel from "../components/FinancialOutlookPanel";
 import { useEffect, useState } from "react";
-import { TrendingUp, AlertTriangle, Users, Briefcase, RefreshCw, ChevronDown, CheckCircle } from "lucide-react";
-import { Card, Button, Input, StatusBadge } from "../components/ui";
+import { AlertTriangle, RefreshCw, CheckCircle } from "lucide-react";
+import { Card, Button, Input } from "../components/ui";
 import cx from "../utils/cx";
 import { getExecutiveDashboard } from "../services/api/revenueTargets";
 import { getAllCandidates } from "../services/api/candidates";
@@ -243,13 +244,19 @@ function RiskTiles({ risks }) {
           risk.severity === "medium" ? "text-amber-700" :
           "text-blue-700";
 
-        return (
-          <div key={idx} className={`rounded-lg border ${bgColor} p-3`}>
+        const body = (
+          <>
             <div className="text-2xl mb-1">{risk.icon}</div>
             <div className={`text-xs font-semibold ${textColor}`}>{risk.label}</div>
             <div className="text-lg font-bold text-gray-900 mt-1">{risk.value}</div>
             {risk.detail && <div className="text-[11px] text-gray-500">{risk.detail}</div>}
-          </div>
+          </>
+        );
+        // a risk with a page (the bench tiles -> the bench screen) is a link, never a dead tile
+        return risk.link ? (
+          <Link key={idx} to={risk.link} className={`block rounded-lg border ${bgColor} p-3 hover:shadow`}>{body}</Link>
+        ) : (
+          <div key={idx} className={`rounded-lg border ${bgColor} p-3`}>{body}</div>
         );
       })}
     </div>

@@ -254,11 +254,8 @@ def _executive_extras(db: Session, *, client_ids, pipeline_by_bu: dict, total_pi
     from Business Units admin, with its FY revenue target from the goal
     tree), pipeline coverage of the org FY revenue target, capacity
     utilization and risk counts -- all from real records."""
-    from datetime import date as date_type, timedelta as td
 
     from app.models.business_unit import BusinessUnit
-    from app.models.employee import Employee
-    from app.models.employee_allocation import EmployeeAllocation
     from app.models.revenue_leakage import RevenueLeakageFlag
     from app.models.strategic_goal import GoalTarget
     from app.services.ar_followup_service import scan_overdue_invoices
@@ -305,15 +302,15 @@ def _executive_extras(db: Session, *, client_ids, pipeline_by_bu: dict, total_pi
         round(total_pipeline_usd_cents / (org_target.target * 100), 2) if org_target and org_target.target else None
     )
 
-    working = db.query(Employee).filter(Employee.status.notin_(("PRE_JOINING", "EXITED"))).all()
-    allocated_ids = {
-        row[0] for row in db.query(EmployeeAllocation.employee_id).filter(EmployeeAllocation.status == "ACTIVE").all()
-    }
-    allocated = sum(1 for e in working if e.id in allocated_ids)
-    utilization = round(allocated / len(working) * 100, 1) if working else None
-    unallocated = [e for e in working if e.id not in allocated_ids]
-    aging_cutoff = date_type.today() - td(days=BENCH_AGING_DAYS)
-    bench_aging = sum(1 for e in unallocated if e.joining_date and e.joining_date <= aging_cutoff)
+    from app.services.bench_service import headcount_snapshot
+
+    # the bench rule every surface shares (bench_service): billable staff with no active allocation;
+    # bench aging counts days on the bench, not days since joining
+    snapshot = headcount_snapshot(db)
+    billable = snapshot["billable"]
+    utilization = round(len(snapshot["allocated"]) / len(billable) * 100, 1) if billable else None
+    unallocated = snapshot["bench"]
+    bench_aging = sum(1 for e in unallocated if snapshot["bench_days"][e.id] > BENCH_AGING_DAYS)
 
     leakage_flags = db.query(func.count(RevenueLeakageFlag.id)).filter(
         RevenueLeakageFlag.partial_billing_reason.is_(None)
@@ -332,9 +329,9 @@ def _executive_extras(db: Session, *, client_ids, pipeline_by_bu: dict, total_pi
             {"key": "overdue_invoices", "label": "Overdue Invoices", "severity": "medium", "value": len(overdue),
              "detail": "Sent and unpaid past the grace period"},
             {"key": "bench_aging", "label": f"Bench Aging > {BENCH_AGING_DAYS}d", "severity": "medium", "value": bench_aging,
-             "detail": f"Unallocated, joined more than {BENCH_AGING_DAYS} days ago"},
-            {"key": "unallocated", "label": "Unallocated Employees", "severity": "low", "value": len(unallocated),
-             "detail": "Working employees without an active allocation"},
+             "detail": f"On the bench more than {BENCH_AGING_DAYS} days", "link": "/workforce/bench"},
+            {"key": "unallocated", "label": "On the bench", "severity": "low", "value": len(unallocated),
+             "detail": "Billable employees without an active allocation", "link": "/workforce/bench"},
         ],
     }
 

@@ -24,6 +24,23 @@ from app.models.employee import (
 
 logger = logging.getLogger(__name__)
 
+def skills_list(raw, employee_id: Optional[str] = None) -> list:
+    """current_skills / bench skill_tags as a list. The rule is a JSON array; rows written before
+    it hold plain text ("Java, Guidewire"), read as a comma/semicolon list and logged -- a real
+    parse, never a crash and never a silent []."""
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        logger.warning(f"[Employees] employee {employee_id}: skills are not JSON, read as a list: {raw!r}")
+        return [s.strip() for s in str(raw).replace(";", ",").split(",") if s.strip()]
+    if isinstance(parsed, list):
+        return [str(s) for s in parsed]
+    logger.warning(f"[Employees] employee {employee_id}: skills JSON is not a list: {raw!r}")
+    return [str(parsed)]
+
+
 class DuplicateEmployeeEmail(Exception):
     pass
 

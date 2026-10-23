@@ -114,7 +114,10 @@ def test_employee_writes_stay_inside_scope(w, chain, api):
     assert created.status_code == 403
 
 
-def test_bench_cost_summary_is_scoped(w, chain, api):
+def test_bench_cost_summary_is_scoped(db, w, chain, api):
+    for side in (chain.a, chain.b):  # off their project and joined: on the bench by rule
+        side.allocation.status, side.employee.status = "ENDED", "ACTIVE"
+    db.commit()
     for emp in (chain.a.employee.id, chain.b.employee.id):
         assert api.post(w.org_user, f"/api/v1/employees/{emp}/mark-bench", json={"reason": "OTHER"}).status_code == 200
     mine = ids(api.get(w.partner_a, "/api/v1/employees/bench-cost-summary").json(), "employee_id")

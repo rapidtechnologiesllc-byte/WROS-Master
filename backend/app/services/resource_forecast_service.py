@@ -26,7 +26,6 @@ from sqlalchemy.orm import Session
 from app.models.demand import Demand
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
-from app.models.resource_management import BenchPoolEntry
 
 EXPIRY_HORIZON_DAYS = 90  # source doc's own default
 
@@ -104,10 +103,9 @@ def get_skill_gap_analysis(
     a BU that doesn't exist on the row would fabricate data, not narrow
     it. A BU Head reading this sees their own open demand against the
     real, full bench -- directionally correct, not silently wrong."""
-    bench_query = db.query(BenchPoolEntry)
-    if tenant_id is not None:
-        bench_query = bench_query.filter(BenchPoolEntry.tenant_id == tenant_id)
-    bench_entries = bench_query.all()
+    from app.services.resource_management_service import get_current_bench_pool
+
+    bench_entries = get_current_bench_pool(db, tenant_id=tenant_id)  # billable bench only, one rule
 
     bench_skill_counts: Dict[str, int] = {}
     for entry in bench_entries:

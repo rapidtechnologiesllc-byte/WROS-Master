@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 // S-254 (Employee Utilization Dashboard) + S-255 (Bench Cost Visibility).
 import { useEffect, useState } from "react";
 import { BarChart3, RefreshCw, AlertTriangle, DollarSign, Calculator } from "lucide-react";
@@ -168,7 +169,8 @@ export default function UtilizationDashboardScreen() {
 
       <Card
         title="Bench Cost Visibility"
-        subtitle="Daily/monthly cost and running total for every employee currently on the bench."
+        subtitle="Daily/monthly loaded cost and running total for every employee on the bench (same figures as the P&L)."
+        right={<Link to="/workforce/bench" className="text-xs font-semibold text-blue-700 hover:underline">Bench detail</Link>}
         icon={<DollarSign className="h-4 w-4" />}
       >
         {benchCost ? (

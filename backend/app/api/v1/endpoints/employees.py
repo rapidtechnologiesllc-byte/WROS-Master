@@ -77,20 +77,9 @@ from app.services.resource_management_service import (
 router = APIRouter(prefix="/employees", tags=["employees"])
 
 def _skills_list(raw, employee_id: str = None):
-    """Employee.current_skills is a JSON array; rows written before that rule hold plain text
-    ("Java, Guidewire"), which is parsed as a comma/semicolon list -- a real parse, logged so
-    the legacy rows can be found -- never a failed list and never a silent []."""
-    if not raw:
-        return []
-    try:
-        parsed = json.loads(raw)
-    except (json.JSONDecodeError, TypeError):
-        logger.warning(f"[Employees] employee {employee_id}: current_skills is not JSON, read as a list: {raw!r}")
-        return [s.strip() for s in str(raw).replace(";", ",").split(",") if s.strip()]
-    if isinstance(parsed, list):
-        return [str(s) for s in parsed]
-    logger.warning(f"[Employees] employee {employee_id}: current_skills JSON is not a list: {raw!r}")
-    return [str(parsed)]
+    from app.services.employee_service import skills_list
+
+    return skills_list(raw, employee_id)
 
 
 def _allocation_summaries(db: Session, employee_ids) -> dict:
@@ -408,29 +397,22 @@ def bench_cost_summary(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    entries = get_current_bench_pool(db, tenant_id=current_user.tenant_id)
-    visible = {e.id: e for e in _visible_employees(db, current_user).filter(
-        Employee.id.in_([entry.employee_id for entry in entries]))}
-    items = []
-    total_running = 0
-    for entry in entries:
-        employee = visible.get(entry.employee_id)
-        if employee is None:  # outside the caller's business units
-            continue
-        days = get_bench_duration_days(entry)
-        daily = entry.bench_cost_usd_cents
-        running = (daily * days) if daily is not None else None
-        if running is not None:
-            total_running += running
-        items.append(BenchCostSummaryItem(
-            employee_id=entry.employee_id,
-            employee_name=f"{employee.first_name} {employee.last_name}".strip(),
-            days_on_bench=days,
-            daily_cost_usd_cents=daily,
-            monthly_cost_usd_cents=(daily * 30) if daily is not None else None,
-            running_total_usd_cents=running,
-        ))
-    return BenchCostSummaryResponse(employees=items, total_running_cost_usd_cents=total_running)
+    """The bench screen's own figures (bench_service.bench_report): loaded cost per bench day from
+    the P&L's CostBook, so this, the bench screen and the P&L bench cost always agree. (It used to
+    be raw monthly salary / 30, which disagreed with the P&L.)"""
+    from app.services.bench_service import bench_report
+    from app.services.revenue_chain_service import CostBook
+
+    report = bench_report(db, current_user, financials=True)
+    employees = {e.id: e for e in db.query(Employee).filter(Employee.id.in_([r["employee_id"] for r in report["employees"]]))}
+    costs = CostBook(db)
+    items = [BenchCostSummaryItem(
+        employee_id=r["employee_id"], employee_name=r["name"], days_on_bench=r["bench_days"],
+        daily_cost_usd_cents=r["daily_cost_usd_cents"], monthly_cost_usd_cents=costs.monthly(employees[r["employee_id"]]),
+        running_total_usd_cents=r["bench_loss_usd_cents"],
+    ) for r in report["employees"]]
+    return BenchCostSummaryResponse(employees=items,
+                                    total_running_cost_usd_cents=report["totals"]["bench_loss_usd_cents"])
 
 @router.get(
     "/{employee_id}",
@@ -479,8 +461,20 @@ def mark_bench(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
+    from app.services.bench_service import belongs_on_bench, sync_billing_classification
+    from app.services.employee_service import transition_employee_status
+
     employee = _get_employee_or_404(db, employee_id, current_user)
+    if employee.status == "ACTIVE" and employee.is_billable:
+        transition_employee_status(db, employee, "BENCH", reason=f"Marked bench: {body.reason}",
+                                   changed_by=current_user.UserID)
+    if not belongs_on_bench(db, employee):
+        db.rollback()
+        raise HTTPException(status_code=409, detail=(
+            "Only a billable, joined employee with no active allocation is on the bench: end their allocation "
+            "first (or they are internal / not joined yet)."))
     mark_employee_on_bench(db, employee, reason=body.reason)
+    sync_billing_classification(db, employee)
     db.commit()
     db.refresh(employee)
     return _to_item(db, employee)
@@ -495,8 +489,14 @@ def remove_from_bench(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
+    from app.services.bench_service import belongs_on_bench
+
     employee = _get_employee_or_404(db, employee_id, current_user)
-    remove_employee_from_bench(db, employee)
+    if belongs_on_bench(db, employee):
+        raise HTTPException(status_code=409, detail=(
+            "This employee is on the bench by rule (billable, no active allocation): allocate them to a job, "
+            "or mark them non-billable."))
+    remove_employee_from_bench(db, employee)  # clears a stale row
     db.commit()
     db.refresh(employee)
     return _to_item(db, employee)

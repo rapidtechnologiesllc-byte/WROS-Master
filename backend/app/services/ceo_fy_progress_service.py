@@ -119,7 +119,10 @@ def get_fy_progress(db: Session, fy_year: Optional[int] = None, tenant_id: Optio
     billable_hours = float(db.query(func.sum(InvoiceLineItem.hours)).join(
         Invoice, Invoice.id == InvoiceLineItem.invoice_id
     ).filter(Invoice.created_at >= fy_start, Invoice.created_at <= today).scalar() or 0)
-    available_hours = headcount * 2080 * (fy_progress_pct / 100)
+    # available hours of billable staff only: internal (non-billable) people are never utilized
+    billable_staff = db.query(func.count(Employee.id)).filter(
+        Employee.status.notin_(WORKING_STATUSES_EXCLUDED), Employee.is_billable.is_(True)).scalar() or 0
+    available_hours = billable_staff * 2080 * (fy_progress_pct / 100)
     utilization = (billable_hours / available_hours * 100) if available_hours else 0
 
     pnl = get_org_pnl_summary(db, year=today.year, month=today.month)
