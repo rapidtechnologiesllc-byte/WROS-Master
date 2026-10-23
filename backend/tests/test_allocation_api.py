@@ -129,3 +129,13 @@ def test_allocating_needs_the_allocations_permission(api, world, db):
     response = api.post(nobody, "/api/v1/allocations", json={"employee_id": world.employee.id,
                                                       "demand_id": world.job.jobID})
     assert response.status_code == 403
+
+
+def test_an_allocation_without_a_percentage_is_listed_as_full_time(api, world, db):
+    """Not set means 100% everywhere (capacity, cost, revenue, the employee's Allocated); the
+    allocations list sent null and the screen printed a bare "%"."""
+    created = _allocate(api, world, utilization_pct=None)
+    assert created.status_code == 200, created.text
+    assert created.json()["utilization_pct"] == 100.0
+    listed = api.get(world.admin, f"/api/v1/allocations?employee_id={world.employee.id}").json()["allocations"]
+    assert [a["utilization_pct"] for a in listed] == [100.0]
