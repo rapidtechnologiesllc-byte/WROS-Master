@@ -1,10 +1,10 @@
 import { apiFetch } from "../services/api/client";
 // Admin screen for managing certifications and employee KPI targets
 import { useEffect, useState } from "react";
-import { Plus, Trash2, CheckCircle2, Clock, AlertCircle, X } from "lucide-react";
-import { Card, Button, Input, Select } from "../components/ui";
+import { Plus, Trash2, CheckCircle2, Clock, X } from "lucide-react";
+import { Card, Button } from "../components/ui";
 
-const CERT_LEVELS = ["Foundation", "Intermediate", "Advanced", "Expert"];
+// Catalog levels and Guidewire levels come from GET /admin/certifications/options.
 
 export default function CertificationManagementScreen() {
   const [activeTab, setActiveTab] = useState("certifications"); // certifications | targets
@@ -12,6 +12,7 @@ export default function CertificationManagementScreen() {
   const [loading, setLoading] = useState(false);
   const [showCreateCert, setShowCreateCert] = useState(false);
   const [actionError, setActionError] = useState(null);
+  const [catalogOptions, setCatalogOptions] = useState({ levels: [], guidewire_levels: [] });
 
   // Create certification form
   const [certForm, setCertForm] = useState({
@@ -37,6 +38,15 @@ export default function CertificationManagementScreen() {
   // Load data
   useEffect(() => {
     loadCertifications();
+    apiFetch("/admin/certifications/options", {
+      headers: { Authorization: `Bearer ${localStorage.getItem("hrms_token")}` },
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error("Failed to load certification options");
+        return response.json();
+      })
+      .then(setCatalogOptions)
+      .catch((err) => setActionError(err.message));
   }, []);
 
   useEffect(() => {
@@ -98,7 +108,7 @@ export default function CertificationManagementScreen() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("hrms_token")}`,
         },
-        body: JSON.stringify(certForm),
+        body: JSON.stringify({ ...certForm, guidewire_level: certForm.guidewire_level || null }),
       });
 
       if (!response.ok) throw new Error("Failed to create certification");
@@ -111,6 +121,7 @@ export default function CertificationManagementScreen() {
         level: "Foundation",
         validity_months: 24,
         is_core_certification: false,
+        guidewire_level: "",
       });
       setShowCreateCert(false);
       loadCertifications();
@@ -229,7 +240,20 @@ export default function CertificationManagementScreen() {
                   onChange={(e) => setCertForm({ ...certForm, level: e.target?.value || "Foundation" })}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
-                  {CERT_LEVELS.map((l) => (
+                  {catalogOptions.levels.map((l) => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Guidewire level (sets the holder's current Guidewire level)</label>
+                <select
+                  value={certForm.guidewire_level || ""}
+                  onChange={(e) => setCertForm({ ...certForm, guidewire_level: e.target?.value || "" })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                >
+                  <option value="">Not a Guidewire level</option>
+                  {catalogOptions.guidewire_levels.map((l) => (
                     <option key={l} value={l}>{l}</option>
                   ))}
                 </select>
@@ -276,6 +300,7 @@ export default function CertificationManagementScreen() {
                     <div className="text-xs text-gray-500 mt-1">
                       Level: {cert.level} • Validity: {cert.validity_months || 24} months
                       {cert.is_core_certification && " • Core Certification"}
+                      {cert.guidewire_level && ` • Guidewire ${cert.guidewire_level}`}
                     </div>
                   </div>
                   <div className="flex gap-2">

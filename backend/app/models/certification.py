@@ -10,6 +10,10 @@ def _new_uuid() -> str:
 
 CERTIFICATION_LEVELS = ("Foundation", "Intermediate", "Advanced", "Expert")
 CERT_STATUS = ("Active", "Expired", "Pending", "Revoked")
+# Guidewire certification ladder, lowest first. A catalog certificate may carry one of these
+# (Certification.guidewire_level); an employee's current Guidewire level is the highest one among
+# the certificates they hold (app.services.employee_certification_service).
+GUIDEWIRE_CERT_LEVELS = ("ACE", "Associate", "Specialist")
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +34,8 @@ class Certification(Base):
 
     # Whether this is required for core certifications tracking
     is_core_certification = Column(Boolean, default=False)
+    # The Guidewire level holding this certificate gives (one of GUIDEWIRE_CERT_LEVELS), if any
+    guidewire_level = Column(String(20), nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

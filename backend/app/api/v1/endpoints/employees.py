@@ -105,7 +105,12 @@ def _allocation_summaries(db: Session, employee_ids) -> dict:
     return out
 
 
-def _to_item(db: Session, employee: Employee, *, bench_entry=..., allocations=None) -> EmployeeItem:
+def _to_item(db: Session, employee: Employee, *, bench_entry=..., allocations=None,
+             guidewire_level=...) -> EmployeeItem:
+    from app.services.employee_certification_service import current_guidewire_levels
+
+    if guidewire_level is ...:
+        guidewire_level = current_guidewire_levels(db, [employee.id]).get(employee.id)
     if bench_entry is ...:
         bench_entry = db.query(BenchPoolEntry).filter(BenchPoolEntry.employee_id == employee.id).first()
     if allocations is None:
@@ -130,7 +135,8 @@ def _to_item(db: Session, employee: Employee, *, bench_entry=..., allocations=No
         billing_rate_usd_cents=employee.billing_rate_usd_cents,
         is_on_bench=bench_entry is not None,
         bench_days=get_bench_duration_days(bench_entry) if bench_entry else None,
-        guidewire_certification_current=employee.guidewire_certification_current,
+        # derived from the certificates held (employee_certification_service), never typed
+        guidewire_certification_current=guidewire_level,
         guidewire_certification_expected=employee.guidewire_certification_expected,
         bu_id=employee.bu_id,
         company_id=employee.company_id,
@@ -270,15 +276,56 @@ def list_employees(
     ids = [e.id for e in employees]
     bench = {b.employee_id: b for b in db.query(BenchPoolEntry).filter(BenchPoolEntry.employee_id.in_(ids))} if ids else {}
     allocations = _allocation_summaries(db, ids)
+    from app.services.employee_certification_service import current_guidewire_levels
+
+    levels = current_guidewire_levels(db, ids)
     return EmployeeListResponse(employees=[
-        _to_item(db, e, bench_entry=bench.get(e.id), allocations=allocations.get(e.id, [])) for e in employees])
+        _to_item(db, e, bench_entry=bench.get(e.id), allocations=allocations.get(e.id, []),
+                 guidewire_level=levels.get(e.id)) for e in employees])
 
 class GuidewireCertificationUpdate(BaseModel):
+    # derived from certificates held; accepted only when it matches (old clients send it back)
     guidewire_certification_current: Optional[str] = None
     guidewire_certification_expected: Optional[str] = None
 
 
-GUIDEWIRE_CERT_LEVELS = ("None", "ACE", "Associate", "Specialist")
+class CertificateCreate(BaseModel):
+    certification_id: str
+    earned_date: date
+    expires_date: Optional[date] = None  # None: the catalog's validity_months decides
+    cert_number: Optional[str] = None
+    issuer: Optional[str] = None
+    status: str = "Active"
+
+
+class CertificateUpdate(BaseModel):
+    earned_date: Optional[date] = None
+    expires_date: Optional[date] = None
+    cert_number: Optional[str] = None
+    issuer: Optional[str] = None
+    status: Optional[str] = None
+
+
+def _certificate_item(record) -> dict:
+    cert = record.certification
+    return {
+        "id": record.id, "certification_id": record.certification_id,
+        "cert_name": cert.cert_name if cert else None, "cert_code": cert.cert_code if cert else None,
+        "guidewire_level": cert.guidewire_level if cert else None, "status": record.status,
+        "earned_date": record.earned_date.date().isoformat() if record.earned_date else None,
+        "expires_date": record.expires_date.date().isoformat() if record.expires_date else None,
+        "cert_number": record.cert_number, "issuer": record.issuer,
+    }
+
+
+def _certificate_or_404(db: Session, employee: Employee, record_id: str):
+    from app.models.certification import EmployeeCertification
+
+    record = db.query(EmployeeCertification).filter(
+        EmployeeCertification.id == record_id, EmployeeCertification.employee_id == employee.id).first()
+    if record is None:
+        raise HTTPException(status_code=404, detail="Certificate not found.")
+    return record
 
 
 def _company_or_400(db: Session, company_id: str, tenant_id: int) -> str:
@@ -348,21 +395,128 @@ def update_guidewire_certifications(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    """Employees screen: Guidewire certification level now and target."""
+    """Employees screen: the Guidewire TARGET level. The current level is derived from the
+    certificates the employee holds (POST /employees/{id}/certificates); a different current level
+    sent here is refused rather than silently ignored."""
+    from app.models.certification import GUIDEWIRE_CERT_LEVELS
+    from app.services.employee_certification_service import current_guidewire_levels
+
     employee = _get_employee_or_404(db, employee_id, current_user)
-    for field in ("guidewire_certification_current", "guidewire_certification_expected"):
-        value = getattr(body, field)
-        if value is None:
-            continue
-        if value not in GUIDEWIRE_CERT_LEVELS:
-            raise HTTPException(status_code=400, detail=f"{field} must be one of {GUIDEWIRE_CERT_LEVELS}")
-        setattr(employee, field, None if value == "None" else value)
+    current = current_guidewire_levels(db, [employee.id]).get(employee.id)
+    allowed = ("None",) + GUIDEWIRE_CERT_LEVELS
+    sent_current = body.guidewire_certification_current
+    if sent_current is not None and (None if sent_current == "None" else sent_current) != current:
+        raise HTTPException(status_code=400, detail=(
+            "The current Guidewire level comes from the certificates the employee holds: add or remove "
+            "a certificate instead of typing the level."))
+    if body.guidewire_certification_expected is not None:
+        if body.guidewire_certification_expected not in allowed:
+            raise HTTPException(status_code=400,
+                                detail=f"guidewire_certification_expected must be one of {list(allowed)}")
+        employee.guidewire_certification_expected = (
+            None if body.guidewire_certification_expected == "None" else body.guidewire_certification_expected)
     db.commit()
     return {
         "employee_id": employee.id,
-        "guidewire_certification_current": employee.guidewire_certification_current,
+        "guidewire_certification_current": current,
         "guidewire_certification_expected": employee.guidewire_certification_expected,
     }
+
+
+@router.get("/certification-options", dependencies=[Depends(require_resource_permission("employees", "view"))])
+def certification_options(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """The certificate catalog, record statuses and Guidewire levels for the certificates form."""
+    from app.models.certification import CERT_STATUS, GUIDEWIRE_CERT_LEVELS
+    from app.services.employee_certification_service import catalog
+
+    return {
+        "certifications": [
+            {"id": c.id, "cert_name": c.cert_name, "cert_code": c.cert_code, "level": c.level,
+             "guidewire_level": c.guidewire_level, "validity_months": c.validity_months}
+            for c in catalog(db, current_user.tenant_id)
+        ],
+        "statuses": list(CERT_STATUS),
+        "guidewire_levels": ["None", *GUIDEWIRE_CERT_LEVELS],
+    }
+
+
+@router.get("/{employee_id}/certificates", dependencies=[Depends(require_resource_permission("employees", "view"))])
+def list_certificates(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Every certificate the employee holds, newest first, and the Guidewire level they give."""
+    from app.services.employee_certification_service import current_guidewire_levels, list_records
+
+    employee = _get_employee_or_404(db, employee_id, current_user)
+    return {
+        "certificates": [_certificate_item(r) for r in list_records(db, employee)],
+        "guidewire_certification_current": current_guidewire_levels(db, [employee.id]).get(employee.id),
+    }
+
+
+@router.post("/{employee_id}/certificates", status_code=201,
+             dependencies=[Depends(require_resource_permission("employees", "edit"))])
+def add_certificate(
+    employee_id: str,
+    body: CertificateCreate,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    from app.services.employee_certification_service import EmployeeCertificationError, create_record
+
+    employee = _get_employee_or_404(db, employee_id, current_user)
+    try:
+        record = create_record(db, employee, **body.model_dump())
+    except EmployeeCertificationError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+    db.commit()
+    db.refresh(record)
+    return _certificate_item(record)
+
+
+@router.patch("/{employee_id}/certificates/{record_id}",
+              dependencies=[Depends(require_resource_permission("employees", "edit"))])
+def update_certificate(
+    employee_id: str,
+    record_id: str,
+    body: CertificateUpdate,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    from app.services.employee_certification_service import EmployeeCertificationError, update_record
+
+    employee = _get_employee_or_404(db, employee_id, current_user)
+    record = _certificate_or_404(db, employee, record_id)
+    try:
+        update_record(db, record, body.model_dump(exclude_unset=True))
+    except EmployeeCertificationError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+    db.commit()
+    db.refresh(record)
+    return _certificate_item(record)
+
+
+@router.delete("/{employee_id}/certificates/{record_id}",
+               dependencies=[Depends(require_resource_permission("employees", "delete"))])
+def delete_certificate(
+    employee_id: str,
+    record_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    from app.services.employee_certification_service import delete_record
+
+    employee = _get_employee_or_404(db, employee_id, current_user)
+    delete_record(db, _certificate_or_404(db, employee, record_id))
+    db.commit()
+    return {"deleted": record_id}
 
 
 

@@ -80,11 +80,46 @@ export const updateEmployeeOrganization = async (employeeId, organization) => {
   return data;
 };
 
+// Guidewire target level (guidewire_certification_expected). The current level is derived from
+// the certificates the employee holds (below), so it is not sent.
 export const updateEmployeeCertifications = async (employeeId, certifications) => {
   const { data } = await apiRequest(`/employees/${employeeId}/certifications`, {
     method: "PUT",
     body: JSON.stringify(certifications),
   });
+  return data;
+};
+
+// The certificate catalog, record statuses and Guidewire levels for the certificates form.
+export const getCertificationOptions = async () => {
+  const { data } = await apiRequest("/employees/certification-options", { method: "GET" });
+  return data;
+};
+
+// Certificates the employee holds (with expiry) and the Guidewire level they give.
+export const listEmployeeCertificates = async (employeeId) => {
+  const { data } = await apiRequest(`/employees/${employeeId}/certificates`, { method: "GET" });
+  return data;
+};
+
+export const addEmployeeCertificate = async (employeeId, body) => {
+  const { data } = await apiRequest(`/employees/${employeeId}/certificates`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return data;
+};
+
+export const updateEmployeeCertificate = async (employeeId, recordId, changes) => {
+  const { data } = await apiRequest(`/employees/${employeeId}/certificates/${recordId}`, {
+    method: "PATCH",
+    body: JSON.stringify(changes),
+  });
+  return data;
+};
+
+export const deleteEmployeeCertificate = async (employeeId, recordId) => {
+  const { data } = await apiRequest(`/employees/${employeeId}/certificates/${recordId}`, { method: "DELETE" });
   return data;
 };
 

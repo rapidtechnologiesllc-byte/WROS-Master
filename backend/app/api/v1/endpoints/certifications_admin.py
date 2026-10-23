@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.dependencies import require_resource_permission
-from app.models.certification import Certification
+from app.models.certification import CERTIFICATION_LEVELS, GUIDEWIRE_CERT_LEVELS, Certification
 from app.models.kpi import EmployeeKPITarget, EmployeeKPIScore
 from app.models.employee import Employee
 
@@ -29,6 +29,8 @@ class CertificationRequest(BaseModel):
     level: str = "Foundation"
     validity_months: int = 24
     is_core_certification: bool = False
+    # One of GUIDEWIRE_CERT_LEVELS when holding this certificate gives that Guidewire level
+    guidewire_level: Optional[str] = None
 
 class CertificationResponse(BaseModel):
     id: str
@@ -36,6 +38,8 @@ class CertificationResponse(BaseModel):
     cert_code: str
     level: str
     is_core_certification: bool
+    validity_months: Optional[int] = None
+    guidewire_level: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -81,6 +85,10 @@ def create_certification(
 
     if existing:
         raise HTTPException(status_code=400, detail=f"Certification code {request.cert_code} already exists")
+    if request.level not in CERTIFICATION_LEVELS:
+        raise HTTPException(status_code=400, detail=f"level must be one of {list(CERTIFICATION_LEVELS)}")
+    if request.guidewire_level is not None and request.guidewire_level not in GUIDEWIRE_CERT_LEVELS:
+        raise HTTPException(status_code=400, detail=f"guidewire_level must be one of {list(GUIDEWIRE_CERT_LEVELS)}")
 
     cert = Certification(
         cert_name=request.cert_name,
@@ -89,6 +97,7 @@ def create_certification(
         level=request.level,
         validity_months=request.validity_months,
         is_core_certification=request.is_core_certification,
+        guidewire_level=request.guidewire_level,
         tenant_id=tenant_id_of(current_user),
     )
     db.add(cert)
@@ -97,6 +106,14 @@ def create_certification(
 
     logger.info(f"[CERT] Created certification: {cert.cert_code}")
     return cert
+
+@router.get(
+    "/options",
+    dependencies=[Depends(require_resource_permission("certifications", "view"))],
+)
+def certification_catalog_options():
+    """The catalog form's choices, from the backend's own lists."""
+    return {"levels": list(CERTIFICATION_LEVELS), "guidewire_levels": list(GUIDEWIRE_CERT_LEVELS)}
 
 @router.get(
     "/list",

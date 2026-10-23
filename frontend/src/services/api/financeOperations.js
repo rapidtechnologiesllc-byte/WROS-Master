@@ -80,7 +80,19 @@ export const listIntercompanySettlements = async () => {
   return data;
 };
 
-export const getEntityNetPosition = async (entity) => {
-  const { data } = await apiRequest(`/intercompany-settlements/entity/${entity}/net-position`, { method: "GET" });
+// Link an old settlement (recorded by free-text name that matched no company) to its companies
+export const linkIntercompanySettlement = async (settlementId, fromCompanyId, toCompanyId) => {
+  const { data } = await apiRequest(`/intercompany-settlements/${settlementId}/link-companies`, {
+    method: "POST",
+    body: JSON.stringify({ from_company_id: fromCompanyId, to_company_id: toCompanyId }),
+  });
+  return data;
+};
+
+// Net intercompany position of one company (by its id: settlements reference companies, not names)
+export const getCompanyNetPosition = async (companyId) => {
+  const { data } = await apiRequest(`/intercompany-settlements/company/${encodeURIComponent(companyId)}/net-position`, {
+    method: "GET",
+  });
   return data;
 };

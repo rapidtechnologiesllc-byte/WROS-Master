@@ -21,7 +21,14 @@ class IntercompanySettlement(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    from_entity = Column(String(512), nullable=False)  # e.g. "BXIN", "BXUS" -- free text, no fixed enum yet
+    # The companies (legal entities, app.models.location.Location) money moved between. Required on
+    # every new entry; only entries recorded before 2026-10-23 whose free-text name matched no
+    # company keep NULL (the intercompany_company_links data migration raised a Finance task).
+    from_company_id = Column(String(512), ForeignKey("locations.id", ondelete="RESTRICT"), nullable=True, index=True)
+    to_company_id = Column(String(512), ForeignKey("locations.id", ondelete="RESTRICT"), nullable=True, index=True)
+    # Display names, copied from the companies when the entry is recorded (history keeps its label
+    # if a company is renamed). Never used to match a company: the ids above do that.
+    from_entity = Column(String(512), nullable=False)
     to_entity = Column(String(512), nullable=False)
     # The BU the billed work belongs to, so the receiving company's revenue
     # rolls up to that BU and its partner in the goal tree
