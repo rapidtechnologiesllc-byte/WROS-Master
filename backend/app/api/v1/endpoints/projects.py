@@ -30,7 +30,9 @@ the project through _get_project_or_404 (tenant + scope).
 Routes:
   POST   /projects                              Create a project.
   GET    /projects                               List (optional client_id/status filter).
+  GET    /projects/options                       Billing types, statuses, currencies, managers.
   GET    /projects/{id}                          Get one project.
+  PATCH  /projects/{id}                          Edit name, dates, billing type, project manager.
   POST   /projects/{id}/status                   Transition status.
   POST   /projects/{id}/milestones               Create a milestone.
   GET    /projects/{id}/milestones               List milestones.
@@ -50,7 +52,10 @@ from app.core.logging import logger
 from app.services.message_queue_service import MessageQueueService
 from app.models.client import Client
 from app.models.project import (
+    BILLING_TYPES,
     CORE_CURRENCIES,
+    PROJECT_BUSINESS_TYPES,
+    PROJECT_STATUSES,
     Project,
     ProjectMilestone,
     SPECIALITY_CURRENCIES,
@@ -65,24 +70,37 @@ from app.schemas.project import (
     MilestoneListResponse,
     ProjectItem,
     ProjectListResponse,
+    ProjectManagerOption,
+    ProjectOptionsResponse,
     TransitionProjectStatusRequest,
+    UpdateProjectRequest,
     UnfilledRoleItem,
     UnfilledRolesResponse,
 )
 from app.services.project_service import (
+    PROJECT_STATUS_TRANSITIONS,
     InvalidProjectTransition,
     MilestoneValidationError,
+    ProjectValidationError,
     calculate_project_expected_revenue,
     complete_milestone,
     create_milestone,
     create_project,
     get_unfilled_project_roles,
     transition_project_status,
+    update_project,
 )
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
-def _to_item(project: Project) -> ProjectItem:
+def _manager_names(db: Session, projects) -> dict:
+    ids = {p.manager_user_id for p in projects if p.manager_user_id}
+    if not ids:
+        return {}
+    return {uid: name or email for uid, name, email in
+            db.query(Users.UserID, Users.UserName, Users.UserEmail).filter(Users.UserID.in_(ids)).all()}
+
+def _to_item(project: Project, manager_names: Optional[dict] = None) -> ProjectItem:
     return ProjectItem(
         id=project.id, client_id=project.client_id, opportunity_id=project.opportunity_id,
         name=project.name, status=project.status, billing_type=project.billing_type,
@@ -92,7 +110,12 @@ def _to_item(project: Project) -> ProjectItem:
         business_type=project.business_type,
         allow_weekend_billing=project.allow_weekend_billing, is_billable=project.is_billable,
         start_date=project.start_date, end_date=project.end_date,
+        manager_user_id=project.manager_user_id,
+        manager_name=(manager_names or {}).get(project.manager_user_id),
     )
+
+def _one_item(db: Session, project: Project) -> ProjectItem:
+    return _to_item(project, _manager_names(db, [project]))
 
 def _milestone_to_item(m: ProjectMilestone) -> MilestoneItem:
     return MilestoneItem(
@@ -164,21 +187,20 @@ def create_project_endpoint(
             detail=f"Core Engine projects must be billed in {' or '.join(CORE_CURRENCIES)}.",
         )
 
-    project = create_project(
-        db, tenant_id=current_user.tenant_id, client_id=body.client_id, name=body.name,
-        billing_type=body.billing_type, currency=body.currency, continent=body.continent,
-        delivery_engine=delivery_engine, si_partner=si_partner,
-        end_client=body.end_client, client_partner=body.client_partner,
-        business_type=body.business_type,
-        created_by=current_user.UserID,
-    )
+    try:
+        project = create_project(
+            db, tenant_id=current_user.tenant_id, client_id=body.client_id, name=body.name,
+            billing_type=body.billing_type, currency=body.currency, continent=body.continent,
+            delivery_engine=delivery_engine, si_partner=si_partner,
+            end_client=body.end_client, client_partner=body.client_partner,
+            business_type=body.business_type,
+            created_by=current_user.UserID,
+            start_date=body.start_date, end_date=body.end_date, manager_user_id=body.manager_user_id,
+        )
+    except ProjectValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     project.allow_weekend_billing = body.allow_weekend_billing
     project.is_billable = body.is_billable
-
-    # Idempotency check - prevent duplicate inserts on retry
-    existing_project = db.query(Project).filter(Project.id == project.id).first()
-    if existing_project:
-        raise HTTPException(status_code=409, detail=f"Project {project.id} already exists")
 
     db.add(project)
     db.commit()  # PERSIST PROJECT TO DATABASE FIRST
@@ -191,6 +213,7 @@ def create_project_endpoint(
     try:
         MessageQueueService.enqueue(
             task_name="project_created",
+            tenant_id=project.tenant_id,
             data={
                 "project_id": project.id,
                 "project_name": project.name,
@@ -201,7 +224,7 @@ def create_project_endpoint(
             }
         )
         db.refresh(project)
-        return _to_item(project)
+        return _one_item(db, project)
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to create project: {str(e)}", exc_info=True)
@@ -227,7 +250,72 @@ def list_projects(
     if status:
         query = query.filter(Project.status == status)
     projects = query.order_by(Project.created_at.desc()).all()
-    return ProjectListResponse(projects=[_to_item(p) for p in projects])
+    names = _manager_names(db, projects)
+    return ProjectListResponse(projects=[_to_item(p, names) for p in projects])
+
+
+@router.get(
+    "/options",
+    response_model=ProjectOptionsResponse,
+    summary="Choices for the project form: billing types, statuses, currencies, project managers",
+    dependencies=[Depends(require_resource_permission("projects", "view"))]
+)
+def project_options(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """The backend's own lists (app.models.project), so the screen never hardcodes them; managers
+    are the tenant's active internal users."""
+    managers = (
+        db.query(Users.UserID, Users.UserName, Users.UserEmail)
+        .filter(Users.tenant_id == current_user.tenant_id, Users.terminated_at.is_(None))
+        .order_by(Users.UserName, Users.UserEmail).all()
+    )
+    return ProjectOptionsResponse(
+        billing_types=list(BILLING_TYPES),
+        business_types=list(PROJECT_BUSINESS_TYPES),
+        statuses=list(PROJECT_STATUSES),
+        status_transitions={k: sorted(v) for k, v in PROJECT_STATUS_TRANSITIONS.items()},
+        currencies_by_engine={"SPECIALITY": list(SPECIALITY_CURRENCIES), "CORE": list(CORE_CURRENCIES)},
+        managers=[ProjectManagerOption(user_id=uid, name=name, email=email) for uid, name, email in managers],
+    )
+
+
+@router.get(
+    "/{project_id}",
+    response_model=ProjectItem,
+    summary="Get one project",
+    dependencies=[Depends(require_resource_permission("projects", "view"))]
+)
+def get_project(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    return _one_item(db, _get_project_or_404(db, project_id, current_user))
+
+
+@router.patch(
+    "/{project_id}",
+    response_model=ProjectItem,
+    summary="Edit a project's name, start/end dates, billing type and project manager",
+    dependencies=[Depends(require_resource_permission("projects", "edit"))]
+)
+def update_project_endpoint(
+    project_id: str,
+    body: UpdateProjectRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    project = _get_project_or_404(db, project_id, current_user)
+    try:
+        update_project(db, project, body.model_dump(exclude_unset=True))
+    except ProjectValidationError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+    db.commit()
+    db.refresh(project)
+    return _one_item(db, project)
 
 
 @router.post(
@@ -247,10 +335,12 @@ def transition_status(
         project = transition_project_status(db, project, body.status)
     except InvalidProjectTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+    db.commit()  # the transition is persisted before anyone is told about it
 
     try:
         MessageQueueService.enqueue(
             task_name="project_status_changed",
+            tenant_id=project.tenant_id,
             data={
                 "project_id": project.id,
                 "project_name": project.name,
@@ -258,7 +348,7 @@ def transition_status(
             }
         )
         db.refresh(project)
-        return _to_item(project)
+        return _one_item(db, project)
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to transition project status: {str(e)}", exc_info=True)
@@ -282,10 +372,12 @@ def create_milestone_endpoint(
         tenant_id=current_user.tenant_id, description=body.description,
         owner_employee_id=body.owner_employee_id,
     )
+    db.commit()
 
     try:
         MessageQueueService.enqueue(
             task_name="milestone_created",
+            tenant_id=project.tenant_id,
             data={
                 "milestone_id": milestone.id,
                 "project_id": project.id,
@@ -343,10 +435,12 @@ def complete_milestone_endpoint(
         milestone = complete_milestone(db, milestone, completion_date=body.completion_date)
     except MilestoneValidationError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+    db.commit()
 
     try:
         MessageQueueService.enqueue(
             task_name="milestone_completed",
+            tenant_id=current_user.tenant_id,
             data={
                 "milestone_id": milestone.id,
                 "project_id": project_id,

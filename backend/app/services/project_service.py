@@ -18,7 +18,8 @@ from app.models.demand import Demand
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.opportunity import Opportunity
-from app.models.project import Project, ProjectMilestone
+from app.models.project import BILLING_TYPES, Project, ProjectMilestone
+from app.models.user import Users
 
 PROJECT_STATUS_TRANSITIONS = {
     "PLANNING": {"ACTIVE", "CLOSED"},
@@ -35,6 +36,28 @@ class InvalidProjectTransition(Exception):
 
 class MilestoneValidationError(Exception):
     pass
+
+class ProjectValidationError(ValueError):
+    """A project field the caller sent is not valid (unknown billing type, end before start,
+    unknown manager). The REST layer answers 400."""
+
+def _validate_billing_type(billing_type: str) -> None:
+    if billing_type not in BILLING_TYPES:
+        raise ProjectValidationError(f"billing_type must be one of {list(BILLING_TYPES)}, not {billing_type!r}.")
+
+def _validate_dates(start_date: Optional[date], end_date: Optional[date]) -> None:
+    if start_date and end_date and end_date < start_date:
+        raise ProjectValidationError(f"end_date {end_date} is before start_date {start_date}.")
+
+def _validate_manager(db: Session, manager_user_id: Optional[str], tenant_id: Optional[int]) -> None:
+    """The manager must be an active internal user of the project's tenant."""
+    if manager_user_id is None:
+        return
+    query = db.query(Users.UserID).filter(Users.UserID == manager_user_id, Users.terminated_at.is_(None))
+    if tenant_id is not None:
+        query = query.filter(Users.tenant_id == tenant_id)
+    if query.first() is None:
+        raise ProjectValidationError(f"Project manager {manager_user_id!r} is not an active user of this tenant.")
 
 class SiPartnerRequired(Exception):
     """S-358/HRMS-0519 BR: SI Partner Mandatory for SPECIALITY Projects.
@@ -66,6 +89,7 @@ def create_project_from_won_opportunity(
 ) -> Project:
     """HRMS-0801 BR-0801-01: inherits client_id/currency directly from
     the won opportunity, no manual re-selection."""
+    _validate_billing_type(billing_type)
     if opportunity.stage != "CONTRACT":
         raise ValueError(f"Cannot create a project from opportunity {opportunity.id} -- stage is "
                          f"'{opportunity.stage}', not CONTRACT (the signed contract is the win).")
@@ -91,17 +115,50 @@ def create_project(
     end_client: Optional[str] = None, client_partner: Optional[str] = None,
     business_type: Optional[str] = None,
     created_by: Optional[str] = None,
+    start_date: Optional[date] = None, end_date: Optional[date] = None,
+    manager_user_id: Optional[str] = None,
 ) -> Project:
     """Manual creation path for non-opportunity-originated work (e.g. an
     existing client's direct follow-on request)."""
+    _validate_billing_type(billing_type)
+    _validate_dates(start_date, end_date)
+    _validate_manager(db, manager_user_id, tenant_id)
     project = Project(
         tenant_id=tenant_id, client_id=client_id, name=name, status="ACTIVE",
         billing_type=billing_type, currency=currency, continent=continent,
         delivery_engine=delivery_engine, si_partner=si_partner,
         end_client=end_client, client_partner=client_partner, business_type=business_type,
-        created_by=created_by,
+        created_by=created_by, start_date=start_date, end_date=end_date, manager_user_id=manager_user_id,
     )
     db.add(project)
+    return project
+
+EDITABLE_PROJECT_FIELDS = ("name", "start_date", "end_date", "billing_type", "manager_user_id")
+
+def update_project(db: Session, project: Project, changes: dict) -> Project:
+    """Edit a project's name, dates, billing type and project manager. `changes` holds only the
+    fields the caller sent; start_date, end_date and manager_user_id may be None to clear them.
+    Dates make the fixed-bid burn rate (client_revenue_dashboard_service) computable."""
+    unknown = set(changes) - set(EDITABLE_PROJECT_FIELDS)
+    if unknown:
+        raise ProjectValidationError(f"Cannot edit {sorted(unknown)}; editable: {list(EDITABLE_PROJECT_FIELDS)}.")
+    if "name" in changes:
+        name = (changes["name"] or "").strip()
+        if not name:
+            raise ProjectValidationError("Project name cannot be empty.")
+        changes = {**changes, "name": name}
+    if "billing_type" in changes:
+        if changes["billing_type"] is None:
+            raise ProjectValidationError("billing_type cannot be cleared.")
+        _validate_billing_type(changes["billing_type"])
+    _validate_dates(changes.get("start_date", project.start_date), changes.get("end_date", project.end_date))
+    if "manager_user_id" in changes:
+        _validate_manager(db, changes["manager_user_id"], project.tenant_id)
+    for field, value in changes.items():
+        setattr(project, field, value)
+    project.updated_at = datetime.utcnow()
+    db.add(project)
+    logger.info(f"[Project] {project.id} updated: {sorted(changes)}")
     return project
 
 def transition_project_status(db: Session, project: Project, new_status: str) -> Project:
@@ -184,11 +241,17 @@ def calculate_project_expected_revenue(db: Session, project: Project, *, now: Op
     grade figure -- every result carries an "Estimate only -- not a
     finance figure" label, and missing cost data returns an explicit
     "insufficient data" state rather than a misleadingly confident
-    number. Expected revenue = sum(billing_rate_usd_cents * 8h *
-    business_days_remaining * utilization_pct) per active allocation;
-    resource cost prorates Employee.base_salary_usd_cents (monthly)
-    over the same remaining span.
+    number.
+
+    For each active allocation, over its remaining span (from today or its start, whichever is
+    later, to its end date): hours = standard daily hours x business days x utilization;
+    revenue = hours x bill rate; cost = hours x the employee's hourly LOADED cost (salary +
+    statutory + overhead, revenue_chain_service.CostBook) -- the same cost the P&L charges for
+    delivered hours, so this estimate and the P&L margin can never disagree on cost.
     """
+    from app.core.config import settings
+    from app.services.revenue_chain_service import CostBook
+
     now = now or date.today()
     allocations = db.query(EmployeeAllocation).filter(
         EmployeeAllocation.project_id == project.id,
@@ -201,8 +264,10 @@ def calculate_project_expected_revenue(db: Session, project: Project, *, now: Op
             "note": "Estimate only -- not a finance figure. No active allocations to estimate from.",
         }
 
-    total_revenue = 0
-    total_cost = 0
+    costs = CostBook(db)
+    daily_hours = settings.STANDARD_DAILY_HOURS
+    total_revenue = 0.0
+    total_cost = 0.0
     missing_cost_data = False
 
     for allocation in allocations:
@@ -210,17 +275,19 @@ def calculate_project_expected_revenue(db: Session, project: Project, *, now: Op
             missing_cost_data = True
             continue
 
-        remaining_days = max(0, (allocation.end_date - now).days)
+        span_start = max(now, allocation.start_date) if allocation.start_date else now
+        remaining_days = max(0, (allocation.end_date - span_start).days)
         business_days = remaining_days * 5 / 7  # rough weekday approximation
         utilization = float(allocation.utilization_pct or 100) / 100
-        total_revenue += allocation.billing_rate_usd_cents * 8 * business_days * utilization
+        hours = daily_hours * business_days * utilization
+        total_revenue += allocation.billing_rate_usd_cents * hours
 
         employee = db.query(Employee).filter(Employee.id == allocation.employee_id).first()
-        if employee and employee.base_salary_usd_cents:
-            remaining_months = remaining_days / 30
-            total_cost += employee.base_salary_usd_cents * remaining_months
-        else:
+        hourly = costs.hourly(employee, span_start) if employee is not None else None
+        if hourly is None:
             missing_cost_data = True
+        else:
+            total_cost += hourly * hours
 
     if missing_cost_data and total_revenue == 0:
         return {
@@ -235,7 +302,7 @@ def calculate_project_expected_revenue(db: Session, project: Project, *, now: Op
         margin_indicator = "INSUFFICIENT_DATA"
     elif margin < 0:
         margin_indicator = "AT_RISK"
-    elif total_revenue and margin / total_revenue < 0.2:
+    elif total_revenue and margin / total_revenue * 100 < settings.PROJECT_MARGIN_TIGHT_PCT:
         margin_indicator = "TIGHT"
     else:
         margin_indicator = "HEALTHY"
@@ -244,5 +311,6 @@ def calculate_project_expected_revenue(db: Session, project: Project, *, now: Op
         "expected_revenue_usd_cents": expected_revenue,
         "margin_usd_cents": margin,
         "margin_indicator": margin_indicator,
-        "note": "Estimate only -- not a finance figure.",
+        "note": "Estimate only -- not a finance figure. Cost is loaded cost (salary + statutory + overhead), "
+                "as in the P&L.",
     }

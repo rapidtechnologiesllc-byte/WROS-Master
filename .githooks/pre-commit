@@ -6,7 +6,8 @@
 
 set -e  # Exit on ANY gate failure
 
-GATE_LOG_FILE=".git/gate-audit.log"
+# The repository's git directory: in a linked worktree .git is a file, not a directory
+GATE_LOG_FILE="$(git rev-parse --git-dir)/gate-audit.log"
 GATE_FAILURES=0
 GATE_PASSED=1
 

@@ -338,6 +338,16 @@ class Settings:
     EMPLOYEE_IMPORT_MAX_ROWS: int = int(os.getenv("EMPLOYEE_IMPORT_MAX_ROWS", "2000"))
     # planned billable hours per business day for projected revenue (allocation x utilization)
     STANDARD_DAILY_HOURS: float = float(os.getenv("STANDARD_DAILY_HOURS", "8"))
+    # Project expected-revenue estimate: a positive margin below this % of revenue shows as TIGHT
+    PROJECT_MARGIN_TIGHT_PCT: float = float(os.getenv("PROJECT_MARGIN_TIGHT_PCT", "20"))
+    # Utilization: a billable employee below this % in their latest week is flagged on the
+    # Utilization dashboard (the target the dashboard measures against)
+    UTILIZATION_TARGET_PCT: float = float(os.getenv("UTILIZATION_TARGET_PCT", "50"))
+    # Available hours in a week, the denominator of weekly utilization
+    UTILIZATION_STANDARD_WEEKLY_HOURS: float = float(os.getenv("UTILIZATION_STANDARD_WEEKLY_HOURS", "40"))
+    # The weekly utilization_snapshot job recomputes this many completed weeks (so late timesheet
+    # approvals are picked up)
+    UTILIZATION_SNAPSHOT_WEEKS: int = int(os.getenv("UTILIZATION_SNAPSHOT_WEEKS", "4"))
 
     # Background jobs (app/core/scheduled_jobs.py): comma-separated names. Unset = every
     # registered job (all internal: drafts, staff reminders, AR tasks, metrics); set it to ""
