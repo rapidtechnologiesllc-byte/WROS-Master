@@ -341,12 +341,13 @@ def update_client_response(
 
 
 def _already_allocated(db: Session, submission: Submission, demand) -> bool:
-    from app.models.employee_allocation import EmployeeAllocation
+    from app.models.employee_allocation import HOLDING_STATUSES, EmployeeAllocation
 
     employee = db.query(Employee).filter(Employee.candidate_id == submission.candidate_id).first()
+    # an allocation awaiting margin approval is the placement too (it is not created twice)
     return employee is not None and db.query(EmployeeAllocation).filter(
         EmployeeAllocation.employee_id == employee.id, EmployeeAllocation.demand_id == demand.id,
-        EmployeeAllocation.status == "ACTIVE",
+        EmployeeAllocation.status.in_(HOLDING_STATUSES),
     ).first() is not None
 
 
@@ -355,7 +356,7 @@ def _allocate_placed_employee(db: Session, submission: Submission, demand, start
     ACTIVE allocation timesheets and invoices hang off. Idempotent per
     employee+job; a conflicting active allocation elsewhere is raised, not
     silently skipped, so the placement can't be recorded half-done."""
-    from app.models.employee_allocation import EmployeeAllocation
+    from app.models.employee_allocation import HOLDING_STATUSES, EmployeeAllocation
     from app.models.project import Project
     from app.services.employee_allocation_service import allocate_employee_to_project
 
@@ -369,7 +370,7 @@ def _allocate_placed_employee(db: Session, submission: Submission, demand, start
         raise AllocationNeedsClient(f"Job {demand.id} has no client. Set the client on the job before placing.")
     already = db.query(EmployeeAllocation).filter(
         EmployeeAllocation.employee_id == employee.id, EmployeeAllocation.demand_id == demand.id,
-        EmployeeAllocation.status == "ACTIVE",
+        EmployeeAllocation.status.in_(HOLDING_STATUSES),
     ).first()
     if already:
         return

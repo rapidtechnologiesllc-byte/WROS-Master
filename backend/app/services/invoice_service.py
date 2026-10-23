@@ -26,6 +26,10 @@ logger = logging.getLogger(__name__)
 class UnapprovedTimesheetBlocksInvoice(Exception):
     """R-10: no exceptions, no bypass."""
 
+class AllocationNotBillable(UnapprovedTimesheetBlocksInvoice):
+    """A timesheet whose allocation is awaiting margin approval (or was rejected) is never billed
+    (CEO 2026-10-23 margin guard): the placement is not approved, so neither is its time."""
+
 class OpenDisputeBlocksInvoice(Exception):
     """HRMS-0904 BR-02."""
 
@@ -69,6 +73,7 @@ class MissingBillingContact(Exception):
     """The client has no active ACCOUNTS contact to email the invoice to."""
 
 INVOICE_EMAIL_TASK = "send_invoice_email"
+NOT_BILLABLE_ALLOCATION_STATUSES = ("PENDING_MARGIN_APPROVAL", "MARGIN_REJECTED")
 
 def _timesheets_in_period(db: Session, project: Project, period_start, period_end) -> List[Timesheet]:
     """Every week that overlaps the period: a week can straddle two months, and its days
@@ -161,7 +166,17 @@ def generate_invoice(
             EmployeeAllocation.id.in_({ts.allocation_id for ts, _ in to_bill})
         )
     }
-    unpriced = sorted({ts.employee_id for ts, _ in to_bill if not allocations[ts.allocation_id].billing_rate_usd_cents})
+    held = sorted({a.id for a in allocations.values() if a.status in NOT_BILLABLE_ALLOCATION_STATUSES})
+    if held:
+        raise AllocationNotBillable(
+            f"Cannot generate invoice -- allocation(s) {held} are awaiting margin approval (or were rejected); "
+            "their time is billed only once the placement is approved.")
+    # the rate in force in each timesheet's week: a rate change never reprices a past week
+    from app.services.employee_allocation_service import RateHistory
+
+    rates = RateHistory(db, allocations.keys())
+    rate_of = {ts.id: rates.rate(allocations[ts.allocation_id], ts.week_starting_date) for ts, _ in to_bill}
+    unpriced = sorted({ts.employee_id for ts, _ in to_bill if not rate_of[ts.id]})
     if unpriced:
         raise MissingBillRate(
             f"Cannot generate invoice -- {len(unpriced)} employee(s) have billable hours but no bill rate on their allocation "
@@ -183,7 +198,7 @@ def generate_invoice(
 
     total = 0
     for ts, hours in to_bill:
-        rate = allocations[ts.allocation_id].billing_rate_usd_cents
+        rate = rate_of[ts.id]
         amount = round(rate * hours)
         total += amount
         db.add(InvoiceLineItem(

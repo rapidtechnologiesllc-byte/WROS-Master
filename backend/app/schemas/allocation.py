@@ -5,7 +5,7 @@ Pydantic schemas — S-251 (Allocate Employee to Project) + S-252
 
 import logging
 from datetime import date, datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -49,6 +49,16 @@ class AllocationItem(BaseModel):
     business_unit_name: Optional[str] = None
     created_at: datetime
     billable: bool = True
+    project_name: Optional[str] = None
+    renewal_status: Optional[str] = None
+    renewal_owner_user_id: Optional[str] = None
+    renewal_note: Optional[str] = None
+    margin_pct: Optional[float] = None
+    margin_check: Optional[str] = None
+    # a change (or this placement) waiting for margin approval
+    pending_change: Optional["AllocationChangeItem"] = None
+    # the margin guard's verdict on create (flags NO_MARGIN_FLOOR_CONFIGURED etc.)
+    margin: Optional["MarginCheck"] = None
 
 class AllocationListResponse(BaseModel):
     allocations: List[AllocationItem]
@@ -73,3 +83,125 @@ class JobDropdownItem(BaseModel):
 class AllocationDropdownsResponse(BaseModel):
     employees: List[DropdownItem]
     demands: List[JobDropdownItem]
+
+
+class MarginCheck(BaseModel):
+    """The margin guard's verdict on a placement or proposed terms (margin_guard_service)."""
+    margin_check: str
+    margin_pct: Optional[float] = None
+    loaded_hourly_cost_usd_cents: Optional[int] = None
+    min_margin_pct: Optional[float] = None
+    hard_floor_pct: Optional[float] = None
+    margin_policy_id: Optional[int] = None
+    delivery_engine: Optional[str] = None
+    country: Optional[str] = None
+    approval_level: Optional[str] = None
+    message: str
+    flags: List[str] = []
+
+
+class MarginPreviewRequest(BaseModel):
+    """Live margin in the allocation form: a new placement (employee + job) or an edit (allocation_id)."""
+    employee_id: Optional[str] = None
+    demand_id: Optional[str] = None
+    project_id: Optional[str] = None
+    allocation_id: Optional[str] = None
+    billing_rate_usd_cents: Optional[int] = None
+    billable: Optional[bool] = None
+    start_date: Optional[date] = None
+    role: Optional[str] = None
+
+
+class AllocationChangeItem(BaseModel):
+    id: str
+    allocation_id: str
+    change_type: str
+    status: str
+    old_values: Optional[Dict[str, Any]] = None
+    new_values: Dict[str, Any]
+    effective_from: Optional[date] = None
+    reason: str
+    changed_by_user_id: Optional[str] = None
+    changed_by_name: Optional[str] = None
+    changed_at: Optional[datetime] = None
+    margin_pct: Optional[float] = None
+    margin_check: Optional[str] = None
+    min_margin_pct: Optional[float] = None
+    hard_floor_pct: Optional[float] = None
+    approval_level: Optional[str] = None
+    approver_user_id: Optional[str] = None
+    approver_name: Optional[str] = None
+    task_id: Optional[int] = None
+    decided_by_user_id: Optional[str] = None
+    decided_at: Optional[datetime] = None
+    decision_reason: Optional[str] = None
+
+
+class AllocationHistoryResponse(BaseModel):
+    changes: List[AllocationChangeItem]
+
+
+class UpdateAllocationRequest(BaseModel):
+    """PATCH /allocations/{id}: only the fields sent change (end_date: null = open-ended).
+    effective_from: the Monday a new bill rate applies from (default: the first unbilled week)."""
+    end_date: Optional[date] = None
+    billing_rate_usd_cents: Optional[int] = None
+    utilization_pct: Optional[float] = None
+    billable: Optional[bool] = None
+    effective_from: Optional[date] = None
+    reason: str
+
+
+class AllocationEditResponse(BaseModel):
+    allocation: "AllocationItem"
+    change: AllocationChangeItem
+
+
+class MarginDecisionRequest(BaseModel):
+    reason: str
+
+
+class RenewalUpdateRequest(BaseModel):
+    """Renewal status / owner / note. owner_user_id "" clears the owner (back to the default)."""
+    renewal_status: Optional[str] = None
+    owner_user_id: Optional[str] = None
+    note: Optional[str] = None
+    reason: Optional[str] = None
+
+
+class RenewalItem(BaseModel):
+    allocation_id: str
+    employee_id: str
+    employee_name: Optional[str] = None
+    client_id: str
+    client_name: Optional[str] = None
+    job_title: Optional[str] = None
+    role: Optional[str] = None
+    start_date: date
+    end_date: Optional[date] = None
+    days_left: Optional[int] = None
+    billing_rate_usd_cents: Optional[int] = None
+    utilization_pct: Optional[float] = None
+    renewal_status: str
+    renewal_note: Optional[str] = None
+    renewal_owner_user_id: Optional[str] = None
+    renewal_owner_name: Optional[str] = None
+    renewal_owner_source: Optional[str] = None
+    renewal_updated_at: Optional[datetime] = None
+    margin_pct: Optional[float] = None
+    margin_check: Optional[str] = None
+    change_pending_approval: bool = False
+
+
+class RenewalListResponse(BaseModel):
+    days: int
+    alert_days: List[int]
+    renewals: List[RenewalItem]
+
+
+class MarginApprovalListResponse(BaseModel):
+    approvals: List[AllocationChangeItem]
+
+
+AllocationItem.model_rebuild()
+AllocationEditResponse.model_rebuild()

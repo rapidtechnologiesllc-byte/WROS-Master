@@ -49,7 +49,9 @@ def sync_billing_classification(db: Session, employee: Employee) -> None:
 def bench_start_from_history(db: Session, employee: Employee, today: Optional[date] = None) -> date:
     """The real first bench day: the day after their last allocation ended, else their joining date."""
     last_end = db.query(func.max(EmployeeAllocation.end_date)).filter(
-        EmployeeAllocation.employee_id == employee.id, EmployeeAllocation.status != "ACTIVE").scalar()
+        EmployeeAllocation.employee_id == employee.id,
+        # ended allocations only: one awaiting margin approval (or rejected) never ran
+        EmployeeAllocation.status.in_(("ENDED", "CORE_PULLED"))).scalar()
     start = (last_end + timedelta(days=1)) if last_end else employee.joining_date
     start = max(start, employee.joining_date)
     return min(start, today or date.today())

@@ -51,7 +51,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.business_unit import BusinessUnit
 from app.models.employee import Employee
-from app.models.employee_allocation import EmployeeAllocation
+from app.models.employee_allocation import HOLDING_STATUSES, EmployeeAllocation
 from app.models.employee_import import EmployeeImportBatch
 from app.models.location import Location
 from app.models.role_template import RoleTemplate
@@ -514,7 +514,7 @@ def _plan_one(lk: _Lookups, number: int, row: Dict[str, str], seen: Dict[str, in
             changes.append(f"login: {login}")
         allocation_needed = spec.job is not None and not db.query(EmployeeAllocation).filter(
             EmployeeAllocation.employee_id == employee.id, EmployeeAllocation.demand_id == spec.job.jobID,
-            EmployeeAllocation.status == "ACTIVE").first()
+            EmployeeAllocation.status.in_(HOLDING_STATUSES)).first()
         if allocation_needed:
             changes.append(f"allocate to {spec.job.jobTitle}")
         plan["changes"] = changes
@@ -735,7 +735,9 @@ def _allocate(db: Session, employee: Employee, spec: Spec, uploader: Users) -> N
     allocate_employee_to_project(
         db, tenant_id=employee.tenant_id, employee=employee, demand=spec.job, start_date=spec.allocation_start,
         end_date=spec.allocation_end, utilization_pct=spec.allocation_pct, changed_by=uploader.UserID,
-        billing_rate_usd_cents=spec.bill_rate_cents, allow_concurrent=True)
+        billing_rate_usd_cents=spec.bill_rate_cents, allow_concurrent=True,
+        # existing staff on an existing placement: the margin is checked and recorded, never held
+        existing_placement=True)
 
 
 def _apply_create(db: Session, spec: Spec, uploader: Users) -> Tuple[Employee, Users, bool]:
@@ -791,7 +793,7 @@ def _apply_update(db: Session, employee: Employee, spec: Spec, uploader: Users) 
     set_billable(db, employee, spec.billable, changed_by=uploader.UserID)
     if spec.job is not None and not db.query(EmployeeAllocation).filter(
             EmployeeAllocation.employee_id == employee.id, EmployeeAllocation.demand_id == spec.job.jobID,
-            EmployeeAllocation.status == "ACTIVE").first():
+            EmployeeAllocation.status.in_(HOLDING_STATUSES)).first():
         _allocate(db, employee, spec, uploader)
     sync_billing_classification(db, employee)
     db.add(employee)

@@ -72,6 +72,10 @@ _JOBS = (
     # weeks (resource_management_service.run_utilization_snapshot); writes metrics, tells nobody
     ScheduledJob("utilization_snapshot", "app.services.resource_management_service:run_utilization_snapshot",
                  timedelta(days=7), timeout_s=600, daily_after_utc="06:00"),
+    # internal only: one task for the renewal owner when an ACTIVE allocation ends in
+    # RENEWAL_ALERT_DAYS (60/30/15) days; never twice for the same allocation, term and threshold
+    ScheduledJob("renewal_alerts", "app.services.allocation_renewal_service:run_renewal_alerts",
+                 timedelta(days=1), timeout_s=300, daily_after_utc="06:00"),
     ScheduledJob("birthday_drafts", "app.services.culture_agent_service:generate_birthday_drafts",
                  timedelta(days=1), timeout_s=120, daily_after_utc="03:00"),
 )

@@ -354,6 +354,15 @@ class Settings:
     # approvals are picked up)
     UTILIZATION_SNAPSHOT_WEEKS: int = int(os.getenv("UTILIZATION_SNAPSHOT_WEEKS", "4"))
 
+    # Renewal pipeline (CEO 2026-10-23): days before an ACTIVE allocation's end date at which its
+    # renewal owner gets an alert task (comma list, e.g. "60,30,15"); how long that task runs; and
+    # how far ahead the Renewals tab looks by default
+    RENEWAL_ALERT_DAYS: str = os.getenv("RENEWAL_ALERT_DAYS", "60,30,15")
+    RENEWAL_TASK_DUE_DAYS: int = int(os.getenv("RENEWAL_TASK_DUE_DAYS", "7"))
+    RENEWAL_LIST_DAYS: int = int(os.getenv("RENEWAL_LIST_DAYS", "90"))
+    # Margin floor approvals (rate card, CEO 2026-10-23): how long the approver's task runs
+    MARGIN_APPROVAL_TASK_DUE_DAYS: int = int(os.getenv("MARGIN_APPROVAL_TASK_DUE_DAYS", "2"))
+
     # Background jobs (app/core/scheduled_jobs.py): comma-separated names. Unset = every
     # registered job (all internal: drafts, staff reminders, AR tasks, metrics); set it to ""
     # in .env to switch them all off, or to a shorter list
@@ -361,7 +370,7 @@ class Settings:
         "SCHEDULED_JOBS_ENABLED",
         "timesheet_draft_creation,timesheet_reminders,ar_follow_up,expire_bu_ownerships,"
         "daily_revenue_scan,engagement_metrics,birthday_drafts,hiring_pipeline_sweep,client_start_date,auto_invoicing,"
-        "utilization_snapshot",
+        "utilization_snapshot,renewal_alerts",
     )
     SCHEDULED_JOB_LEASE_GRACE_SECONDS: int = int(os.getenv("SCHEDULED_JOB_LEASE_GRACE_SECONDS", "120"))
 

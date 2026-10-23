@@ -22,6 +22,9 @@ import {
 import { apiRequest } from "../services/api/client";
 import { getAllocations, endAllocation } from "../services/api/allocations";
 import AllocationForm from "../components/AllocationForm";
+import AllocationEditModal from "../components/AllocationEditModal";
+import { marginLabel } from "../components/AllocationMargin";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
 import { AddEmployeeModal, ImportEmployeesModal } from "../components/EmployeeImport";
 import { confirmDialog } from "../utils/dialogs";
 
@@ -313,7 +316,7 @@ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
     setLoadingAllocs(true);
     try {
       const data = await getAllocations({ employeeId: employee.id });
-      setAllocations(data.filter((a) => a.status === "ACTIVE"));
+      setAllocations(data.filter((a) => a.status === "ACTIVE" || a.status === "PENDING_MARGIN_APPROVAL"));
     } catch (err) {
       console.error("Failed to load allocations:", err);
       setOrgMessage(`Could not load allocations: ${err.message}`);
@@ -325,6 +328,7 @@ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
   useEffect(() => {
     loadAllocations();
   }, [loadAllocations]);
+  const [editingAlloc, setEditingAlloc] = useState(null);
 
   const saveCertifications = async () => {
     setSaving(true);
@@ -463,9 +467,20 @@ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
             ) : (
               <div className="space-y-2">
                 {allocations.map((alloc) => (
-                  <div key={alloc.id} className="rounded border p-2 bg-gray-50 text-sm">
-                    <div className="font-semibold">{alloc.client_name} · {alloc.demand_job_title}</div>
-                    <div className="text-gray-600">{alloc.utilization_pct ?? 100}% allocation, from {alloc.start_date}</div>
+                  <div key={alloc.id} className="flex items-start justify-between gap-2 rounded border p-2 bg-gray-50 text-sm">
+                    <div>
+                      <div className="font-semibold">{alloc.client_name} · {alloc.demand_job_title}</div>
+                      <div className="text-gray-600">
+                        {alloc.utilization_pct ?? 100}% allocation, from {alloc.start_date}
+                        {alloc.end_date ? ` to ${alloc.end_date}` : ""}
+                      </div>
+                      {alloc.status !== "ACTIVE" && (
+                        <div className="text-xs font-semibold text-amber-700">Awaiting margin approval</div>
+                      )}
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setEditingAlloc(alloc)}>
+                      {alloc.status === "ACTIVE" ? "Extend / Edit" : "Review"}
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -478,17 +493,32 @@ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
             Close
           </Button>
         </div>
+        {editingAlloc && (
+          <AllocationEditModal allocation={editingAlloc} onClose={() => setEditingAlloc(null)} onSaved={loadAllocations} />
+        )}
       </Card>
       </div>
     </div>
   );
 }
 
+const ALLOCATION_STATUS_TONE = {
+  ACTIVE: "bg-emerald-100 text-emerald-800",
+  PENDING_MARGIN_APPROVAL: "bg-amber-100 text-amber-800",
+  MARGIN_REJECTED: "bg-rose-100 text-rose-800",
+};
+
 function AllocationsTab() {
   const [allocations, setAllocations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [editing, setEditing] = useState(null);
+  const [searchParams] = useSearchParams();
+  // the margin-approval task opens ?tab=allocations&allocation=<id>
+  const focusId = searchParams.get("allocation");
+  const canEdit = hasPermission("allocations", "edit");
 
   useEffect(() => {
     loadAllocations();
@@ -506,10 +536,22 @@ function AllocationsTab() {
     }
   };
 
+  // open the focused allocation once (closing it must not reopen it on the next reload)
+  const [focusHandled, setFocusHandled] = useState(false);
+  useEffect(() => {
+    if (!focusId || loading || focusHandled) return;
+    const focused = allocations.find((a) => a.id === focusId);
+    if (focused) setEditing(focused);
+    setFocusHandled(true);
+  }, [focusId, loading, allocations, focusHandled]);
+
   if (loading) return <div className="py-8 text-center text-gray-500">Loading allocations...</div>;
 
   return (
     <div className="space-y-4">
+      {notice && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{notice}</div>
+      )}
       <div className="flex justify-between items-center">
         <Button variant="primary" onClick={() => setShowForm(true)}>
           <UserPlus className="h-4 w-4" /> Add Allocation
@@ -534,21 +576,46 @@ function AllocationsTab() {
               <th className="px-4 py-2 text-left font-semibold">Allocation %</th>
               <th className="px-4 py-2 text-left font-semibold">Start Date</th>
               <th className="px-4 py-2 text-left font-semibold">End Date</th>
+              <th className="px-4 py-2 text-left font-semibold">Bill Rate</th>
+              <th className="px-4 py-2 text-left font-semibold">Margin</th>
+              <th className="px-4 py-2 text-left font-semibold">Status</th>
               <th className="px-4 py-2 text-left font-semibold">Action</th>
             </tr>
           </thead>
           <tbody>
             {allocations.map((alloc) => (
-              <tr key={alloc.id} className="border-b hover:bg-gray-50">
+              <tr key={alloc.id} className={cx("border-b hover:bg-gray-50", alloc.id === focusId && "bg-amber-50")}>
                 <td className="px-4 py-2">{alloc.employee_name || "—"}</td>
                 <td className="px-4 py-2">{alloc.project_name || "—"}</td>
                 <td className="px-4 py-2">{alloc.utilization_pct}%</td>
                 <td className="px-4 py-2 text-gray-600">{alloc.start_date || "—"}</td>
                 <td className="px-4 py-2 text-gray-600">{alloc.end_date || "Ongoing"}</td>
+                <td className="px-4 py-2 text-gray-600">
+                  {alloc.billing_rate_usd_cents ? `$${(alloc.billing_rate_usd_cents / 100).toFixed(2)}/h` : "—"}
+                </td>
+                <td className="px-4 py-2 text-gray-600" title={alloc.margin_check || "placed before the margin guard"}>
+                  {marginLabel(alloc.margin_pct)}
+                </td>
                 <td className="px-4 py-2">
-                  <Button variant="ghost" size="sm" onClick={() => handleEndAllocation(alloc.id)}>
-                    End
-                  </Button>
+                  <span className={cx("rounded-full px-2 py-0.5 text-xs font-semibold",
+                    ALLOCATION_STATUS_TONE[alloc.status] || "bg-gray-100 text-gray-700")}>
+                    {statusLabel(alloc.status)}
+                  </span>
+                  {alloc.pending_change && alloc.status === "ACTIVE" && (
+                    <div className="mt-1 text-xs font-semibold text-amber-700">Change awaiting approval</div>
+                  )}
+                </td>
+                <td className="px-4 py-2 space-x-1">
+                  {(alloc.status === "ACTIVE" || alloc.pending_change) && (
+                    <Button variant="ghost" size="sm" onClick={() => setEditing(alloc)}>
+                      {alloc.pending_change ? "Review" : canEdit ? "Extend / Edit" : "History"}
+                    </Button>
+                  )}
+                  {alloc.status === "ACTIVE" && (
+                    <Button variant="ghost" size="sm" onClick={() => handleEndAllocation(alloc.id)}>
+                      End
+                    </Button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -559,8 +626,22 @@ function AllocationsTab() {
       {showForm && (
         <AllocationForm
           onCancel={() => setShowForm(false)}
-          onSaved={() => { setShowForm(false); loadAllocations(); }}
+          onSaved={(created) => {
+            setShowForm(false);
+            const flags = created?.margin?.flags || [];
+            if (created?.status === "PENDING_MARGIN_APPROVAL") {
+              setNotice(`Saved, waiting for margin approval: ${created.margin?.message || ""}`);
+            } else if (flags.includes("NO_MARGIN_FLOOR_CONFIGURED")) {
+              setNotice("Saved. No margin floor is configured for this placement (P&L > Rate Card).");
+            } else {
+              setNotice("");
+            }
+            loadAllocations();
+          }}
         />
+      )}
+      {editing && (
+        <AllocationEditModal allocation={editing} onClose={() => setEditing(null)} onSaved={loadAllocations} />
       )}
     </div>
   );

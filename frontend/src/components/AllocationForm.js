@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, Input, Select } from "./ui";
 import { createAllocation, getAllocationDropdowns } from "../services/api/allocations";
+import { MarginLine, useMarginPreview } from "./AllocationMargin";
 
 export default function AllocationForm({ presetEmployeeId, presetProjectId, onCancel, onSaved }) {
   const [employeeId, setEmployeeId] = useState(presetEmployeeId || "");
@@ -45,6 +46,15 @@ export default function AllocationForm({ presetEmployeeId, presetProjectId, onCa
     [jobs, presetProjectId],
   );
   const job = jobs.find((j) => j.id === jobId);
+  // live margin against the rate card while the terms are typed (the server re-checks on save)
+  const { margin, error: marginError } = useMarginPreview({
+    employeeId,
+    demandId: jobId,
+    projectId: presetProjectId || job?.project_id || undefined,
+    billingRateUsdCents: billRate ? Math.round(parseFloat(billRate) * 100) : undefined,
+    billable: billable === "" ? undefined : billable === "yes",
+    startDate: startDate || undefined,
+  }, Boolean(employeeId && jobId));
 
   const pickJob = (id) => {
     setJobId(id);
@@ -60,7 +70,7 @@ export default function AllocationForm({ presetEmployeeId, presetProjectId, onCa
     setError("");
     setSaving(true);
     try {
-      await createAllocation({
+      const created = await createAllocation({
         employeeId,
         demandId: jobId,
         projectId: presetProjectId || job?.project_id || undefined,
@@ -71,7 +81,7 @@ export default function AllocationForm({ presetEmployeeId, presetProjectId, onCa
         allowConcurrent,
         billable: billable === "" ? undefined : billable === "yes",
       });
-      onSaved();
+      onSaved(created);
     } catch (err) {
       setError(err.message || "Allocation blocked.");
     } finally {
@@ -116,6 +126,7 @@ export default function AllocationForm({ presetEmployeeId, presetProjectId, onCa
           Client: {job.client_name || "—"} · Project: {job.project_name || "none on the job"}
         </div>
       )}
+      <MarginLine margin={margin} error={marginError} />
       <label className="mt-3 flex items-center gap-2 text-xs text-gray-700">
         <input type="checkbox" checked={allowConcurrent} onChange={(e) => setAllowConcurrent(e.target.checked)} />
         Allow concurrent (multiple active allocations at once)

@@ -57,3 +57,71 @@ export const getAllocationDropdowns = async () => {
   const { data } = await apiRequest(`/allocations/dropdowns/for-create`, { method: "GET" });
   return data;
 };
+
+// Edit / extend (CEO 2026-10-23): only the fields given change; a reason is required and kept in
+// the history. Below the margin floor the change waits for approval (change.status PENDING_APPROVAL).
+export const updateAllocation = async (allocationId, { reason, effectiveFrom, ...fields }) => {
+  const body = { reason };
+  ["end_date", "billing_rate_usd_cents", "utilization_pct", "billable"].forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(fields, key)) body[key] = fields[key];
+  });
+  if (effectiveFrom) body.effective_from = effectiveFrom;
+  const { data } = await apiRequest(`/allocations/${allocationId}`, { method: "PATCH", body: JSON.stringify(body) });
+  return data;
+};
+
+export const getAllocationHistory = async (allocationId) => {
+  const { data } = await apiRequest(`/allocations/${allocationId}/history`, { method: "GET" });
+  if (!data || !Array.isArray(data.changes)) throw new Error("Unexpected response: no history.");
+  return data.changes;
+};
+
+// The margin guard's verdict on the terms in a form: a new placement (employeeId + demandId) or
+// an existing allocation's proposed terms (allocationId).
+export const previewMargin = async ({ employeeId, demandId, projectId, allocationId, billingRateUsdCents,
+  billable, startDate, role }) => {
+  const { data } = await apiRequest("/allocations/margin-preview", {
+    method: "POST",
+    body: JSON.stringify({
+      employee_id: employeeId || undefined,
+      demand_id: demandId || undefined,
+      project_id: projectId || undefined,
+      allocation_id: allocationId || undefined,
+      billing_rate_usd_cents: billingRateUsdCents || undefined,
+      billable: typeof billable === "boolean" ? billable : undefined,
+      start_date: startDate || undefined,
+      role: role || undefined,
+    }),
+  });
+  return data;
+};
+
+export const listMarginApprovals = async () => {
+  const { data } = await apiRequest("/allocations/margin-approvals", { method: "GET" });
+  if (!data || !Array.isArray(data.approvals)) throw new Error("Unexpected response: no approvals list.");
+  return data.approvals;
+};
+
+export const decideMarginChange = async (changeId, approve, reason) => {
+  const { data } = await apiRequest(`/allocations/changes/${changeId}/${approve ? "approve" : "reject"}`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+  return data;
+};
+
+// Renewal pipeline (Demand vs Bench > Renewals)
+export const getRenewals = async (days) => {
+  const { data } = await apiRequest(`/allocations/renewals${days ? `?days=${days}` : ""}`, { method: "GET" });
+  if (!data || !Array.isArray(data.renewals)) throw new Error("Unexpected response: no renewals list.");
+  return data;
+};
+
+// ownerUserId "" puts the owner back to the default (account manager, else BU Head)
+export const updateRenewal = async (allocationId, { renewalStatus, ownerUserId, note, reason }) => {
+  const { data } = await apiRequest(`/allocations/${allocationId}/renewal`, {
+    method: "PUT",
+    body: JSON.stringify({ renewal_status: renewalStatus, owner_user_id: ownerUserId, note, reason }),
+  });
+  return data;
+};

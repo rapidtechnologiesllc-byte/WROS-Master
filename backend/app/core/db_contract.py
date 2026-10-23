@@ -560,6 +560,7 @@ def _initialize_leadership_roles():
         _initialize_thunder_conversation_owner(db)
         _initialize_candidate_status_templates(db)
         _initialize_submission_violation_types(db)
+        _initialize_allocation_statuses(db)
         _initialize_employment_types(db)
         _initialize_permission_row_tenants(db)
         _initialize_functions(db)
@@ -877,6 +878,24 @@ def _initialize_submission_violation_types(db):
     db.execute(text("ALTER TABLE app_schema.submission_violations DROP CONSTRAINT IF EXISTS submission_violation_type"))
     db.execute(text(f"ALTER TABLE app_schema.submission_violations ADD CONSTRAINT submission_violation_type "
                     f"CHECK (violation_type IN ({allowed}))"))
+    db.commit()
+
+
+def _initialize_allocation_statuses(db):
+    """The status and renewal_status CHECK constraints of employee_allocations are rebuilt from
+    ALLOCATION_STATUSES / RENEWAL_STATUSES (create_all never alters an existing table: the margin
+    guard added PENDING_MARGIN_APPROVAL and MARGIN_REJECTED, the renewal pipeline its column).
+    The renewal owner gets its index. Idempotent."""
+    from app.models.employee_allocation import ALLOCATION_STATUSES, RENEWAL_STATUSES
+
+    for constraint, column, values in (("employee_allocation_status", "status", ALLOCATION_STATUSES),
+                                       ("employee_allocation_renewal_status", "renewal_status", RENEWAL_STATUSES)):
+        allowed = ", ".join("'" + value + "'" for value in values)
+        db.execute(text(f"ALTER TABLE app_schema.employee_allocations DROP CONSTRAINT IF EXISTS {constraint}"))
+        db.execute(text(f"ALTER TABLE app_schema.employee_allocations ADD CONSTRAINT {constraint} "
+                        f"CHECK ({column} IN ({allowed}))"))
+    db.execute(text("CREATE INDEX IF NOT EXISTS ix_app_schema_employee_allocations_renewal_owner_user_id "
+                    "ON app_schema.employee_allocations (renewal_owner_user_id)"))
     db.commit()
 
 
@@ -1550,6 +1569,19 @@ def _apply_schema_migrations(db: Session):
     # the live table lacks (same create_all()-never-alters-existing-tables
     # gap as Migration 3). Discovered via a full model-vs-DB column scan.
     drifted_tables = {
+        # Renewal pipeline + margin guard (CEO 2026-10-23): existing allocations start NOT_STARTED
+        # with no margin check recorded (they were placed before the guard and are never blocked)
+        "employee_allocations": [
+            ("renewal_status", "VARCHAR(20) NOT NULL DEFAULT 'NOT_STARTED'"),
+            ("renewal_owner_user_id",
+             'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
+            ("renewal_note", "TEXT NULL"),
+            ("renewal_updated_at", "TIMESTAMP NULL"),
+            ("renewal_updated_by",
+             'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
+            ("margin_pct", "NUMERIC(7, 2) NULL"),
+            ("margin_check", "VARCHAR(40) NULL"),
+        ],
         # Task deep link: the in-app path My Tasks opens (task_service.create_task)
         "tasks": [
             ("link", "VARCHAR(512) NULL"),

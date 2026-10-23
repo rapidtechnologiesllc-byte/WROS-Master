@@ -42,6 +42,7 @@ def _parse_skills(raw: Optional[str]) -> List[str]:
 
 def get_expiring_allocations(
     db: Session, *, tenant_id: Optional[int] = None, horizon_days: int = EXPIRY_HORIZON_DAYS,
+    scope=None,
 ) -> Dict[str, List[Dict]]:
     """Step 1: ACTIVE allocations with a planning end_date within the
     next horizon_days, bucketed into <30 / 30-60 / 60-90 day horizons
@@ -59,6 +60,8 @@ def get_expiring_allocations(
     )
     if tenant_id is not None:
         query = query.filter(EmployeeAllocation.tenant_id == tenant_id)
+    if scope is not None:  # the caller's business units (app.core.data_scope.allocation_filter)
+        query = query.filter(scope)
 
     buckets = {"under_30_days": [], "30_to_60_days": [], "60_to_90_days": []}
     for allocation in query.all():
