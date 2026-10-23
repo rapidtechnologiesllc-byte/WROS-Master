@@ -332,7 +332,10 @@ def test_changing_a_jobs_client_rechecks_its_project(db, api):
 def test_self_service_submit_twice_is_a_409_not_a_500(db, api):
     client, headers, user = api
     w = _world(db)
+    from tests.hiring_fixtures import finance_approver
+
     w.worker.wros_user_id = user.UserID
+    w.worker.reporting_manager_user_id = finance_approver(db).UserID  # the submission is routed to them
     allocation = _allocate(db, w)
     monday = date.today() - timedelta(days=date.today().weekday())  # submit refuses weeks > 4 weeks old
     ts = _week(db, allocation, monday, {monday: 8}, status="DRAFT")

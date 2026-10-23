@@ -45,3 +45,15 @@ export const logTaskUpdate = async (taskId, payload) => {
   const { data } = await apiRequest(`/tasks/${taskId}/updates`, { method: "POST", body: JSON.stringify(payload) });
   return data;
 };
+
+// Comment thread on a task (approval decisions post their note here too)
+export const getTaskComments = async (taskId) => {
+  const { data } = await apiRequest(`/tasks/${taskId}/comments`, { method: "GET" });
+  if (!data || !Array.isArray(data.comments)) throw new Error("Unexpected response: no comments list.");
+  return data.comments;
+};
+
+export const addTaskComment = async (taskId, body) => {
+  const { data } = await apiRequest(`/tasks/${taskId}/comments`, { method: "POST", body: JSON.stringify({ body }) });
+  return data;
+};

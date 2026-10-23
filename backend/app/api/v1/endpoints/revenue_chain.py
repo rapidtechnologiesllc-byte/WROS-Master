@@ -72,12 +72,14 @@ def revenue_chain_summary(
     return {"start": start, "end": end, "group_by": group_by, "rows": chain.summarize(lines, group_by)}
 
 
-@router.get("/pnl", summary="Org P&L with partner, business unit and client breakdowns")
+@router.get("/pnl", summary="Org P&L with partner, business unit, location, cost object and client breakdowns")
 def revenue_chain_pnl(
     start: date, end: date,
+    country: Optional[str] = Query(None, min_length=2, max_length=2, description="ISO country: one location's P&L"),
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_role_template_permission("revenue", "view")),
 ):
     _period(start, end)
     return chain.pnl(db, start=start, end=end, tenant_id=current_user.tenant_id,
-                     business_unit_ids=visible_bu_ids(db, current_user))
+                     business_unit_ids=visible_bu_ids(db, current_user),
+                     country=country.upper() if country else None)

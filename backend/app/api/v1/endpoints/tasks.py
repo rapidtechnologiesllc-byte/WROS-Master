@@ -17,8 +17,11 @@ GET  /tasks/my-day/scheduled  -- open follow-ups due in the next 30 days
 GET  /tasks/update-options     -- choices for the Log update form
 GET  /tasks/{id}/updates       -- updates on this task (and the tasks it follows up)
 POST /tasks/{id}/updates       -- log what was done + next action (creates the follow-up task)
+GET  /tasks/{id}/comments      -- the task's comment thread (approval notes land here too)
+POST /tasks/{id}/comments      -- add a comment (assignee, creator, or anyone who may see the task)
 """
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -144,3 +147,48 @@ def complete(task_id: int, current_user: Users = Depends(get_current_internal_us
     task = _get_task_or_404(db, task_id, current_user)
     return complete_task(db, task)
 
+
+
+class TaskCommentRequest(BaseModel):
+    body: str = Field(..., min_length=1, max_length=5000)
+
+
+def _comment_dict(db: Session, comment) -> dict:
+    author = db.query(Users).filter(Users.UserID == comment.author_user_id).first() if comment.author_user_id else None
+    return {"id": comment.id, "task_id": comment.task_id, "body": comment.body,
+            "author_user_id": comment.author_user_id,
+            "author_name": (author.UserName or author.UserEmail) if author else "System",
+            "created_at": comment.created_at.isoformat() if comment.created_at else None}
+
+
+@router.get(
+    "/{task_id}/comments",
+    dependencies=[Depends(require_resource_permission("my-tasks", "view"))]
+)
+def get_task_comments(task_id: int, current_user: Users = Depends(get_current_internal_user),
+                      db: Session = Depends(get_db)):
+    from app.models.task_comment import TaskComment
+
+    task = _get_task_or_404(db, task_id, current_user)
+    rows = db.query(TaskComment).filter(TaskComment.task_id == task.id).order_by(TaskComment.created_at, TaskComment.id).all()
+    return {"task_id": task.id, "comments": [_comment_dict(db, c) for c in rows]}
+
+
+@router.post(
+    "/{task_id}/comments",
+    status_code=201,
+    dependencies=[Depends(require_resource_permission("my-tasks", "create"))]
+)
+def add_task_comment(task_id: int, body: TaskCommentRequest, current_user: Users = Depends(get_current_internal_user),
+                     db: Session = Depends(get_db)):
+    from app.models.task_comment import TaskComment
+
+    task = _get_task_or_404(db, task_id, current_user)
+    text = body.body.strip()
+    if not text:
+        raise HTTPException(status_code=422, detail="A comment cannot be empty.")
+    comment = TaskComment(tenant_id=current_user.tenant_id, task_id=task.id, author_user_id=current_user.UserID, body=text)
+    db.add(comment)
+    db.commit()
+    db.refresh(comment)
+    return _comment_dict(db, comment)

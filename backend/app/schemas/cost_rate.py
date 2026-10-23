@@ -8,6 +8,8 @@ logger = logging.getLogger(__name__)
 
 class SetCostRateConfigRequest(BaseModel):
     business_unit_id: Optional[int] = None
+    # cost object = BU x location: the delivery center's country (ISO); None = every country
+    country: Optional[str] = None
     statutory_pct: float
     overhead_pct: float
     effective_date: Optional[date] = None
@@ -16,6 +18,7 @@ class SetCostRateConfigRequest(BaseModel):
 class CostRateConfigResponse(BaseModel):
     id: int
     business_unit_id: Optional[int]
+    country: Optional[str] = None
     statutory_pct: float
     overhead_pct: float
     effective_date: date

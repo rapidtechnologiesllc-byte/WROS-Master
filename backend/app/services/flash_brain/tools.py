@@ -253,6 +253,14 @@ def _bench(ctx: ToolContext, args: Dict) -> Dict:
     return {"text": flash_service._format_bench_reply(skills, results), "results": results}
 
 
+def _bench_cost(ctx: ToolContext, args: Dict) -> Dict:
+    from app.services import flash_service
+
+    report = flash_service.get_bench_cost_answer(ctx.db, ctx.user)
+    return {"text": flash_service.format_bench_cost_reply(report), "totals": report["totals"],
+            "link": flash_service.BENCH_SCREEN_PATH}
+
+
 def _bu_pnl(ctx: ToolContext, args: Dict) -> Dict:
     from app.services import flash_service
 
@@ -400,6 +408,10 @@ register(FlashTool(
     schema({"skills": {"type": "string", "description": "Skills, may be empty"}}),
     "employees.view", _bench, "see the bench",
     summary=said(lambda a, o: f"Checked the bench{_for(a.get('skills'))}: {_count(o, 'results')} available.")))
+register(FlashTool(
+    "bench_cost", "How much the bench is costing: people, bench days, bench loss, margin while allocated, net.",
+    schema({}), "workforce-overview.view", _bench_cost, "see the bench", model_visible=False,
+    summary=said(lambda a, o: "Checked what the bench is costing.")))
 register(FlashTool(
     "bu_pnl", "A business unit's P&L.", schema({"bu": {"type": "string"}}), None, _bu_pnl,
     "see financial data", gate=_can_view_pnl, model_visible=False,

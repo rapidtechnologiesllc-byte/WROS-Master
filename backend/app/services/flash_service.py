@@ -62,7 +62,6 @@ success" principle as the rest of this codebase.
 from app.core.tenant_context import tenant_id_of
 from app.core.tenant_context import sole_tenant_id
 import logging
-import json
 import re
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -83,6 +82,7 @@ from app.services.task_service import get_daily_task_list
 INTENT_SOURCING = "sourcing"
 INTENT_CANDIDATE_STATUS = "candidate_status"
 INTENT_BENCH_AVAILABILITY = "bench_availability"
+INTENT_BENCH_COST = "bench_cost"
 INTENT_FINANCE_PNL = "finance_pnl"
 INTENT_AR_AGING = "ar_aging"
 INTENT_MY_TASKS = "my_tasks"
@@ -99,6 +99,7 @@ AI_INTENTS = {
     INTENT_SOURCING: "find candidates for a role or skills (query: the role/skills)",
     INTENT_CANDIDATE_STATUS: "where a named candidate is in hiring (query: the person's name)",
     INTENT_BENCH_AVAILABILITY: "who is on the bench / available (query: skills, may be empty)",
+    INTENT_BENCH_COST: "how much the bench is costing, bench loss (query: empty)",
     INTENT_FINANCE_PNL: "profit, margin or P&L (query: business unit name, may be empty)",
     INTENT_AR_AGING: "overdue or unpaid client invoices (query: empty)",
     INTENT_MY_TASKS: "the asker's own tasks (query: empty)",
@@ -136,6 +137,7 @@ PERMISSION_DENIED_BENCH_MESSAGE = (
 )
 
 MAX_CANDIDATES_RETURNED = 5
+BENCH_SCREEN_PATH = "/workforce/bench"
 
 # Backlog item, 2026-08-05 (wros_ask_thunder_bugs_and_memory_backlog):
 # Avinash -- "i ask a question to thunder and move to a different page
@@ -207,6 +209,11 @@ _MY_TIMESHEETS_PATTERN = re.compile(r"\bmy\s+(time\s*sheets?|hours)\b|\b(did|hav
 _MY_TASKS_PATTERN = re.compile(
     r"\bmy\s+(open\s+)?tasks?\b|\bmy\s+plate\b|\bdue\s+today\b|\bmy\s+to.?do\b|"
     r"\bwhat\s+(do|should)\s+i\s+(need\s+to\s+)?(do|work\s+on)\b|\bon\s+my\s+(list|plate)\b", re.IGNORECASE)
+_BENCH_COST_PATTERN = re.compile(
+    r"\bbench\b.{0,40}\b(cost\w*|loss\w*|losing|spend\w*|burn\w*|expens\w*)\b|"
+    r"\b(cost\w*|loss\w*|losing|spend\w*|burn\w*)\b.{0,40}\bbench\b",
+    re.IGNORECASE,
+)
 _BENCH_PATTERN = re.compile(
     r"\bbench\b|who.{0,4}s\s+free\b|\b(who|anyone|anybody|someone|somebody)\s+(is\s+)?free\b|"
     r"\bavailable\b.{0,30}\b(employees?|developers?|engineers?|resources?|consultants?|people|staff|testers?|analysts?)\b",
@@ -308,6 +315,9 @@ def classify_internal_query(message: str, *, history: Optional[List[Dict]] = Non
     than the old LLM version's full-transcript context resolution.
     """
     text = (message or "").strip()
+
+    if _BENCH_COST_PATTERN.search(text):  # before P&L: "bench cost" is the bench screen's question
+        return {"intent": INTENT_BENCH_COST, "query": ""}
 
     if _FINANCE_PNL_PATTERN.search(text):
         return {"intent": INTENT_FINANCE_PNL, "query": _extract_proper_noun(text)}
@@ -517,7 +527,7 @@ def get_candidate_status_summary(db: Session, name_query: str, *, tenant_id: Opt
         })
     return {"matches": matches}
 
-def find_available_bench_employees(db: Session, user: Users, query_text: str, *, top_n: int = MAX_CANDIDATES_RETURNED) -> List[Dict]:
+def find_available_bench_employees(db: Session, user: Users, query_text: str, *, top_n: Optional[int] = None) -> List[Dict]:
     """
     Real read of resource_management_service's own bench pool table --
     no new data source, same "additive, not a replacement" posture as
@@ -533,20 +543,18 @@ def find_available_bench_employees(db: Session, user: Users, query_text: str, *,
     entries = (
         db.query(BenchPoolEntry, Employee)
         .join(Employee, BenchPoolEntry.employee_id == Employee.id)
-        .filter(Employee.tenant_id == user.tenant_id, bu_filter(db, user, Employee.bu_id))
-        .order_by(BenchPoolEntry.created_at.desc())
-        .limit(200)
+        .filter(Employee.tenant_id == user.tenant_id, bu_filter(db, user, Employee.bu_id),
+                Employee.is_billable.is_(True))
+        .order_by(BenchPoolEntry.available_from.asc())
         .all()
     )
 
     keywords = _extract_keywords(query_text) if query_text else []
 
     def _skill_tags(entry: BenchPoolEntry) -> List[str]:
-        try:
-            return json.loads(entry.skill_tags) if entry.skill_tags else []
-        except (json.JSONDecodeError, TypeError) as exc:
-            logger.error(f"[Flash] Failed to parse skill_tags for bench entry {entry.id}: {exc}")
-            raise ValueError(f"Invalid JSON in skill_tags: {exc}")
+        from app.services.employee_service import skills_list
+
+        return skills_list(entry.skill_tags, entry.employee_id)
 
     results = []
     for entry, employee in entries:
@@ -567,7 +575,8 @@ def find_available_bench_employees(db: Session, user: Users, query_text: str, *,
             "available_from": entry.available_from.isoformat() if entry.available_from else None,
         })
 
-    return results[:top_n]
+    # every match: the count Flash says must be the bench screen's count; the reply lists the first few
+    return results[:top_n] if top_n else results
 
 def _format_sourcing_reply(query_text: str, results: List[Dict]) -> str:
     if not results:
@@ -581,6 +590,71 @@ def _format_sourcing_reply(query_text: str, results: List[Dict]) -> str:
         for r in results
     ]
     return f"Found {len(results)} candidate(s) matching \"{query_text}\":\n" + "\n".join(lines)
+
+def get_bench_cost_answer(db: Session, user: Users) -> Dict:
+    """The bench screen's own totals (bench_service.bench_report), never a second calculation."""
+    from app.services.bench_service import bench_report
+
+    return bench_report(db, user)
+
+
+def _usd(cents: Optional[int]) -> str:
+    return "unknown" if cents is None else f"${cents / 100:,.0f}"
+
+
+def format_bench_cost_reply(report: Dict) -> str:
+    totals = report["totals"]
+    if not totals["people"]:
+        return f"Nobody you can see is on the bench right now. ({BENCH_SCREEN_PATH})"
+    head = (f"{totals['people']} people on the bench, {totals['bench_days']} bench days in total.")
+    if not report["financials_visible"]:
+        return head + f" Costs are limited to people who can see the P&L. Details: {BENCH_SCREEN_PATH}"
+    money = (f" Bench loss so far: {_usd(totals['bench_loss_usd_cents'])} (loaded payroll for their bench days, "
+             f"as the P&L books it), {_usd(totals['daily_cost_usd_cents'])} a day. While allocated they earned a "
+             f"margin of {_usd(totals['allocated_margin_usd_cents'])}; net {_usd(totals['net_usd_cents'])}.")
+    worst = [r for r in report["employees"][:3] if r["bench_loss_usd_cents"]]
+    top = ("\nLargest bench loss: " + "; ".join(f"{r['name']} {_usd(r['bench_loss_usd_cents'])} over {r['bench_days']} days"
+                                              for r in worst)) if worst else ""
+    gap = "" if report["cost_data_complete"] else " Some people have no salary or cost rate, so the cost is incomplete."
+    return head + money + gap + top + f"\nDetails: {BENCH_SCREEN_PATH}"
+
+
+def get_employee_status_summary(db: Session, user: Users, name_query: str) -> List[Dict]:
+    """Employees in the caller's scope whose name matches: where they stand (Workforce group,
+    allocation or days on the bench)."""
+    from app.core.data_scope import bu_filter
+    from app.services.bench_service import bench_since
+
+    keywords = _extract_keywords(name_query)
+    if not keywords:
+        return []
+    query = db.query(Employee).filter(Employee.tenant_id == user.tenant_id, bu_filter(db, user, Employee.bu_id),
+                                      Employee.status != "EXITED")
+    for kw in keywords:
+        query = query.filter(or_(Employee.first_name.ilike(f"%{kw}%"), Employee.last_name.ilike(f"%{kw}%")))
+    from app.models.employee_allocation import EmployeeAllocation
+
+    out = []
+    for e in query.limit(10).all():
+        active = db.query(EmployeeAllocation).filter(EmployeeAllocation.employee_id == e.id,
+                                                     EmployeeAllocation.status == "ACTIVE").all()
+        out.append({"name": f"{e.first_name} {e.last_name}".strip(), "status": e.status, "billable": bool(e.is_billable),
+                    "allocations": len(active),
+                    "bench_since": (bench_since(db, e).isoformat()
+                                    if e.is_billable and not active and e.status not in ("PRE_JOINING",) else None)})
+    return out
+
+
+def _format_employee_status_reply(name_query: str, people: List[Dict]) -> str:
+    if len(people) > 1:
+        return (f"I found more than one employee matching \"{name_query}\":\n"
+                + "\n".join(f"{i}. {p['name']}" for i, p in enumerate(people, start=1)) + "\nWhich one did you mean?")
+    p = people[0]
+    where = (f"on {p['allocations']} active allocation(s)" if p["allocations"]
+             else f"on the bench since {p['bench_since']}" if p["bench_since"]
+             else "internal staff (non-billable)" if not p["billable"] else "not joined yet")
+    return f"{p['name']} is an employee: status {p['status'].replace('_', ' ').lower()}, {where}."
+
 
 def _format_status_reply(name_query: str, matches: List[Dict]) -> str:
     if not matches:
@@ -733,10 +807,13 @@ def _format_bench_reply(query_text: str, results: List[Dict]) -> str:
         return f"No one is currently available {label}."
     lines = [
         f"- {r['name']} -- {r['current_title'] or 'no title on file'}; "
-        f"skills: {', '.join(r['skills']) or 'not on file'}; available since {r['available_from'] or 'unknown'}"
-        for r in results
+        f"skills: {', '.join(r['skills']) or 'not on file'}; on the bench since {r['available_from'] or 'unknown'}"
+        for r in results[:MAX_CANDIDATES_RETURNED]
     ]
-    return f"{len(results)} available {label}:\n" + "\n".join(lines)
+    more = len(results) - MAX_CANDIDATES_RETURNED
+    tail = f"\n...and {more} more on the bench screen ({BENCH_SCREEN_PATH})." if more > 0 else \
+        f"\nDetails: {BENCH_SCREEN_PATH}"
+    return f"{len(results)} available {label} (longest on the bench first):\n" + "\n".join(lines) + tail
 
 def get_my_timesheets_answer(db: Session, user: Users) -> Dict:
     from app.models.employee_allocation import EmployeeAllocation
@@ -867,12 +944,27 @@ def answer_internal_query(
         tenant_id = tenant_id_of(current_user)
         user_bu_id = getattr(current_user, 'business_unit_id', None) if current_user else None
         status = get_candidate_status_summary(db, query, tenant_id=tenant_id, user_bu_id=user_bu_id)
+        if not status["matches"] and current_user is not None:
+            # imported staff have no candidate record: answer from the employee record
+            from app.core import authority
+
+            if authority.has_permission(db, current_user, "employees.view"):
+                people = get_employee_status_summary(db, current_user, query)
+                if people:
+                    return {"intent": intent, "reply": _format_employee_status_reply(query, people)}
         return {"intent": intent, "reply": _format_status_reply(query, status["matches"])}
 
     if intent == INTENT_PIPELINE_SUMMARY:
         if current_user is None:
             return {"intent": intent, "reply": UNSUPPORTED_QUERY_MESSAGE}
         return {"intent": intent, "reply": _format_pipeline_summary(get_pipeline_summary(db, current_user, query))}
+
+    if intent == INTENT_BENCH_COST:
+        from app.core import authority
+
+        if current_user is None or not authority.has_permission(db, current_user, "workforce-overview.view"):
+            return {"intent": intent, "reply": PERMISSION_DENIED_BENCH_MESSAGE}
+        return {"intent": intent, "reply": format_bench_cost_reply(get_bench_cost_answer(db, current_user))}
 
     if intent == INTENT_BENCH_AVAILABILITY:
         # Unlike SOURCING/CANDIDATE_STATUS, an empty query is valid here

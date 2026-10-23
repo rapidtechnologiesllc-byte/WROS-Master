@@ -25,6 +25,8 @@ class CreateAllocationRequest(BaseModel):
     allow_concurrent: bool = False
     # Defaults to the job's client bill rate
     billing_rate_usd_cents: Optional[int] = None
+    # None = the project's (client projects billable, internal projects not)
+    billable: Optional[bool] = None
 
 class AllocationItem(BaseModel):
     id: str
@@ -46,6 +48,7 @@ class AllocationItem(BaseModel):
     assigned_recruiter_name: Optional[str] = None
     business_unit_name: Optional[str] = None
     created_at: datetime
+    billable: bool = True
 
 class AllocationListResponse(BaseModel):
     allocations: List[AllocationItem]

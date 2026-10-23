@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import FinancialOutlookPanel from "../components/FinancialOutlookPanel";
 import { useEffect, useState } from "react";
 import { Users, TrendingUp, DollarSign, AlertCircle, Briefcase } from "lucide-react";
@@ -151,7 +152,7 @@ export default function BUHeadDashboardScreen() {
             <div>
               <div className="text-xs font-semibold text-gray-500 uppercase">Bench Cost/Day</div>
               <div className="text-3xl font-bold text-orange-600 mt-2">{formatCurrency(revenue.bench_cost_daily_usd)}</div>
-              <div className="text-xs text-gray-600 mt-1">{team_size.bench} idle employees</div>
+              <Link to="/workforce/bench" className="text-xs text-blue-700 hover:underline mt-1 block">{team_size.bench} on the bench</Link>
             </div>
             <AlertCircle className="h-6 w-6 text-orange-500" />
           </div>
@@ -170,8 +171,8 @@ export default function BUHeadDashboardScreen() {
             <div className="text-sm text-gray-600 mt-2">Allocated to Projects</div>
           </div>
           <div className="text-center">
-            <div className="text-4xl font-bold text-orange-600">{team_size.bench}</div>
-            <div className="text-sm text-gray-600 mt-2">On Bench</div>
+            <Link to="/workforce/bench" className="text-4xl font-bold text-orange-600 hover:underline">{team_size.bench}</Link>
+            <div className="text-sm text-gray-600 mt-2">On Bench (billable)</div>
           </div>
         </div>
       </Card>

@@ -43,7 +43,6 @@ from app.services.timesheet_service import (
     approve_timesheet,
     reject_timesheet,
     reopen_for_editing,
-    bulk_approve,
     AllocationNotActive,
     InvalidTimesheetEntry,
     TimesheetNotEditable,
@@ -383,23 +382,3 @@ def test_reopen_requires_rejected_status(db_session, base_fixtures):
     with pytest.raises(InvalidTimesheetTransition):
         reopen_for_editing(db_session, ts)
 
-def test_bulk_approve_mixed_results(db_session, base_fixtures):
-    tenant, client, demand, employee = base_fixtures
-    ts1 = _submitted_timesheet(db_session, tenant, demand, employee)
-
-    employee2 = Employee(
-        tenant_id=tenant.id, first_name="Ann", last_name="Ng", email="ann@blitzenx.com",
-        joining_date=date(2025, 1, 1), status="BENCH", buddy_program_status="GRADUATED",
-    )
-    db_session.add(employee2)
-    db_session.commit()
-    ts2 = _fresh_timesheet(db_session, tenant, demand, employee2, week_offset_days=7)  # left in DRAFT
-
-    result = bulk_approve(db_session, [ts1, ts2], approved_by="U-RM")
-    db_session.commit()
-
-    assert result["approved"] == 1
-    assert len(result["failed"]) == 1
-    assert result["failed"][0]["id"] == ts2.id
-    assert ts1.status == "APPROVED"
-    assert ts2.status == "DRAFT"

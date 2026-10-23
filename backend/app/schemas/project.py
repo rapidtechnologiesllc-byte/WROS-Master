@@ -30,6 +30,8 @@ class CreateProjectRequest(BaseModel):
     client_partner: Optional[str] = None
     business_type: Optional[str] = None
     allow_weekend_billing: bool = False
+    # False for an internal project: its allocations default to non-billable
+    is_billable: bool = True
 
 class ProjectItem(BaseModel):
     id: str
@@ -46,6 +48,7 @@ class ProjectItem(BaseModel):
     client_partner: Optional[str] = None
     business_type: Optional[str] = None
     allow_weekend_billing: bool
+    is_billable: bool = True
     start_date: Optional[date] = None
     end_date: Optional[date] = None
 

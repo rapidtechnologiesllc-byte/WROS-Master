@@ -90,7 +90,7 @@ def _to_item(project: Project) -> ProjectItem:
         delivery_engine=project.delivery_engine, si_partner=project.si_partner,
         end_client=project.end_client, client_partner=project.client_partner,
         business_type=project.business_type,
-        allow_weekend_billing=project.allow_weekend_billing,
+        allow_weekend_billing=project.allow_weekend_billing, is_billable=project.is_billable,
         start_date=project.start_date, end_date=project.end_date,
     )
 
@@ -173,6 +173,7 @@ def create_project_endpoint(
         created_by=current_user.UserID,
     )
     project.allow_weekend_billing = body.allow_weekend_billing
+    project.is_billable = body.is_billable
 
     # Idempotency check - prevent duplicate inserts on retry
     existing_project = db.query(Project).filter(Project.id == project.id).first()

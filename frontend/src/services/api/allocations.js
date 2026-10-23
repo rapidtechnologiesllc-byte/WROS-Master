@@ -13,6 +13,7 @@ export const createAllocation = async ({
   role,
   allowConcurrent,
   billingRateUsdCents,
+  billable,
 }) => {
   const { data } = await apiRequest("/allocations", {
     method: "POST",
@@ -26,6 +27,8 @@ export const createAllocation = async ({
       role: role || undefined,
       allow_concurrent: !!allowConcurrent,
       billing_rate_usd_cents: billingRateUsdCents || undefined,
+      // undefined = the project's (client projects billable, internal projects not)
+      billable: typeof billable === "boolean" ? billable : undefined,
     }),
   });
   return data;
@@ -37,7 +40,9 @@ export const getAllocations = async (filters = {}) => {
   if (filters.demandId) params.set("demand_id", filters.demandId);
   const qs = params.toString();
   const { data } = await apiRequest(`/allocations${qs ? `?${qs}` : ""}`, { method: "GET" });
-  return data;
+  // the API wraps the list ({allocations: [...]}); callers get the list
+  if (!data || !Array.isArray(data.allocations)) throw new Error("Unexpected response: no allocations list.");
+  return data.allocations;
 };
 
 export const endAllocation = async (allocationId, endDate) => {

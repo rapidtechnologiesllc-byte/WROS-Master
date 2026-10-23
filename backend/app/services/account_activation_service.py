@@ -55,13 +55,15 @@ def link_for(plaintext: str) -> str:
     return f"{settings.FRONTEND_BASE_URL.rstrip('/')}/activate?token={plaintext}"
 
 
-def queue_account_email(user: Users, purpose: str = "ACTIVATE") -> bool:
-    """Call after commit. One queued email per request (uuid task id)."""
+def queue_account_email(user: Users, purpose: str = "ACTIVATE", *, once_key: Optional[str] = None) -> bool:
+    """Call after commit. One queued email per request (uuid task id); with once_key, one ever for
+    this user, purpose and key (a re-applied import never emails the same person twice)."""
     import uuid
 
     from app.services.thunder_mail.cadence_service import enqueue_once
 
-    return enqueue_once(ACCOUNT_EMAIL_TASK, f"account-email-{user.UserID}-{purpose}-{uuid.uuid4().hex[:12]}",
+    suffix = once_key or uuid.uuid4().hex[:12]
+    return enqueue_once(ACCOUNT_EMAIL_TASK, f"account-email-{user.UserID}-{purpose}-{suffix}",
                         {"user_id": user.UserID, "purpose": purpose}, user.tenant_id)
 
 

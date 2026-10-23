@@ -117,7 +117,7 @@ export default function FinancialOutlookPanel({ title = "Revenue & expense: plan
               <div className="space-y-3">
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Expense</div>
                 <Bar label="Anticipated" value={data.anticipated_expense} max={expenseMax} tone="bg-amber-300" format={format}
-                  note={`Bench ${format(data.anticipated_bench_cost)} · deployed ${format(data.anticipated_deployed_cost)} · other ${format(data.anticipated_other_expense)}`} />
+                  note={`Bench ${format(data.anticipated_bench_cost)} · deployed ${format(data.anticipated_deployed_cost)} · internal staff ${format(data.anticipated_overhead_cost)} · other ${format(data.anticipated_other_expense)}`} />
                 <Bar label="Actual" value={data.actual_expense} max={expenseMax} tone="bg-orange-600" format={format}
                   note={`Payroll incurred ${format(data.actual_payroll)} · expenses reimbursed ${format(data.actual_other_expense)}`} />
               </div>

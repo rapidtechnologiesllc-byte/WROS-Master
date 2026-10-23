@@ -11,6 +11,19 @@ export const setCostRateConfig = async (payload) => {
   return data;
 };
 
+// Rates per cost object (BU x country), newest first, and the countries a rate can be set for
+export const getCostRateConfigs = async () => {
+  const { data } = await apiRequest("/cost-rate-configs", { method: "GET" });
+  if (!Array.isArray(data)) throw new Error("Unexpected response: no cost-rate list.");
+  return data;
+};
+
+export const getCostRateCountries = async () => {
+  const { data } = await apiRequest("/cost-rate-configs/countries", { method: "GET" });
+  if (!data || !Array.isArray(data.countries)) throw new Error("Unexpected response: no countries.");
+  return data.countries;
+};
+
 export const getFullyLoadedCost = async (employeeId, businessUnitId) => {
   const suffix = businessUnitId ? `?business_unit_id=${businessUnitId}` : "";
   const { data } = await apiRequest(`/employees/${employeeId}/fully-loaded-cost${suffix}`, { method: "GET" });

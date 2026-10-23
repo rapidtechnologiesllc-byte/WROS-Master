@@ -67,6 +67,7 @@ def allocate_employee_to_project(
     project=None,
     role: Optional[str] = None,
     allow_concurrent: bool = False,
+    billable: Optional[bool] = None,
 ) -> EmployeeAllocation:
     """
     allow_concurrent=False (default, unchanged from before HRMS-0803
@@ -141,6 +142,8 @@ def allocate_employee_to_project(
         # S-358/HRMS-0519: denormalized from the project at allocation-
         # creation time -- "who is at PwC right now" without a join.
         si_partner=project.si_partner if project else None,
+        # client projects are billable, internal ones are not, unless the allocation says otherwise
+        billable=billable if billable is not None else (bool(project.is_billable) if project is not None else True),
     )
     db.add(allocation)
 
@@ -153,7 +156,10 @@ def allocate_employee_to_project(
         )
         if was_on_bench:
             remove_employee_from_bench(db, employee)
+    db.flush()
+    from app.services.bench_service import sync_billing_classification
 
+    sync_billing_classification(db, employee)
     return allocation
 
 def end_allocation(
@@ -182,10 +188,17 @@ def end_allocation(
             EmployeeAllocation.id != allocation.id,
         ).first()
         if not still_has_active:
-            transition_employee_status(
-                db, employee, "BENCH",
-                reason=f"Allocation {allocation.id} ended", changed_by=changed_by,
-            )
-            mark_employee_on_bench(db, employee)
+            if employee.is_billable:
+                transition_employee_status(
+                    db, employee, "BENCH",
+                    reason=f"Allocation {allocation.id} ended", changed_by=changed_by,
+                )
+                mark_employee_on_bench(db, employee)
+            else:  # internal staff are never bench
+                transition_employee_status(db, employee, "ACTIVE", reason=f"Allocation {allocation.id} ended",
+                                           changed_by=changed_by)
+    db.flush()
+    from app.services.bench_service import sync_billing_classification
 
+    sync_billing_classification(db, employee)
     return allocation

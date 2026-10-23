@@ -200,7 +200,8 @@ def get_bu_financial_comparison(db: Session, year_month: str = None) -> list:
 
 def get_expense_breakdown(db: Session, year_month: str = None, tenant_id: Optional[int] = None) -> dict:
     """Org cost for the month split the way the P&L computes it: delivery (billable hours x
-    loaded cost), bench (payroll no billable hour covered) and approved expenses."""
+    loaded cost), bench (billable staff payroll no billable hour covered), overhead (non-billable
+    staff) and approved expenses."""
     from app.services.revenue_chain_service import month_bounds, pnl as chain_pnl
 
     if not year_month:
@@ -218,9 +219,11 @@ def get_expense_breakdown(db: Session, year_month: str = None, tenant_id: Option
         "total_cost_usd": total / 100,
         "delivery_cost_usd": report["delivery_cost_usd_cents"] / 100,
         "bench_cost_usd": report["bench_cost_usd_cents"] / 100,
+        "overhead_cost_usd": report["overhead_cost_usd_cents"] / 100,
         "expense_cost_usd": report["expense_cost_usd_cents"] / 100,
         "delivery_cost_pct": share(report["delivery_cost_usd_cents"]),
         "bench_cost_pct": share(report["bench_cost_usd_cents"]),
+        "overhead_cost_pct": share(report["overhead_cost_usd_cents"]),
         "expense_cost_pct": share(report["expense_cost_usd_cents"]),
         "pending_expenses_usd": report["pending_expenses_usd_cents"] / 100,
         "cost_data_complete": report["cost_data_complete"],

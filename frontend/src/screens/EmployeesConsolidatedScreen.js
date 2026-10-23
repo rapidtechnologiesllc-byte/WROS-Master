@@ -1,11 +1,12 @@
 // DEFECT-2: Consolidated Employees Screen
 // Consolidates EmployeeDirectoryScreen + ResourceManagementScreen + AllocationsScreen
-// Tab 1: Employee List (name, email, role, hire_status, org_position, utilization %)
+// Tab 1: Employee List (name, email, title, company, BU, status, billable, allocation %), Import + Add
 // Tab 2: Allocations (manage employee allocations, assign to projects)
 // Tab 3: Resources (skill matrix, availability heatmap)
 
 import { useCallback, useEffect, useState } from "react";
-import { Users, Briefcase, Grid3x3, UserPlus, RefreshCw, AlertCircle } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { Users, Briefcase, Grid3x3, UserPlus, RefreshCw, AlertCircle, Upload } from "lucide-react";
 import { Card, Button, StatusBadge } from "../components/ui";
 import cx from "../utils/cx";
 import useTabParam from "../utils/useTabParam";
@@ -14,18 +15,25 @@ import {
   getEmployeeEscalations,
   raiseEmployeeEscalation,
   resolveEmployeeEscalation,
+  updateEmployeeBillable,
   updateEmployeeCertifications,
   updateEmployeeOrganization,
 } from "../services/api/employees";
 import { apiRequest } from "../services/api/client";
 import { getAllocations, endAllocation } from "../services/api/allocations";
 import AllocationForm from "../components/AllocationForm";
+import { AddEmployeeModal, ImportEmployeesModal } from "../components/EmployeeImport";
 import { confirmDialog } from "../utils/dialogs";
 
 // Our companies (Users & Access Control > Companies) and business units
 const COMPANIES_PATH = "/api/v1/api/admin/users-access-control/delivery-centers";
 const loadOrgOptions = () => Promise.all([apiRequest(COMPANIES_PATH), apiRequest("/rbac/business-units")])
   .then(([c, b]) => ({ companies: c.data?.delivery_centers || [], businessUnits: b.data?.business_units || [] }));
+
+// Not yet joined (PRE_JOINING) or gone (EXITED) are the two statuses that are not headcount
+const NOT_WORKING = new Set(["PRE_JOINING", "EXITED"]);
+const isWorking = (emp) => !NOT_WORKING.has(emp.status);
+const statusLabel = (status) => (status || "").replace(/_/g, " ").toLowerCase();
 
 function EmployeeListTab() {
   const [employees, setEmployees] = useState([]);
@@ -35,6 +43,9 @@ function EmployeeListTab() {
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [error, setError] = useState("");
   const [orgOptions, setOrgOptions] = useState({ companies: [], businessUnits: [] });
+  const [dialog, setDialog] = useState(null); // "import" | "add"
+  const [searchParams] = useSearchParams();
+  const linkedEmployeeId = searchParams.get("employee");
 
   useEffect(() => {
     loadOrgOptions()
@@ -45,6 +56,13 @@ function EmployeeListTab() {
   useEffect(() => {
     loadEmployees();
   }, []);
+
+  // /employees?employee=<id> (the import results link) opens that employee
+  useEffect(() => {
+    if (!linkedEmployeeId || !employees.length) return;
+    const linked = employees.find((e) => e.id === linkedEmployeeId);
+    if (linked) setSelectedEmployee(linked);
+  }, [linkedEmployeeId, employees]);
 
   useEffect(() => {
     const filtered = employees.filter((e) =>
@@ -81,7 +99,18 @@ function EmployeeListTab() {
         <Button variant="ghost" onClick={loadEmployees}>
           <RefreshCw className="h-4 w-4" />
         </Button>
+        <Button variant="secondary" onClick={() => setDialog("import")}>
+          <Upload className="h-4 w-4" /> Import employees
+        </Button>
+        <Button variant="primary" onClick={() => setDialog("add")}>
+          <UserPlus className="h-4 w-4" /> Add employee
+        </Button>
       </div>
+      {dialog === "import" ? <ImportEmployeesModal onClose={() => setDialog(null)} onImported={loadEmployees} /> : null}
+      {dialog === "add" ? (
+        <AddEmployeeModal orgOptions={orgOptions} onClose={() => setDialog(null)}
+          onCreated={() => { setDialog(null); loadEmployees(); }} />
+      ) : null}
 
       {error && (
         <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
@@ -99,7 +128,8 @@ function EmployeeListTab() {
               <th className="px-4 py-2 text-left font-semibold">Company</th>
               <th className="px-4 py-2 text-left font-semibold">Business Unit</th>
               <th className="px-4 py-2 text-left font-semibold">Status</th>
-              <th className="px-4 py-2 text-left font-semibold">Utilization</th>
+              <th className="px-4 py-2 text-left font-semibold">Billable</th>
+              <th className="px-4 py-2 text-left font-semibold">Allocated</th>
               <th className="px-4 py-2 text-left font-semibold">Action</th>
             </tr>
           </thead>
@@ -108,15 +138,15 @@ function EmployeeListTab() {
               <tr key={emp.id} className="border-b hover:bg-gray-50">
                 <td className="px-4 py-2">{emp.first_name} {emp.last_name}</td>
                 <td className="px-4 py-2 text-gray-600">{emp.email}</td>
-                <td className="px-4 py-2">{emp.job_title || emp.current_title || "—"}</td>
+                <td className="px-4 py-2">{emp.current_title || "—"}</td>
                 <td className="px-4 py-2">{orgOptions.companies.find((c) => c.id === emp.company_id)?.name || <span className="text-amber-700">Not set</span>}</td>
                 <td className="px-4 py-2">{orgOptions.businessUnits.find((b) => b.id === emp.bu_id)?.name || "—"}</td>
                 <td className="px-4 py-2">
-                  <StatusBadge status={emp.hire_status === "ACTIVE" ? "active" : "inactive"}>
-                    {emp.hire_status || "Active"}
-                  </StatusBadge>
+                  <StatusBadge status={isWorking(emp) ? "active" : "inactive"}>{statusLabel(emp.status)}</StatusBadge>
+                  {!emp.has_login ? <div className="text-xs text-amber-700">no login</div> : null}
                 </td>
-                <td className="px-4 py-2">{emp.utilization_pct || 0}%</td>
+                <td className="px-4 py-2">{emp.is_billable ? "Billable" : "Internal"}</td>
+                <td className="px-4 py-2">{emp.allocated_pct}%</td>
                 <td className="px-4 py-2">
                   <Button variant="ghost" size="sm" onClick={() => setSelectedEmployee(emp)}>
                     View
@@ -252,6 +282,18 @@ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
 
   const CERT_LEVELS = ["None", "ACE", "Associate", "Specialist"];
 
+  const [billableMessage, setBillableMessage] = useState("");
+  const toggleBillable = async () => {
+    setBillableMessage("");
+    try {
+      await updateEmployeeBillable(employee.id, !employee.is_billable);
+      setBillableMessage(employee.is_billable ? "Now non-billable (internal): off the bench" : "Now billable");
+      onRefresh();
+    } catch (err) {
+      setBillableMessage(`Could not change: ${err.message}`);
+    }
+  };
+
   const saveOrganization = async () => {
     setSaving(true);
     setOrgMessage("");
@@ -270,10 +312,11 @@ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
   const loadAllocations = useCallback(async () => {
     setLoadingAllocs(true);
     try {
-      const data = await getAllocations();
-      setAllocations((data || []).filter((a) => a.employee_id === employee.id));
+      const data = await getAllocations({ employeeId: employee.id });
+      setAllocations(data.filter((a) => a.status === "ACTIVE"));
     } catch (err) {
       console.error("Failed to load allocations:", err);
+      setOrgMessage(`Could not load allocations: ${err.message}`);
     } finally {
       setLoadingAllocs(false);
     }
@@ -300,7 +343,8 @@ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-      <Card className="w-full max-w-2xl max-h-96 overflow-y-auto">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <Card>
         <div className="flex items-center justify-between border-b p-4">
           <h2 className="text-lg font-semibold">
             {employee.first_name} {employee.last_name}
@@ -322,13 +366,23 @@ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
             </div>
             <div>
               <div className="font-semibold text-gray-700">Status</div>
-              <StatusBadge status={employee.hire_status === "ACTIVE" ? "active" : "inactive"}>
-                {employee.hire_status || "Active"}
-              </StatusBadge>
+              <StatusBadge status={isWorking(employee) ? "active" : "inactive"}>{statusLabel(employee.status)}</StatusBadge>
             </div>
             <div>
-              <div className="font-semibold text-gray-700">Utilization</div>
-              <div>{employee.utilization_pct || 0}%</div>
+              <div className="font-semibold text-gray-700">Allocated</div>
+              <div>{employee.allocated_pct}% · {employee.is_billable ? "billable" : "internal (non-billable)"}</div>
+              <button type="button" className="text-xs text-blue-700 hover:underline" onClick={toggleBillable}>
+                Make {employee.is_billable ? "non-billable (internal)" : "billable"}
+              </button>
+              {billableMessage ? <div className="text-xs text-gray-600">{billableMessage}</div> : null}
+            </div>
+            <div>
+              <div className="font-semibold text-gray-700">Login</div>
+              <div>{employee.has_login ? "Linked" : "None: re-import or add with this email"}</div>
+            </div>
+            <div>
+              <div className="font-semibold text-gray-700">Buddy Program</div>
+              <div>{statusLabel(employee.buddy_program_status)}</div>
             </div>
           </div>
 
@@ -410,8 +464,8 @@ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
               <div className="space-y-2">
                 {allocations.map((alloc) => (
                   <div key={alloc.id} className="rounded border p-2 bg-gray-50 text-sm">
-                    <div className="font-semibold">{alloc.project_name || "Project"}</div>
-                    <div className="text-gray-600">{alloc.utilization_pct}% allocation</div>
+                    <div className="font-semibold">{alloc.client_name} · {alloc.demand_job_title}</div>
+                    <div className="text-gray-600">{alloc.utilization_pct ?? 100}% allocation, from {alloc.start_date}</div>
                   </div>
                 ))}
               </div>
@@ -425,6 +479,7 @@ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
           </Button>
         </div>
       </Card>
+      </div>
     </div>
   );
 }
@@ -443,8 +498,7 @@ function AllocationsTab() {
     setLoading(true);
     setError("");
     try {
-      const data = await getAllocations();
-      setAllocations(data || []);
+      setAllocations(await getAllocations());
     } catch (err) {
       setError(err.message || "Failed to load allocations");
     } finally {
@@ -558,7 +612,7 @@ function ResourcesTab() {
           <h4 className="font-semibold mb-3">Team Utilization Heatmap</h4>
           <div className="space-y-2">
             {employees.map((emp) => {
-              const utilization = emp.utilization_pct || 0;
+              const utilization = emp.allocated_pct || 0;
               const bgColor =
                 utilization >= 100 ? "bg-red-100" :
                 utilization >= 75 ? "bg-yellow-100" :
@@ -584,7 +638,7 @@ function ResourcesTab() {
           <h4 className="font-semibold mb-3">Skills Inventory</h4>
           <div className="text-sm text-gray-600">
             <div className="mb-2">Total Employees: {employees.length}</div>
-            <div>Active Employees: {employees.filter((e) => e.hire_status === "ACTIVE").length}</div>
+            <div>Working employees: {employees.filter(isWorking).length}</div>
           </div>
         </div>
       </Card>
