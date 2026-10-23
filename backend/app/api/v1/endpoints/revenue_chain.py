@@ -63,12 +63,16 @@ def revenue_chain_summary(
     start: date, end: date,
     group_by: str = Query("partner", pattern="^(" + "|".join(chain.GROUPS) + ")$"),
     partner_user_id: Optional[str] = None,
+    country: Optional[str] = Query(None, min_length=2, max_length=2,
+                                   description="ISO country: only work done from that location (as the P&L)"),
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_role_template_permission("revenue", "view")),
 ):
     _period(start, end)
     lines = chain.chain_lines(db, start=start, end=end, tenant_id=current_user.tenant_id,
                               partner_user_id=partner_user_id, business_unit_ids=visible_bu_ids(db, current_user))
+    if country:
+        lines = [line for line in lines if line["country"] == country.upper()]
     return {"start": start, "end": end, "group_by": group_by, "rows": chain.summarize(lines, group_by)}
 
 

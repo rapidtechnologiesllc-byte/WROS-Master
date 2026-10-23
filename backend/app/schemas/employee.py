@@ -138,8 +138,9 @@ class EngineHistoryResponse(BaseModel):
     employee_id: str
     history: List[EngineHistoryItem]
 
-class RecordUtilizationRequest(BaseModel):
-    week_starting_date: date
+class RecomputeUtilizationResponse(BaseModel):
+    employees: int
+    snapshots: int
 
 class UtilizationHistoryItem(BaseModel):
     period_start: date
@@ -163,6 +164,8 @@ class UtilizationSummaryResponse(BaseModel):
     employees: List[UtilizationSummaryItem]
     average_utilization_pct: Optional[float] = None
     low_utilization_count: int = 0
+    # settings.UTILIZATION_TARGET_PCT: below it an employee's latest week is flagged
+    utilization_target_pct: float
 
 class BenchCostSummaryItem(BaseModel):
     employee_id: str

@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.services.demand_service import DemandValidationError
+from app.services.project_service import ProjectValidationError
 from app.core.dependencies import require_resource_permission
 from app.models.client import Client
 from app.models.employee import Employee
@@ -237,7 +238,7 @@ def transition_opportunity_stage(
             continent=body.continent, changed_by=current_user.UserID,
         )
         db.commit()
-    except InvalidStageTransition as exc:
+    except (InvalidStageTransition, ProjectValidationError) as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc))
 
