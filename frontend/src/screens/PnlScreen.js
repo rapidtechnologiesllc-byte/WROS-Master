@@ -40,6 +40,7 @@ function Tile({ label, value, hint }) {
 
 export default function PnlScreen() {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [country, setCountry] = useState(""); // "" = every location
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -51,13 +52,13 @@ export default function PnlScreen() {
     setLoading(true);
     setError("");
     try {
-      setReport(await getPnl(start, end));
+      setReport(await getPnl(start, end, country));
     } catch (err) {
       setError(err.message || "Failed to load the P&L.");
     } finally {
       setLoading(false);
     }
-  }, [month]);
+  }, [month, country]);
 
   const openPartner = async (row) => {
     const [start, end] = monthBounds(month);
@@ -85,6 +86,12 @@ export default function PnlScreen() {
         right={
           <div className="flex items-center gap-2">
             <Input type="month" value={month} onChange={setMonth} />
+            <select className="rounded-xl border bg-white px-2 py-2 text-sm" value={country}
+              onChange={(e) => setCountry(e.target.value)} aria-label="Location">
+              <option value="">All locations</option>
+              {(report?.by_location || []).filter((l) => l.key).map((l) => <option key={l.key} value={l.key}>{l.key}</option>)}
+              {country && !(report?.by_location || []).some((l) => l.key === country) ? <option value={country}>{country}</option> : null}
+            </select>
             <Button variant="ghost" onClick={load} disabled={loading}>
               <RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh
             </Button>
@@ -119,6 +126,14 @@ export default function PnlScreen() {
           </>
         ) : null}
       </Card>
+
+      {report?.by_cost_object?.length ? (
+        <Card title="By cost object (business unit x location)"
+          subtitle="Each day's cost is charged to the business unit and location the person sat in that day.">
+          <Table columns={[{ key: "name", header: "Cost object", cell: (r) => r.name }, ...MONEY_COLUMNS]}
+            rows={report.by_cost_object} />
+        </Card>
+      ) : null}
 
       {report ? (
         <Card title="By partner" subtitle="Click a partner to see every timesheet behind their numbers.">

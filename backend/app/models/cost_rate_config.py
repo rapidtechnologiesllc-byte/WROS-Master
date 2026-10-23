@@ -28,6 +28,9 @@ class CostRateConfig(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
     # Null = org-wide default, applied when no BU-specific row exists.
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
+    # Cost object = BU x location (CEO 2026-10-22): the delivery center's country (ISO, e.g. IN,
+    # US). Null = every country. Lookup order: BU+country, country default, BU default, tenant default
+    country = Column(String(2), nullable=True, index=True)
 
     statutory_pct = Column(Numeric(5, 2), nullable=False)
     overhead_pct = Column(Numeric(5, 2), nullable=False)

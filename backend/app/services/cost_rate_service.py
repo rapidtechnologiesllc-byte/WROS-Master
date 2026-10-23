@@ -23,12 +23,21 @@ class CostRateConfigError(Exception):
 def set_cost_rate_config(
     db: Session, *, statutory_pct: float, overhead_pct: float, created_by: str,
     business_unit_id: Optional[int] = None, tenant_id: Optional[int] = None,
-    effective_date: Optional[date] = None, notes: Optional[str] = None,
+    effective_date: Optional[date] = None, notes: Optional[str] = None, country: Optional[str] = None,
 ) -> CostRateConfig:
+    """A new rate for one cost object (BU x country; either may be None = every one). Append-only:
+    a later row with a later effective date replaces it from that date, earlier days keep theirs."""
     if statutory_pct < 0 or overhead_pct < 0:
         raise CostRateConfigError("statutory_pct and overhead_pct must both be non-negative.")
+    if country is not None:
+        from app.services.employment_type_policy import country_code
+
+        code = country_code(country)
+        if code is None:
+            raise CostRateConfigError(f"Country {country!r} is not one we operate in (use an ISO code such as IN or US).")
+        country = code
     config = CostRateConfig(
-        tenant_id=tenant_id, business_unit_id=business_unit_id,
+        tenant_id=tenant_id, business_unit_id=business_unit_id, country=country,
         statutory_pct=statutory_pct, overhead_pct=overhead_pct,
         effective_date=effective_date or date.today(), created_by=created_by, notes=notes,
     )
@@ -37,25 +46,39 @@ def set_cost_rate_config(
     db.refresh(config)
     return config
 
-def get_active_cost_rate_config(db: Session, *, business_unit_id: Optional[int] = None) -> Optional[CostRateConfig]:
-    """Most recent row for the BU wins; falls back to the org-wide
-    default (business_unit_id IS NULL) if no BU-specific row exists --
-    never guesses a percentage."""
+def get_active_cost_rate_config(db: Session, *, business_unit_id: Optional[int] = None,
+                                country: Optional[str] = None, on: Optional[date] = None) -> Optional[CostRateConfig]:
+    """The rate for a cost object on a day: BU+country, else the country default, else the BU
+    default, else the tenant default -- the latest row effective on or before `on` (today by
+    default) at the first level that has one; for a day before any rate took effect, the first rate
+    set. None when no level has a rate: the cost is then reported missing, never guessed."""
+    on = on or date.today()
+    levels = []
+    if business_unit_id is not None and country is not None:
+        levels.append((business_unit_id, country))
+    if country is not None:
+        levels.append((None, country))
     if business_unit_id is not None:
-        bu_specific = (
-            db.query(CostRateConfig)
-            .filter(CostRateConfig.business_unit_id == business_unit_id)
-            .order_by(CostRateConfig.id.desc())
-            .first()
-        )
-        if bu_specific:
-            return bu_specific
-    return (
-        db.query(CostRateConfig)
-        .filter(CostRateConfig.business_unit_id.is_(None))
-        .order_by(CostRateConfig.id.desc())
-        .first()
-    )
+        levels.append((business_unit_id, None))
+    levels.append((None, None))
+    def at(bu_id, code):
+        query = db.query(CostRateConfig)
+        query = query.filter(CostRateConfig.business_unit_id.is_(None) if bu_id is None
+                             else CostRateConfig.business_unit_id == bu_id)
+        return query.filter(CostRateConfig.country.is_(None) if code is None else CostRateConfig.country == code)
+
+    for bu_id, code in levels:
+        row = at(bu_id, code).filter(CostRateConfig.effective_date <= on) \
+            .order_by(CostRateConfig.effective_date.desc(), CostRateConfig.id.desc()).first()
+        if row is not None:
+            return row
+    # a day before any rate took effect: the first rate set is the best known one (rates were
+    # configured after the fact), at the most specific level that has any
+    for bu_id, code in levels:
+        row = at(bu_id, code).order_by(CostRateConfig.effective_date.asc(), CostRateConfig.id.asc()).first()
+        if row is not None:
+            return row
+    return None
 
 def calculate_fully_loaded_cost_usd_cents(employee: Employee, config: CostRateConfig) -> Optional[int]:
     """Monthly fully-loaded cost = base salary + statutory components +

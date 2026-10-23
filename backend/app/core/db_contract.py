@@ -122,8 +122,29 @@ def _interview_times_to_utc(db: Session) -> int:
 
 
 # name -> function(db) returning a row count. Append only; never rename or reorder.
+def _employee_org_history_backfill(db: Session) -> int:
+    """Cost object history (CEO 2026-10-22): every employee without history gets one row -- where
+    they sit now, from their joining date -- so the first move after this keeps past months where
+    they were. Idempotent by construction (only employees with no rows)."""
+    from app.models.employee import Employee
+    from app.models.employee_org_history import EmployeeOrgHistory, country_of_company
+
+    have = {row[0] for row in db.query(EmployeeOrgHistory.employee_id).distinct()}
+    added = 0
+    for employee in db.query(Employee).all():
+        if employee.id in have:
+            continue
+        db.add(EmployeeOrgHistory(tenant_id=employee.tenant_id, employee_id=employee.id, bu_id=employee.bu_id,
+                                  company_id=employee.company_id,
+                                  country=country_of_company(db, employee.company_id),
+                                  effective_from=employee.joining_date))
+        added += 1
+    return added
+
+
 DATA_MIGRATIONS = (
     ("interview_times_to_utc", _interview_times_to_utc),
+    ("employee_org_history_backfill", _employee_org_history_backfill),
 )
 
 
@@ -1471,6 +1492,9 @@ def _apply_schema_migrations(db: Session):
     _migration_step(db, "employees.is_billable",
                     "ALTER TABLE IF EXISTS app_schema.employees "
                     "ADD COLUMN IF NOT EXISTS is_billable BOOLEAN NOT NULL DEFAULT TRUE")
+    # cost object = BU x location: existing configs stay BU-level defaults (country NULL)
+    _migration_step(db, "cost_rate_configs.country",
+                    "ALTER TABLE IF EXISTS app_schema.cost_rate_configs ADD COLUMN IF NOT EXISTS country VARCHAR(2) NULL")
     # existing projects and allocations are client work: billable
     _migration_step(db, "projects.is_billable",
                     "ALTER TABLE IF EXISTS app_schema.projects "

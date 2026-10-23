@@ -186,7 +186,10 @@ def bench_report(db: Session, user, *, group: Optional[str] = None, business_uni
         row = {
             "employee_id": employee.id, "name": person["name"], "group": key, "group_label": labels[key],
             "business_unit_id": employee.bu_id, "business_unit": (unit.display_name or unit.name) if unit else None,
-            "location": company.name if company else None, "country": company.country if company else None,
+            "location": company.name if company else None,
+            # the cost object today's bench day is charged to (BU x location)
+            "country": costs.object_on(employee, today)[2],
+            "cost_object": f"{(unit.display_name or unit.name) if unit else 'No BU'} x {costs.object_on(employee, today)[2] or 'unknown location'}",
             "bench_since": since.isoformat(), "bench_days": (today - since).days,
             "daily_cost_usd_cents": None, "bench_loss_usd_cents": None, "earned_usd_cents": None,
             "delivery_cost_usd_cents": None, "allocated_margin_usd_cents": None, "net_usd_cents": None,

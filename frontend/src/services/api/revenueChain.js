@@ -4,8 +4,10 @@ import { apiRequest } from "./client";
 
 const period = (start, end) => `start=${start}&end=${end}`;
 
-export const getPnl = async (start, end) => {
-  const { data } = await apiRequest(`/revenue-chain/pnl?${period(start, end)}`, { method: "GET" });
+// country (ISO, optional): one location's P&L (cost object = BU x location)
+export const getPnl = async (start, end, country) => {
+  const suffix = country ? `&country=${encodeURIComponent(country)}` : "";
+  const { data } = await apiRequest(`/revenue-chain/pnl?${period(start, end)}${suffix}`, { method: "GET" });
   return data;
 };
 
