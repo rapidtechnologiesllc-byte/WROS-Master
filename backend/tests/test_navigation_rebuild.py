@@ -208,6 +208,7 @@ def test_renamed_labels(db):
     assert labels["/revenue"] == "Revenue Health"
     assert labels["/pnl"] == "P&L"
     assert labels["/forecast-vs-actual"] == "Forecast vs Actual"
+    assert labels["/checklist-templates"] == "Templates & Checklists"
 
 
 def test_executive_duplicates_are_gone_from_the_catalogue():
@@ -237,7 +238,7 @@ def test_resources_that_gated_nothing_left_the_catalogue():
         assert not RETIRED_RESOURCES & {r for names in spec["permissions"].values() for r in names}
     checked = set()
     for path in (ENDPOINTS.parent.parent.parent).rglob("*.py"):
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         checked |= {r for r in RETIRED_RESOURCES if f'"{r}",' in text and "permission" in text and path.name != "db_contract.py"}
     assert not checked
 
@@ -356,6 +357,10 @@ SCREEN_APIS = {
     ("checklist_templates.py", "/hr/templates", "post"): "checklists",
     ("checklist_templates.py", "/hr/templates/{template_id}", "put"): "checklists",
     ("checklist_templates.py", "/hr/templates/{template_id}/items", "post"): "checklists",
+    # Email Templates is a tab of Templates & Checklists (CEO 2026-10-23); it was gated by candidates
+    ("email_templates.py", "", "get"): "checklists",
+    ("email_templates.py", "/{stage}", "put"): "checklists",
+    ("email_templates.py", "/{stage}/preview", "get"): "checklists",
     ("hiring_pipeline.py", "", "get"): "convert-to-employee",
     ("hiring_pipeline.py", "/candidate/{candidate_id}/evaluate", "post"): "convert-to-employee",
     ("employees.py", "/utilization-summary", "get"): "utilization-dashboard",
@@ -379,7 +384,7 @@ SCREEN_APIS = {
 def _declared_gates(filename):
     """{(path, method): resource} for every route decorator with a require_resource_permission dependency."""
     gates = {}
-    for node in ast.walk(ast.parse((ENDPOINTS / filename).read_text())):
+    for node in ast.walk(ast.parse((ENDPOINTS / filename).read_text(encoding="utf-8"))):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         for deco in node.decorator_list:

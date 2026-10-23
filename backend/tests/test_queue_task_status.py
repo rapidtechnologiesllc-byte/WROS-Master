@@ -51,6 +51,6 @@ def test_queued_creates_point_at_the_real_polling_endpoint():
     import pathlib
 
     app = pathlib.Path(__file__).resolve().parent.parent / "app"
-    sources = "".join(p.read_text() for p in app.rglob("*.py"))
+    sources = "".join(p.read_text(encoding="utf-8") for p in app.rglob("*.py"))
     assert "/api/v1/message-queue/status/" not in sources and '"/api/v1/tasks/{message_id}/status"' not in sources
     assert "/api/v1/message-queue/tasks/{" in sources
