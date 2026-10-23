@@ -24,10 +24,14 @@ import {
 } from "../utils/resumeAutofill";
 import { getAllJobs } from "../services/api/jobs";
 import { ScreenLevelBanner, useScreenBanner, ValidationSummary } from "../components/ScreenLevelBanner";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useRef } from "react";
 import { handleApiError } from "../utils/apiErrorHandler";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
+import { getReferrers } from "../services/api/referrals";
+
+// The source that records an employee referral (needs "Referred By")
+const EMPLOYEE_REFERRAL = "Employee Referral";
 
 // Rows count as filled when any field has a value; only the key field is required
 const hasAnyValue = (row, keys) => keys.some((k) => String(row[k] || "").trim());
@@ -88,7 +92,9 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [showSkillsModal, setShowSkillsModal] = useState(false);
   const [selectedSkills, setSelectedSkills] = useState([]);
   const [customSource, setCustomSource] = useState("");
-  const [showEmployeeReferralList, setShowEmployeeReferralList] = useState(false);
+  const [referrers, setReferrers] = useState([]);
+  const [referringEmployeeId, setReferringEmployeeId] = useState("");
+  const [searchParams] = useSearchParams();
   const [skillName, setSkillName] = useState("");
   const [skillYears, setSkillYears] = useState("");
   const [skillDate, setSkillDate] = useState("");
@@ -155,6 +161,23 @@ export default function CandidateCreate({ onBack, onSave }) {
   useEffect(() => {
     loadAvailableJobs();
   }, []);
+
+  // "Refer a Candidate" (My Referrals) opens this screen with ?referral=1
+  useEffect(() => {
+    if (searchParams.get("referral") === "1") setSource(EMPLOYEE_REFERRAL);
+  }, [searchParams]);
+
+  // Referrer list loads once the source is Employee Referral; the caller is preselected
+  // when they are an employee themselves
+  useEffect(() => {
+    if (source !== EMPLOYEE_REFERRAL || referrers.length) return;
+    getReferrers()
+      .then((data) => {
+        setReferrers(data?.employees || []);
+        if (data?.self_employee_id) setReferringEmployeeId((current) => current || data.self_employee_id);
+      })
+      .catch((err) => showError(handleApiError(err, "Could not load the employee list.")));
+  }, [source, referrers.length]);
 
   const loadAvailableJobs = async () => {
     try {
@@ -516,6 +539,7 @@ export default function CandidateCreate({ onBack, onSave }) {
     else if (!/^\d{7,15}$/.test(mobile.replace(/\D/g, ''))) newErrors.mobile = "Mobile must be 7-15 digits.";
     if (!email.trim()) newErrors.email = "Email is required.";
     if (!locationValue?.countryCode || !locationValue?.city) newErrors.location = "Location (Country and City) is required.";
+    if (source === EMPLOYEE_REFERRAL && !referringEmployeeId) newErrors.referringEmployee = "Select the employee who referred this candidate.";
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
@@ -566,6 +590,8 @@ export default function CandidateCreate({ onBack, onSave }) {
         candidate_gender: gender || null,
         candidate_date_of_birth: dob || null,
         candidate_source: source === "Other" ? customSource : (source || null),
+        referring_employee_id: source === EMPLOYEE_REFERRAL ? referringEmployeeId : null,
+        job_id: source === EMPLOYEE_REFERRAL ? (selectedJobId || null) : null,
         candidate_experience: experience || null,
         candidate_skills: selectedSkills.length > 0 ? selectedSkills.map(s => s.name).join(", ") : null,
         candidate_joining_date: joiningDate || null,
@@ -881,11 +907,12 @@ export default function CandidateCreate({ onBack, onSave }) {
               onChange={(value) => {
                 setSource(value);
                 setCustomSource("");
-                setShowEmployeeReferralList(value === "Employee Referral");
+                if (value !== EMPLOYEE_REFERRAL) setReferringEmployeeId("");
+                clearFieldError("referringEmployee");
               }}
               options={[
                 { value: "", label: "Select source" },
-                ...SOURCE_OPTIONS.map(opt => ({ value: opt.value, label: opt.label }))
+                ...SOURCE_OPTIONS.map(opt => ({ value: opt, label: opt }))
               ]}
             />
           </div>
@@ -899,10 +926,23 @@ export default function CandidateCreate({ onBack, onSave }) {
             />
           )}
 
-          {showEmployeeReferralList && (
-            <div className="md:col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-gray-700 mb-2">Select referring employee (feature coming soon)</p>
-              <p className="text-xs text-gray-500">Employee list will be populated here</p>
+          {source === EMPLOYEE_REFERRAL && (
+            <div>
+              <Select
+                label="Referred By *"
+                value={referringEmployeeId}
+                onChange={(value) => {
+                  setReferringEmployeeId(value);
+                  clearFieldError("referringEmployee");
+                }}
+                options={[
+                  { value: "", label: referrers.length ? "Select the referring employee" : "Loading employees..." },
+                  ...referrers.map((e) => ({ value: e.id, label: e.email ? `${e.name} (${e.email})` : e.name })),
+                ]}
+              />
+              {errors.referringEmployee ? (
+                <div className="mt-1 text-xs text-red-500">{errors.referringEmployee}</div>
+              ) : null}
             </div>
           )}
 

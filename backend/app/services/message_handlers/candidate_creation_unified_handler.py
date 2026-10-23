@@ -11,7 +11,6 @@ from datetime import date, datetime
 from sqlalchemy.orm import Session
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
-from app.core.logging import logger as base_logger
 from app.models.channel_queue import ChannelQueueItem
 
 logger = logging.getLogger(__name__)
@@ -199,6 +198,13 @@ class CandidateCreationUnifiedHandler:
             db.flush()
 
             _add_education_and_experience(db, candidate_id, payload)
+            # Employee referral (Add Candidate): saved and linked in this same transaction.
+            # (An existing candidate is handled below: credited only when dormant.)
+            if payload.get('referring_employee_id'):
+                from app.services.employee_referral_service import EmployeeReferralService
+                EmployeeReferralService.record_candidate_referral(
+                    db, candidate, payload['referring_employee_id'], payload.get('referral_job_id'),
+                    recorded_by_user_id=payload.get('created_by_user_id'))
             # First entry on the candidate's History tab (the replaced
             # per-source handlers logged this; the unified one did not)
             from app.services.candidate_activity_service import log_candidate_created
@@ -238,6 +244,17 @@ class CandidateCreationUnifiedHandler:
                     logger.warning(
                         f"[CandidateCreationUnified] Failed to queue Thunder engagement for {candidate_id}: {e}"
                     )
+
+        # Employee referral of someone already in the system: credited only when they are
+        # dormant (re-checked here; the endpoint already refused an active one with a warning)
+        if not is_new and payload.get('referring_employee_id'):
+            from app.services.employee_referral_service import EmployeeReferralService
+            block = EmployeeReferralService.existing_candidate_referral_block(db, candidate)
+            if block:
+                raise ValueError(block)
+            EmployeeReferralService.record_candidate_referral(
+                db, candidate, payload['referring_employee_id'], payload.get('referral_job_id'),
+                recorded_by_user_id=payload.get('created_by_user_id'))
 
         # Queued from the LinkedIn pipeline: link the item and its open task
         if payload.get('linkedin_pipeline_id'):

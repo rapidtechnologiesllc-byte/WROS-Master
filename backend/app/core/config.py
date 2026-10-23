@@ -156,6 +156,11 @@ class Settings:
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
     # Panel vs Flash calibration: Flash "advances" a candidate whose job match score is at least this
     FLASH_ADVANCE_SCORE: int = int(os.getenv("FLASH_ADVANCE_SCORE", "60"))
+    # Employee referral bonus (US cents) when the job has no referral settings of its own
+    REFERRAL_BONUS_DEFAULT_USD_CENTS: int = int(os.getenv("REFERRAL_BONUS_DEFAULT_USD_CENTS", "50000"))
+    # A candidate already in the system can be referred (and earn the bonus) only after this many
+    # days without activity; a more recently active candidate is refused with a warning
+    REFERRAL_DORMANT_DAYS: int = int(os.getenv("REFERRAL_DORMANT_DAYS", "60"))
     # Name of the parent company created on an empty database (the primary tenant)
     PRIMARY_TENANT_NAME: str = os.getenv("PRIMARY_TENANT_NAME", "BlitzenX")
     # Tenant the public website chat creates candidates in (empty = the only tenant)

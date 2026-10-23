@@ -23,6 +23,7 @@ from app.models.candidate import Candidate
 from app.models.candidate_history import CandidateHistory
 from app.models.activity_timeline import ActivityTimeline
 from app.models.referral import EmployeeReferral
+from app.models.user import Users
 
 logger = logging.getLogger(__name__)
 
@@ -595,49 +596,46 @@ def log_referral_linked(
     db: Session,
     candidate_id: str,
     referral_id: str,
-    referred_by_employee_id: Optional[str] = None,
-    referred_by_employee_name: Optional[str] = None,
+    referrer_name: Optional[str] = None,
+    recorded_by_user_id: Optional[str] = None,
 ) -> CandidateHistory:
     """
     Log when a candidate is linked to an employee referral.
+
+    The actor is the user who recorded it (a users.UserID, or the system); the referring
+    employee is named in the note -- an Employee.id is not a user and breaks the actor key.
+    Raises on failure: the caller's transaction holds the candidate and its referral.
     """
-    try:
-        candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
-        if not candidate:
-            logger.error(f"log_referral_linked: Candidate {candidate_id} not found")
-            return None
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    if not candidate:
+        raise ValueError(f"log_referral_linked: Candidate {candidate_id} not found")
 
-        note = f"Linked to referral {referral_id}"
-        if referred_by_employee_name:
-            note += f" from {referred_by_employee_name}"
+    note = f"Referred by {referrer_name}" if referrer_name else f"Linked to referral {referral_id}"
+    recorder = db.get(Users, recorded_by_user_id) if recorded_by_user_id else None
 
-        history = CandidateHistory(
-            candidateID=candidate_id,
-            event_type=EVENT_REFERRAL_LINKED,
-            note=note,
-            performed_by_id=referred_by_employee_id,
-            performed_by_name=referred_by_employee_name or "System",
-            event_at=datetime.utcnow(),
-        )
-        db.add(history)
-        logger.info(f"Logged: Candidate {candidate_id} linked to referral {referral_id}")
+    history = CandidateHistory(
+        candidateID=candidate_id,
+        event_type=EVENT_REFERRAL_LINKED,
+        note=note,
+        performed_by_id=recorder.UserID if recorder else None,
+        performed_by_name=recorder.UserName if recorder else "System",
+        event_at=datetime.utcnow(),
+    )
+    db.add(history)
+    logger.info(f"Logged: Candidate {candidate_id} linked to referral {referral_id}")
 
-        _write_timeline(
-            db,
-            entity_type="Candidate",
-            entity_id=candidate_id,
-            action="referral_linked",
-            actor_id=referred_by_employee_id,
-            actor_type="USER" if referred_by_employee_id else "SYSTEM",
-            description=f"Linked to employee referral {referral_id}",
-            tenant_id=candidate.tenant_id,
-        )
+    _write_timeline(
+        db,
+        entity_type="Candidate",
+        entity_id=candidate_id,
+        action="referral_linked",
+        actor_id=recorder.UserID if recorder else None,
+        actor_type="USER" if recorder else "SYSTEM",
+        description=f"{note} (referral {referral_id})",
+        tenant_id=candidate.tenant_id,
+    )
 
-        return history
-
-    except Exception as e:
-        logger.error(f"log_referral_linked failed: {str(e)}", exc_info=True)
-        return None
+    return history
 
 
 def log_referral_status_changed(
