@@ -1,0 +1,2475 @@
+diff --git a/backend/app/api/v1/endpoints/certifications_admin.py b/backend/app/api/v1/endpoints/certifications_admin.py
+index 1a539be2..d956e12e 100644
+--- a/backend/app/api/v1/endpoints/certifications_admin.py
++++ b/backend/app/api/v1/endpoints/certifications_admin.py
+@@ -14,7 +14,7 @@ from pydantic import BaseModel
+ 
+ from app.core.database import get_db
+ from app.core.dependencies import require_resource_permission
+-from app.models.certification import Certification
++from app.models.certification import CERTIFICATION_LEVELS, GUIDEWIRE_CERT_LEVELS, Certification
+ from app.models.kpi import EmployeeKPITarget, EmployeeKPIScore
+ from app.models.employee import Employee
+ 
+@@ -29,6 +29,8 @@ class CertificationRequest(BaseModel):
+     level: str = "Foundation"
+     validity_months: int = 24
+     is_core_certification: bool = False
++    # One of GUIDEWIRE_CERT_LEVELS when holding this certificate gives that Guidewire level
++    guidewire_level: Optional[str] = None
+ 
+ class CertificationResponse(BaseModel):
+     id: str
+@@ -36,6 +38,8 @@ class CertificationResponse(BaseModel):
+     cert_code: str
+     level: str
+     is_core_certification: bool
++    validity_months: Optional[int] = None
++    guidewire_level: Optional[str] = None
+ 
+     class Config:
+         from_attributes = True
+@@ -81,6 +85,10 @@ def create_certification(
+ 
+     if existing:
+         raise HTTPException(status_code=400, detail=f"Certification code {request.cert_code} already exists")
++    if request.level not in CERTIFICATION_LEVELS:
++        raise HTTPException(status_code=400, detail=f"level must be one of {list(CERTIFICATION_LEVELS)}")
++    if request.guidewire_level is not None and request.guidewire_level not in GUIDEWIRE_CERT_LEVELS:
++        raise HTTPException(status_code=400, detail=f"guidewire_level must be one of {list(GUIDEWIRE_CERT_LEVELS)}")
+ 
+     cert = Certification(
+         cert_name=request.cert_name,
+@@ -89,6 +97,7 @@ def create_certification(
+         level=request.level,
+         validity_months=request.validity_months,
+         is_core_certification=request.is_core_certification,
++        guidewire_level=request.guidewire_level,
+         tenant_id=tenant_id_of(current_user),
+     )
+     db.add(cert)
+@@ -98,6 +107,14 @@ def create_certification(
+     logger.info(f"[CERT] Created certification: {cert.cert_code}")
+     return cert
+ 
++@router.get(
++    "/options",
++    dependencies=[Depends(require_resource_permission("certifications", "view"))],
++)
++def certification_catalog_options():
++    """The catalog form's choices, from the backend's own lists."""
++    return {"levels": list(CERTIFICATION_LEVELS), "guidewire_levels": list(GUIDEWIRE_CERT_LEVELS)}
++
+ @router.get(
+     "/list",
+     response_model=List[CertificationResponse],
+diff --git a/backend/app/api/v1/endpoints/cost_rate.py b/backend/app/api/v1/endpoints/cost_rate.py
+index 3a3ed2d5..1ef5be0b 100644
+--- a/backend/app/api/v1/endpoints/cost_rate.py
++++ b/backend/app/api/v1/endpoints/cost_rate.py
+@@ -20,7 +20,8 @@ from app.schemas.bank_reconciliation import (
+ )
+ from app.schemas.hiring_affordability import HiringAffordabilityResponse
+ from app.schemas.intercompany_ledger import (
+-    EntityNetPositionResponse, IntercompanySettlementResponse, RecordIntercompanySettlementRequest,
++    CompanyNetPositionResponse, IntercompanySettlementResponse, LinkSettlementCompaniesRequest,
++    RecordIntercompanySettlementRequest,
+ )
+ from app.schemas.pnl import BuPnlResponse, OrgPnlSummaryResponse
+ from app.schemas.reserve_fund import (
+@@ -37,7 +38,8 @@ from app.services.bank_reconciliation_service import (
+ )
+ from app.services.hiring_affordability_service import check_hiring_affordability
+ from app.services.intercompany_ledger_service import (
+-    IntercompanySettlementError, get_entity_net_position, list_settlements, record_intercompany_settlement,
++    IntercompanySettlementError, get_company_net_position, link_settlement_companies, list_settlements,
++    record_intercompany_settlement,
+ )
+ from app.services.pnl_service import get_bu_pnl, get_org_pnl_summary
+ from app.services.reserve_fund_service import (
+@@ -207,7 +209,8 @@ def create_intercompany_settlement(
+ ):
+     try:
+         return record_intercompany_settlement(
+-            db, from_entity=body.from_entity, to_entity=body.to_entity, amount_usd_cents=body.amount_usd_cents,
++            db, from_company_id=body.from_company_id, to_company_id=body.to_company_id,
++            amount_usd_cents=body.amount_usd_cents,
+             settlement_date=body.settlement_date, reason=body.reason,
+             created_by=current_user.UserID, tenant_id=current_user.tenant_id,
+             business_unit_id=body.business_unit_id,
+@@ -226,19 +229,48 @@ def list_intercompany_settlements(
+ ):
+     return list_settlements(db, tenant_id=current_user.tenant_id)
+ 
++@router.post(
++    "/intercompany-settlements/{settlement_id}/link-companies",
++    response_model=IntercompanySettlementResponse,
++    dependencies=[Depends(require_resource_permission("finance-operations", "edit"))]
++)
++def link_intercompany_settlement(
++    settlement_id: int,
++    body: LinkSettlementCompaniesRequest,
++    db: Session = Depends(get_db),
++    current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
++):
++    """Link an old settlement whose free-text company name matched no company."""
++    from app.models.intercompany_ledger import IntercompanySettlement
++
++    settlement = db.query(IntercompanySettlement).filter(
++        IntercompanySettlement.id == settlement_id, IntercompanySettlement.tenant_id == current_user.tenant_id).first()
++    if settlement is None:
++        raise HTTPException(status_code=404, detail="Settlement not found.")
++    try:
++        return link_settlement_companies(db, settlement, from_company_id=body.from_company_id,
++                                         to_company_id=body.to_company_id)
++    except IntercompanySettlementError as exc:
++        raise HTTPException(status_code=400, detail=str(exc))
++
+ @router.get(
+-    "/intercompany-settlements/entity/{entity}/net-position",
+-    response_model=EntityNetPositionResponse,
++    "/intercompany-settlements/company/{company_id}/net-position",
++    response_model=CompanyNetPositionResponse,
+     dependencies=[Depends(require_resource_permission("finance-operations", "view"))]
+ )
+-def entity_net_position(
+-    entity: str,
++def company_net_position(
++    company_id: str,
+     db: Session = Depends(get_db),
+     current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
+ ):
+-    return EntityNetPositionResponse(
+-        entity=entity, net_position_usd_cents=get_entity_net_position(db, entity=entity, tenant_id=current_user.tenant_id),
+-    )
++    from app.models.location import Location
++
++    try:
++        net = get_company_net_position(db, company_id=company_id, tenant_id=current_user.tenant_id)
++    except IntercompanySettlementError as exc:
++        raise HTTPException(status_code=404, detail=str(exc))
++    name = db.query(Location.name).filter(Location.id == company_id).scalar()
++    return CompanyNetPositionResponse(company_id=company_id, entity=name, net_position_usd_cents=net)
+ 
+ @router.post(
+     "/bank-transactions",
+diff --git a/backend/app/api/v1/endpoints/employees.py b/backend/app/api/v1/endpoints/employees.py
+index bdb6bec9..29b508c8 100644
+--- a/backend/app/api/v1/endpoints/employees.py
++++ b/backend/app/api/v1/endpoints/employees.py
+@@ -105,7 +105,12 @@ def _allocation_summaries(db: Session, employee_ids) -> dict:
+     return out
+ 
+ 
+-def _to_item(db: Session, employee: Employee, *, bench_entry=..., allocations=None) -> EmployeeItem:
++def _to_item(db: Session, employee: Employee, *, bench_entry=..., allocations=None,
++             guidewire_level=...) -> EmployeeItem:
++    from app.services.employee_certification_service import current_guidewire_levels
++
++    if guidewire_level is ...:
++        guidewire_level = current_guidewire_levels(db, [employee.id]).get(employee.id)
+     if bench_entry is ...:
+         bench_entry = db.query(BenchPoolEntry).filter(BenchPoolEntry.employee_id == employee.id).first()
+     if allocations is None:
+@@ -130,7 +135,8 @@ def _to_item(db: Session, employee: Employee, *, bench_entry=..., allocations=No
+         billing_rate_usd_cents=employee.billing_rate_usd_cents,
+         is_on_bench=bench_entry is not None,
+         bench_days=get_bench_duration_days(bench_entry) if bench_entry else None,
+-        guidewire_certification_current=employee.guidewire_certification_current,
++        # derived from the certificates held (employee_certification_service), never typed
++        guidewire_certification_current=guidewire_level,
+         guidewire_certification_expected=employee.guidewire_certification_expected,
+         bu_id=employee.bu_id,
+         company_id=employee.company_id,
+@@ -255,15 +261,56 @@ def list_employees(
+     ids = [e.id for e in employees]
+     bench = {b.employee_id: b for b in db.query(BenchPoolEntry).filter(BenchPoolEntry.employee_id.in_(ids))} if ids else {}
+     allocations = _allocation_summaries(db, ids)
++    from app.services.employee_certification_service import current_guidewire_levels
++
++    levels = current_guidewire_levels(db, ids)
+     return EmployeeListResponse(employees=[
+-        _to_item(db, e, bench_entry=bench.get(e.id), allocations=allocations.get(e.id, [])) for e in employees])
++        _to_item(db, e, bench_entry=bench.get(e.id), allocations=allocations.get(e.id, []),
++                 guidewire_level=levels.get(e.id)) for e in employees])
+ 
+ class GuidewireCertificationUpdate(BaseModel):
++    # derived from certificates held; accepted only when it matches (old clients send it back)
+     guidewire_certification_current: Optional[str] = None
+     guidewire_certification_expected: Optional[str] = None
+ 
+ 
+-GUIDEWIRE_CERT_LEVELS = ("None", "ACE", "Associate", "Specialist")
++class CertificateCreate(BaseModel):
++    certification_id: str
++    earned_date: date
++    expires_date: Optional[date] = None  # None: the catalog's validity_months decides
++    cert_number: Optional[str] = None
++    issuer: Optional[str] = None
++    status: str = "Active"
++
++
++class CertificateUpdate(BaseModel):
++    earned_date: Optional[date] = None
++    expires_date: Optional[date] = None
++    cert_number: Optional[str] = None
++    issuer: Optional[str] = None
++    status: Optional[str] = None
++
++
++def _certificate_item(record) -> dict:
++    cert = record.certification
++    return {
++        "id": record.id, "certification_id": record.certification_id,
++        "cert_name": cert.cert_name if cert else None, "cert_code": cert.cert_code if cert else None,
++        "guidewire_level": cert.guidewire_level if cert else None, "status": record.status,
++        "earned_date": record.earned_date.date().isoformat() if record.earned_date else None,
++        "expires_date": record.expires_date.date().isoformat() if record.expires_date else None,
++        "cert_number": record.cert_number, "issuer": record.issuer,
++    }
++
++
++def _certificate_or_404(db: Session, employee: Employee, record_id: str):
++    from app.models.certification import EmployeeCertification
++
++    record = db.query(EmployeeCertification).filter(
++        EmployeeCertification.id == record_id, EmployeeCertification.employee_id == employee.id).first()
++    if record is None:
++        raise HTTPException(status_code=404, detail="Certificate not found.")
++    return record
+ 
+ 
+ def _company_or_400(db: Session, company_id: str, tenant_id: int) -> str:
+@@ -333,23 +380,130 @@ def update_guidewire_certifications(
+     db: Session = Depends(get_db),
+     current_user: Users = Depends(get_current_internal_user),
+ ):
+-    """Employees screen: Guidewire certification level now and target."""
++    """Employees screen: the Guidewire TARGET level. The current level is derived from the
++    certificates the employee holds (POST /employees/{id}/certificates); a different current level
++    sent here is refused rather than silently ignored."""
++    from app.models.certification import GUIDEWIRE_CERT_LEVELS
++    from app.services.employee_certification_service import current_guidewire_levels
++
+     employee = _get_employee_or_404(db, employee_id, current_user)
+-    for field in ("guidewire_certification_current", "guidewire_certification_expected"):
+-        value = getattr(body, field)
+-        if value is None:
+-            continue
+-        if value not in GUIDEWIRE_CERT_LEVELS:
+-            raise HTTPException(status_code=400, detail=f"{field} must be one of {GUIDEWIRE_CERT_LEVELS}")
+-        setattr(employee, field, None if value == "None" else value)
++    current = current_guidewire_levels(db, [employee.id]).get(employee.id)
++    allowed = ("None",) + GUIDEWIRE_CERT_LEVELS
++    sent_current = body.guidewire_certification_current
++    if sent_current is not None and (None if sent_current == "None" else sent_current) != current:
++        raise HTTPException(status_code=400, detail=(
++            "The current Guidewire level comes from the certificates the employee holds: add or remove "
++            "a certificate instead of typing the level."))
++    if body.guidewire_certification_expected is not None:
++        if body.guidewire_certification_expected not in allowed:
++            raise HTTPException(status_code=400,
++                                detail=f"guidewire_certification_expected must be one of {list(allowed)}")
++        employee.guidewire_certification_expected = (
++            None if body.guidewire_certification_expected == "None" else body.guidewire_certification_expected)
+     db.commit()
+     return {
+         "employee_id": employee.id,
+-        "guidewire_certification_current": employee.guidewire_certification_current,
++        "guidewire_certification_current": current,
+         "guidewire_certification_expected": employee.guidewire_certification_expected,
+     }
+ 
+ 
++@router.get("/certification-options", dependencies=[Depends(require_resource_permission("employees", "view"))])
++def certification_options(
++    db: Session = Depends(get_db),
++    current_user: Users = Depends(get_current_internal_user),
++):
++    """The certificate catalog, record statuses and Guidewire levels for the certificates form."""
++    from app.models.certification import CERT_STATUS, GUIDEWIRE_CERT_LEVELS
++    from app.services.employee_certification_service import catalog
++
++    return {
++        "certifications": [
++            {"id": c.id, "cert_name": c.cert_name, "cert_code": c.cert_code, "level": c.level,
++             "guidewire_level": c.guidewire_level, "validity_months": c.validity_months}
++            for c in catalog(db, current_user.tenant_id)
++        ],
++        "statuses": list(CERT_STATUS),
++        "guidewire_levels": ["None", *GUIDEWIRE_CERT_LEVELS],
++    }
++
++
++@router.get("/{employee_id}/certificates", dependencies=[Depends(require_resource_permission("employees", "view"))])
++def list_certificates(
++    employee_id: str,
++    db: Session = Depends(get_db),
++    current_user: Users = Depends(get_current_internal_user),
++):
++    """Every certificate the employee holds, newest first, and the Guidewire level they give."""
++    from app.services.employee_certification_service import current_guidewire_levels, list_records
++
++    employee = _get_employee_or_404(db, employee_id, current_user)
++    return {
++        "certificates": [_certificate_item(r) for r in list_records(db, employee)],
++        "guidewire_certification_current": current_guidewire_levels(db, [employee.id]).get(employee.id),
++    }
++
++
++@router.post("/{employee_id}/certificates", status_code=201,
++             dependencies=[Depends(require_resource_permission("employees", "edit"))])
++def add_certificate(
++    employee_id: str,
++    body: CertificateCreate,
++    db: Session = Depends(get_db),
++    current_user: Users = Depends(get_current_internal_user),
++):
++    from app.services.employee_certification_service import EmployeeCertificationError, create_record
++
++    employee = _get_employee_or_404(db, employee_id, current_user)
++    try:
++        record = create_record(db, employee, **body.model_dump())
++    except EmployeeCertificationError as exc:
++        db.rollback()
++        raise HTTPException(status_code=400, detail=str(exc))
++    db.commit()
++    db.refresh(record)
++    return _certificate_item(record)
++
++
++@router.patch("/{employee_id}/certificates/{record_id}",
++              dependencies=[Depends(require_resource_permission("employees", "edit"))])
++def update_certificate(
++    employee_id: str,
++    record_id: str,
++    body: CertificateUpdate,
++    db: Session = Depends(get_db),
++    current_user: Users = Depends(get_current_internal_user),
++):
++    from app.services.employee_certification_service import EmployeeCertificationError, update_record
++
++    employee = _get_employee_or_404(db, employee_id, current_user)
++    record = _certificate_or_404(db, employee, record_id)
++    try:
++        update_record(db, record, body.model_dump(exclude_unset=True))
++    except EmployeeCertificationError as exc:
++        db.rollback()
++        raise HTTPException(status_code=400, detail=str(exc))
++    db.commit()
++    db.refresh(record)
++    return _certificate_item(record)
++
++
++@router.delete("/{employee_id}/certificates/{record_id}",
++               dependencies=[Depends(require_resource_permission("employees", "delete"))])
++def delete_certificate(
++    employee_id: str,
++    record_id: str,
++    db: Session = Depends(get_db),
++    current_user: Users = Depends(get_current_internal_user),
++):
++    from app.services.employee_certification_service import delete_record
++
++    employee = _get_employee_or_404(db, employee_id, current_user)
++    delete_record(db, _certificate_or_404(db, employee, record_id))
++    db.commit()
++    return {"deleted": record_id}
++
++
+ 
+ @router.get(
+     "/utilization-summary", response_model=UtilizationSummaryResponse,
+diff --git a/backend/app/core/db_contract.py b/backend/app/core/db_contract.py
+index 632650f1..75faf44e 100644
+--- a/backend/app/core/db_contract.py
++++ b/backend/app/core/db_contract.py
+@@ -142,9 +142,95 @@ def _employee_org_history_backfill(db: Session) -> int:
+     return added
+ 
+ 
++def _guidewire_current_level_to_certificates(db: Session) -> int:
++    """One truth for certificates (CEO 2026-10-23): the Guidewire level typed into
++    employees.guidewire_certification_current becomes a certificate record (EmployeeCertification)
++    of a catalog certificate carrying that guidewire_level -- the tenant's own if it has one, else
++    "Guidewire <level>" is added to its catalog. The earned date is unknown, so the date the level
++    was last saved on the employee is used and the record says so. The typed column is then
++    cleared: the current level is derived from certificates from now on. Returns records made."""
++    from datetime import datetime
++
++    from app.models.certification import GUIDEWIRE_CERT_LEVELS, Certification, EmployeeCertification
++    from app.models.employee import Employee
++
++    made = 0
++    rows = db.query(Employee).filter(Employee.guidewire_certification_current.in_(GUIDEWIRE_CERT_LEVELS)).all()
++    for employee in rows:
++        level = employee.guidewire_certification_current
++        cert = db.query(Certification).filter(
++            Certification.guidewire_level == level,
++            (Certification.tenant_id == employee.tenant_id) | Certification.tenant_id.is_(None),
++        ).order_by(Certification.created_at).first()
++        if cert is None:
++            code = f"GW-{level.upper()}"
++            if db.query(Certification.id).filter(Certification.cert_code == code).first() is not None:
++                code = f"{code}-T{employee.tenant_id}"
++            cert = Certification(tenant_id=employee.tenant_id, cert_name=f"Guidewire {level}", cert_code=code,
++                                 level="Foundation", validity_months=None, guidewire_level=level,
++                                 description="Created from levels typed on employee records before certificates were tracked")
++            db.add(cert)
++            db.flush()
++        held = db.query(EmployeeCertification.id).filter(
++            EmployeeCertification.employee_id == employee.id, EmployeeCertification.certification_id == cert.id,
++        ).first()
++        if held is None:
++            db.add(EmployeeCertification(
++                tenant_id=employee.tenant_id, employee_id=employee.id, certification_id=cert.id, status="Active",
++                earned_date=employee.updated_at or datetime.utcnow(),
++                issuer="Recorded before certificates were tracked (earned date unknown)",
++            ))
++            made += 1
++        employee.guidewire_certification_current = None
++    db.flush()
++    return made
++
++
++def _intercompany_company_links(db: Session) -> int:
++    """Intercompany entries were free-text entity names matched to companies by name at read time,
++    so a typo silently landed in "Group". Link each entry to its companies by EXACT name or company
++    code (case and surrounding spaces ignored -- the rule the P&L applied until now, so no figure
++    moves). Entries that match no company keep NULL and one Finance task lists them. Returns the
++    number of entries linked on both sides."""
++    from app.models.intercompany_ledger import IntercompanySettlement
++    from app.models.location import Location
++
++    companies: dict = {}
++    for company in db.query(Location).all():
++        names = companies.setdefault(company.tenant_id, {})
++        names.setdefault(company.name.strip().lower(), company.id)
++        if company.company_code:
++            names.setdefault(company.company_code.lower(), company.id)
++    linked, unmatched = 0, []
++    for entry in db.query(IntercompanySettlement).all():
++        names = companies.get(entry.tenant_id, {}) if entry.tenant_id is not None else \
++            {k: v for per_tenant in companies.values() for k, v in per_tenant.items()}
++        entry.from_company_id = entry.from_company_id or names.get((entry.from_entity or "").strip().lower())
++        entry.to_company_id = entry.to_company_id or names.get((entry.to_entity or "").strip().lower())
++        if entry.from_company_id and entry.to_company_id:
++            linked += 1
++        else:
++            unmatched.append(entry)
++    db.flush()
++    if unmatched:
++        from app.services.task_service import create_task
++
++        listing = "; ".join(f"#{e.id} {e.settlement_date} {e.from_entity} -> {e.to_entity} "
++                            f"{e.amount_usd_cents / 100:,.2f} USD" for e in unmatched)
++        create_task(db, title=f"Link {len(unmatched)} intercompany entr{'y' if len(unmatched) == 1 else 'ies'} to companies",
++                    priority="HIGH", category="FINANCE", tenant_id=unmatched[0].tenant_id or 1,
++                    visibility_scope="ORG_WIDE", link="/pnl?view=operations",
++                    description=("These intercompany settlements name a company that does not exist, so the "
++                                 "company P&L counts them in Group: " + listing + ". Link each to its companies "
++                                 "(Finance Operations > Intercompany Settlement > Link)."))
++    return linked
++
++
+ DATA_MIGRATIONS = (
+     ("interview_times_to_utc", _interview_times_to_utc),
+     ("employee_org_history_backfill", _employee_org_history_backfill),
++    ("guidewire_current_level_to_certificates", _guidewire_current_level_to_certificates),
++    ("intercompany_company_links", _intercompany_company_links),
+ )
+ 
+ 
+@@ -1631,6 +1717,13 @@ def _apply_schema_migrations(db: Session):
+         ],
+         "intercompany_settlements": [
+             ("business_unit_id", "INTEGER NULL REFERENCES app_schema.business_units(id) ON DELETE SET NULL"),
++            # the companies by id, not free-text name (data migration intercompany_company_links)
++            ("from_company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE RESTRICT"),
++            ("to_company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE RESTRICT"),
++        ],
++        # The Guidewire level a catalog certificate gives (employee_certification_service)
++        "certifications": [
++            ("guidewire_level", "VARCHAR(20) NULL"),
+         ],
+         # The project manager who owns delivery (PATCH /projects/{id})
+         "projects": [
+@@ -1706,6 +1799,8 @@ def _apply_schema_migrations(db: Session):
+     # Indexes on the foreign keys added above (create_all makes them on a fresh database)
+     for index_name, table_column in (
+         ("ix_projects_manager_user_id", "projects(manager_user_id)"),
++        ("ix_intercompany_settlements_from_company_id", "intercompany_settlements(from_company_id)"),
++        ("ix_intercompany_settlements_to_company_id", "intercompany_settlements(to_company_id)"),
+     ):
+         _migration_step(db, f"index {index_name}",
+                         f"CREATE INDEX IF NOT EXISTS {index_name} ON app_schema.{table_column}")
+diff --git a/backend/app/models/certification.py b/backend/app/models/certification.py
+index c4a6e5b4..db71bce3 100644
+--- a/backend/app/models/certification.py
++++ b/backend/app/models/certification.py
+@@ -10,6 +10,10 @@ def _new_uuid() -> str:
+ 
+ CERTIFICATION_LEVELS = ("Foundation", "Intermediate", "Advanced", "Expert")
+ CERT_STATUS = ("Active", "Expired", "Pending", "Revoked")
++# Guidewire certification ladder, lowest first. A catalog certificate may carry one of these
++# (Certification.guidewire_level); an employee's current Guidewire level is the highest one among
++# the certificates they hold (app.services.employee_certification_service).
++GUIDEWIRE_CERT_LEVELS = ("ACE", "Associate", "Specialist")
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -30,6 +34,8 @@ class Certification(Base):
+ 
+     # Whether this is required for core certifications tracking
+     is_core_certification = Column(Boolean, default=False)
++    # The Guidewire level holding this certificate gives (one of GUIDEWIRE_CERT_LEVELS), if any
++    guidewire_level = Column(String(20), nullable=True)
+ 
+     created_at = Column(DateTime, server_default=func.now())
+     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+diff --git a/backend/app/models/intercompany_ledger.py b/backend/app/models/intercompany_ledger.py
+index 5f15b1c0..6e735106 100644
+--- a/backend/app/models/intercompany_ledger.py
++++ b/backend/app/models/intercompany_ledger.py
+@@ -21,7 +21,14 @@ class IntercompanySettlement(Base):
+     id = Column(Integer, primary_key=True, autoincrement=True)
+     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+ 
+-    from_entity = Column(String(512), nullable=False)  # e.g. "BXIN", "BXUS" -- free text, no fixed enum yet
++    # The companies (legal entities, app.models.location.Location) money moved between. Required on
++    # every new entry; only entries recorded before 2026-10-23 whose free-text name matched no
++    # company keep NULL (the intercompany_company_links data migration raised a Finance task).
++    from_company_id = Column(String(512), ForeignKey("locations.id", ondelete="RESTRICT"), nullable=True, index=True)
++    to_company_id = Column(String(512), ForeignKey("locations.id", ondelete="RESTRICT"), nullable=True, index=True)
++    # Display names, copied from the companies when the entry is recorded (history keeps its label
++    # if a company is renamed). Never used to match a company: the ids above do that.
++    from_entity = Column(String(512), nullable=False)
+     to_entity = Column(String(512), nullable=False)
+     # The BU the billed work belongs to, so the receiving company's revenue
+     # rolls up to that BU and its partner in the goal tree
+diff --git a/backend/app/models/resource_demand.py b/backend/app/models/resource_demand.py
+deleted file mode 100644
+index ee953714..00000000
+--- a/backend/app/models/resource_demand.py
++++ /dev/null
+@@ -1,59 +0,0 @@
+-"""Resource Demand Model - Track resource needs and fulfillment"""
+-import uuid
+-import logging
+-from datetime import datetime, date
+-
+-from sqlalchemy import Column, String, Integer, DateTime, Date, ForeignKey, Enum, Text
+-from sqlalchemy.orm import relationship
+-
+-from app.models.base import Base
+-
+-def _new_uuid() -> str:
+-    return str(uuid.uuid4())
+-
+-DEMAND_STATUS = ("OPEN", "PARTIALLY_FULFILLED", "FULFILLED", "CLOSED", "CANCELLED")
+-logger = logging.getLogger(__name__)
+-
+-class ResourceDemand(Base):
+-    """Track resource demand across the organization"""
+-    __tablename__ = "resource_demands"
+-
+-    id = Column(String(512), primary_key=True, default=_new_uuid)
+-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+-
+-    # Resource details
+-    resource_type = Column(String(512), nullable=False, index=True)  # DEVELOPER, QA, DESIGNER, etc.
+-    quantity_needed = Column(Integer, nullable=False, default=0)
+-    quantity_fulfilled = Column(Integer, nullable=False, default=0)
+-
+-    # Timeline
+-    start_date = Column(Date, nullable=False)
+-    end_date = Column(Date, nullable=False)
+-
+-    # Organization context
+-    business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=False, index=True)
+-    project_id = Column(String(512), ForeignKey("projects.id"), nullable=True, index=True)
+-
+-    # Status tracking
+-    status = Column(
+-        Enum(*DEMAND_STATUS, name="demand_status", native_enum=False),
+-        default="OPEN",
+-        index=True
+-    )
+-    closure_reason = Column(String(512), nullable=True)
+-
+-    # Audit fields
+-    created_by = Column(String(512), nullable=True)
+-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+-
+-    adjusted_by = Column(String(512), nullable=True)
+-    adjusted_at = Column(DateTime, nullable=True)
+-
+-    closed_by = Column(String(512), nullable=True)
+-    closed_at = Column(DateTime, nullable=True)
+-
+-    # Relationships
+-    business_unit = relationship("BusinessUnit", foreign_keys=[business_unit_id])
+-
+-    def __repr__(self):
+-        return f"<ResourceDemand {self.id}: {self.resource_type} x{self.quantity_needed} ({self.status})>"
+diff --git a/backend/app/schemas/intercompany_ledger.py b/backend/app/schemas/intercompany_ledger.py
+index 0b8da588..1d82c0a4 100644
+--- a/backend/app/schemas/intercompany_ledger.py
++++ b/backend/app/schemas/intercompany_ledger.py
+@@ -7,16 +7,23 @@ from pydantic import BaseModel
+ logger = logging.getLogger(__name__)
+ 
+ class RecordIntercompanySettlementRequest(BaseModel):
+-    from_entity: str
+-    to_entity: str
++    # the paying and the receiving company (Location ids); names are taken from the companies
++    from_company_id: str
++    to_company_id: str
+     amount_usd_cents: int
+     settlement_date: date
+     reason: str
+     # BU the billed work belongs to (counts toward that BU / partner in the receiving company)
+     business_unit_id: Optional[int] = None
+ 
++class LinkSettlementCompaniesRequest(BaseModel):
++    from_company_id: str
++    to_company_id: str
++
+ class IntercompanySettlementResponse(BaseModel):
+     id: int
++    from_company_id: Optional[str] = None  # None only on an old entry no company name matched
++    to_company_id: Optional[str] = None
+     from_entity: str
+     to_entity: str
+     amount_usd_cents: int
+@@ -29,6 +36,7 @@ class IntercompanySettlementResponse(BaseModel):
+     class Config:
+         from_attributes = True
+ 
+-class EntityNetPositionResponse(BaseModel):
+-    entity: str
++class CompanyNetPositionResponse(BaseModel):
++    company_id: str
++    entity: str  # the company's name
+     net_position_usd_cents: int
+diff --git a/backend/app/services/employee_certification_service.py b/backend/app/services/employee_certification_service.py
+new file mode 100644
+index 00000000..2582ea48
+--- /dev/null
++++ b/backend/app/services/employee_certification_service.py
+@@ -0,0 +1,145 @@
++"""Certificates an employee holds (EmployeeCertification): the ONE record of who holds which
++certificate, earned when, valid until when. Training and certification dashboards
++(training_certification_service) count these rows.
++
++Guidewire level (CEO 2026-10-23, one truth): an employee's CURRENT Guidewire level is not typed
++in anywhere; it is the highest guidewire_level among the catalog certificates (Certification.
++guidewire_level) they hold, Active and not expired. Employee.guidewire_certification_expected
++stays a separate field: it is a development target, not a certificate held.
++Employee.guidewire_certification_current is retired (the data migration
++guidewire_current_level_to_certificates turned every stored level into a certificate record).
++"""
++import logging
++from datetime import date, datetime, time
++from typing import Dict, Iterable, List, Optional
++
++from sqlalchemy import or_
++from sqlalchemy.orm import Session
++
++from app.models.certification import CERT_STATUS, GUIDEWIRE_CERT_LEVELS, Certification, EmployeeCertification
++from app.models.employee import Employee
++
++logger = logging.getLogger(__name__)
++
++EDITABLE_FIELDS = ("earned_date", "expires_date", "cert_number", "issuer", "status")
++
++
++class EmployeeCertificationError(ValueError):
++    """A certificate record the caller sent is not valid; the REST layer answers 400."""
++
++
++def _as_datetime(value) -> Optional[datetime]:
++    if value is None or isinstance(value, datetime):
++        return value
++    return datetime.combine(value, time.min)
++
++
++def _add_months(day: date, months: int) -> date:
++    month = day.month - 1 + months
++    year, month = day.year + month // 12, month % 12 + 1
++    import calendar
++
++    return date(year, month, min(day.day, calendar.monthrange(year, month)[1]))
++
++
++def catalog(db: Session, tenant_id: Optional[int]) -> List[Certification]:
++    """The tenant's certificate catalog (plus legacy rows created before tenant_id existed)."""
++    query = db.query(Certification)
++    if tenant_id is not None:
++        query = query.filter(or_(Certification.tenant_id == tenant_id, Certification.tenant_id.is_(None)))
++    return query.order_by(Certification.cert_name).all()
++
++
++def _catalog_entry(db: Session, certification_id: str, tenant_id: Optional[int]) -> Certification:
++    cert = db.query(Certification).filter(Certification.id == certification_id).first()
++    if cert is None or (tenant_id is not None and cert.tenant_id not in (tenant_id, None)):
++        raise EmployeeCertificationError(f"Certification {certification_id!r} is not in the catalog.")
++    return cert
++
++
++def _validate(earned, expires, status) -> None:
++    if earned is None:
++        raise EmployeeCertificationError("earned_date is required.")
++    if expires is not None and expires < earned:
++        raise EmployeeCertificationError(f"expires_date {expires.date()} is before earned_date {earned.date()}.")
++    if status not in CERT_STATUS:
++        raise EmployeeCertificationError(f"status must be one of {list(CERT_STATUS)}, not {status!r}.")
++
++
++def list_records(db: Session, employee: Employee) -> List[EmployeeCertification]:
++    return (db.query(EmployeeCertification).filter(EmployeeCertification.employee_id == employee.id)
++            .order_by(EmployeeCertification.earned_date.desc()).all())
++
++
++def create_record(db: Session, employee: Employee, *, certification_id: str, earned_date,
++                  expires_date=None, cert_number: Optional[str] = None, issuer: Optional[str] = None,
++                  status: str = "Active") -> EmployeeCertification:
++    """Record a certificate the employee holds. Without an expiry date the catalog's validity
++    (Certification.validity_months) sets it; a catalog entry with no validity never expires."""
++    cert = _catalog_entry(db, certification_id, employee.tenant_id)
++    earned = _as_datetime(earned_date)
++    if expires_date is None and earned is not None and cert.validity_months:
++        expires_date = _add_months(earned.date(), cert.validity_months)
++    expires = _as_datetime(expires_date)
++    _validate(earned, expires, status)
++    duplicate = db.query(EmployeeCertification.id).filter(
++        EmployeeCertification.employee_id == employee.id, EmployeeCertification.certification_id == cert.id,
++        EmployeeCertification.earned_date == earned,
++    ).first()
++    if duplicate is not None:
++        raise EmployeeCertificationError(f"{cert.cert_name} earned on {earned.date()} is already recorded.")
++    record = EmployeeCertification(
++        tenant_id=employee.tenant_id, employee_id=employee.id, certification_id=cert.id,
++        status=status, earned_date=earned, expires_date=expires,
++        cert_number=(cert_number or "").strip() or None, issuer=(issuer or "").strip() or None,
++    )
++    db.add(record)
++    db.flush()
++    logger.info(f"[Certification] {employee.id} holds {cert.cert_code} (record {record.id})")
++    return record
++
++
++def update_record(db: Session, record: EmployeeCertification, changes: Dict) -> EmployeeCertification:
++    unknown = set(changes) - set(EDITABLE_FIELDS)
++    if unknown:
++        raise EmployeeCertificationError(f"Cannot edit {sorted(unknown)}; editable: {list(EDITABLE_FIELDS)}.")
++    if "earned_date" in changes and changes["earned_date"] is None:
++        raise EmployeeCertificationError("earned_date cannot be cleared.")
++    earned = _as_datetime(changes.get("earned_date", record.earned_date))
++    expires = _as_datetime(changes.get("expires_date", record.expires_date))
++    status = changes.get("status", record.status)
++    if status is None:
++        raise EmployeeCertificationError("status cannot be cleared.")
++    _validate(earned, expires, status)
++    record.earned_date, record.expires_date, record.status = earned, expires, status
++    for field in ("cert_number", "issuer"):
++        if field in changes:
++            setattr(record, field, (changes[field] or "").strip() or None)
++    db.add(record)
++    return record
++
++
++def delete_record(db: Session, record: EmployeeCertification) -> None:
++    logger.info(f"[Certification] record {record.id} of {record.employee_id} deleted")
++    db.delete(record)
++
++
++def current_guidewire_levels(db: Session, employee_ids: Iterable[str],
++                             now: Optional[datetime] = None) -> Dict[str, Optional[str]]:
++    """{employee_id: highest Guidewire level held (Active, not expired) or None}."""
++    ids = list({i for i in employee_ids if i})
++    if not ids:
++        return {}
++    now = now or datetime.utcnow()
++    rank = {level: i for i, level in enumerate(GUIDEWIRE_CERT_LEVELS)}
++    out: Dict[str, Optional[str]] = {i: None for i in ids}
++    rows = (db.query(EmployeeCertification.employee_id, Certification.guidewire_level)
++            .join(Certification, Certification.id == EmployeeCertification.certification_id)
++            .filter(EmployeeCertification.employee_id.in_(ids), EmployeeCertification.status == "Active",
++                    Certification.guidewire_level.isnot(None),
++                    or_(EmployeeCertification.expires_date.is_(None), EmployeeCertification.expires_date >= now))
++            .all())
++    for employee_id, level in rows:
++        if level in rank and (out[employee_id] is None or rank[level] > rank[out[employee_id]]):
++            out[employee_id] = level
++    return out
+diff --git a/backend/app/services/goal_tree_service.py b/backend/app/services/goal_tree_service.py
+index bef37afd..2fb2cc6f 100644
+--- a/backend/app/services/goal_tree_service.py
++++ b/backend/app/services/goal_tree_service.py
+@@ -61,11 +61,6 @@ REVENUE_STATUSES = ("APPROVED", "SENT", "PAID")
+ CellKey = Tuple[str, Optional[int]]  # (company_id or UNASSIGNED, bu_id)
+ 
+ 
+-def _code(name: str) -> str:
+-    """'BX-IN', 'bxin', 'BX IN' -> 'BXIN' (Intercompany Ledger entities are free text)."""
+-    return re.sub(r"[^A-Z0-9]", "", (name or "").upper())
+-
+-
+ def _targets(db: Session, tenant_id: int, year: int) -> Dict[tuple, float]:
+     rows = db.query(GoalTarget).filter(GoalTarget.tenant_id == tenant_id, GoalTarget.year == year).all()
+     return {(r.level, r.entity_id, r.metric): r.target for r in rows}
+@@ -76,7 +71,6 @@ def company_bu_actuals(db: Session, tenant_id: int, year: int) -> Tuple[Dict[Cel
+     from app.services.fiscal_year_service import fy_window
+     start, end = fy_window(db, year, tenant_id)
+     companies = {l.id: l for l in db.query(Location).filter(Location.tenant_id == tenant_id).all()}
+-    company_by_code = {_code(c.name): cid for cid, c in companies.items()}
+     actuals: Dict[CellKey, Dict[str, float]] = defaultdict(lambda: {m: 0 for m in TREE_METRICS})
+ 
+     def key(company_id, bu_id) -> CellKey:
+@@ -91,15 +85,15 @@ def company_bu_actuals(db: Session, tenant_id: int, year: int) -> Tuple[Dict[Cel
+         actuals[key(company_id, bu_id)]["revenue"] += (cents or 0) / 100
+ 
+     intercompany = 0.0
+-    for to_entity, bu_id, cents in (
+-        db.query(IntercompanySettlement.to_entity, IntercompanySettlement.business_unit_id,
++    for to_company_id, bu_id, cents in (
++        db.query(IntercompanySettlement.to_company_id, IntercompanySettlement.business_unit_id,
+                  func.sum(IntercompanySettlement.amount_usd_cents))
+         .filter((IntercompanySettlement.tenant_id == tenant_id) | IntercompanySettlement.tenant_id.is_(None),
+                 IntercompanySettlement.settlement_date >= start.date(), IntercompanySettlement.settlement_date < end.date())
+-        .group_by(IntercompanySettlement.to_entity, IntercompanySettlement.business_unit_id).all()
++        .group_by(IntercompanySettlement.to_company_id, IntercompanySettlement.business_unit_id).all()
+     ):
+         amount = (cents or 0) / 100
+-        actuals[key(company_by_code.get(_code(to_entity)), bu_id)]["revenue"] += amount
++        actuals[key(to_company_id, bu_id)]["revenue"] += amount
+         intercompany += amount
+ 
+     for company_id, bu_id, count in (
+diff --git a/backend/app/services/intercompany_ledger_service.py b/backend/app/services/intercompany_ledger_service.py
+index 1c0a80aa..9663dc2d 100644
+--- a/backend/app/services/intercompany_ledger_service.py
++++ b/backend/app/services/intercompany_ledger_service.py
+@@ -1,27 +1,42 @@
+ """EPIC-16 -- Intercompany Ledger. See app.models.intercompany_ledger
+-for why this is manual-entry, not auto-derived."""
++for why this is manual-entry, not auto-derived. Entries reference companies by id (never by
++name): the P&L by company and the goal tree attribute them through from/to_company_id."""
+ import logging
+ from typing import List, Optional
+ 
+ from sqlalchemy.orm import Session
+ 
+ from app.models.intercompany_ledger import IntercompanySettlement
++from app.models.location import Location
+ 
+ logger = logging.getLogger(__name__)
+ 
+ class IntercompanySettlementError(Exception):
+     pass
+ 
++def _company(db: Session, company_id: str, tenant_id: Optional[int]) -> Location:
++    query = db.query(Location).filter(Location.id == company_id)
++    if tenant_id is not None:
++        query = query.filter(Location.tenant_id == tenant_id)
++    company = query.first()
++    if company is None:
++        raise IntercompanySettlementError(f"Company {company_id!r} does not exist.")
++    return company
++
+ def record_intercompany_settlement(
+-    db: Session, *, from_entity: str, to_entity: str, amount_usd_cents: int, settlement_date, reason: str,
++    db: Session, *, from_company_id: str, to_company_id: str, amount_usd_cents: int, settlement_date, reason: str,
+     created_by: str, tenant_id: Optional[int] = None, business_unit_id: Optional[int] = None,
+ ) -> IntercompanySettlement:
+     if amount_usd_cents <= 0:
+         raise IntercompanySettlementError("amount_usd_cents must be positive.")
+-    if from_entity == to_entity:
+-        raise IntercompanySettlementError("from_entity and to_entity must differ.")
++    if not from_company_id or not to_company_id:
++        raise IntercompanySettlementError("Both companies are required.")
++    if from_company_id == to_company_id:
++        raise IntercompanySettlementError("The two companies must differ.")
++    payer, receiver = _company(db, from_company_id, tenant_id), _company(db, to_company_id, tenant_id)
+     settlement = IntercompanySettlement(
+-        tenant_id=tenant_id, from_entity=from_entity, to_entity=to_entity,
++        tenant_id=tenant_id, from_company_id=payer.id, to_company_id=receiver.id,
++        from_entity=payer.name, to_entity=receiver.name,
+         amount_usd_cents=amount_usd_cents, settlement_date=settlement_date, reason=reason, created_by=created_by,
+         business_unit_id=business_unit_id,
+     )
+@@ -30,20 +45,39 @@ def record_intercompany_settlement(
+     db.refresh(settlement)
+     return settlement
+ 
+-def get_entity_net_position(db: Session, *, entity: str, tenant_id: Optional[int] = None) -> int:
+-    """Positive = this entity has received more than it's sent (owed
++def get_company_net_position(db: Session, *, company_id: str, tenant_id: Optional[int] = None) -> int:
++    """Positive = this company has received more than it's sent (owed
+     money out), negative = it owes the other side(s)."""
+-    query = db.query(IntercompanySettlement)
++    _company(db, company_id, tenant_id)
++    query = db.query(IntercompanySettlement).filter(
++        (IntercompanySettlement.to_company_id == company_id) | (IntercompanySettlement.from_company_id == company_id))
+     if tenant_id is not None:
+         query = query.filter(IntercompanySettlement.tenant_id == tenant_id)
+     net = 0
+     for s in query.all():
+-        if s.to_entity == entity:
++        if s.to_company_id == company_id:
+             net += s.amount_usd_cents
+-        if s.from_entity == entity:
++        if s.from_company_id == company_id:
+             net -= s.amount_usd_cents
+     return net
+ 
++def link_settlement_companies(db: Session, settlement: IntercompanySettlement, *, from_company_id: str,
++                              to_company_id: str) -> IntercompanySettlement:
++    """Link an old entry whose free-text name matched no company. Only unlinked entries: a linked
++    entry is part of the books and is never re-pointed."""
++    if settlement.from_company_id and settlement.to_company_id:
++        raise IntercompanySettlementError(f"Settlement {settlement.id} is already linked to its companies.")
++    if from_company_id == to_company_id:
++        raise IntercompanySettlementError("The two companies must differ.")
++    payer = _company(db, from_company_id, settlement.tenant_id)
++    receiver = _company(db, to_company_id, settlement.tenant_id)
++    settlement.from_company_id, settlement.to_company_id = payer.id, receiver.id
++    db.add(settlement)
++    db.commit()
++    db.refresh(settlement)
++    logger.info(f"[Intercompany] settlement {settlement.id} linked {payer.id} -> {receiver.id}")
++    return settlement
++
+ def list_settlements(db: Session, *, tenant_id: Optional[int] = None) -> List[IntercompanySettlement]:
+     query = db.query(IntercompanySettlement)
+     if tenant_id is not None:
+diff --git a/backend/app/services/kpi_service.py b/backend/app/services/kpi_service.py
+index fae26c15..c589854d 100644
+--- a/backend/app/services/kpi_service.py
++++ b/backend/app/services/kpi_service.py
+@@ -81,268 +81,231 @@ class KPIService:
+     @staticmethod
+     def _get_recruitment_candidates(db: Session, period: str) -> Dict[str, Any]:
+         """Get recruitment KPI: candidates sourced in period"""
+-        try:
+-            from app.models.candidate import Candidate
+-
+-            start_date = KPIService._get_period_start(period)
+-            candidates = db.query(Candidate).filter(
+-                Candidate.candidateCreatedAt >= start_date
+-            ).count()
+-
+-            target = KPIService.RECRUITMENT_KPIS["candidates_sourced"]["target"]
+-            achievement = (candidates / target * 100) if target > 0 else 0
+-
+-            return {
+-                "kpi": "candidates_sourced",
+-                "value": candidates,
+-                "target": target,
+-                "achievement_percent": round(achievement, 2),
+-                "status": "healthy" if achievement >= 80 else "warning" if achievement >= 50 else "critical",
+-                "period": period
+-            }
+-        except Exception as e:
+-            logger.error(f"Error: {str(e)}", exc_info=True)
+-            logger.warning(f"Could not calculate recruitment candidates KPI: {e}")
+-            return {"kpi": "candidates_sourced", "value": 0, "status": "unknown"}
++        from app.models.candidate import Candidate
++
++        start_date = KPIService._get_period_start(period)
++        candidates = db.query(Candidate).filter(
++            Candidate.candidateCreatedAt >= start_date
++        ).count()
++
++        target = KPIService.RECRUITMENT_KPIS["candidates_sourced"]["target"]
++        achievement = (candidates / target * 100) if target > 0 else 0
++
++        return {
++            "kpi": "candidates_sourced",
++            "value": candidates,
++            "target": target,
++            "achievement_percent": round(achievement, 2),
++            "status": "healthy" if achievement >= 80 else "warning" if achievement >= 50 else "critical",
++            "period": period
++        }
+ 
+     @staticmethod
+     def _get_time_to_hire(db: Session, period: str) -> Dict[str, Any]:
+         """Get recruitment KPI: average time-to-hire"""
+-        try:
+-            # Hire = an employee created from a candidate who joined in the
+-            # period; time-to-hire = candidate created -> joining date. (Jobs
+-            # have no closed_at, so the old job-based version never worked.)
+-            from app.models.employee import Employee
+-
+-            start_date = KPIService._get_period_start(period)
+-            hires = db.query(Employee.joining_date, Candidate.candidateCreatedAt).join(
+-                Candidate, Candidate.candidateID == Employee.candidate_id
+-            ).filter(
+-                Employee.joining_date >= start_date,
+-                Candidate.candidateCreatedAt.isnot(None),
+-            ).all()
+-
+-            if not hires:
+-                return {"kpi": "time_to_hire", "value": 0, "status": "unknown"}
+-
+-            total_days = sum((joined - created.date()).days for joined, created in hires)
+-            avg_time = total_days / len(hires)
+-            target = KPIService.RECRUITMENT_KPIS["time_to_hire"]["target"]
+-            achievement = (1 - min(avg_time / target, 1)) * 100 if target > 0 else 0
+-
+-            return {
+-                "kpi": "time_to_hire",
+-                "value": round(avg_time, 1),
+-                "unit": "days",
+-                "target": target,
+-                "achievement_percent": round(achievement, 2),
+-                "status": "healthy" if avg_time <= target else "warning" if avg_time <= target * 1.2 else "critical",
+-                "period": period
+-            }
+-        except Exception as e:
+-            logger.error(f"Error: {str(e)}", exc_info=True)
+-            logger.warning(f"Could not calculate time-to-hire KPI: {e}")
++        # Hire = an employee created from a candidate who joined in the
++        # period; time-to-hire = candidate created -> joining date. (Jobs
++        # have no closed_at, so the old job-based version never worked.)
++        from app.models.employee import Employee
++
++        start_date = KPIService._get_period_start(period)
++        hires = db.query(Employee.joining_date, Candidate.candidateCreatedAt).join(
++            Candidate, Candidate.candidateID == Employee.candidate_id
++        ).filter(
++            Employee.joining_date >= start_date,
++            Candidate.candidateCreatedAt.isnot(None),
++        ).all()
++
++        if not hires:
+             return {"kpi": "time_to_hire", "value": 0, "status": "unknown"}
+ 
++        total_days = sum((joined - created.date()).days for joined, created in hires)
++        avg_time = total_days / len(hires)
++        target = KPIService.RECRUITMENT_KPIS["time_to_hire"]["target"]
++        achievement = (1 - min(avg_time / target, 1)) * 100 if target > 0 else 0
++
++        return {
++            "kpi": "time_to_hire",
++            "value": round(avg_time, 1),
++            "unit": "days",
++            "target": target,
++            "achievement_percent": round(achievement, 2),
++            "status": "healthy" if avg_time <= target else "warning" if avg_time <= target * 1.2 else "critical",
++            "period": period
++        }
++
+     @staticmethod
+     def _get_offer_acceptance_rate(db: Session, period: str) -> Dict[str, Any]:
+         """Get recruitment KPI: offer acceptance rate"""
+-        try:
+ 
+-            start_date = KPIService._get_period_start(period)
+-            total_offers = db.query(Candidate).filter(
+-                pipeline_stage_in("OFFER"),
+-                Candidate.candidateCreatedAt >= start_date
+-            ).count()
+-
+-            accepted_offers = db.query(Candidate).filter(
+-                pipeline_stage_in("HIRED"),
+-                Candidate.candidateCreatedAt >= start_date
+-            ).count()
+-
+-            acceptance_rate = (accepted_offers / total_offers * 100) if total_offers > 0 else 0
+-            target = KPIService.RECRUITMENT_KPIS["offer_acceptance_rate"]["target"]
+-
+-            return {
+-                "kpi": "offer_acceptance_rate",
+-                "value": round(acceptance_rate, 2),
+-                "unit": "%",
+-                "target": target,
+-                "offers_made": total_offers,
+-                "offers_accepted": accepted_offers,
+-                "status": "healthy" if acceptance_rate >= 75 else "warning" if acceptance_rate >= 60 else "critical",
+-                "period": period
+-            }
+-        except Exception as e:
+-            logger.error(f"Error: {str(e)}", exc_info=True)
+-            logger.warning(f"Could not calculate offer acceptance KPI: {e}")
+-            return {"kpi": "offer_acceptance_rate", "value": 0, "status": "unknown"}
++        start_date = KPIService._get_period_start(period)
++        total_offers = db.query(Candidate).filter(
++            pipeline_stage_in("OFFER"),
++            Candidate.candidateCreatedAt >= start_date
++        ).count()
++
++        accepted_offers = db.query(Candidate).filter(
++            pipeline_stage_in("HIRED"),
++            Candidate.candidateCreatedAt >= start_date
++        ).count()
++
++        acceptance_rate = (accepted_offers / total_offers * 100) if total_offers > 0 else 0
++        target = KPIService.RECRUITMENT_KPIS["offer_acceptance_rate"]["target"]
++
++        return {
++            "kpi": "offer_acceptance_rate",
++            "value": round(acceptance_rate, 2),
++            "unit": "%",
++            "target": target,
++            "offers_made": total_offers,
++            "offers_accepted": accepted_offers,
++            "status": "healthy" if acceptance_rate >= 75 else "warning" if acceptance_rate >= 60 else "critical",
++            "period": period
++        }
+ 
+     @staticmethod
+     def _get_resource_utilization(db: Session, period: str) -> Dict[str, Any]:
+         """Get resource management KPI: resource utilization %"""
+-        try:
+-            from app.models.employee_allocation import EmployeeAllocation
+-
+-            start_date = KPIService._get_period_start(period)
+-            allocations = db.query(EmployeeAllocation).filter(
+-                EmployeeAllocation.start_date >= start_date
+-            ).all()
+-
+-            if not allocations:
+-                return {"kpi": "resource_utilization", "value": 0, "status": "unknown"}
+-
+-            # Count active allocations as billable
+-            active_count = sum(1 for a in allocations if hasattr(a, 'status') and a.status == "ACTIVE")
+-            total_count = len(allocations)
+-            utilization = (active_count / total_count * 100) if total_count > 0 else 0
+-
+-            target = KPIService.RESOURCE_KPIS["resource_utilization"]["target"]
+-            return {
+-                "kpi": "resource_utilization",
+-                "value": round(utilization, 2),
+-                "unit": "%",
+-                "target": target,
+-                "status": "healthy" if utilization >= 80 else "warning" if utilization >= 60 else "critical",
+-                "period": period
+-            }
+-        except Exception as e:
+-            logger.error(f"Error: {str(e)}", exc_info=True)
+-            logger.warning(f"Could not calculate resource utilization KPI: {e}")
++        from app.models.employee_allocation import EmployeeAllocation
++
++        start_date = KPIService._get_period_start(period)
++        allocations = db.query(EmployeeAllocation).filter(
++            EmployeeAllocation.start_date >= start_date
++        ).all()
++
++        if not allocations:
+             return {"kpi": "resource_utilization", "value": 0, "status": "unknown"}
+ 
++        # Count active allocations as billable
++        active_count = sum(1 for a in allocations if hasattr(a, 'status') and a.status == "ACTIVE")
++        total_count = len(allocations)
++        utilization = (active_count / total_count * 100) if total_count > 0 else 0
++
++        target = KPIService.RESOURCE_KPIS["resource_utilization"]["target"]
++        return {
++            "kpi": "resource_utilization",
++            "value": round(utilization, 2),
++            "unit": "%",
++            "target": target,
++            "status": "healthy" if utilization >= 80 else "warning" if utilization >= 60 else "critical",
++            "period": period
++        }
++
+     @staticmethod
+     def _get_timesheet_approval_rate(db: Session, period: str) -> Dict[str, Any]:
+         """Get resource management KPI: timesheet approval rate"""
+-        try:
+-            from app.models.timesheet import Timesheet
+-
+-            start_date = KPIService._get_period_start(period)
+-            total = db.query(Timesheet).filter(
+-                Timesheet.created_at >= start_date
+-            ).count()
+-
+-            approved = db.query(Timesheet).filter(
+-                Timesheet.status == "APPROVED",
+-                Timesheet.created_at >= start_date
+-            ).count()
+-
+-            approval_rate = (approved / total * 100) if total > 0 else 0
+-            target = KPIService.RESOURCE_KPIS["timesheet_approval_rate"]["target"]
+-
+-            return {
+-                "kpi": "timesheet_approval_rate",
+-                "value": round(approval_rate, 2),
+-                "unit": "%",
+-                "target": target,
+-                "timesheets_submitted": total,
+-                "timesheets_approved": approved,
+-                "status": "healthy" if approval_rate >= 90 else "warning" if approval_rate >= 70 else "critical",
+-                "period": period
+-            }
+-        except Exception as e:
+-            logger.error(f"Error: {str(e)}", exc_info=True)
+-            logger.warning(f"Could not calculate timesheet approval KPI: {e}")
+-            return {"kpi": "timesheet_approval_rate", "value": 0, "status": "unknown"}
++        from app.models.timesheet import Timesheet
++
++        start_date = KPIService._get_period_start(period)
++        total = db.query(Timesheet).filter(
++            Timesheet.created_at >= start_date
++        ).count()
++
++        approved = db.query(Timesheet).filter(
++            Timesheet.status == "APPROVED",
++            Timesheet.created_at >= start_date
++        ).count()
++
++        approval_rate = (approved / total * 100) if total > 0 else 0
++        target = KPIService.RESOURCE_KPIS["timesheet_approval_rate"]["target"]
++
++        return {
++            "kpi": "timesheet_approval_rate",
++            "value": round(approval_rate, 2),
++            "unit": "%",
++            "target": target,
++            "timesheets_submitted": total,
++            "timesheets_approved": approved,
++            "status": "healthy" if approval_rate >= 90 else "warning" if approval_rate >= 70 else "critical",
++            "period": period
++        }
+ 
+     @staticmethod
+     def _get_demand_fulfillment(db: Session, period: str) -> Dict[str, Any]:
+-        """Get resource management KPI: demand fulfillment %"""
+-        try:
+-            from app.models.resource_demand import ResourceDemand
+-
+-            demands = db.query(ResourceDemand).all()
+-            if not demands:
+-                return {"kpi": "demand_fulfillment", "value": 0, "status": "unknown"}
+-
+-            total_needed = sum(d.quantity_needed for d in demands if hasattr(d, 'quantity_needed'))
+-            total_fulfilled = sum(d.quantity_fulfilled for d in demands if hasattr(d, 'quantity_fulfilled'))
+-
+-            fulfillment = (total_fulfilled / total_needed * 100) if total_needed > 0 else 0
+-            target = KPIService.RESOURCE_KPIS["demand_fulfillment"]["target"]
+-
+-            return {
+-                "kpi": "demand_fulfillment",
+-                "value": round(fulfillment, 2),
+-                "unit": "%",
+-                "target": target,
+-                "quantity_needed": total_needed,
+-                "quantity_fulfilled": total_fulfilled,
+-                "status": "healthy" if fulfillment >= 85 else "warning" if fulfillment >= 65 else "critical",
+-                "period": period
+-            }
+-        except Exception as e:
+-            logger.error(f"Error: {str(e)}", exc_info=True)
+-            logger.warning(f"Could not calculate demand fulfillment KPI: {e}")
+-            return {"kpi": "demand_fulfillment", "value": 0, "status": "unknown"}
++        """Resource management KPI: demand fulfillment % -- positions filled vs positions asked for
++        on client demands (Jobs with a client) opened in the period. Client demand lives on Jobs
++        (Demand); the old ResourceDemand table never had a writer and was removed."""
++        from app.models.demand import Demand
++
++        start_date = KPIService._get_period_start(period)
++        demands = db.query(Demand).filter(
++            Demand.client_id.isnot(None), Demand.demand_status != "CANCELLED",
++            Demand.created_at >= start_date,
++        ).all()
++        total_needed = sum(d.headcount or 0 for d in demands)
++        if total_needed <= 0:
++            return {"kpi": "demand_fulfillment", "value": 0, "status": "unknown", "period": period}
++        total_filled = sum(min(d.positions_filled or 0, d.headcount or 0) for d in demands)
++        fulfillment = total_filled / total_needed * 100
++        target = KPIService.RESOURCE_KPIS["demand_fulfillment"]["target"]
++        return {
++            "kpi": "demand_fulfillment",
++            "value": round(fulfillment, 2),
++            "unit": "%",
++            "target": target,
++            "quantity_needed": total_needed,
++            "quantity_fulfilled": total_filled,
++            "status": "healthy" if fulfillment >= 85 else "warning" if fulfillment >= 65 else "critical",
++            "period": period
++        }
+ 
+     @staticmethod
+     def _get_invoice_approval_rate(db: Session, period: str) -> Dict[str, Any]:
+         """Get finance KPI: invoice approval rate"""
+-        try:
+-            from app.models.invoice import Invoice
+-
+-            start_date = KPIService._get_period_start(period)
+-            total = db.query(Invoice).filter(
+-                Invoice.created_at >= start_date
+-            ).count()
+-
+-            approved = db.query(Invoice).filter(
+-                Invoice.status == "APPROVED",
+-                Invoice.created_at >= start_date
+-            ).count()
+-
+-            approval_rate = (approved / total * 100) if total > 0 else 0
+-            target = KPIService.FINANCE_KPIS["invoice_approval_rate"]["target"]
+-
+-            return {
+-                "kpi": "invoice_approval_rate",
+-                "value": round(approval_rate, 2),
+-                "unit": "%",
+-                "target": target,
+-                "invoices_submitted": total,
+-                "invoices_approved": approved,
+-                "status": "healthy" if approval_rate >= 90 else "warning" if approval_rate >= 70 else "critical",
+-                "period": period
+-            }
+-        except Exception as e:
+-            logger.error(f"Error: {str(e)}", exc_info=True)
+-            logger.warning(f"Could not calculate invoice approval KPI: {e}")
+-            return {"kpi": "invoice_approval_rate", "value": 0, "status": "unknown"}
++        from app.models.invoice import Invoice
++
++        start_date = KPIService._get_period_start(period)
++        total = db.query(Invoice).filter(
++            Invoice.created_at >= start_date
++        ).count()
++
++        approved = db.query(Invoice).filter(
++            Invoice.status == "APPROVED",
++            Invoice.created_at >= start_date
++        ).count()
++
++        approval_rate = (approved / total * 100) if total > 0 else 0
++        target = KPIService.FINANCE_KPIS["invoice_approval_rate"]["target"]
++
++        return {
++            "kpi": "invoice_approval_rate",
++            "value": round(approval_rate, 2),
++            "unit": "%",
++            "target": target,
++            "invoices_submitted": total,
++            "invoices_approved": approved,
++            "status": "healthy" if approval_rate >= 90 else "warning" if approval_rate >= 70 else "critical",
++            "period": period
++        }
+ 
+     @staticmethod
+     def _get_revenue_recognition_rate(db: Session, period: str) -> Dict[str, Any]:
+         """Get finance KPI: revenue recognition rate"""
+-        try:
+-            from app.models.revenue_recognition import RevenueRecognition
+-
+-            start_date = KPIService._get_period_start(period)
+-            approved_invoices = db.query(Invoice).filter(
+-                Invoice.status == "APPROVED",
+-                Invoice.created_at >= start_date
+-            ).count()
+-
+-            recognized = db.query(RevenueRecognition).filter(
+-                RevenueRecognition.created_at >= start_date
+-            ).count()
+-
+-            recognition_rate = (recognized / approved_invoices * 100) if approved_invoices > 0 else 0
+-            target = KPIService.FINANCE_KPIS["revenue_recognition_rate"]["target"]
+-
+-            return {
+-                "kpi": "revenue_recognition_rate",
+-                "value": round(recognition_rate, 2),
+-                "unit": "%",
+-                "target": target,
+-                "approved_invoices": approved_invoices,
+-                "revenues_recognized": recognized,
+-                "status": "healthy" if recognition_rate >= 95 else "warning" if recognition_rate >= 75 else "critical",
+-                "period": period
+-            }
+-        except Exception as e:
+-            logger.error(f"Error: {str(e)}", exc_info=True)
+-            logger.warning(f"Could not calculate revenue recognition KPI: {e}")
+-            return {"kpi": "revenue_recognition_rate", "value": 0, "status": "unknown"}
++        from app.models.revenue_recognition import RevenueRecognition
++
++        start_date = KPIService._get_period_start(period)
++        approved_invoices = db.query(Invoice).filter(
++            Invoice.status == "APPROVED",
++            Invoice.created_at >= start_date
++        ).count()
++
++        recognized = db.query(RevenueRecognition).filter(
++            RevenueRecognition.created_at >= start_date
++        ).count()
++
++        recognition_rate = (recognized / approved_invoices * 100) if approved_invoices > 0 else 0
++        target = KPIService.FINANCE_KPIS["revenue_recognition_rate"]["target"]
++
++        return {
++            "kpi": "revenue_recognition_rate",
++            "value": round(recognition_rate, 2),
++            "unit": "%",
++            "target": target,
++            "approved_invoices": approved_invoices,
++            "revenues_recognized": recognized,
++            "status": "healthy" if recognition_rate >= 95 else "warning" if recognition_rate >= 75 else "critical",
++            "period": period
++        }
+ 
+     @staticmethod
+     def _get_period_start(period: str) -> datetime:
+@@ -358,47 +321,3 @@ class KPIService:
+             return now - timedelta(days=365)
+         else:
+             return now - timedelta(days=7)
+-
+-    @staticmethod
+-    def get_phalanx_health_score(
+-        db: Session,
+-        phalanx: str,  # "recruitment", "resource_management", "finance"
+-        period: str = "weekly"
+-    ) -> Dict[str, Any]:
+-        """Calculate overall Phalanx health score (0-100)"""
+-        try:
+-            kpi_map = {
+-                "recruitment": KPIService.RECRUITMENT_KPIS,
+-                "resource_management": KPIService.RESOURCE_KPIS,
+-                "finance": KPIService.FINANCE_KPIS
+-            }
+-
+-            if phalanx not in kpi_map:
+-                return {"phalanx": phalanx, "health_score": 0, "status": "unknown"}
+-
+-            kpis = kpi_map[phalanx]
+-            scores = []
+-
+-            for kpi_name in kpis.keys():
+-                try:
+-                    kpi_result = KPIService.calculate_kpi(db, phalanx, kpi_name, period)
+-                    if "achievement_percent" in kpi_result:
+-                        scores.append(kpi_result["achievement_percent"])
+-                    elif "value" in kpi_result and "target" in kpi_result:
+-                        achievement = (kpi_result["value"] / kpi_result["target"] * 100) if kpi_result["target"] > 0 else 0
+-                        scores.append(min(achievement, 100))
+-                except:
+-                    pass
+-
+-            avg_score = sum(scores) / len(scores) if scores else 0
+-
+-            return {
+-                "phalanx": phalanx,
+-                "health_score": round(avg_score, 2),
+-                "status": "healthy" if avg_score >= 85 else "warning" if avg_score >= 70 else "critical",
+-                "kpi_count": len(scores),
+-                "period": period
+-            }
+-        except Exception as e:
+-            logger.error(f"Failed to calculate phalanx health: {e}", exc_info=True)
+-            return {"phalanx": phalanx, "health_score": 0, "status": "unknown"}
+diff --git a/backend/app/services/revenue_chain_service.py b/backend/app/services/revenue_chain_service.py
+index c16747a4..3491771e 100644
+--- a/backend/app/services/revenue_chain_service.py
++++ b/backend/app/services/revenue_chain_service.py
+@@ -486,8 +486,6 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
+ 
+     companies = db.query(Location).all() if tenant_id is None else \
+         db.query(Location).filter(Location.tenant_id == tenant_id).all()
+-    by_name = {c.name.strip().lower(): c.id for c in companies}
+-    by_name.update({c.company_code.lower(): c.id for c in companies if c.company_code})
+     client_company = dict(db.query(Client.id, Client.contracting_company_id))
+     rows: Dict = defaultdict(lambda: {"revenue": 0, "delivery": 0, "bench": 0, "overhead": 0, "expense": 0,
+                                       "ic_revenue": 0, "ic_cost": 0, "complete": True})
+@@ -510,8 +508,9 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
+     if tenant_id is not None:
+         settlements = settlements.filter(IntercompanySettlement.tenant_id == tenant_id)
+     for s in settlements.all():
+-        rows[by_name.get((s.to_entity or "").strip().lower())]["ic_revenue"] += s.amount_usd_cents
+-        rows[by_name.get((s.from_entity or "").strip().lower())]["ic_cost"] += s.amount_usd_cents
++        # by company id; an old entry no company matched stays with the parent ("Group")
++        rows[s.to_company_id]["ic_revenue"] += s.amount_usd_cents
++        rows[s.from_company_id]["ic_cost"] += s.amount_usd_cents
+ 
+     names = {c.id: (c.name, c.company_code) for c in companies}
+     out = []
+diff --git a/backend/tests/test_data_migrations.py b/backend/tests/test_data_migrations.py
+index 0a8719ee..c9a9728b 100644
+--- a/backend/tests/test_data_migrations.py
++++ b/backend/tests/test_data_migrations.py
+@@ -33,7 +33,7 @@ def test_interview_times_move_from_india_time_to_utc_exactly_once(db):
+     db.add(legacy)
+     db.flush()
+ 
+-    assert run_data_migrations(db) == ["interview_times_to_utc", "employee_org_history_backfill"]
++    assert run_data_migrations(db) == [name for name, _ in DATA_MIGRATIONS]
+     db.refresh(legacy)
+     assert (legacy.start_time, legacy.end_time) == (datetime(2026, 10, 20, 10, 0), datetime(2026, 10, 20, 11, 0))
+     assert db.get(DataMigration, "interview_times_to_utc").applied_at is not None
+diff --git a/backend/tests/test_demand_fulfillment.py b/backend/tests/test_demand_fulfillment.py
+new file mode 100644
+index 00000000..dae4247e
+--- /dev/null
++++ b/backend/tests/test_demand_fulfillment.py
+@@ -0,0 +1,58 @@
++"""Demand fulfillment KPI reads client demand where it lives -- Jobs (Demand) headcount vs
++positions filled. ResourceDemand had no writer anywhere, so the KPI always read an empty table;
++the model is gone (CEO 2026-10-23)."""
++import importlib
++import uuid
++
++import pytest
++from sqlalchemy.orm import Session
++
++from app.models.client import Client
++from app.models.tenant import Tenant
++from app.models.user import Jobs
++from app.services.kpi_service import KPIService
++
++
++@pytest.fixture
++def db(test_db_engine):
++    connection = test_db_engine.connect()
++    outer = connection.begin()
++    session = Session(bind=connection, join_transaction_mode="create_savepoint")
++    yield session
++    session.close()
++    outer.rollback()
++    connection.close()
++
++
++def _kpi(db):
++    return KPIService.calculate_kpi(db, "resource_management", "demand_fulfillment", "monthly")
++
++
++def _job(db, client, positions, filled, status="OPEN"):
++    job = Jobs(tenant_id=1, client_id=client.id, jobTitle="Dev", jobDescription="d", jobSkills="x",
++               jobExperience="5", jobLocation="Remote", noOfPositions=positions, positions_filled=filled,
++               demand_status=status)
++    db.add(job)
++    db.flush()
++
++
++def test_fulfillment_is_positions_filled_over_positions_asked(db):
++    if db.query(Tenant).filter_by(id=1).first() is None:
++        db.add(Tenant(id=1, name="test-tenant"))
++        db.flush()
++    before = _kpi(db)
++    client = Client(tenant_id=1, company_name=f"Insurer {uuid.uuid4().hex[:6]}")
++    db.add(client)
++    db.flush()
++    _job(db, client, 4, 3)
++    _job(db, client, 1, 0)
++    _job(db, client, 10, 0, status="CANCELLED")  # withdrawn demand is not unmet demand
++    after = _kpi(db)
++    assert after["quantity_needed"] == before.get("quantity_needed", 0) + 5
++    assert after["quantity_fulfilled"] == before.get("quantity_fulfilled", 0) + 3
++    assert 0 < after["value"] <= 100
++
++
++def test_the_writerless_resource_demand_model_is_gone():
++    with pytest.raises(ModuleNotFoundError):
++        importlib.import_module("app.models.resource_demand")
+diff --git a/backend/tests/test_employee_certificates.py b/backend/tests/test_employee_certificates.py
+new file mode 100644
+index 00000000..27356c64
+--- /dev/null
++++ b/backend/tests/test_employee_certificates.py
+@@ -0,0 +1,185 @@
++"""Certificates an employee holds (CEO 2026-10-23): EmployeeCertification is the one record --
++created, edited and removed from the employee screen, read by the training dashboards. The
++current Guidewire level is derived from it (never typed); the target level stays a field."""
++from datetime import date, datetime, timedelta
++
++import pytest
++from sqlalchemy.orm import Session
++
++from app.core.db_contract import _guidewire_current_level_to_certificates
++from app.models.certification import Certification, EmployeeCertification
++from app.models.employee import Employee
++from app.services.training_certification_service import get_certification_summary
++from tests.scope_fixtures import ApiClient, two_bu_world, uid
++
++
++@pytest.fixture
++def db(test_db_engine):
++    connection = test_db_engine.connect()
++    outer = connection.begin()
++    session = Session(bind=connection, join_transaction_mode="create_savepoint")
++    yield session
++    session.close()
++    outer.rollback()
++    connection.close()
++
++
++@pytest.fixture
++def w(db):
++    return two_bu_world(db)
++
++
++@pytest.fixture
++def api(db):
++    client = ApiClient(db)
++    yield client
++    client.close()
++
++
++def _employee(db, bu, **kw):
++    e = Employee(tenant_id=1, first_name="Cert", last_name=uid(), email=f"{uid()}@c.test",
++                 joining_date=date(2025, 1, 1), status="ALLOCATED", bu_id=bu.id, **kw)
++    db.add(e)
++    db.flush()
++    return e
++
++
++def _cert(db, name, *, guidewire_level=None, validity_months=24):
++    cert = Certification(tenant_id=1, cert_name=name, cert_code=f"C-{uid()}", level="Foundation",
++                         validity_months=validity_months, guidewire_level=guidewire_level)
++    db.add(cert)
++    db.flush()
++    return cert
++
++
++def _path(employee, suffix=""):
++    return f"/api/v1/employees/{employee.id}/certificates{suffix}"
++
++
++def test_add_edit_and_remove_a_certificate(db, w, api):
++    employee = _employee(db, w.bu_a)
++    cert = _cert(db, "PolicyCenter Developer", validity_months=24)
++    db.commit()
++
++    res = api.post(w.org_user, _path(employee), json={"certification_id": cert.id, "earned_date": "2026-01-15",
++                                                     "issuer": "Guidewire", "cert_number": " PC-42 "})
++    assert res.status_code == 201, res.text
++    record = res.json()
++    assert record["expires_date"] == "2028-01-15"  # the catalog's 24-month validity
++    assert record["cert_number"] == "PC-42"
++
++    edited = api.patch(w.org_user, _path(employee, f"/{record['id']}"),
++                       json={"expires_date": "2027-06-30", "status": "Revoked"})
++    assert edited.status_code == 200 and edited.json()["status"] == "Revoked"
++    assert edited.json()["expires_date"] == "2027-06-30"
++
++    listed = api.get(w.org_user, _path(employee)).json()["certificates"]
++    assert [r["id"] for r in listed] == [record["id"]]
++    assert api.delete(w.org_user, _path(employee, f"/{record['id']}")).status_code == 200
++    assert api.get(w.org_user, _path(employee)).json()["certificates"] == []
++
++
++@pytest.mark.parametrize("body, message", [
++    ({"earned_date": "2026-03-01", "expires_date": "2026-02-01"}, "is before earned_date"),
++    ({"earned_date": "2026-03-01", "status": "Lost"}, "status must be one of"),
++])
++def test_an_invalid_certificate_is_a_400(db, w, api, body, message):
++    employee = _employee(db, w.bu_a)
++    cert = _cert(db, "BillingCenter")
++    db.commit()
++    res = api.post(w.org_user, _path(employee), json={"certification_id": cert.id, **body})
++    assert res.status_code == 400 and message in res.json()["detail"]
++
++
++def test_unknown_catalog_entry_and_other_bu_are_refused(db, w, api):
++    employee, theirs = _employee(db, w.bu_a), _employee(db, w.bu_b)
++    cert = _cert(db, "ClaimCenter")
++    db.commit()
++    assert api.post(w.org_user, _path(employee), json={"certification_id": "nope",
++                                                       "earned_date": "2026-01-01"}).status_code == 400
++    assert api.post(w.partner_a, _path(theirs), json={"certification_id": cert.id,
++                                                      "earned_date": "2026-01-01"}).status_code == 404
++    assert api.get(w.partner_a, _path(theirs)).status_code == 404
++
++
++def test_training_dashboard_counts_what_was_recorded(db, w, api):
++    employee = _employee(db, w.bu_a)
++    soon = _cert(db, "Expiring soon", validity_months=None)
++    db.commit()
++    before = get_certification_summary(db, w.bu_a.id)
++    in_two_weeks = date.today() + timedelta(days=14)
++    api.post(w.org_user, _path(employee), json={"certification_id": soon.id, "earned_date": "2025-01-01",
++                                               "expires_date": str(in_two_weeks)})
++    after = get_certification_summary(db, w.bu_a.id)
++    assert after["total_active"] == before["total_active"] + 1
++    assert after["expiring_within_30_days"] == before["expiring_within_30_days"] + 1
++
++
++def test_current_guidewire_level_comes_from_certificates(db, w, api):
++    employee = _employee(db, w.bu_a)
++    ace, specialist = _cert(db, "GW ACE", guidewire_level="ACE"), _cert(db, "GW Specialist", guidewire_level="Specialist")
++    db.commit()
++    api.post(w.org_user, _path(employee), json={"certification_id": ace.id, "earned_date": "2025-01-01"})
++    expired = api.post(w.org_user, _path(employee), json={"certification_id": specialist.id,
++                                                         "earned_date": "2020-01-01", "expires_date": "2021-01-01"})
++    assert api.get(w.org_user, f"/api/v1/employees/{employee.id}").json()["guidewire_certification_current"] == "ACE"
++
++    api.patch(w.org_user, _path(employee, f"/{expired.json()['id']}"), json={"expires_date": "2030-01-01"})
++    detail = api.get(w.org_user, f"/api/v1/employees/{employee.id}").json()
++    assert detail["guidewire_certification_current"] == "Specialist"
++    listed = {e["id"]: e for e in api.get(w.org_user, "/api/v1/employees").json()["employees"]}
++    assert listed[employee.id]["guidewire_certification_current"] == "Specialist"
++
++
++def test_the_target_level_is_set_but_the_current_level_cannot_be_typed(db, w, api):
++    employee = _employee(db, w.bu_a)
++    db.commit()
++    url = f"/api/v1/employees/{employee.id}/certifications"
++    ok = api.put(w.org_user, url, json={"guidewire_certification_expected": "Associate"})
++    assert ok.status_code == 200 and ok.json()["guidewire_certification_expected"] == "Associate"
++    # sending back the derived value (old clients) is accepted; a different one is not
++    assert api.put(w.org_user, url, json={"guidewire_certification_current": "None"}).status_code == 200
++    typed = api.put(w.org_user, url, json={"guidewire_certification_current": "Specialist"})
++    assert typed.status_code == 400 and "comes from the certificates" in typed.json()["detail"]
++    assert api.put(w.org_user, url, json={"guidewire_certification_expected": "Guru"}).status_code == 400
++
++
++def test_options_serve_the_catalog_statuses_and_levels(db, w, api):
++    cert = _cert(db, "Jutro", guidewire_level=None)
++    db.commit()
++    options = api.get(w.org_user, "/api/v1/employees/certification-options").json()
++    assert cert.id in {c["id"] for c in options["certifications"]}
++    assert options["guidewire_levels"] == ["None", "ACE", "Associate", "Specialist"]
++    assert "Active" in options["statuses"]
++    catalog = api.get(w.org_user, "/api/v1/admin/certifications/options").json()
++    assert catalog["guidewire_levels"] == ["ACE", "Associate", "Specialist"]
++
++
++def test_typed_levels_become_certificate_records_once(db, w):
++    typed = _employee(db, w.bu_a, guidewire_certification_current="Associate",
++                      guidewire_certification_expected="Specialist")
++    untyped = _employee(db, w.bu_a)
++    db.flush()
++
++    made = _guidewire_current_level_to_certificates(db)
++    assert made >= 1
++    record = db.query(EmployeeCertification).filter(EmployeeCertification.employee_id == typed.id).one()
++    assert record.certification.guidewire_level == "Associate" and record.status == "Active"
++    assert typed.guidewire_certification_current is None  # retired column cleared
++    assert typed.guidewire_certification_expected == "Specialist"  # the target stays
++    assert db.query(EmployeeCertification).filter(EmployeeCertification.employee_id == untyped.id).count() == 0
++
++    from app.services.employee_certification_service import current_guidewire_levels
++    assert current_guidewire_levels(db, [typed.id]) == {typed.id: "Associate"}
++    # a second run finds nothing typed any more
++    assert _guidewire_current_level_to_certificates(db) == 0
++
++
++def test_migration_reuses_the_tenants_own_catalog_entry(db, w):
++    own = _cert(db, "Guidewire ACE (ours)", guidewire_level="ACE")
++    typed = _employee(db, w.bu_a, guidewire_certification_current="ACE")
++    db.flush()
++    _guidewire_current_level_to_certificates(db)
++    record = db.query(EmployeeCertification).filter(EmployeeCertification.employee_id == typed.id).one()
++    assert record.certification_id == own.id
++    assert isinstance(record.earned_date, datetime)
+diff --git a/backend/tests/test_intercompany_companies.py b/backend/tests/test_intercompany_companies.py
+new file mode 100644
+index 00000000..5d063530
+--- /dev/null
++++ b/backend/tests/test_intercompany_companies.py
+@@ -0,0 +1,114 @@
++"""Intercompany settlements reference companies by id (CEO 2026-10-23), not free-text names
++matched at read time -- where a typo silently moved money into "Group". New entries require both
++companies; old entries were linked once by exact name (data migration intercompany_company_links)
++and the ones no company matched raise a Finance task and can be linked from the screen."""
++from datetime import date
++
++import pytest
++from sqlalchemy.orm import Session
++
++from app.core.db_contract import _intercompany_company_links
++from app.models.intercompany_ledger import IntercompanySettlement
++from app.models.location import Location
++from app.models.task import Task
++from app.services import revenue_chain_service as chain
++from app.services.goal_tree_service import company_bu_actuals
++from tests.scope_fixtures import ApiClient, two_bu_world, uid
++
++
++@pytest.fixture
++def db(test_db_engine):
++    connection = test_db_engine.connect()
++    outer = connection.begin()
++    session = Session(bind=connection, join_transaction_mode="create_savepoint")
++    yield session
++    session.close()
++    outer.rollback()
++    connection.close()
++
++
++@pytest.fixture
++def w(db):
++    world = two_bu_world(db)
++    world.us = Location(tenant_id=1, name=f"BX-US {uid()}")
++    world.india = Location(tenant_id=1, name=f"BX-IN {uid()}")
++    db.add_all([world.us, world.india])
++    db.commit()
++    return world
++
++
++@pytest.fixture
++def api(db):
++    client = ApiClient(db)
++    yield client
++    client.close()
++
++
++def _record(api, w, **kw):
++    body = {"from_company_id": w.us.id, "to_company_id": w.india.id, "amount_usd_cents": 500_000,
++            "settlement_date": "2026-09-15", "reason": "Offshore delivery", **kw}
++    return api.post(w.org_user, "/api/v1/intercompany-settlements", json=body)
++
++
++def test_a_new_entry_requires_real_companies_and_takes_their_names(db, w, api):
++    res = _record(api, w)
++    assert res.status_code == 201, res.text
++    body = res.json()
++    assert (body["from_company_id"], body["to_company_id"]) == (w.us.id, w.india.id)
++    assert (body["from_entity"], body["to_entity"]) == (w.us.name, w.india.name)
++
++    assert _record(api, w, to_company_id="no-such-company").status_code == 400
++    assert _record(api, w, to_company_id=w.us.id).status_code == 400
++    missing = api.post(w.org_user, "/api/v1/intercompany-settlements",
++                       json={"from_entity": "BXUS", "to_entity": "BXIN", "amount_usd_cents": 1,
++                             "settlement_date": "2026-09-15", "reason": "old shape"})
++    assert missing.status_code == 422
++
++
++def test_net_position_is_by_company(db, w, api):
++    _record(api, w)
++    _record(api, w, from_company_id=w.india.id, to_company_id=w.us.id, amount_usd_cents=200_000)
++    india = api.get(w.org_user, f"/api/v1/intercompany-settlements/company/{w.india.id}/net-position").json()
++    assert india == {"company_id": w.india.id, "entity": w.india.name, "net_position_usd_cents": 300_000}
++    assert api.get(w.org_user, "/api/v1/intercompany-settlements/company/nope/net-position").status_code == 404
++
++
++def test_company_pnl_and_goal_tree_attribute_by_id_even_after_a_rename(db, w, api):
++    _record(api, w)
++    w.india.name = "Renamed India entity"
++    db.commit()
++    pnl = chain.pnl(db, start=date(2026, 9, 1), end=date(2026, 9, 30), tenant_id=1)
++    rows = {r["key"]: r for r in pnl["by_company"]}
++    assert rows[w.india.id]["intercompany_revenue_usd_cents"] == 500_000
++    assert rows[w.us.id]["intercompany_cost_usd_cents"] == 500_000
++    actuals, intercompany = company_bu_actuals(db, 1, 2026)
++    assert actuals[(w.india.id, None)]["revenue"] == 5_000
++    assert intercompany >= 5_000
++
++
++def test_old_entries_are_linked_by_exact_name_and_the_rest_raise_a_task(db, w):
++    exact = IntercompanySettlement(tenant_id=1, from_entity=f"  {w.us.name.upper()} ", to_entity=w.india.name,
++                                   amount_usd_cents=100, settlement_date=date(2026, 9, 1), reason="r")
++    typo = IntercompanySettlement(tenant_id=1, from_entity=w.us.name, to_entity="BX-INDIA-TYPO",
++                                  amount_usd_cents=200, settlement_date=date(2026, 9, 2), reason="r")
++    db.add_all([exact, typo])
++    db.flush()
++
++    linked = _intercompany_company_links(db)
++    assert linked >= 1
++    assert (exact.from_company_id, exact.to_company_id) == (w.us.id, w.india.id)
++    assert typo.from_company_id == w.us.id and typo.to_company_id is None
++    task = db.query(Task).filter(Task.title.like("Link % intercompany entr%")).order_by(Task.id.desc()).first()
++    assert task is not None and "BX-INDIA-TYPO" in task.description and task.link == "/pnl?view=operations"
++
++
++def test_an_unlinked_entry_can_be_linked_once(db, w, api):
++    old = IntercompanySettlement(tenant_id=1, from_entity="??", to_entity="??", amount_usd_cents=300,
++                                 settlement_date=date(2026, 9, 3), reason="r")
++    db.add(old)
++    db.commit()
++    url = f"/api/v1/intercompany-settlements/{old.id}/link-companies"
++    res = api.post(w.org_user, url, json={"from_company_id": w.us.id, "to_company_id": w.india.id})
++    assert res.status_code == 200 and res.json()["to_company_id"] == w.india.id
++    again = api.post(w.org_user, url, json={"from_company_id": w.india.id, "to_company_id": w.us.id})
++    assert again.status_code == 400  # a linked entry is never re-pointed
+diff --git a/frontend/src/components/EmployeeCertifications.js b/frontend/src/components/EmployeeCertifications.js
+new file mode 100644
+index 00000000..1e9b7a17
+--- /dev/null
++++ b/frontend/src/components/EmployeeCertifications.js
+@@ -0,0 +1,255 @@
++// Certificates an employee holds (one record each: earned date, expiry, issuer, certificate
++// number). These records are the one truth the training and certification dashboards count.
++// The current Guidewire level is derived from them (the highest Guidewire certificate held,
++// active and not expired); only the target level is typed in here.
++import { useCallback, useEffect, useState } from "react";
++import { Award, Trash2, Pencil } from "lucide-react";
++import { Button } from "./ui";
++import {
++  addEmployeeCertificate,
++  deleteEmployeeCertificate,
++  getCertificationOptions,
++  listEmployeeCertificates,
++  updateEmployeeCertificate,
++  updateEmployeeCertifications,
++} from "../services/api/employees";
++import { confirmDialog } from "../utils/dialogs";
++
++const dateOnly = (value) => (value ? String(value).slice(0, 10) : "");
++const today = () => new Date().toISOString().slice(0, 10);
++const EMPTY_FORM = { certificationId: "", earnedDate: "", expiresDate: "", issuer: "", certNumber: "" };
++
++function CertificateRow({ record, statuses, employeeId, onChanged }) {
++  const [editing, setEditing] = useState(false);
++  const [status, setStatus] = useState(record.status);
++  const [expiresDate, setExpiresDate] = useState(dateOnly(record.expires_date));
++  const [error, setError] = useState("");
++  const expired = record.expires_date && dateOnly(record.expires_date) < today();
++
++  const save = async () => {
++    setError("");
++    try {
++      await updateEmployeeCertificate(employeeId, record.id, { status, expires_date: expiresDate || null });
++      setEditing(false);
++      onChanged();
++    } catch (err) {
++      setError(err.message || "Failed to save the certificate.");
++    }
++  };
++
++  const remove = async () => {
++    if (!(await confirmDialog(`Remove ${record.cert_name} from this employee?`))) return;
++    setError("");
++    try {
++      await deleteEmployeeCertificate(employeeId, record.id);
++      onChanged();
++    } catch (err) {
++      setError(err.message || "Failed to remove the certificate.");
++    }
++  };
++
++  return (
++    <div className="rounded border bg-gray-50 p-2 text-sm">
++      <div className="flex flex-wrap items-center justify-between gap-2">
++        <div>
++          <div className="font-semibold">
++            {record.cert_name}
++            {record.guidewire_level ? <span className="ml-2 text-xs text-gray-500">Guidewire {record.guidewire_level}</span> : null}
++          </div>
++          <div className="text-xs text-gray-600">
++            {record.status} · earned {dateOnly(record.earned_date)} ·{" "}
++            {record.expires_date ? (
++              <span className={expired ? "font-semibold text-rose-700" : ""}>
++                {expired ? "expired" : "expires"} {dateOnly(record.expires_date)}
++              </span>
++            ) : (
++              "no expiry"
++            )}
++            {record.issuer ? ` · ${record.issuer}` : ""}
++            {record.cert_number ? ` · #${record.cert_number}` : ""}
++          </div>
++        </div>
++        <div className="flex gap-1">
++          <Button variant="ghost" size="sm" onClick={() => setEditing((v) => !v)}>
++            <Pencil className="h-3 w-3" />
++          </Button>
++          <Button variant="ghost" size="sm" onClick={remove}>
++            <Trash2 className="h-3 w-3" />
++          </Button>
++        </div>
++      </div>
++      {editing ? (
++        <div className="mt-2 flex flex-wrap items-end gap-2">
++          <label className="text-xs">
++            Status
++            <select value={status} onChange={(e) => setStatus(e.target.value)} className="ml-1 rounded border px-2 py-1 text-xs">
++              {statuses.map((s) => (
++                <option key={s} value={s}>{s}</option>
++              ))}
++            </select>
++          </label>
++          <label className="text-xs">
++            Expires
++            <input type="date" value={expiresDate} onChange={(e) => setExpiresDate(e.target.value)}
++              className="ml-1 rounded border px-2 py-1 text-xs" />
++          </label>
++          <Button variant="primary" size="sm" onClick={save}>Save</Button>
++        </div>
++      ) : null}
++      {error ? <div className="mt-1 text-xs text-rose-700">{error}</div> : null}
++    </div>
++  );
++}
++
++export default function EmployeeCertifications({ employee, onChanged }) {
++  const [options, setOptions] = useState(null);
++  const [records, setRecords] = useState([]);
++  const [form, setForm] = useState(EMPTY_FORM);
++  const [adding, setAdding] = useState(false);
++  const [target, setTarget] = useState(employee.guidewire_certification_expected || "None");
++  const [currentLevel, setCurrentLevel] = useState(employee.guidewire_certification_current || null);
++  const [message, setMessage] = useState("");
++  const [error, setError] = useState("");
++
++  const load = useCallback(async () => {
++    try {
++      const [opts, list] = await Promise.all([getCertificationOptions(), listEmployeeCertificates(employee.id)]);
++      setOptions(opts);
++      setRecords(list.certificates || []);
++      setCurrentLevel(list.guidewire_certification_current || null);
++    } catch (err) {
++      setError(err.message || "Failed to load certificates.");
++    }
++  }, [employee.id]);
++
++  useEffect(() => {
++    load();
++  }, [load]);
++
++  const changed = () => {
++    load();
++    onChanged();
++  };
++
++  const add = async () => {
++    if (!form.certificationId || !form.earnedDate) {
++      setError("Pick a certificate and the date it was earned.");
++      return;
++    }
++    if (form.expiresDate && form.expiresDate < form.earnedDate) {
++      setError("The expiry date must be on or after the earned date.");
++      return;
++    }
++    setError("");
++    try {
++      await addEmployeeCertificate(employee.id, {
++        certification_id: form.certificationId,
++        earned_date: form.earnedDate,
++        expires_date: form.expiresDate || null,
++        issuer: form.issuer || null,
++        cert_number: form.certNumber || null,
++      });
++      setForm(EMPTY_FORM);
++      setAdding(false);
++      changed();
++    } catch (err) {
++      setError(err.message || "Failed to add the certificate.");
++    }
++  };
++
++  const saveTarget = async () => {
++    setError("");
++    setMessage("");
++    try {
++      await updateEmployeeCertifications(employee.id, { guidewire_certification_expected: target });
++      setMessage("Target saved");
++      onChanged();
++    } catch (err) {
++      setError(err.message || "Failed to save the target level.");
++    }
++  };
++
++  return (
++    <div className="border-t pt-4">
++      <h3 className="mb-1 flex items-center gap-1 font-semibold">
++        <Award className="h-4 w-4" /> Certifications
++      </h3>
++      <p className="mb-3 text-xs text-gray-500">
++        Every certificate held, with its expiry. The current Guidewire level comes from these records.
++      </p>
++
++      <div className="mb-3 grid grid-cols-2 gap-4 text-sm">
++        <div>
++          <div className="mb-1 font-semibold text-gray-700">Current Guidewire level</div>
++          <div>{currentLevel || "None held"}</div>
++        </div>
++        <div>
++          <label className="mb-1 block font-semibold text-gray-700">Target level</label>
++          <div className="flex gap-2">
++            <select value={target} onChange={(e) => setTarget(e.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm">
++              {(options?.guidewire_levels || ["None"]).map((level) => (
++                <option key={level} value={level}>{level}</option>
++              ))}
++            </select>
++            <Button variant="secondary" size="sm" onClick={saveTarget}>Save</Button>
++          </div>
++        </div>
++      </div>
++
++      <div className="space-y-2">
++        {records.length === 0 ? <div className="text-sm text-gray-500">No certificates recorded.</div> : null}
++        {records.map((record) => (
++          <CertificateRow key={record.id} record={record} statuses={options?.statuses || []} employeeId={employee.id}
++            onChanged={changed} />
++        ))}
++      </div>
++
++      {adding ? (
++        <div className="mt-3 grid grid-cols-2 gap-2 rounded border p-3 text-sm">
++          <label className="col-span-2">
++            <span className="text-xs font-semibold text-gray-700">Certificate</span>
++            <select value={form.certificationId} onChange={(e) => setForm({ ...form, certificationId: e.target.value })}
++              className="w-full rounded-lg border px-3 py-2 text-sm">
++              <option value="">Select a certificate</option>
++              {(options?.certifications || []).map((c) => (
++                <option key={c.id} value={c.id}>
++                  {c.cert_name}{c.validity_months ? ` (valid ${c.validity_months} months)` : ""}
++                </option>
++              ))}
++            </select>
++          </label>
++          <label>
++            <span className="text-xs font-semibold text-gray-700">Earned</span>
++            <input type="date" value={form.earnedDate} onChange={(e) => setForm({ ...form, earnedDate: e.target.value })}
++              className="w-full rounded-lg border px-3 py-2 text-sm" />
++          </label>
++          <label>
++            <span className="text-xs font-semibold text-gray-700">Expires (blank: catalog validity)</span>
++            <input type="date" value={form.expiresDate} onChange={(e) => setForm({ ...form, expiresDate: e.target.value })}
++              className="w-full rounded-lg border px-3 py-2 text-sm" />
++          </label>
++          <label>
++            <span className="text-xs font-semibold text-gray-700">Issuer</span>
++            <input value={form.issuer} onChange={(e) => setForm({ ...form, issuer: e.target.value })}
++              className="w-full rounded-lg border px-3 py-2 text-sm" />
++          </label>
++          <label>
++            <span className="text-xs font-semibold text-gray-700">Certificate number</span>
++            <input value={form.certNumber} onChange={(e) => setForm({ ...form, certNumber: e.target.value })}
++              className="w-full rounded-lg border px-3 py-2 text-sm" />
++          </label>
++          <div className="col-span-2 flex gap-2">
++            <Button variant="primary" size="sm" onClick={add}>Add certificate</Button>
++            <Button variant="ghost" size="sm" onClick={() => setAdding(false)}>Cancel</Button>
++          </div>
++        </div>
++      ) : (
++        <Button variant="secondary" size="sm" className="mt-3" onClick={() => setAdding(true)}>
++          Add certificate
++        </Button>
++      )}
++      {message ? <div className="mt-2 text-xs text-gray-600">{message}</div> : null}
++      {error ? <div className="mt-2 text-xs text-rose-700">{error}</div> : null}
++    </div>
++  );
++}
+diff --git a/frontend/src/screens/CertificationManagementScreen.js b/frontend/src/screens/CertificationManagementScreen.js
+index 4540c61a..16514f21 100644
+--- a/frontend/src/screens/CertificationManagementScreen.js
++++ b/frontend/src/screens/CertificationManagementScreen.js
+@@ -1,10 +1,10 @@
+ import { apiFetch } from "../services/api/client";
+ // Admin screen for managing certifications and employee KPI targets
+ import { useEffect, useState } from "react";
+-import { Plus, Trash2, CheckCircle2, Clock, AlertCircle, X } from "lucide-react";
+-import { Card, Button, Input, Select } from "../components/ui";
++import { Plus, Trash2, CheckCircle2, Clock, X } from "lucide-react";
++import { Card, Button } from "../components/ui";
+ 
+-const CERT_LEVELS = ["Foundation", "Intermediate", "Advanced", "Expert"];
++// Catalog levels and Guidewire levels come from GET /admin/certifications/options.
+ 
+ export default function CertificationManagementScreen() {
+   const [activeTab, setActiveTab] = useState("certifications"); // certifications | targets
+@@ -12,6 +12,7 @@ export default function CertificationManagementScreen() {
+   const [loading, setLoading] = useState(false);
+   const [showCreateCert, setShowCreateCert] = useState(false);
+   const [actionError, setActionError] = useState(null);
++  const [catalogOptions, setCatalogOptions] = useState({ levels: [], guidewire_levels: [] });
+ 
+   // Create certification form
+   const [certForm, setCertForm] = useState({
+@@ -37,6 +38,15 @@ export default function CertificationManagementScreen() {
+   // Load data
+   useEffect(() => {
+     loadCertifications();
++    apiFetch("/admin/certifications/options", {
++      headers: { Authorization: `Bearer ${localStorage.getItem("hrms_token")}` },
++    })
++      .then((response) => {
++        if (!response.ok) throw new Error("Failed to load certification options");
++        return response.json();
++      })
++      .then(setCatalogOptions)
++      .catch((err) => setActionError(err.message));
+   }, []);
+ 
+   useEffect(() => {
+@@ -98,7 +108,7 @@ export default function CertificationManagementScreen() {
+           "Content-Type": "application/json",
+           Authorization: `Bearer ${localStorage.getItem("hrms_token")}`,
+         },
+-        body: JSON.stringify(certForm),
++        body: JSON.stringify({ ...certForm, guidewire_level: certForm.guidewire_level || null }),
+       });
+ 
+       if (!response.ok) throw new Error("Failed to create certification");
+@@ -111,6 +121,7 @@ export default function CertificationManagementScreen() {
+         level: "Foundation",
+         validity_months: 24,
+         is_core_certification: false,
++        guidewire_level: "",
+       });
+       setShowCreateCert(false);
+       loadCertifications();
+@@ -229,7 +240,20 @@ export default function CertificationManagementScreen() {
+                   onChange={(e) => setCertForm({ ...certForm, level: e.target?.value || "Foundation" })}
+                   className="w-full px-3 py-2 border rounded-lg"
+                 >
+-                  {CERT_LEVELS.map((l) => (
++                  {catalogOptions.levels.map((l) => (
++                    <option key={l} value={l}>{l}</option>
++                  ))}
++                </select>
++              </div>
++              <div>
++                <label className="block text-sm font-medium mb-1">Guidewire level (sets the holder's current Guidewire level)</label>
++                <select
++                  value={certForm.guidewire_level || ""}
++                  onChange={(e) => setCertForm({ ...certForm, guidewire_level: e.target?.value || "" })}
++                  className="w-full px-3 py-2 border rounded-lg"
++                >
++                  <option value="">Not a Guidewire level</option>
++                  {catalogOptions.guidewire_levels.map((l) => (
+                     <option key={l} value={l}>{l}</option>
+                   ))}
+                 </select>
+@@ -276,6 +300,7 @@ export default function CertificationManagementScreen() {
+                     <div className="text-xs text-gray-500 mt-1">
+                       Level: {cert.level} • Validity: {cert.validity_months || 24} months
+                       {cert.is_core_certification && " • Core Certification"}
++                      {cert.guidewire_level && ` • Guidewire ${cert.guidewire_level}`}
+                     </div>
+                   </div>
+                   <div className="flex gap-2">
+diff --git a/frontend/src/screens/EmployeesConsolidatedScreen.js b/frontend/src/screens/EmployeesConsolidatedScreen.js
+index be28cb49..063a8a25 100644
+--- a/frontend/src/screens/EmployeesConsolidatedScreen.js
++++ b/frontend/src/screens/EmployeesConsolidatedScreen.js
+@@ -16,9 +16,9 @@ import {
+   raiseEmployeeEscalation,
+   resolveEmployeeEscalation,
+   updateEmployeeBillable,
+-  updateEmployeeCertifications,
+   updateEmployeeOrganization,
+ } from "../services/api/employees";
++import EmployeeCertifications from "../components/EmployeeCertifications";
+ import { apiRequest } from "../services/api/client";
+ import { getAllocations, endAllocation } from "../services/api/allocations";
+ import AllocationForm from "../components/AllocationForm";
+@@ -273,15 +273,11 @@ function EscalationsPanel({ employeeId }) {
+ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
+   const [allocations, setAllocations] = useState([]);
+   const [loadingAllocs, setLoadingAllocs] = useState(true);
+-  const [currentCert, setCurrentCert] = useState(employee.guidewire_certification_current || "None");
+-  const [expectedCert, setExpectedCert] = useState(employee.guidewire_certification_expected || "None");
+   const [saving, setSaving] = useState(false);
+   const [companyId, setCompanyId] = useState(employee.company_id || "");
+   const [buId, setBuId] = useState(employee.bu_id ? String(employee.bu_id) : "");
+   const [orgMessage, setOrgMessage] = useState("");
+ 
+-  const CERT_LEVELS = ["None", "ACE", "Associate", "Specialist"];
+-
+   const [billableMessage, setBillableMessage] = useState("");
+   const toggleBillable = async () => {
+     setBillableMessage("");
+@@ -326,21 +322,6 @@ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
+     loadAllocations();
+   }, [loadAllocations]);
+ 
+-  const saveCertifications = async () => {
+-    setSaving(true);
+-    try {
+-      await updateEmployeeCertifications(employee.id, {
+-        guidewire_certification_current: currentCert,
+-        guidewire_certification_expected: expectedCert,
+-      });
+-      onRefresh();
+-    } catch (err) {
+-      console.error("Failed to save certifications:", err);
+-    } finally {
+-      setSaving(false);
+-    }
+-  };
+-
+   return (
+     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+       <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+@@ -413,44 +394,7 @@ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
+             </div>
+           </div>
+ 
+-          <div className="border-t pt-4">
+-            <h3 className="font-semibold mb-3">Guidewire Certification</h3>
+-            <div className="grid grid-cols-2 gap-4 mb-4">
+-              <div>
+-                <label className="block text-sm font-semibold text-gray-700 mb-2">Current Level</label>
+-                <select
+-                  value={currentCert}
+-                  onChange={(e) => setCurrentCert(e.target.value)}
+-                  className="w-full px-3 py-2 border rounded-lg text-sm"
+-                >
+-                  {CERT_LEVELS.map((level) => (
+-                    <option key={level} value={level}>{level}</option>
+-                  ))}
+-                </select>
+-              </div>
+-              <div>
+-                <label className="block text-sm font-semibold text-gray-700 mb-2">Expected Level</label>
+-                <select
+-                  value={expectedCert}
+-                  onChange={(e) => setExpectedCert(e.target.value)}
+-                  className="w-full px-3 py-2 border rounded-lg text-sm"
+-                >
+-                  {CERT_LEVELS.map((level) => (
+-                    <option key={level} value={level}>{level}</option>
+-                  ))}
+-                </select>
+-              </div>
+-            </div>
+-            <Button
+-              variant="primary"
+-              size="sm"
+-              onClick={saveCertifications}
+-              disabled={saving}
+-              className="mb-4"
+-            >
+-              {saving ? "Saving..." : "Save Certification"}
+-            </Button>
+-          </div>
++          <EmployeeCertifications employee={employee} onChanged={onRefresh} />
+ 
+           <EscalationsPanel employeeId={employee.id} />
+ 
+diff --git a/frontend/src/screens/FinanceOperationsScreen.js b/frontend/src/screens/FinanceOperationsScreen.js
+index 8bda419c..24b22fc1 100644
+--- a/frontend/src/screens/FinanceOperationsScreen.js
++++ b/frontend/src/screens/FinanceOperationsScreen.js
+@@ -22,7 +22,8 @@ import {
+   recordIntercompanySettlement,
+   listIntercompanySettlements,
+   getFullyLoadedCost,
+-  getEntityNetPosition,
++  getCompanyNetPosition,
++  linkIntercompanySettlement,
+ } from "../services/api/financeOperations";
+ import {
+   getPartnerIncentiveEvents,
+@@ -225,7 +226,7 @@ export default function FinanceOperationsScreen() {
+     setNetPositionError("");
+     setNetPositionResult(null);
+     try {
+-      const res = await getEntityNetPosition(netPositionEntity.trim());
++      const res = await getCompanyNetPosition(netPositionEntity.trim());
+       setNetPositionResult(res);
+     } catch (err) {
+       setNetPositionError(err.message || "Failed to look up entity net position.");
+@@ -331,13 +332,31 @@ export default function FinanceOperationsScreen() {
+ 
+   const companyOptions = [
+     { label: companies.length ? "Select company" : "No companies yet (Users & Access Control > Companies)", value: "" },
+-    ...companies.map((c) => ({ label: c.name, value: c.name })),
++    ...companies.map((c) => ({ label: c.name, value: c.id })),
+   ];
+ 
++  // An old entry whose free-text name matched no company: link it (the From/To pickers above)
++  const handleLinkSettlement = async (settlementId) => {
++    if (!fromEntity || !toEntity) {
++      setError("Pick the From and To companies above, then Link.");
++      return;
++    }
++    try {
++      await linkIntercompanySettlement(settlementId, fromEntity, toEntity);
++      setSettlements((await listIntercompanySettlements()) || []);
++    } catch (err) {
++      setError(err.message || "Failed to link the settlement.");
++    }
++  };
++
+   const handleRecordSettlement = async () => {
++    if (!fromEntity || !toEntity) {
++      setError("Pick both companies for the settlement.");
++      return;
++    }
+     try {
+       await recordIntercompanySettlement({
+-        from_entity: fromEntity, to_entity: toEntity,
++        from_company_id: fromEntity, to_company_id: toEntity,
+         amount_usd_cents: Math.round(parseFloat(settlementAmount || "0") * 100),
+         settlement_date: new Date().toISOString().slice(0, 10),
+         reason: settlementReason,
+@@ -527,6 +546,14 @@ export default function FinanceOperationsScreen() {
+                     {settlements.slice(0, 5).map((s) => (
+                       <div key={s.id}>
+                         {s.settlement_date}: {s.from_entity} → {s.to_entity} {formatUsdCents(s.amount_usd_cents)} ({s.reason})
++                        {!s.from_company_id || !s.to_company_id ? (
++                          <span className="ml-1 font-semibold text-amber-700">
++                            not linked to a company: counted in Group{" "}
++                            <button type="button" className="underline" onClick={() => handleLinkSettlement(s.id)}>
++                              Link to the From/To companies above
++                            </button>
++                          </span>
++                        ) : null}
+                       </div>
+                     ))}
+                   </div>
+diff --git a/frontend/src/services/api/employees.js b/frontend/src/services/api/employees.js
+index e71d70d4..d59d0dea 100644
+--- a/frontend/src/services/api/employees.js
++++ b/frontend/src/services/api/employees.js
+@@ -80,6 +80,8 @@ export const updateEmployeeOrganization = async (employeeId, organization) => {
+   return data;
+ };
+ 
++// Guidewire target level (guidewire_certification_expected). The current level is derived from
++// the certificates the employee holds (below), so it is not sent.
+ export const updateEmployeeCertifications = async (employeeId, certifications) => {
+   const { data } = await apiRequest(`/employees/${employeeId}/certifications`, {
+     method: "PUT",
+@@ -88,6 +90,39 @@ export const updateEmployeeCertifications = async (employeeId, certifications) =
+   return data;
+ };
+ 
++// The certificate catalog, record statuses and Guidewire levels for the certificates form.
++export const getCertificationOptions = async () => {
++  const { data } = await apiRequest("/employees/certification-options", { method: "GET" });
++  return data;
++};
++
++// Certificates the employee holds (with expiry) and the Guidewire level they give.
++export const listEmployeeCertificates = async (employeeId) => {
++  const { data } = await apiRequest(`/employees/${employeeId}/certificates`, { method: "GET" });
++  return data;
++};
++
++export const addEmployeeCertificate = async (employeeId, body) => {
++  const { data } = await apiRequest(`/employees/${employeeId}/certificates`, {
++    method: "POST",
++    body: JSON.stringify(body),
++  });
++  return data;
++};
++
++export const updateEmployeeCertificate = async (employeeId, recordId, changes) => {
++  const { data } = await apiRequest(`/employees/${employeeId}/certificates/${recordId}`, {
++    method: "PATCH",
++    body: JSON.stringify(changes),
++  });
++  return data;
++};
++
++export const deleteEmployeeCertificate = async (employeeId, recordId) => {
++  const { data } = await apiRequest(`/employees/${employeeId}/certificates/${recordId}`, { method: "DELETE" });
++  return data;
++};
++
+ // Escalations: an open one keeps the employee away from every client; a Director resolves it.
+ export const getEmployeeEscalations = async (employeeId) => {
+   const { data } = await apiRequest(`/employees/${employeeId}/escalations`, { method: "GET" });
+diff --git a/frontend/src/services/api/financeOperations.js b/frontend/src/services/api/financeOperations.js
+index 8482ddf4..cdf1b313 100644
+--- a/frontend/src/services/api/financeOperations.js
++++ b/frontend/src/services/api/financeOperations.js
+@@ -80,7 +80,19 @@ export const listIntercompanySettlements = async () => {
+   return data;
+ };
+ 
+-export const getEntityNetPosition = async (entity) => {
+-  const { data } = await apiRequest(`/intercompany-settlements/entity/${entity}/net-position`, { method: "GET" });
++// Link an old settlement (recorded by free-text name that matched no company) to its companies
++export const linkIntercompanySettlement = async (settlementId, fromCompanyId, toCompanyId) => {
++  const { data } = await apiRequest(`/intercompany-settlements/${settlementId}/link-companies`, {
++    method: "POST",
++    body: JSON.stringify({ from_company_id: fromCompanyId, to_company_id: toCompanyId }),
++  });
++  return data;
++};
++
++// Net intercompany position of one company (by its id: settlements reference companies, not names)
++export const getCompanyNetPosition = async (companyId) => {
++  const { data } = await apiRequest(`/intercompany-settlements/company/${encodeURIComponent(companyId)}/net-position`, {
++    method: "GET",
++  });
+   return data;
+ };
