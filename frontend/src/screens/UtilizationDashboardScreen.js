@@ -2,66 +2,42 @@ import { Link } from "react-router-dom";
 // S-254 (Employee Utilization Dashboard) + S-255 (Bench Cost Visibility).
 import { useEffect, useState } from "react";
 import { BarChart3, RefreshCw, AlertTriangle, DollarSign, Calculator } from "lucide-react";
-import { Card, Button, Input } from "../components/ui";
+import { Card, Button } from "../components/ui";
 import cx from "../utils/cx";
-import { getUtilizationSummary, getBenchCostSummary, recordUtilization } from "../services/api/utilization";
+import { getUtilizationSummary, getBenchCostSummary, recomputeUtilization } from "../services/api/utilization";
 
 const usd = (cents) => (cents == null ? "—" : `$${(cents / 100).toFixed(2)}`);
 
-function RecordUtilizationForm({ onRecorded }) {
-  const [open, setOpen] = useState(false);
-  const [employeeId, setEmployeeId] = useState("");
-  const [weekStartingDate, setWeekStartingDate] = useState("");
-  const [error, setError] = useState("");
+// Utilization is recorded every week by the utilization_snapshot job for every billable
+// employee. "Recompute now" reruns it for the recent weeks (e.g. after late timesheet approvals);
+// the backend allows it only to roles that may create employee records.
+function RecomputeUtilizationButton({ onRecomputed }) {
   const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-  const handleSubmit = async () => {
-    if (!employeeId.trim() || !weekStartingDate) {
-      setError("Employee ID and week-starting date are both required.");
-      return;
-    }
+  const handleRecompute = async () => {
     setBusy(true);
     setError("");
+    setMessage("");
     try {
-      await recordUtilization(employeeId.trim(), weekStartingDate);
-      setEmployeeId("");
-      setWeekStartingDate("");
-      setOpen(false);
-      onRecorded();
+      const res = await recomputeUtilization();
+      setMessage(`Recomputed ${res.snapshots} weekly figures for ${res.employees} employees.`);
+      onRecomputed();
     } catch (err) {
-      setError(err.message || "Failed to record utilization.");
+      setError(err.message || "Failed to recompute utilization.");
     } finally {
       setBusy(false);
     }
   };
 
-  if (!open) {
-    return (
-      <Button variant="secondary" onClick={() => setOpen(true)}>
-        <Calculator className="h-4 w-4" /> Record Utilization
-      </Button>
-    );
-  }
-
   return (
-    <div className="mb-4 rounded-2xl border p-4">
-      {error ? (
-        <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-          {error}
-        </div>
-      ) : null}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Input label="Employee ID" value={employeeId} onChange={setEmployeeId} placeholder="employee UUID" />
-        <Input label="Week starting" type="date" value={weekStartingDate} onChange={setWeekStartingDate} />
-      </div>
-      <div className="mt-3 flex gap-2">
-        <Button variant="primary" disabled={busy} onClick={handleSubmit}>
-          {busy ? "Calculating…" : "Calculate & Save"}
-        </Button>
-        <Button variant="ghost" onClick={() => setOpen(false)}>
-          Cancel
-        </Button>
-      </div>
+    <div className="flex flex-wrap items-center gap-3">
+      <Button variant="secondary" disabled={busy} onClick={handleRecompute}>
+        <Calculator className="h-4 w-4" /> {busy ? "Recomputing…" : "Recompute now"}
+      </Button>
+      {message ? <span className="text-xs text-gray-600">{message}</span> : null}
+      {error ? <span className="text-xs text-rose-700">{error}</span> : null}
     </div>
   );
 }
@@ -94,7 +70,11 @@ export default function UtilizationDashboardScreen() {
     <div className="grid gap-4">
       <Card
         title="Employee Utilization Dashboard"
-        subtitle="Latest weekly billable-vs-bench utilization per employee. Below-50% flagged as a low-utilization alert."
+        subtitle={
+          utilization?.utilization_target_pct != null
+            ? `Latest weekly billable utilization per billable employee, recorded every week. Below the ${utilization.utilization_target_pct}% target is flagged.`
+            : "Latest weekly billable utilization per billable employee, recorded every week."
+        }
         icon={<BarChart3 className="h-4 w-4" />}
         right={
           <Button variant="ghost" onClick={load} disabled={loading}>
@@ -109,7 +89,7 @@ export default function UtilizationDashboardScreen() {
         ) : null}
 
         <div className="mb-4">
-          <RecordUtilizationForm onRecorded={load} />
+          <RecomputeUtilizationButton onRecomputed={load} />
         </div>
 
         {utilization ? (
@@ -121,7 +101,10 @@ export default function UtilizationDashboardScreen() {
               </span>
             </div>
             <div>
-              Low-utilization alerts:{" "}
+              Target: <span className="font-semibold">{utilization.utilization_target_pct}%</span>
+            </div>
+            <div>
+              Below target:{" "}
               <span className="font-semibold text-amber-700">{utilization.low_utilization_count}</span>
             </div>
           </div>
@@ -141,7 +124,7 @@ export default function UtilizationDashboardScreen() {
               {loading ? (
                 <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500">Loading…</td></tr>
               ) : !utilization || utilization.employees.length === 0 ? (
-                <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500">No utilization data recorded yet.</td></tr>
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500">No utilization recorded yet: the weekly job fills this in, or use Recompute now.</td></tr>
               ) : (
                 utilization.employees.map((e) => (
                   <tr key={e.employee_id} className="hover:bg-gray-50">

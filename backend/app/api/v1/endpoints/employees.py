@@ -59,19 +59,18 @@ from app.schemas.employee import (
     EscalationListResponse,
     EscalationResolveRequest,
     MarkBenchRequest,
-    RecordUtilizationRequest,
-    UtilizationHistoryItem,
+    RecomputeUtilizationResponse,
     UtilizationSummaryItem,
     UtilizationSummaryResponse,
 )
 from app.services.resource_management_service import (
-    LOW_UTILIZATION_THRESHOLD_PCT,
     get_bench_duration_days,
     get_current_bench_pool,
     get_latest_utilization_by_employee,
     mark_employee_on_bench,
-    record_weekly_utilization_metric,
     remove_employee_from_bench,
+    snapshot_utilization,
+    utilization_population,
 )
 
 router = APIRouter(prefix="/employees", tags=["employees"])
@@ -361,18 +360,23 @@ def utilization_summary(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
+    from app.core.config import settings
+
+    target = settings.UTILIZATION_TARGET_PCT
     latest_by_employee = get_latest_utilization_by_employee(db, tenant_id=current_user.tenant_id)
-    visible = {e.id: e for e in _visible_employees(db, current_user).filter(Employee.id.in_(list(latest_by_employee)))}
+    # billable people only: internal staff are overhead, never under-utilized (CEO 2026-10-22)
+    visible = {e.id: e for e in _visible_employees(db, current_user).filter(
+        Employee.id.in_(list(latest_by_employee)), Employee.is_billable.is_(True))}
     items = []
     pct_values = []
     low_count = 0
     for employee_id, metric in latest_by_employee.items():
         employee = visible.get(employee_id)
-        if employee is None:  # outside the caller's business units
+        if employee is None:  # outside the caller's business units, or non-billable
             continue
         pct = float(metric.utilization_pct)
         pct_values.append(pct)
-        is_low = pct < LOW_UTILIZATION_THRESHOLD_PCT
+        is_low = pct < target
         if is_low:
             low_count += 1
         items.append(UtilizationSummaryItem(
@@ -386,6 +390,7 @@ def utilization_summary(
     average = round(sum(pct_values) / len(pct_values), 2) if pct_values else None
     return UtilizationSummaryResponse(
         employees=items, average_utilization_pct=average, low_utilization_count=low_count,
+        utilization_target_pct=target,
     )
 
 @router.get(
@@ -430,24 +435,21 @@ def get_employee(
 
 
 @router.post(
-    "/{employee_id}/record-utilization", response_model=UtilizationHistoryItem,
+    "/utilization/recompute", response_model=RecomputeUtilizationResponse,
     dependencies=[Depends(require_resource_permission("employees", "create"))],
-    summary="Calculate + snapshot one employee's utilization for a week (S-223/HRMS-0904) -- billable hours vs available hours",
+    summary="Recompute weekly utilization now (S-223/HRMS-0904) for the billable employees the caller can see",
 )
-def record_utilization(
-    employee_id: str,
-    body: RecordUtilizationRequest,
+def recompute_utilization(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    employee = _get_employee_or_404(db, employee_id, current_user)
-    metric = record_weekly_utilization_metric(db, employee, body.week_starting_date)
+    """What the weekly utilization_snapshot job does, now, for the caller's business units: the
+    last completed weeks (settings.UTILIZATION_SNAPSHOT_WEEKS), billable working employees only."""
+    employees = utilization_population(db).filter(
+        Employee.tenant_id == current_user.tenant_id, bu_filter(db, current_user, Employee.bu_id)).all()
+    written = snapshot_utilization(db, employees)
     db.commit()
-    db.refresh(metric)
-    return UtilizationHistoryItem(
-        period_start=metric.period_start, utilization_pct=float(metric.utilization_pct),
-        billable_hours=float(metric.billable_hours), bench_hours=float(metric.bench_hours),
-    )
+    return RecomputeUtilizationResponse(employees=len(employees), snapshots=written)
 
 
 @router.post(

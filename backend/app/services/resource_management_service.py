@@ -7,12 +7,14 @@ allocation-conflict audit log, and the Staffing Eligibility Engine that
 HRMS-1105 (Part A) will call to pre-filter candidates before ranking.
 """
 import json
+import logging
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.resource_management import (
@@ -24,20 +26,16 @@ from app.models.resource_management import (
 )
 from app.models.timesheet import Timesheet
 
+logger = logging.getLogger(__name__)
+
 # S-248/HRMS-0504 doc's own alert milestones. Canonical sheet also names
 # 90 days; included here too even though the source doc only specifies
 # 30/60.
 BENCH_AGING_ALERT_DAYS = (30, 60, 90)
 
-# No requirements doc specifies a standard work week for utilization
-# math (Part B has none at all) -- 40h/week is this session's plain
-# assumption, flagged rather than silently baked in with no comment.
-STANDARD_WEEKLY_HOURS = 40
-
-# S-254/HRMS-0510 (canonical) "low utilization alerts" -- no requirements
-# doc specifies a threshold; 50% is this session's plain default, same
-# flagged-not-silent posture as STANDARD_WEEKLY_HOURS above.
-LOW_UTILIZATION_THRESHOLD_PCT = 50
+# The standard work week (utilization denominator) and the utilization target (below it a
+# billable employee is flagged on the Utilization dashboard) are settings:
+# settings.UTILIZATION_STANDARD_WEEKLY_HOURS and settings.UTILIZATION_TARGET_PCT.
 
 # S-365/HRMS-0521's gate, per 04-RESOURCE-MANAGEMENT.md Part B item 5.
 # Reuses the SAME interpretation employee_allocation_service.py already
@@ -193,11 +191,12 @@ def record_weekly_utilization_metric(
         )
         .all()
     )
+    weekly_hours = Decimal(str(settings.UTILIZATION_STANDARD_WEEKLY_HOURS))
+    if weekly_hours <= 0:
+        raise ValueError("UTILIZATION_STANDARD_WEEKLY_HOURS must be positive")
     billable_hours = sum((t.billable_hours or Decimal("0")) for t in timesheets) or Decimal("0")
-    bench_hours = max(Decimal(STANDARD_WEEKLY_HOURS) - billable_hours, Decimal("0"))
-    utilization_pct = min(
-        (billable_hours / Decimal(STANDARD_WEEKLY_HOURS)) * 100, Decimal("100"),
-    ) if STANDARD_WEEKLY_HOURS else Decimal("0")
+    bench_hours = max(weekly_hours - billable_hours, Decimal("0"))
+    utilization_pct = min((billable_hours / weekly_hours) * 100, Decimal("100"))
 
     existing = (
         db.query(EmployeeUtilizationMetric)
@@ -225,6 +224,51 @@ def record_weekly_utilization_metric(
     db.add(metric)
     db.flush()
     return metric
+
+def snapshot_weeks(today: Optional[date] = None) -> List[date]:
+    """The Mondays of the last settings.UTILIZATION_SNAPSHOT_WEEKS completed weeks, newest first
+    (recomputed every run, so a timesheet approved late still lands in its week)."""
+    today = today or date.today()
+    last_monday = today - timedelta(days=today.weekday() + 7)
+    return [last_monday - timedelta(weeks=i) for i in range(max(1, settings.UTILIZATION_SNAPSHOT_WEEKS))]
+
+
+def utilization_population(db: Session):
+    """Who utilization is measured for: billable employees who have joined and not left.
+    Internal (non-billable) staff are overhead, never under-utilized (CEO 2026-10-22)."""
+    from app.services.ceo_fy_progress_service import WORKING_STATUSES_EXCLUDED
+
+    return db.query(Employee).filter(
+        Employee.is_billable.is_(True), Employee.status.notin_(WORKING_STATUSES_EXCLUDED),
+    )
+
+
+def snapshot_utilization(db: Session, employees, *, today: Optional[date] = None) -> int:
+    """Record each employee's weekly utilization for the snapshot weeks they were employed in;
+    returns the number of weekly snapshots written (upserts). The caller commits."""
+    written = 0
+    weeks = snapshot_weeks(today)
+    for employee in employees:
+        for monday in weeks:
+            if employee.joining_date and employee.joining_date > monday + timedelta(days=6):
+                continue
+            if employee.exit_date and employee.exit_date < monday:
+                continue
+            record_weekly_utilization_metric(db, employee, monday)
+            written += 1
+    return written
+
+
+def run_utilization_snapshot(db: Session, today: Optional[date] = None) -> dict:
+    """Weekly job utilization_snapshot (app.core.scheduled_jobs): every billable working
+    employee's utilization for the last completed weeks. Internal only: writes metrics, tells
+    nobody."""
+    employees = utilization_population(db).all()
+    written = snapshot_utilization(db, employees, today=today)
+    db.commit()
+    logger.info(f"[Utilization] snapshot: {len(employees)} employee(s), {written} weekly record(s)")
+    return {"employees": len(employees), "snapshots": written}
+
 
 def get_utilization_history(db: Session, employee_id: str) -> List[EmployeeUtilizationMetric]:
     """S-254: every weekly snapshot for one employee, most recent first."""

@@ -68,6 +68,10 @@ _JOBS = (
     ScheduledJob("flash_mission_sweep", "app.services.flash_mission_service:run_sweep",
                  timedelta(minutes=5), timeout_s=240, sends_external=True,
                  backlog_guard="app.services.flash_mission_service:backlog_guard"),
+    # internal only: every billable working employee's weekly utilization for the last completed
+    # weeks (resource_management_service.run_utilization_snapshot); writes metrics, tells nobody
+    ScheduledJob("utilization_snapshot", "app.services.resource_management_service:run_utilization_snapshot",
+                 timedelta(days=7), timeout_s=600, daily_after_utc="06:00"),
     ScheduledJob("birthday_drafts", "app.services.culture_agent_service:generate_birthday_drafts",
                  timedelta(days=1), timeout_s=120, daily_after_utc="03:00"),
 )
