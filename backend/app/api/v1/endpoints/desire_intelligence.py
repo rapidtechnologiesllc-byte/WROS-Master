@@ -101,6 +101,6 @@ def refresh_desire_intelligence(candidate_id: str, db: Session = Depends(get_db)
     if not candidate:
         raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found.")
 
-    tenant_id = resolve_default_tenant_id()
+    tenant_id = resolve_default_tenant_id(db)
     build_and_narrate(db, tenant_id, candidate_id)
     return _build_response(db, candidate_id)

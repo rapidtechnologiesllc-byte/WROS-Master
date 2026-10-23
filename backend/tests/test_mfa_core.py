@@ -81,7 +81,8 @@ def test_who_needs_mfa_is_decided_by_role_template_level_not_name():
     def role(level):
         return SimpleNamespace(hierarchy_level=level, enabled=True, tenant_id=1, org_level_access=False)
 
-    with patch.object(authority, "role_of", side_effect=lambda db, u: role(u.level) if u.level else None):
+    # level() is the Manage Role level (the Job Title's role); role_of() the add-on template
+    with patch.object(authority, "role_of", side_effect=lambda db, u: role(u.level) if u.level else None),             patch.object(authority, "level", side_effect=lambda db, u: u.level):
         assert authority.requires_totp(None, SimpleNamespace(level=14))
         assert not authority.requires_totp(None, SimpleNamespace(level=13))
         assert authority.requires_email_otp(None, SimpleNamespace(level=2))

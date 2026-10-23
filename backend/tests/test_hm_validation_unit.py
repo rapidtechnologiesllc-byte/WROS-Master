@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from uuid import uuid4
 from unittest.mock import Mock, MagicMock, patch
 
+from app.models.hiring_manager_validation import HMValidationStatus
 from app.services.hiring_manager_validation_service import HiringManagerValidationService
 
 @pytest.fixture
@@ -375,7 +376,7 @@ class TestRecordHMResponse:
         mock_db.query.return_value.filter.return_value.first.return_value = validation
 
         # Make status enum comparable
-        from app.models import HMValidationStatus
+        pass
         validation.status = HMValidationStatus.PENDING
 
         responses = {

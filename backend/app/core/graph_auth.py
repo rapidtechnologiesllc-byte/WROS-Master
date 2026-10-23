@@ -100,41 +100,39 @@ class GraphServiceAuth:
         """Check if service account is properly configured"""
         return all(_credentials())
 
-
-def get_graph_token(force_refresh: bool = False) -> str:
-    """Get Microsoft Graph access token (wrapper for EmailService compatibility)"""
-    return GraphServiceAuth.get_access_token(force_refresh=force_refresh)
-    
     @staticmethod
     def validate_token(access_token: str) -> bool:
         """
-        Validate if the access token is still valid by making a test request.
-        
-        Args:
-            access_token: Token to validate
-            
+        Whether the access token is still accepted, by making a test request.
+
         Returns:
-            True if valid, False otherwise
+            True if Graph accepts it, False if Graph rejects it
+
+        Raises:
+            RuntimeError: Graph could not be reached (that is not an answer about the token)
         """
         try:
-            headers = {"Authorization": f"Bearer {access_token}"}
             response = requests.get(
                 "https://graph.microsoft.com/v1.0/me",
-                headers=headers,
-                timeout=10
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=10,
             )
-            return response.status_code == 200
-        except Exception:
-            return False
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to validate Microsoft Graph token: {e}", exc_info=True)
+            raise RuntimeError(f"Could not reach Microsoft Graph to validate the token: {e}") from e
+        return response.status_code == 200
 
-# Convenience function
-def get_graph_token() -> str:
+
+def get_graph_token(force_refresh: bool = False) -> str:
     """
-    Get Microsoft Graph access token for SharePoint operations.
-    
+    Get a Microsoft Graph access token (application permissions).
+
+    Args:
+        force_refresh: Ignore the cached token and acquire a new one
+
     Returns:
         Access token string
-        
+
     Raises:
         Exception: If authentication is not configured or fails
     """
@@ -143,5 +141,5 @@ def get_graph_token() -> str:
             "Microsoft Graph service account not configured. "
             "Please set AZURE_TENANT_ID, AZURE_CLIENT_ID, and AZURE_CLIENT_SECRET in .env"
         )
-    
-    return GraphServiceAuth.get_access_token()
+
+    return GraphServiceAuth.get_access_token(force_refresh=force_refresh)

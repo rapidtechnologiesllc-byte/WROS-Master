@@ -17,6 +17,7 @@ import { getAllCandidates } from "../services/api/candidates";
 import { AssignButton, ContentDiv } from "../styles/ChecklistTemplate";
 import { sendPlainEmail } from "../services/api/email";
 import { getEmailBodyHTML } from "../utils/preboardingEmailTemplate";
+import { confirmDialog } from "../utils/dialogs";
 
 const emptyItemForm = () => ({
   title: "",
@@ -164,7 +165,7 @@ export default function ChecklistTemplatesScreen() {
   };
 
   const handleDeleteTemplate = async (templateId) => {
-    if (!window.confirm("Delete this template and all its items?")) return;
+    if (!(await confirmDialog("Delete this template and all its items?"))) return;
     setError("");
     try {
       await deleteChecklistTemplate(templateId);
@@ -210,7 +211,7 @@ export default function ChecklistTemplatesScreen() {
 
   const handleDeleteItem = async (itemId) => {
     if (!detail?.id) return;
-    if (!window.confirm("Delete this template item?")) return;
+    if (!(await confirmDialog("Delete this template item?"))) return;
     setError("");
     try {
       await deleteChecklistTemplateItem(detail.id, itemId);

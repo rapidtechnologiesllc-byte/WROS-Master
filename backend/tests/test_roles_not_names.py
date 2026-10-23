@@ -47,8 +47,8 @@ def test_alignment_call_parties_come_from_the_demand(db, w):
     db.add(company)
     db.flush()
     head = person(db, w.partner_role, "Head of A")
-    db.add_all([BusinessUnitCompany(business_unit_id=w.bu_a.id, company_id=company.id),
-                BusinessUnitLocationHead(business_unit_id=w.bu_a.id, company_id=company.id, head_user_id=head.UserID)])
+    db.add_all([BusinessUnitCompany(tenant_id=1, business_unit_id=w.bu_a.id, company_id=company.id),
+                BusinessUnitLocationHead(tenant_id=1, business_unit_id=w.bu_a.id, company_id=company.id, head_user_id=head.UserID)])
     worker = Employee(tenant_id=1, first_name="Sam", last_name=uid(), email=f"{uid()}@x.com", bu_id=w.bu_a.id,
                       joining_date=date(2025, 1, 1))
     db.add(worker)

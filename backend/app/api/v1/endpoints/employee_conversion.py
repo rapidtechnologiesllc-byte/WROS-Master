@@ -55,6 +55,11 @@ def convert_candidate(request: EmployeeConversionRequest, db: Session = Depends(
             employment_type=request.employment_type,
             job_title=request.job_title,
             company_id=request.company_id,
+            org_role=request.org_role,
+            parent_node_id=request.parent_node_id,
+            # placement is enforced only when the screen names who they report to; otherwise
+            # they go under their BU head, or their BU head gets a task to place them
+            require_seat=bool(request.parent_node_id),
             changed_by=current_user.UserID if current_user else None
         )
         allocation = employee.conversion_allocation

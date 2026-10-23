@@ -6,7 +6,7 @@ Estimate & Margin) + S-358/HRMS-0519 (SI Partner Tagging) API.
 
 import logging
 from datetime import date
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -30,6 +30,35 @@ class CreateProjectRequest(BaseModel):
     client_partner: Optional[str] = None
     business_type: Optional[str] = None
     allow_weekend_billing: bool = False
+    # False for an internal project: its allocations default to non-billable
+    is_billable: bool = True
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    # The project manager (an internal user) who owns delivery
+    manager_user_id: Optional[str] = None
+
+class UpdateProjectRequest(BaseModel):
+    """PATCH /projects/{id}: only the fields sent change. start_date, end_date and manager_user_id
+    may be sent as null to clear them; name and billing_type cannot be cleared."""
+    name: Optional[str] = Field(None, min_length=1)
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    billing_type: Optional[str] = None
+    manager_user_id: Optional[str] = None
+
+class ProjectManagerOption(BaseModel):
+    user_id: str
+    name: Optional[str] = None
+    email: str
+
+class ProjectOptionsResponse(BaseModel):
+    """The choices the Projects screen offers, from the backend's own lists (never hardcoded in JS)."""
+    billing_types: List[str]
+    business_types: List[str]
+    statuses: List[str]
+    status_transitions: Dict[str, List[str]]
+    currencies_by_engine: Dict[str, List[str]]
+    managers: List[ProjectManagerOption]
 
 class ProjectItem(BaseModel):
     id: str
@@ -46,8 +75,11 @@ class ProjectItem(BaseModel):
     client_partner: Optional[str] = None
     business_type: Optional[str] = None
     allow_weekend_billing: bool
+    is_billable: bool = True
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    manager_user_id: Optional[str] = None
+    manager_name: Optional[str] = None
 
 class ProjectListResponse(BaseModel):
     projects: List[ProjectItem]

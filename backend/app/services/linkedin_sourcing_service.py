@@ -55,11 +55,7 @@ def claim_alert(db: Session, alert_id: str) -> Optional[SourcingAlert]:
     """
     BR-1103-03: atomic OPEN->PROCESSING claim, preventing two workers
     from double-sourcing the same demand. Uses a conditional UPDATE
-    (WHERE status='OPEN') rather than SELECT FOR UPDATE -- SQLite (this
-    codebase's test database) doesn't support row-level locking the
-    same way SQL Server does, but the conditional-UPDATE-and-check-
-    rowcount pattern is portable across both and gives the identical
-    atomicity guarantee: two callers racing this statement can never
+    (WHERE status='OPEN') and checks the rowcount: two callers racing this statement can never
     both see rowcount=1.
     """
     updated = (

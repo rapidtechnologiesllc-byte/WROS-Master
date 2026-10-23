@@ -59,6 +59,14 @@ def check_offer_readiness(db: Session, candidate_id: str, job_id: str, tenant_id
     if not experience_result["is_eligible"]:
         blockers.append(f"Candidate does not meet the 5-year experience requirement: {experience_result['message']}")
 
+    # Check 5b -- employment type by country (CEO 2026-10-15): never an offer to a C2C/1099 or a
+    # type the candidate's country does not accept (UNKNOWN is confirmed by the offer itself)
+    from app.services.employment_type_policy import interview_check
+
+    employment_result = interview_check(candidate)
+    if not employment_result["allowed"]:
+        blockers.append(employment_result["message"])
+
     # Check 6 -- hard blocker
     compliance_flag = (
         db.query(CandidateJobFlag)

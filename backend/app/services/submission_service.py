@@ -17,8 +17,9 @@ block* only. Per this session's confirmed direction:
     ALLOCATED states already live on Employee (HRMS-0101). A candidate
     with no linked Employee row at all (never converted, HRMS-0708) is
     blocked the same as one with a disallowed status.
-  - checkEmploymentTypeRule(): real gate against candidates.employment_type,
-    fails closed on UNKNOWN same as C2C, per HRMS-P606.
+  - checkEmploymentTypeRule(): real gate against candidates.employment_type and the
+    candidate's country (app.services.employment_type_policy.submission_check): fails closed
+    on UNKNOWN, on C2C/1099 and on an unknown country, per HRMS-P606 and CEO 2026-10-15.
 
 All three gates run and their results are collected before raising, so a
 recruiter sees every blocker at once, per HRMS-0711 BR-01. Every failed
@@ -30,6 +31,7 @@ existing ATSScore.overall_score -- not recomputed by this module).
 """
 import logging
 from datetime import datetime
+from decimal import Decimal
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
@@ -46,13 +48,12 @@ from app.services.demand_service import record_placement, transition_demand_stat
 
 MIN_EXPERIENCE_MONTHS = 60  # HRMS-P601 -- 5 years, R-01
 
-# HRMS-P605 -- only these Employee statuses may be submitted to a client.
-# ACTIVE here is this codebase's equivalent of the doc's ACTIVE_EMPLOYEE.
-MARKET_PROFILE_ALLOWED_EMPLOYEE_STATUSES = {"BENCH", "ACTIVE", "ALLOCATED"}
-
-# HRMS-P606 -- only W2_FULLTIME may be submitted; UNKNOWN fails closed
-# same as C2C/1099 (BR-02 of that story).
-EMPLOYMENT_TYPE_ALLOWED = {"W2_FULLTIME"}
+# HRMS-P605 -- only these Employee statuses may be submitted to a client. ACTIVE here is this
+# codebase's equivalent of the doc's ACTIVE_EMPLOYEE; SPECIALITY_READY is the bench after Buddy
+# graduation. ALLOCATED stays allowed: whether an allocation holds the employee is decided from
+# their ACTIVE allocations (deployment_readiness_service.allocation_blockers: a Staff Aug
+# allocation does not hold them from a Core job, CEO 2026-10-14), never from the status field.
+MARKET_PROFILE_ALLOWED_EMPLOYEE_STATUSES = {"BENCH", "ACTIVE", "SPECIALITY_READY", "ALLOCATED"}
 
 logger = logging.getLogger(__name__)
 
@@ -115,20 +116,19 @@ def check_market_profile_rule(db: Session, candidate_id: str) -> dict:
             "allowed": False, "candidate_status": employee.status,
             "error": "MARKET_PROFILE_SUBMISSION_BLOCKED",
             "message": (
-                f"Employee status is {employee.status}. Only BENCH, ACTIVE, or "
+                f"Employee status is {employee.status}. Only BENCH, ACTIVE, SPECIALITY_READY or "
                 f"ALLOCATED employees may be submitted to clients."
             ),
         }
     return {"allowed": True, "candidate_status": employee.status}
 
 def check_employment_type_rule(candidate: Candidate) -> dict:
-    if candidate.employment_type in EMPLOYMENT_TYPE_ALLOWED:
-        return {"allowed": True, "employment_type": candidate.employment_type}
-    return {
-        "allowed": False, "employment_type": candidate.employment_type,
-        "error": "C2C_NOT_ACCEPTED",
-        "message": "BlitzenX only accepts full-time (W2) candidates.",
-    }
+    """HRMS-P606 + CEO 2026-10-15: the candidate's country must accept their employment type
+    (US: W2 full-time or W2 contract; India: full-time or contract; never C2C/1099; UNKNOWN or
+    an unknown country fails closed). The mapping is configuration (employment_type_policy)."""
+    from app.services.employment_type_policy import submission_check
+
+    return submission_check(candidate)
 
 def check_hiring_pipeline_rule(db: Session, candidate_id: str) -> dict:
     """CEO hiring order: a candidate reaches a client only from the bench -- interviews
@@ -161,6 +161,60 @@ def _log_violation(
         blocked_message=blocked_message,
     ))
 
+def check_job_experience(candidate: Candidate, demand: Demand) -> dict:
+    """The job's own minimum experience, on top of the company-wide 5-year floor."""
+    required_years = demand.min_experience_years
+    months = candidate.total_experience_months
+    if required_years is None or months is None:  # no job minimum / the floor already fails closed
+        return {"allowed": True}
+    required_months = Decimal(required_years) * 12
+    if months >= required_months:
+        return {"allowed": True}
+    return {
+        "allowed": False, "error": "JOB_EXPERIENCE_SHORT", "violation_type": "JOB_EXPERIENCE_SHORT",
+        "message": (f"The job needs {required_years} years of experience; the candidate has "
+                    f"{months // 12} years {months % 12} months."),
+    }
+
+
+def client_submission_blockers(db: Session, candidate: Candidate, demand: Optional[Demand] = None) -> List[dict]:
+    """Every reason the candidate cannot be submitted to a client right now (HRMS-0711 BR-01: all
+    of them, not the first). With a demand, the job's own gates too (its minimum experience, the
+    job's Core line, and which allocations hold the employee). The one rule set behind POST /submissions, readiness and the pickers.
+    Blockers carrying violation_type are logged to SubmissionViolation on a blocked attempt."""
+    blockers: List[dict] = []
+
+    experience = check_experience_eligibility(candidate)
+    if not experience["is_eligible"]:
+        blockers.append({**experience, "violation_type": "EXPERIENCE_INELIGIBLE",
+                         "candidate_status_at_time": str(candidate.total_experience_months)})
+
+    market_profile = check_market_profile_rule(db, candidate.candidateID)
+    if not market_profile["allowed"]:
+        blockers.append({**market_profile, "violation_type": "NO_MARKET_PROFILE"})
+
+    employment_type = check_employment_type_rule(candidate)
+    if not employment_type["allowed"]:
+        blockers.append({**employment_type, "violation_type": "C2C_NOT_ACCEPTED",
+                         "candidate_status_at_time": employment_type["employment_type"]})
+
+    employee = db.query(Employee).filter(Employee.candidate_id == candidate.candidateID).first()
+    if employee is not None:
+        from app.services.deployment_readiness_service import submission_blockers
+
+        blockers.extend(submission_blockers(db, employee, demand))
+
+    if demand is not None:
+        job_experience = check_job_experience(candidate, demand)
+        if not job_experience["allowed"]:
+            blockers.append(job_experience)
+
+    pipeline = check_hiring_pipeline_rule(db, candidate.candidateID)
+    if not pipeline["allowed"]:
+        blockers.append(pipeline)  # recorded in hiring_pipeline_events, not submission_violations
+    return blockers
+
+
 def create_submission(
     db: Session,
     *,
@@ -174,47 +228,20 @@ def create_submission(
     subvendor_id: Optional[str] = None,
 ) -> Submission:
     """
-    Runs all three compliance gates (BR-01 of HRMS-0711: all violations
-    returned, not just the first), then the demand-status and duplicate
-    checks. Raises SubmissionComplianceError / DemandNotOpenForSubmission
-    / DuplicateSubmission on failure -- never partially inserts.
+    Runs every client-submission gate (client_submission_blockers; BR-01 of HRMS-0711: all
+    violations returned, not just the first), then the demand-status and duplicate checks.
+    Raises SubmissionComplianceError / DemandNotOpenForSubmission / DuplicateSubmission on
+    failure -- never partially inserts.
     """
-    blockers: List[dict] = []
-
-    experience = check_experience_eligibility(candidate)
-    if not experience["is_eligible"]:
-        blockers.append(experience)
-        _log_violation(
-            db, tenant_id=tenant_id, recruiter_user_id=submitted_by_user_id,
-            candidate_id=candidate.candidateID, violation_type="EXPERIENCE_INELIGIBLE",
-            candidate_status_at_time=str(candidate.total_experience_months),
-            blocked_message=experience["message"],
-        )
-
-    market_profile = check_market_profile_rule(db, candidate.candidateID)
-    if not market_profile["allowed"]:
-        blockers.append(market_profile)
-        _log_violation(
-            db, tenant_id=tenant_id, recruiter_user_id=submitted_by_user_id,
-            candidate_id=candidate.candidateID, violation_type="NO_MARKET_PROFILE",
-            candidate_status_at_time=market_profile["candidate_status"],
-            blocked_message=market_profile["message"],
-        )
-
-    employment_type = check_employment_type_rule(candidate)
-    if not employment_type["allowed"]:
-        blockers.append(employment_type)
-        _log_violation(
-            db, tenant_id=tenant_id, recruiter_user_id=submitted_by_user_id,
-            candidate_id=candidate.candidateID, violation_type="C2C_NOT_ACCEPTED",
-            candidate_status_at_time=employment_type["employment_type"],
-            blocked_message=employment_type["message"],
-        )
-
-    pipeline = check_hiring_pipeline_rule(db, candidate.candidateID)
-    if not pipeline["allowed"]:
-        blockers.append(pipeline)  # recorded in hiring_pipeline_events, not submission_violations
-
+    blockers = client_submission_blockers(db, candidate, demand)
+    for blocker in blockers:
+        if blocker.get("violation_type"):
+            _log_violation(
+                db, tenant_id=tenant_id, recruiter_user_id=submitted_by_user_id,
+                candidate_id=candidate.candidateID, violation_type=blocker["violation_type"],
+                candidate_status_at_time=blocker.get("candidate_status_at_time") or blocker.get("candidate_status"),
+                blocked_message=blocker["message"],
+            )
     if blockers:
         db.flush()
         raise SubmissionComplianceError(blockers)
@@ -222,6 +249,10 @@ def create_submission(
     if demand.status not in ("OPEN", "IN_PROGRESS"):
         raise DemandNotOpenForSubmission(
             f"Cannot submit to demand in status '{demand.status}' -- must be OPEN or IN_PROGRESS."
+        )
+    if not demand.client_id:  # submissions.client_id is NOT NULL: a client submission needs a client
+        raise DemandNotOpenForSubmission(
+            f"Job {demand.id} has no client. Set the client on the job before submitting a candidate."
         )
 
     # BU Scoping: Check if candidate is already locked to a different BU
@@ -310,12 +341,13 @@ def update_client_response(
 
 
 def _already_allocated(db: Session, submission: Submission, demand) -> bool:
-    from app.models.employee_allocation import EmployeeAllocation
+    from app.models.employee_allocation import HOLDING_STATUSES, EmployeeAllocation
 
     employee = db.query(Employee).filter(Employee.candidate_id == submission.candidate_id).first()
+    # an allocation awaiting margin approval is the placement too (it is not created twice)
     return employee is not None and db.query(EmployeeAllocation).filter(
         EmployeeAllocation.employee_id == employee.id, EmployeeAllocation.demand_id == demand.id,
-        EmployeeAllocation.status == "ACTIVE",
+        EmployeeAllocation.status.in_(HOLDING_STATUSES),
     ).first() is not None
 
 
@@ -324,7 +356,7 @@ def _allocate_placed_employee(db: Session, submission: Submission, demand, start
     ACTIVE allocation timesheets and invoices hang off. Idempotent per
     employee+job; a conflicting active allocation elsewhere is raised, not
     silently skipped, so the placement can't be recorded half-done."""
-    from app.models.employee_allocation import EmployeeAllocation
+    from app.models.employee_allocation import HOLDING_STATUSES, EmployeeAllocation
     from app.models.project import Project
     from app.services.employee_allocation_service import allocate_employee_to_project
 
@@ -338,7 +370,7 @@ def _allocate_placed_employee(db: Session, submission: Submission, demand, start
         raise AllocationNeedsClient(f"Job {demand.id} has no client. Set the client on the job before placing.")
     already = db.query(EmployeeAllocation).filter(
         EmployeeAllocation.employee_id == employee.id, EmployeeAllocation.demand_id == demand.id,
-        EmployeeAllocation.status == "ACTIVE",
+        EmployeeAllocation.status.in_(HOLDING_STATUSES),
     ).first()
     if already:
         return

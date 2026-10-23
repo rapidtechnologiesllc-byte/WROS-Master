@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -8,16 +8,11 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db, check_user
 from app.core.security import get_password_hash, create_access_token, verify_password
 from app.core.dependencies import get_current_internal_user, require_resource_permission
-from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, InterviewFeedback, PanelMember, BusinessUnit, Department
+from app.models import Users, Candidate, CandidateAssignment, Interview, InterviewPanel, PanelMember, BusinessUnit, Department
 
 # Alias for backward compatibility
 get_current_user = get_current_internal_user
-from app.models.user import Jobs
-from app.models.offer_letter import OfferLetter
-from app.models.client import Client
-from app.models.document import CandidateDocument
 from app.models.role_template import RoleTemplate
-from app.models.newsletter import Newsletter
 from app.schemas.auth import SignupRequest
 from app.schemas.user import (
     AllUsersResponse, UserResponse,
@@ -29,6 +24,7 @@ from app.schemas.user import (
 )
 from app.services.org_hierarchy_validator import validate_before_employee_creation
 from app.models.location import Location
+from app.core.tenant_context import tenant_id_of
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +48,7 @@ async def get_me(
     from app.core import authority
     from app.services.role_template_permission_service import RoleTemplatePermissionService
 
-    tenant_id = current_user.tenant_id or 1
+    tenant_id = tenant_id_of(current_user)
     role = db.query(RoleTemplate).filter(RoleTemplate.id == current_user.role_template_id).first() \
         if current_user.role_template_id else None
     permissions = RoleTemplatePermissionService.get_user_permissions(db, current_user.UserID, tenant_id) or {}
@@ -113,6 +109,8 @@ def get_all_users(
             department_name=u.department.name if u.department else None,
             business_unit_id=u.business_unit_id,
             business_unit_name=u.business_unit.name if u.business_unit else None,
+            org_node_id=u.org_node_id,
+            active=u.terminated_at is None,
         )
         for u in users
     ]
@@ -189,25 +187,24 @@ def search_users(
 
     # role-template authority (app.core.authority thresholds), never a role name
     if authority:
-        from sqlalchemy import or_ as any_of
-
-        from app.core.authority import FINANCE_SPECIALIZATIONS
         from app.core.config import settings
 
         levels = {"partner": settings.PARTNER_MIN_LEVEL, "bu_leader": settings.BU_LEADER_MIN_LEVEL,
                   "director": settings.DIRECTOR_MIN_LEVEL, "finance_leader": settings.SENIOR_MANAGER_MIN_LEVEL}
         if authority not in levels and authority != "org_level":
             raise HTTPException(status_code=422, detail=f"authority must be one of {sorted(levels) + ['org_level']}")
-        if not user_role:
-            query = query.join(RoleTemplate, RoleTemplate.id == Users.role_template_id)
-        query = query.filter(RoleTemplate.enabled.is_(True))
+        # Decided by app.core.authority (Manage Role level, either template's flags) -- the
+        # same rules the checks use, so a picker never offers someone the check refuses
+        from app.core import authority as auth
+
         if authority == "org_level":
-            query = query.filter(RoleTemplate.org_level_access.is_(True))
+            rule = auth.is_org_level
+        elif authority == "finance_leader":
+            rule = auth.is_finance_leader
         else:
-            query = query.filter(RoleTemplate.hierarchy_level >= levels[authority])
-        if authority == "finance_leader":
-            query = query.filter(any_of(*[sql_func.lower(RoleTemplate.specialization).like(f"%{w}%")
-                                          for w in FINANCE_SPECIALIZATIONS]))
+            rule = lambda d, u: auth.level(d, u) >= levels[authority]  # noqa: E731
+        matching = {u.UserID for u in query.all() if rule(db, u)}
+        query = query.filter(Users.UserID.in_(matching or {""}))
 
     # â"€â"€ Department filter â€" join through Department â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     if department:
@@ -575,6 +572,11 @@ def create_user(
         raise HTTPException(status_code=400, detail="User role is required")
     if not request.role_template_id:
         raise HTTPException(status_code=400, detail="Role template ID is required")
+    from app.services.role_template_permission_service import validate_addon_template
+    try:
+        validate_addon_template(db, request.role_template_id, current_user.tenant_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
     # Check if user already exists
     from app.core.database import check_user
@@ -623,7 +625,7 @@ def create_user(
             "status": "queued",
             "message_id": message_id,
             "user_email": request.user_email,
-            "polling_endpoint": f"/api/v1/tasks/{message_id}/status",
+            "polling_endpoint": f"/api/v1/message-queue/tasks/{message_id}/status",
             "polling_interval_seconds": 3
         }
 
@@ -690,10 +692,14 @@ def create_user_with_roles(
         raise HTTPException(status_code=400, detail="Password is required")
     if not request.role_template_id:
         raise HTTPException(status_code=400, detail="Role template is required")
-    if not request.hierarchy_level:
-        raise HTTPException(status_code=400, detail="Hierarchy level is required")
-    if not request.specialization:
-        raise HTTPException(status_code=400, detail="Specialization is required")
+    # The Job Title names a managed role, and the role sets the org level
+    from app.services.org_roles_service import ensure_single_holder, require_role
+    try:
+        org_role = require_role(db, current_user.tenant_id, request.job_title)
+        ensure_single_holder(db, org_role)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    seat_level = org_role.hierarchy_level
 
     # Check if user email already exists
     try:
@@ -709,25 +715,18 @@ def create_user_with_roles(
         logger.error(f"Failed to check existing user: {check_error}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to validate email")
 
-    # Validate role template exists
+    # Validate the function add-on template
+    from app.services.role_template_permission_service import validate_addon_template
     try:
-        role_template = db.query(RoleTemplate).filter(
-            RoleTemplate.id == request.role_template_id
-        ).first()
-
-        if not role_template:
-            raise HTTPException(status_code=400, detail="Role template not found")
-    except HTTPException:
-        raise
-    except Exception as role_error:
-        logger.error(f"Failed to check role template: {role_error}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to validate role template")
+        validate_addon_template(db, request.role_template_id, current_user.tenant_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
     # The role template grants permissions; the org-chart seat (level,
     # specialization, reporting line) is chosen on the form and checked by
     # the reporting rules below. Level 17 is the CEO: one per organization,
     # reports to no one.
-    if request.hierarchy_level == 17:
+    if seat_level == 17:
         from app.models.org_structure import OrgNode
         existing_ceo = db.query(OrgNode).filter(
             OrgNode.tenant_id == current_user.tenant_id, OrgNode.hierarchy_level == 17, OrgNode.active.is_(True),
@@ -740,15 +739,11 @@ def create_user_with_roles(
         if request.parent_node_id:
             raise HTTPException(status_code=400, detail="The CEO reports to no one")
     if request.department_id:
-        department = db.query(Department).filter(
-            Department.id == request.department_id,
-            Department.tenant_id == current_user.tenant_id,
-        ).first()
-        if not department:
-            raise HTTPException(status_code=400, detail="Department not found")
-        # Org-wide departments (no BU) fit any business unit
-        if request.business_unit_id and department.business_unit_id and department.business_unit_id != request.business_unit_id:
-            raise HTTPException(status_code=400, detail="Department does not belong to the selected business unit")
+        from app.services.function_service import active_function_or_error
+        try:
+            active_function_or_error(db, current_user.tenant_id, request.department_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
     if request.location_id:
         location = db.query(Location).filter(
@@ -762,8 +757,8 @@ def create_user_with_roles(
     try:
         is_valid, error_msg = validate_before_employee_creation(
             db,
-            hierarchy_level=request.hierarchy_level,
-            specialization=request.specialization,
+            hierarchy_level=seat_level,
+            specialization=None,
             parent_node_id=request.parent_node_id,
             business_unit_id=request.business_unit_id,
             tenant_id=current_user.tenant_id,
@@ -797,10 +792,9 @@ def create_user_with_roles(
                 'department_id': request.department_id,
                 'location_id': request.location_id,
                 'role_ids': [request.role_template_id],
-                'job_title': request.job_title,
                 'partner_id': request.partner_id,
-                'hierarchy_level': request.hierarchy_level,
-                'specialization': request.specialization,
+                'job_title': org_role.name,
+                'hierarchy_level': seat_level,
                 'parent_node_id': request.parent_node_id,
                 'created_by_user_id': current_user.UserID,
                 'tenant_id': tenant_id
@@ -819,7 +813,7 @@ def create_user_with_roles(
             "message_id": message_id,
             "user_email": request.user_email,
             "user_name": request.user_name,
-            "polling_endpoint": f"/api/v1/tasks/{message_id}/status",
+            "polling_endpoint": f"/api/v1/message-queue/tasks/{message_id}/status",
             "polling_interval_seconds": 3
         }
 
@@ -865,19 +859,87 @@ def update_user(
             raise ValueError("tenant_id is REQUIRED - cannot proceed without it")
         target.tenant_id = current_user.tenant_id
 
+    from app.core.data_scope import ensure_assignable
+    from app.models.business_unit import BusinessUnit
+    from app.models.org_structure import OrgNode
+    from app.services.org_roles_service import ensure_single_holder, require_role, role_for_title
+    from app.services.org_structure_service import place_user_in_org
+
     if request.user_name is not None:
         target.UserName = request.user_name
-    if request.job_title is not None:
-        target.job_title = request.job_title
-    # role_template_id is MANDATORY - if updating, must provide valid value
-    if request.role_template_id is not None:
-        if not request.role_template_id:
-            raise ValueError("role_template_id is REQUIRED - cannot be null")
+    title_changed = request.job_title is not None and \
+        (request.job_title or "").strip().lower() != (target.job_title or "").strip().lower()
+    addon_changed = request.role_template_id is not None and request.role_template_id != target.role_template_id
+    if (title_changed or addon_changed) and target.UserID == current_user.UserID:
+        # Job Title and add-on decide what a person may do: nobody grants themselves access
+        raise HTTPException(status_code=403, detail="You can't change your own role or access; ask another administrator")
+    if title_changed:
+        # A new Job Title must be a managed role (it sets the person's org level)
+        try:
+            new_role = require_role(db, current_user.tenant_id, request.job_title)
+            ensure_single_holder(db, new_role, target.UserID)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        target.job_title = new_role.name
+    if addon_changed:
+        from app.services.role_template_permission_service import validate_addon_template
+        try:
+            validate_addon_template(db, request.role_template_id, target.tenant_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
         target.role_template_id = request.role_template_id
     if request.business_unit_id is not None:
+        if not db.query(BusinessUnit).filter(BusinessUnit.id == request.business_unit_id,
+                                             BusinessUnit.tenant_id == current_user.tenant_id).first():
+            raise HTTPException(status_code=422, detail="Business unit not found")
+        ensure_assignable(db, current_user, request.business_unit_id, "user")
         target.business_unit_id = request.business_unit_id
     if request.department_id is not None:
-        target.department_id = request.department_id
+        from app.services.function_service import active_function_or_error
+        try:
+            active_function_or_error(db, target.tenant_id, request.department_id or None)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        target.department_id = request.department_id or None
+
+    # Org-chart seat: created when the user has none, moved when they do. Only the seat
+    # fields (level, boss, company) or a new Job Title place the seat; a department change
+    # alone just follows onto an existing seat. An existing seat is re-leveled only by a new
+    # Job Title. Fields not sent keep the seat's current value; an unchanged seat is not
+    # re-validated, so editing a name never trips over legacy org data.
+    seat = db.query(OrgNode).filter(OrgNode.id == target.org_node_id).first() if target.org_node_id else None
+    sent = request.model_fields_set
+
+    def pick(field, current):
+        return getattr(request, field) if field in sent else current
+
+    if {"hierarchy_level", "parent_node_id", "location_id"} & sent or (title_changed and seat is not None):
+        title_role = role_for_title(db, current_user.tenant_id, target.job_title)
+        if seat is not None and not title_changed:
+            level = seat.hierarchy_level
+        elif title_role:
+            level = title_role.hierarchy_level
+        else:
+            level = pick("hierarchy_level", seat.hierarchy_level if seat else None)
+        if not level:
+            raise HTTPException(status_code=422, detail="Give the user a Job Title (role) to place them in the org chart")
+        parent_id = pick("parent_node_id", seat.parent_id if seat else None) or None
+        company_id = pick("location_id", seat.company_id if seat else None) or None
+        unchanged = seat is not None and (seat.hierarchy_level, seat.parent_id, seat.company_id,
+                                          seat.department_id) == (int(level), parent_id, company_id,
+                                                                  target.department_id)
+        if not unchanged:
+            try:
+                place_user_in_org(db, target, hierarchy_level=int(level), specialization=None,
+                                  parent_id=parent_id, company_id=company_id,
+                                  department_id=target.department_id)
+            except ValueError as exc:
+                db.rollback()
+                raise HTTPException(status_code=422, detail=str(exc))
+    elif seat is not None and "department_id" in sent and seat.department_id != target.department_id:
+        from app.services.org_hierarchy_validator import specialization_for_department
+        seat.department_id = target.department_id
+        seat.specialization = specialization_for_department(db, target.department_id)
 
     try:
         db.commit()
@@ -885,6 +947,9 @@ def update_user(
         logger.error(f"Failed to commit user update for {user_id}: {commit_error}", exc_info=True)
         db.rollback()
         raise
+    if title_changed or addon_changed:
+        from app.services.role_template_permission_service import invalidate_permissions
+        invalidate_permissions()
 
     try:
         db.refresh(target)
@@ -912,26 +977,22 @@ def update_user(
         department_name=(target.department.name if (target.department and hasattr(target.department, 'name')) else None),
         business_unit_id=target.business_unit_id,
         business_unit_name=(target.business_unit.name if (target.business_unit and hasattr(target.business_unit, 'name')) else None),
+        org_node_id=target.org_node_id,
         created_at=target.CreatedAt
     )
 
 @router.delete(
     "/users/{user_id}",
     response_model=DeleteResponse,
-    summary="Delete an HR/Admin user account",
-    dependencies=[Depends(require_resource_permission("users-access-control", "edit"))],
+    summary="Delete (or, with history, deactivate) a user account",
+    dependencies=[Depends(require_resource_permission("users-access-control", "delete"))],
 )
 def delete_user(
     user_id: str,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_internal_user)
 ):
-    """
-    Delete an internal user account.
-    Before deleting, all FK references to this user across every table are
-    set to NULL so that no foreign-key constraint blocks the delete.
-    Requires permission: user.manage
-    """
+    """Delete an internal user who has no history; deactivate one who does (see below)."""
     if not user_id or not user_id.strip():
         raise ValueError("user_id is required")
     if current_user.UserID == user_id:
@@ -946,131 +1007,31 @@ def delete_user(
     if not target:
         raise HTTPException(status_code=404, detail=f"User {user_id} not found")
 
-    # ------------------------------------------------------------------
-    # Null out every FK that references this user before deleting them
-    # ------------------------------------------------------------------
+    # A person with history (jobs, interviews, offers, audit rows, an employee record ...) is
+    # deactivated, never erased: their records stay attributed to them and they can no longer
+    # sign in. Someone with no history at all is removed.
+    from datetime import datetime
 
-    try:
-        db.query(Jobs).filter(Jobs.recuriterID == user_id).update(
-            {Jobs.recuriterID: None}, synchronize_session=False
-        )
-    except Exception as update_error:
-        logger.error(f"Failed to nullify Jobs.recuriterID for {user_id}: {update_error}", exc_info=True)
-        raise
+    from app.core.references import blocking_references, describe
+    from app.services.role_template_permission_service import invalidate_permissions
 
-    try:
-        db.query(Jobs).filter(Jobs.hiringManagerID == user_id).update(
-            {Jobs.hiringManagerID: None}, synchronize_session=False
-        )
-    except Exception as update_error:
-        logger.error(f"Failed to nullify Jobs.hiringManagerID for {user_id}: {update_error}", exc_info=True)
-        raise
-
-    try:
-        db.query(CandidateAssignment).filter(
-            CandidateAssignment.hiring_manager_id == user_id
-        ).update({CandidateAssignment.hiring_manager_id: None}, synchronize_session=False)
-    except Exception as update_error:
-        logger.error(f"Failed to nullify CandidateAssignment.hiring_manager_id for {user_id}: {update_error}", exc_info=True)
-        raise
-
-    try:
-        db.query(CandidateAssignment).filter(
-            CandidateAssignment.reporting_manager_id == user_id
-        ).update({CandidateAssignment.reporting_manager_id: None}, synchronize_session=False)
-    except Exception as update_error:
-        logger.error(f"Failed to nullify CandidateAssignment.reporting_manager_id for {user_id}: {update_error}", exc_info=True)
-        raise
-
-    try:
-        db.query(Client).filter(Client.account_manager_user_id == user_id).update(
-            {Client.account_manager_user_id: None}, synchronize_session=False
-        )
-    except Exception as update_error:
-        logger.error(f"Failed to nullify Client.account_manager_user_id for {user_id}: {update_error}", exc_info=True)
-        raise
-
-    try:
-        db.query(PanelMember).filter(PanelMember.interviewer_id == user_id).update(
-            {PanelMember.interviewer_id: None}, synchronize_session=False
-        )
-    except Exception as update_error:
-        logger.error(f"Failed to nullify PanelMember.interviewer_id for {user_id}: {update_error}", exc_info=True)
-        raise
-
-    try:
-        db.query(InterviewFeedback).filter(InterviewFeedback.interviewer_id == user_id).update(
-            {InterviewFeedback.interviewer_id: None}, synchronize_session=False
-        )
-    except Exception as update_error:
-        logger.error(f"Failed to nullify InterviewFeedback.interviewer_id for {user_id}: {update_error}", exc_info=True)
-        raise
-
-    try:
-        db.query(OfferLetter).filter(OfferLetter.hiring_manager_id == user_id).update(
-            {OfferLetter.hiring_manager_id: None}, synchronize_session=False
-        )
-    except Exception as update_error:
-        logger.error(f"Failed to nullify OfferLetter.hiring_manager_id for {user_id}: {update_error}", exc_info=True)
-        raise
-
-    try:
-        db.query(OfferLetter).filter(OfferLetter.reporting_manager_id == user_id).update(
-            {OfferLetter.reporting_manager_id: None}, synchronize_session=False
-        )
-    except Exception as update_error:
-        logger.error(f"Failed to nullify OfferLetter.reporting_manager_id for {user_id}: {update_error}", exc_info=True)
-        raise
-
-    try:
-        db.query(OfferLetter).filter(OfferLetter.created_by == user_id).update(
-            {OfferLetter.created_by: None}, synchronize_session=False
-        )
-    except Exception as update_error:
-        logger.error(f"Failed to nullify OfferLetter.created_by for {user_id}: {update_error}", exc_info=True)
-        raise
-
-    try:
-        db.query(OfferLetter).filter(OfferLetter.cancelled_by == user_id).update(
-            {OfferLetter.cancelled_by: None}, synchronize_session=False
-        )
-    except Exception as update_error:
-        logger.error(f"Failed to nullify OfferLetter.cancelled_by for {user_id}: {update_error}", exc_info=True)
-        raise
-
-    try:
-        db.query(CandidateDocument).filter(CandidateDocument.verified_by == user_id).update(
-            {CandidateDocument.verified_by: None}, synchronize_session=False
-        )
-    except Exception as update_error:
-        logger.error(f"Failed to nullify CandidateDocument.verified_by for {user_id}: {update_error}", exc_info=True)
-        raise
-
-    try:
-        db.query(Newsletter).filter(Newsletter.created_by == user_id).update(
-            {Newsletter.created_by: None}, synchronize_session=False
-        )
-    except Exception as update_error:
-        logger.error(f"Failed to nullify Newsletter.created_by for {user_id}: {update_error}", exc_info=True)
-        raise
-
-    try:
-        db.delete(target)
-    except Exception as delete_error:
-        logger.error(f"Failed to delete user {user_id}: {delete_error}", exc_info=True)
-        raise
-
-    try:
+    references = blocking_references(db, target)
+    name = target.UserName or target.UserEmail
+    if references:
+        if target.terminated_at is None:
+            target.terminated_at = datetime.utcnow()
+            target.terminated_by_user_id = current_user.UserID
         db.commit()
-    except Exception as commit_error:
-        logger.error(f"Failed to commit user deletion for {user_id}: {commit_error}", exc_info=True)
-        db.rollback()
-        raise
-
-    return DeleteResponse(
-        status="Success",
-        message=f"User {user_id} deleted successfully"
-    )
+        invalidate_permissions()
+        logger.info(f"[Users] {user_id} deactivated by {current_user.UserID} (history: {describe(references)})")
+        return DeleteResponse(status="Deactivated",
+                              message=f"{name} has history ({describe(references)}), so they were deactivated "
+                                      "instead of deleted: they can no longer sign in and their records are kept.")
+    db.delete(target)
+    db.commit()
+    invalidate_permissions()
+    logger.info(f"[Users] {user_id} deleted by {current_user.UserID}")
+    return DeleteResponse(status="Success", message=f"{name} deleted")
 
 @router.put(
     "/users/me/change-password",
@@ -1244,7 +1205,11 @@ def get_user_by_id(
             detail=f"User with ID '{user_id}' not found",
         )
 
+    from app.models.org_structure import OrgNode
+
     role = db.query(RoleTemplate).filter(RoleTemplate.id == target.role_template_id).first()
+    seat = db.query(OrgNode).filter(OrgNode.id == target.org_node_id).first() if target.org_node_id else None
+    boss = db.query(OrgNode).filter(OrgNode.id == seat.parent_id).first() if seat and seat.parent_id else None
 
     return SingleUserResponse(
         user_id=target.UserID,
@@ -1258,6 +1223,10 @@ def get_user_by_id(
         department_id=target.department_id,
         location_id=target.location_id,
         org_node_id=target.org_node_id,
+        hierarchy_level=seat.hierarchy_level if seat else None,
+        specialization=seat.specialization if seat else None,
+        parent_node_id=seat.parent_id if seat else None,
+        reports_to=boss.name if boss else None,
         created_at=target.CreatedAt,
     )
 

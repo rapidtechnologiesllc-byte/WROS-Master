@@ -5,39 +5,46 @@
 // per Step 3. No config-history UI (Section 9 explicitly excludes it)
 // -- "Last updated" below is the one real, unified timestamp this
 // story's own table actually stores, not per-section fabricated history.
-import { useEffect, useState } from "react";
-import { Bot, Clock, Gauge, Mail, Power, RefreshCw, AlertCircle, X, CheckCircle } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Bot, Clock, Gauge, Mail, Power, RefreshCw, X } from "lucide-react";
 import { Tabs } from "antd";
 import { Card, Button, Input, TextArea, Select } from "../components/ui";
 import { getTenantAIConfig, updateTenantAIConfig } from "../services/api/tenantAiConfig";
-import AdminAgentStateDashboard from "./AdminAgentStateDashboard";
 import AgentStandupsScreen from "./AgentStandupsScreen";
+import AdminAgentConfig from "./AdminAgentConfig";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
+import useTabParam from "../utils/useTabParam";
+import { confirmDialog } from "../utils/dialogs";
 
 const GREETING_CHANNELS = ["BOTH_PARALLEL", "WHATSAPP_FIRST", "EMAIL_FIRST"];
 
 export default function TenantAIConfigScreen() {
+  const canSeeAgents = hasPermission("agents", "view");
+  // ?tab=agents is where the retired /admin/agent-config route lands
+  const [activeTab, setActiveTab] = useTabParam(["config", "standups", ...(canSeeAgents ? ["agents"] : [])]);
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       const res = await getTenantAIConfig();
       setConfig(res);
     } catch (err) {
+      console.error("[TenantAIConfigScreen] Failed to load AI configuration:", err);
       setError(err.message || "Failed to load AI configuration.");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const save = async (updates) => {
     try {
@@ -47,10 +54,26 @@ export default function TenantAIConfigScreen() {
       setTimeout(() => setActionSuccess(null), 3000);
       return true;
     } catch (err) {
+      console.error("[TenantAIConfigScreen] Failed to save AI configuration:", err);
       setActionError(err.message || "Failed to save.");
       return false;
     }
   };
+
+  if (!config && !loading && error) {
+    return (
+      <div className="grid gap-4">
+        <Card title="Tenant AI Configuration" subtitle="Could not load Thunder's settings.">
+          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>
+          <div className="mt-3">
+            <Button variant="ghost" onClick={load}>
+              <RefreshCw className="h-4 w-4" /> Retry
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   if (loading || !config) {
     return (
@@ -100,30 +123,30 @@ export default function TenantAIConfigScreen() {
             </Button>
           </div>
 
-          <IdentitySection config={config} save={save} />
-          <EngagementTimingSection config={config} save={save} />
+          <IdentitySection config={config} save={save} setActionError={setActionError} />
+          <EngagementTimingSection config={config} save={save} setActionError={setActionError} />
           <SlaSection config={config} save={save} />
-          <DigestSection config={config} save={save} />
+          <DigestSection config={config} save={save} setActionError={setActionError} />
           <GlobalControlsSection config={config} save={save} />
         </div>
       )
     },
     {
-      key: "dashboard",
-      label: "Agent Dashboard",
-      children: <AdminAgentStateDashboard />
-    },
-    {
       key: "standups",
       label: "Standups & Scrum",
       children: <AgentStandupsScreen />
-    }
+    },
+    // Agent pipeline config (/admin/agents/config checks the "agents" resource)
+    ...(canSeeAgents
+      ? [{ key: "agents", label: "Agent Pipeline", children: <AdminAgentConfig /> }]
+      : []),
   ];
 
   return (
     <Tabs
       items={tabItems}
-      defaultActiveKey="config"
+      activeKey={activeTab}
+      onChange={setActiveTab}
       style={{ backgroundColor: "#fff", borderRadius: "8px", padding: "16px" }}
     />
   );
@@ -157,7 +180,7 @@ function SectionShell({ title, subtitle, icon, children, editing, onEdit, onCanc
   );
 }
 
-function IdentitySection({ config, save }) {
+function IdentitySection({ config, save, setActionError }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState(config.ai_agent_name);
@@ -174,7 +197,7 @@ function IdentitySection({ config, save }) {
   const handleSave = async () => {
     const updates = {};
     if (name !== config.ai_agent_name) {
-      if (!window.confirm("Changing the agent name will affect all future messages. Current active conversations will see the new name on next message. Continue?")) {
+      if (!(await confirmDialog("Changing the agent name will affect all future messages. Current active conversations will see the new name on next message. Continue?"))) {
         return;
       }
       updates.ai_agent_name = name;
@@ -229,7 +252,7 @@ function IdentitySection({ config, save }) {
   );
 }
 
-function EngagementTimingSection({ config, save }) {
+function EngagementTimingSection({ config, save, setActionError }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [greeting, setGreeting] = useState(config.greeting_channel);
@@ -259,7 +282,7 @@ function EngagementTimingSection({ config, save }) {
       setActionError("Max follow-ups must be between 1 and 10.");
       return;
     }
-    if (maxN > 5 && !window.confirm("High follow-up counts may feel spammy to candidates. Continue?")) {
+    if (maxN > 5 && !(await confirmDialog("High follow-up counts may feel spammy to candidates. Continue?"))) {
       return;
     }
     setSaving(true);
@@ -354,7 +377,7 @@ function SlaSection({ config, save }) {
   );
 }
 
-function DigestSection({ config, save }) {
+function DigestSection({ config, save, setActionError }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [enabled, setEnabled] = useState(config.digest_enabled);
@@ -421,7 +444,7 @@ function GlobalControlsSection({ config, save }) {
   const handleSave = async () => {
     const updates = {};
     if (enabled !== config.thunder_enabled) {
-      if (!enabled && !window.confirm("Disabling Thunder will pause all AI activity for all candidates immediately. Continue?")) {
+      if (!enabled && !(await confirmDialog("Disabling Thunder will pause all AI activity for all candidates immediately. Continue?"))) {
         return;
       }
       updates.thunder_enabled = enabled;

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 import logging
 from datetime import datetime, date
 
@@ -114,7 +114,11 @@ class UserResponse(BaseModel):
     department_name: Optional[str] = None
     business_unit_id: Optional[int] = None
     business_unit_name: Optional[str] = None
+    # Set when the user has a seat in the org chart; None = not connected to the organization
+    org_node_id: Optional[str] = None
     created_at: datetime
+    # False once deactivated (terminated_at set): can't sign in, history kept
+    active: bool = True
 
 class AllUsersResponse(BaseModel):
     total_users: int
@@ -135,6 +139,8 @@ class JobCreateRequest(BaseModel):
     job_skills: str  # Keep for backward compatibility (flat list: "Java, Python, SQL")
     structured_skills: Optional[List[SkillRequirement]] = None  # New: structured metadata
     job_experience: str
+    # Minimum years the role needs; when omitted it is parsed from job_experience on save
+    min_experience_years: Optional[float] = None
     job_location: str
     company_type: str
     company_name: str
@@ -156,6 +162,8 @@ class JobCreateRequest(BaseModel):
     project_id: Optional[str] = None
     # What the client is billed per hour for this role (invoices use it)
     billing_rate_usd_cents: Optional[int] = None
+    # REMOTE / ONSITE / HYBRID (Jobs.work_location); omitted -> the job's default (REMOTE)
+    work_location: Optional[Literal["REMOTE", "ONSITE", "HYBRID"]] = None
 
 class JobCreateResponse(BaseModel):
     job_id: str
@@ -367,7 +375,7 @@ class CandidateUpdateRequest(BaseModel):
     candidate_job_title: Optional[str] = None
     # Employee type: "Intern" | "Full Time Employee" | "Guidewire"
     candidate_employee_type: Optional[str] = None
-    assigned_hr_manager_id: Optional[str] = None
+    assigned_recruiter_id: Optional[str] = None  # Recruiter assigned to candidate (not HR Manager - different role)
     assigned_report_manager_id: Optional[str] = None
 
 class InterviewUpdateRequest(BaseModel):
@@ -509,8 +517,8 @@ class CreateUserWithRolesRequest(BaseModel):
     - user_email: User's email address (required, unique within tenant)
     - user_password: Initial password (required, min 8 chars)
     - role_template_id: RBAC role template ID (required)
-    - hierarchy_level: Org hierarchy level 1-17 (required) - see ORG_HIERARCHY_LEVELS.md
-    - specialization: Specialization domain (required) - Recruitment, Development, HR, Finance, Project Management, QA, Business Analysis
+    - hierarchy_level: not used -- the Job Title's role (org_roles) sets the level
+    - specialization: not used -- a person's function comes from their department
 
     Optional Fields:
     - job_title: User's job position
@@ -525,8 +533,6 @@ class CreateUserWithRolesRequest(BaseModel):
     Schema Validation:
     - extra='forbid': Rejects unknown/deprecated fields with 422 error
     - validate_default: Validates defaults on assignment
-    - hierarchy_level must be 1-17
-    - specialization must be from approved list
 
     Example:
         {
@@ -545,8 +551,8 @@ class CreateUserWithRolesRequest(BaseModel):
     user_email: str = Field(..., max_length=255, description="User's unique email within tenant")
     user_password: str = Field(..., min_length=8, max_length=255, description="Initial password (min 8 chars)")
     role_template_id: int = Field(..., gt=0, description="RBAC role template ID (e.g., 1=SuperUser, 3=Recruiter)")
-    hierarchy_level: int = Field(..., ge=1, le=17, description="Org hierarchy level: 1 (Intern) to 17 (CEO) - MANDATORY")
-    specialization: str = Field(..., min_length=1, max_length=100, description="Specialization domain (Recruitment, Development, HR, Finance, Project Management, QA, Business Analysis) - MANDATORY")
+    hierarchy_level: Optional[int] = Field(None, ge=1, le=17, description="Ignored: the org level comes from the Job Title's role")
+    specialization: Optional[str] = Field(None, max_length=100, description="Ignored: a person's function comes from their department")
     job_title: Optional[str] = Field(None, max_length=255, description="User's job position")
     partner_id: Optional[int] = Field(None, gt=0, description="Optional partner ID")
     business_unit_id: Optional[int] = Field(None, gt=0, description="Primary business unit ID")
@@ -615,6 +621,11 @@ class UpdateUserWithRolesRequest(BaseModel):
     department_id: Optional[str] = Field(None, description="Department ID within the business unit")
     role_template_id: Optional[int] = Field(None, gt=0, description="RBAC role template ID (must be > 0, e.g., 1=SuperUser, 3=Recruiter)")
     assigned_at: Optional[str] = Field(None, description="ISO 8601 timestamp for role assignment")
+    # Org-chart seat: sending any of these creates the user's seat if they have none, or moves it
+    hierarchy_level: Optional[int] = Field(None, ge=1, le=17, description="Org level 1-17 (17 = CEO)")
+    specialization: Optional[str] = Field(None, description="Org specialization (Recruitment, Development, ...)")
+    parent_node_id: Optional[str] = Field(None, description="Org seat this person reports to (none only for the CEO)")
+    location_id: Optional[str] = Field(None, description="Company (BX-US, BX-IN, ...) the person's seat belongs to")
 
     class Config:
         extra = 'forbid'  # CRITICAL: Reject ANY unknown fields (catches typos, deprecated fields)
@@ -692,6 +703,11 @@ class SingleUserResponse(BaseModel):
     department_id: Optional[str] = None
     location_id: Optional[str] = None
     org_node_id: Optional[str] = None
+    # The user's org-chart seat (None when they are not in the org chart yet)
+    hierarchy_level: Optional[int] = None
+    specialization: Optional[str] = None
+    parent_node_id: Optional[str] = None
+    reports_to: Optional[str] = None
     created_at: datetime
 
 # ── Hiring Manager Section ────────────────────────────────────────────────────

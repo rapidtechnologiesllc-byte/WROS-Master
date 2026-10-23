@@ -174,7 +174,7 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [], comp
           }))
         ]} />
         <Select label="Contracting Company" value={form.contracting_company_id || ""} onChange={set("contracting_company_id")} options={[
-          { label: companies.length ? "Select company (BX-US / BX-IN)" : "No companies yet (Users & Access Control > Companies)", value: "" },
+          { label: companies.length ? "Select company" : "No companies yet (Users & Access Control > Companies)", value: "" },
           ...companies.map(c => ({ label: c.name, value: c.id })),
         ]} />
         <Select label="Tier" value={form.tier} onChange={set("tier")} options={CLIENT_TIERS} />

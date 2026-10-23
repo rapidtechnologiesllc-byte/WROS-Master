@@ -10,7 +10,6 @@ from typing import Any, Dict
 from sqlalchemy.orm import Session
 
 from app.core.security import get_password_hash
-from app.models.role_template import RoleTemplate
 from app.models.user import Users
 from app.services.org_structure_service import create_org_node
 from app.utils.uniq_id_generator import user_id_generator
@@ -29,7 +28,9 @@ def handle_create_user_with_roles(message: Any, db: Session) -> Dict[str, Any]:
     user_name = payload.get("user_name")
     user_password = payload.get("user_password")
     role_ids = payload.get("role_ids") or []
-    tenant_id = payload.get("tenant_id", 1)
+    tenant_id = payload.get("tenant_id")
+    if not tenant_id:
+        raise ValueError("create_user_with_roles payload missing tenant_id")
 
     if not user_email or not user_name or not user_password:
         raise ValueError(
@@ -46,9 +47,9 @@ def handle_create_user_with_roles(message: Any, db: Session) -> Dict[str, Any]:
         # but the queue can be slower than a second concurrent request.
         raise ValueError(f"User with email {user_email} already exists")
 
-    role_template = db.query(RoleTemplate).filter(RoleTemplate.id == role_ids[0]).first()
-    if role_template is None:
-        raise ValueError(f"Role template {role_ids[0]} not found")
+    # Re-validated here: the template may have changed since the endpoint queued this
+    from app.services.role_template_permission_service import validate_addon_template
+    role_template = validate_addon_template(db, role_ids[0], tenant_id)
 
     try:
         # Re-validated here: the org chart may have changed since the endpoint queued this.
@@ -56,8 +57,9 @@ def handle_create_user_with_roles(message: Any, db: Session) -> Dict[str, Any]:
             db,
             tenant_id=tenant_id,
             name=user_name,
+            # Level from the Job Title's role (set by the endpoint); function from the department
             hierarchy_level=payload.get("hierarchy_level") or role_template.hierarchy_level,
-            specialization=payload.get("specialization") or role_template.specialization,
+            specialization=None,
             parent_id=payload.get("parent_node_id"),
             department_id=payload.get("department_id"),
             # The seat carries the user's company (BX-US / BX-IN)

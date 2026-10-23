@@ -2,9 +2,12 @@
 Admin endpoints for certification and KPI management.
 Prefix: /admin/certifications
 """
+from app.core.dependencies import get_current_internal_user
+from app.core.tenant_context import tenant_id_of
 from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 import logging
 from pydantic import BaseModel
@@ -54,19 +57,26 @@ class KPITargetResponse(BaseModel):
     class Config:
         from_attributes = True
 
+def _visible_to(current_user):
+    """The caller's tenant's certifications, plus legacy rows created before tenant_id existed."""
+    return or_(Certification.tenant_id == tenant_id_of(current_user), Certification.tenant_id.is_(None))
+
+
 @router.post(
     "/create",
     response_model=CertificationResponse,
-    dependencies=[Depends(require_resource_permission("configuration", "edit"))],
+    dependencies=[Depends(require_resource_permission("certifications", "create"))],
 )
 def create_certification(
     request: CertificationRequest,
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_internal_user),
 ):
     """Create a new certification template."""
     # Check if cert_code already exists
     existing = db.query(Certification).filter(
-        Certification.cert_code == request.cert_code
+        Certification.cert_code == request.cert_code,
+        Certification.tenant_id == tenant_id_of(current_user),
     ).first()
 
     if existing:
@@ -79,7 +89,7 @@ def create_certification(
         level=request.level,
         validity_months=request.validity_months,
         is_core_certification=request.is_core_certification,
-        tenant_id=1,  # Default tenant
+        tenant_id=tenant_id_of(current_user),
     )
     db.add(cert)
     db.commit()
@@ -91,30 +101,33 @@ def create_certification(
 @router.get(
     "/list",
     response_model=List[CertificationResponse],
-    dependencies=[Depends(require_resource_permission("configuration", "edit"))],
+    dependencies=[Depends(require_resource_permission("certifications", "view"))],
 )
-def list_certifications(db: Session = Depends(get_db)):
-    """List all certification templates."""
-    certs = db.query(Certification).order_by(Certification.cert_name).all()
+def list_certifications(db: Session = Depends(get_db), current_user=Depends(get_current_internal_user)):
+    """The tenant's certification templates."""
+    certs = db.query(Certification).filter(_visible_to(current_user)).order_by(Certification.cert_name).all()
     return certs
 
 @router.post(
     "/assign-target",
     response_model=KPITargetResponse,
-    dependencies=[Depends(require_resource_permission("configuration", "edit"))],
+    dependencies=[Depends(require_resource_permission("certifications", "edit"))],
 )
 def assign_kpi_target(
     request: KPITargetRequest,
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_internal_user),
 ):
     """Assign a certification target to an employee."""
     # Verify employee exists
-    employee = db.query(Employee).filter(Employee.id == request.employee_id).first()
+    employee = db.query(Employee).filter(Employee.id == request.employee_id,
+                                         Employee.tenant_id == tenant_id_of(current_user)).first()
     if not employee:
         raise HTTPException(status_code=404, detail=f"Employee {request.employee_id} not found")
 
     # Verify certification exists
-    cert = db.query(Certification).filter(Certification.id == request.certification_id).first()
+    cert = db.query(Certification).filter(Certification.id == request.certification_id,
+                                          _visible_to(current_user)).first()
     if not cert:
         raise HTTPException(status_code=404, detail=f"Certification {request.certification_id} not found")
 
@@ -133,7 +146,7 @@ def assign_kpi_target(
         target_date=request.target_date,
         weight=request.weight,
         status="PENDING",
-        tenant_id=1,
+        tenant_id=tenant_id_of(current_user),
     )
     db.add(target)
     db.commit()
@@ -152,6 +165,10 @@ def recalculate_employee_kpi_score(db: Session, employee_id: str, business_unit_
 
     if not targets:
         return
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    if employee is None or employee.tenant_id is None:
+        raise ValueError(f"Employee {employee_id} has no tenant")
+    employee_tenant_id = employee.tenant_id
 
     # Calculate certification score
     total_weight = sum(t.weight for t in targets)
@@ -168,7 +185,7 @@ def recalculate_employee_kpi_score(db: Session, employee_id: str, business_unit_
         score = EmployeeKPIScore(
             employee_id=employee_id,
             business_unit_id=business_unit_id,
-            tenant_id=1,
+            tenant_id=employee_tenant_id,
         )
         db.add(score)
 

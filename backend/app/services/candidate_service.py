@@ -36,47 +36,21 @@ logger = logging.getLogger(__name__)
 
 
 def validate_and_normalize_tenant_id(db: Session, raw_tenant_id: Optional[int] = None) -> int:
-    """
-    CENTRALIZED TENANT ID VALIDATION - Eliminates duplication across handlers
-
-    Converts and validates tenant_id to integer FK to tenants.id table.
-    - Accepts integer or string input
-    - Validates tenant exists in database
-    - Defaults to BlitzenX (tenant_id=1) if not found
-
-    Args:
-        db: Database session
-        raw_tenant_id: Tenant ID from payload (int or str)
-
-    Returns:
-        Integer tenant_id suitable for FK to tenants.id
-    """
-    # Default to BlitzenX tenant (id=1)
-    if raw_tenant_id is None:
-        return 1
-
-    # Ensure integer type
-    try:
-        if isinstance(raw_tenant_id, str):
-            tenant_id = int(raw_tenant_id)
-        else:
-            tenant_id = int(raw_tenant_id)
-    except (ValueError, TypeError) as e:
-        logger.error(f"Invalid tenant_id (cannot convert to int): {raw_tenant_id}")
-        # Fallback to default BlitzenX
-        return 1
-
-    # Verify tenant exists in database
+    """The tenant a payload names, as an int that exists in tenants. A payload without one gets
+    the only tenant when exactly one exists (app.core.tenant_context.sole_tenant_id). An
+    unparseable or unknown tenant raises ValueError: it is never silently replaced by tenant 1
+    (that put records in the wrong company)."""
+    from app.core.tenant_context import sole_tenant_id
     from app.models.tenant import Tenant
-    try:
-        tenant_check = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-        if not tenant_check:
-            logger.warning(f"Tenant {tenant_id} not found in database, using default tenant=1")
-            return 1
-    except Exception as e:
-        logger.error(f"Error checking tenant {tenant_id}: {e}")
-        return 1
 
+    if raw_tenant_id is None or raw_tenant_id == "":
+        return sole_tenant_id(db)
+    try:
+        tenant_id = int(raw_tenant_id)
+    except (ValueError, TypeError) as exc:
+        raise ValueError(f"Invalid tenant_id {raw_tenant_id!r}") from exc
+    if db.query(Tenant.id).filter(Tenant.id == tenant_id).first() is None:
+        raise ValueError(f"Tenant {tenant_id} does not exist")
     return tenant_id
 
 

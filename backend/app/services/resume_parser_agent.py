@@ -44,7 +44,7 @@ class ResumeParsedAgent:
             return parsed_data
         except Exception as e:
             logger.error(f"Failed to parse resume: {e}")
-            raise ValueError("Operation failed")
+            raise ValueError(f"parse_resume failed: {e}") from e
 
             async def extract_skills(self, resume_text: str) -> Optional[list]:
                 pass

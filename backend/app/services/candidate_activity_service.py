@@ -22,8 +22,8 @@ from sqlalchemy.orm import Session
 from app.models.candidate import Candidate
 from app.models.candidate_history import CandidateHistory
 from app.models.activity_timeline import ActivityTimeline
-from app.models.user import Users
 from app.models.referral import EmployeeReferral
+from app.models.user import Users
 
 logger = logging.getLogger(__name__)
 
@@ -392,158 +392,15 @@ def log_whatsapp_received(
         return None
 
 
-def log_thunder_operation(
-    db: Session,
-    candidate_id: str,
-    message_id: str,  # Unique ID - ALL states for this message grouped here
-    operation_state: str,  # QUEUED, SENT, FAILED, OPENED, CLICKED, NO_RESPONSE, GHOSTED, PAUSED, RESUMED
-    message_type: Optional[str] = None,  # EMAIL, WHATSAPP, SMS, CALL
-    recipient: Optional[str] = None,
-    agent_name: str = "flash_recruiter",
-    campaign_name: Optional[str] = None,
-    metadata: Optional[Dict[str, Any]] = None,  # Extra data: days_without_response, reason, etc
-) -> CandidateHistory:
-    """Log Thunder operation - single collapsible object per message_id.
-
-    PHASE 2C: All states for ONE message_id grouped in ONE history entry.
-    Frontend expands to see timeline: QUEUED → SENT → OPENED → [NO_RESPONSE] → [GHOSTED]
-
-    Each call UPDATES the existing entry for that message_id with new state.
-    History shows complete message lifecycle in one collapsible section.
-    """
-    try:
-        candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
-        if not candidate:
-            logger.error(f"log_thunder_operation: Candidate {candidate_id} not found")
-            return None
-
-        # Build title/summary (shown when collapsed)
-        title_parts = [f"Thunder [{message_id}]"]
-        if operation_state == "SENT" and message_type:
-            title_parts.append(f"{message_type} to {recipient or 'contact'}")
-        else:
-            title_parts.append(operation_state)
-
-        summary = " • ".join(title_parts)
-
-        # Build detailed note (shown when expanded)
-        note_parts = [
-            f"Message ID: {message_id}",
-            f"State: {operation_state}",
-            f"Agent: {agent_name}",
-        ]
-
-        if message_type:
-            note_parts.append(f"Type: {message_type}")
-        if recipient:
-            note_parts.append(f"Recipient: {recipient}")
-        if campaign_name:
-            note_parts.append(f"Campaign: {campaign_name}")
-
-        # Add metadata (days_without_response, reason, etc)
-        if metadata:
-            for key, value in metadata.items():
-                if value is not None:
-                    note_parts.append(f"{key}: {value}")
-
-        note = "\n".join(note_parts)  # Multi-line for readability when expanded
-
-        # Check if history entry for this message_id already exists
-        existing = db.query(CandidateHistory).filter(
-            CandidateHistory.candidateID == candidate_id,
-            CandidateHistory.event_type == EVENT_THUNDER_OPERATION,
-            CandidateHistory.note.like(f"%Message ID: {message_id}%")
-        ).first()
-
-        if existing:
-            # Update existing entry with new state (append to timeline)
-            existing.note = note
-            existing.event_at = datetime.utcnow()
-            db.add(existing)
-            logger.info(f"Updated Thunder operation {message_id} for {candidate_id}: {operation_state}")
-        else:
-            # Create new entry for this message_id
-            history = CandidateHistory(
-                candidateID=candidate_id,
-                event_type=EVENT_THUNDER_OPERATION,
-                note=note,
-                performed_by_id=None,
-                performed_by_name="Thunder",
-                event_at=datetime.utcnow(),
-            )
-            db.add(history)
-            logger.info(f"Created Thunder operation {message_id} for {candidate_id}: {operation_state}")
-
-        _write_timeline(
-            db,
-            entity_type="Candidate",
-            entity_id=candidate_id,
-            action=f"thunder_{operation_state.lower()}",
-            actor_id=None,
-            actor_type="SYSTEM",
-            description=f"Thunder {operation_state} ({message_id})",
-            tenant_id=candidate.tenant_id,
-        )
-        return history
-    except Exception as e:
-        logger.error(f"log_thunder_operation failed for {candidate_id}: {str(e)}", exc_info=True)
-        return None
 
 
 # Convenience wrappers (call log_thunder_operation internally)
-def log_thunder_queued(
-    db: Session,
-    candidate_id: str,
-    message_id: str,
-    agent_name: str = "flash_recruiter",
-    campaign_name: Optional[str] = None,
-) -> CandidateHistory:
-    """Convenience: Log when candidate queued to Thunder."""
-    return log_thunder_operation(
-        db, candidate_id, message_id, "QUEUED",
-        agent_name=agent_name, campaign_name=campaign_name
-    )
 
 
-def log_thunder_message_sent(
-    db: Session,
-    candidate_id: str,
-    message_id: str,
-    message_type: str,
-    recipient: Optional[str] = None,
-    campaign_name: Optional[str] = None,
-) -> CandidateHistory:
-    """Convenience: Log when Thunder sends message."""
-    return log_thunder_operation(
-        db, candidate_id, message_id, "SENT",
-        message_type=message_type, recipient=recipient, campaign_name=campaign_name
-    )
 
 
-def log_thunder_no_response(
-    db: Session,
-    candidate_id: str,
-    message_id: str,
-    days_without_response: int = 0,
-) -> CandidateHistory:
-    """Convenience: Log when no response detected."""
-    return log_thunder_operation(
-        db, candidate_id, message_id, "NO_RESPONSE",
-        metadata={"days_without_response": days_without_response}
-    )
 
 
-def log_thunder_ghosted(
-    db: Session,
-    candidate_id: str,
-    message_id: str,
-    reason: Optional[str] = None,
-) -> CandidateHistory:
-    """Convenience: Log when engagement ends."""
-    return log_thunder_operation(
-        db, candidate_id, message_id, "GHOSTED",
-        metadata={"reason": reason} if reason else None
-    )
 
 
 def log_candidate_status_change(
@@ -739,49 +596,46 @@ def log_referral_linked(
     db: Session,
     candidate_id: str,
     referral_id: str,
-    referred_by_employee_id: Optional[str] = None,
-    referred_by_employee_name: Optional[str] = None,
+    referrer_name: Optional[str] = None,
+    recorded_by_user_id: Optional[str] = None,
 ) -> CandidateHistory:
     """
     Log when a candidate is linked to an employee referral.
+
+    The actor is the user who recorded it (a users.UserID, or the system); the referring
+    employee is named in the note -- an Employee.id is not a user and breaks the actor key.
+    Raises on failure: the caller's transaction holds the candidate and its referral.
     """
-    try:
-        candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
-        if not candidate:
-            logger.error(f"log_referral_linked: Candidate {candidate_id} not found")
-            return None
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    if not candidate:
+        raise ValueError(f"log_referral_linked: Candidate {candidate_id} not found")
 
-        note = f"Linked to referral {referral_id}"
-        if referred_by_employee_name:
-            note += f" from {referred_by_employee_name}"
+    note = f"Referred by {referrer_name}" if referrer_name else f"Linked to referral {referral_id}"
+    recorder = db.get(Users, recorded_by_user_id) if recorded_by_user_id else None
 
-        history = CandidateHistory(
-            candidateID=candidate_id,
-            event_type=EVENT_REFERRAL_LINKED,
-            note=note,
-            performed_by_id=referred_by_employee_id,
-            performed_by_name=referred_by_employee_name or "System",
-            event_at=datetime.utcnow(),
-        )
-        db.add(history)
-        logger.info(f"Logged: Candidate {candidate_id} linked to referral {referral_id}")
+    history = CandidateHistory(
+        candidateID=candidate_id,
+        event_type=EVENT_REFERRAL_LINKED,
+        note=note,
+        performed_by_id=recorder.UserID if recorder else None,
+        performed_by_name=recorder.UserName if recorder else "System",
+        event_at=datetime.utcnow(),
+    )
+    db.add(history)
+    logger.info(f"Logged: Candidate {candidate_id} linked to referral {referral_id}")
 
-        _write_timeline(
-            db,
-            entity_type="Candidate",
-            entity_id=candidate_id,
-            action="referral_linked",
-            actor_id=referred_by_employee_id,
-            actor_type="USER" if referred_by_employee_id else "SYSTEM",
-            description=f"Linked to employee referral {referral_id}",
-            tenant_id=candidate.tenant_id,
-        )
+    _write_timeline(
+        db,
+        entity_type="Candidate",
+        entity_id=candidate_id,
+        action="referral_linked",
+        actor_id=recorder.UserID if recorder else None,
+        actor_type="USER" if recorder else "SYSTEM",
+        description=f"{note} (referral {referral_id})",
+        tenant_id=candidate.tenant_id,
+    )
 
-        return history
-
-    except Exception as e:
-        logger.error(f"log_referral_linked failed: {str(e)}", exc_info=True)
-        return None
+    return history
 
 
 def log_referral_status_changed(
@@ -935,7 +789,7 @@ def get_referral_candidate_journey(
         for candidate in candidates:
             history = db.query(CandidateHistory).filter(
                 CandidateHistory.candidateID == candidate.candidateID
-            ).order_by(CandidateHistory.event_at.desc()).all()
+            ).order_by(CandidateHistory.event_at.desc(), CandidateHistory.id.desc()).all()
 
             candidate_journeys.append({
                 "candidate_id": candidate.candidateID,

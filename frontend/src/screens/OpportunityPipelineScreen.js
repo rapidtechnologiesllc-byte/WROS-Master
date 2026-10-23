@@ -16,7 +16,7 @@
 //    all before -- Kanban cards and list rows were dead ends).
 //  - createRoleDemandFromOpportunity (POST /opportunities/:id/role-demand)
 //    as a "Create Role Demand" form inside that same detail panel,
-//    shown once the opportunity is WON.
+//    shown once the contract is signed (CONTRACT / ACTIVE).
 import { useEffect, useMemo, useState } from "react";
 import { TrendingUp, Plus, LayoutGrid, List as ListIcon, X } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
@@ -26,6 +26,7 @@ import {
   listOpportunities,
   createOpportunity,
   transitionOpportunityStage,
+  getStageRules,
   getOpportunityRevenueRollup,
   createRoleDemandFromOpportunity,
   listEligibleOpportunityOwners,
@@ -38,12 +39,11 @@ import {
 // create form show what will be assigned instead of a manual input.
 const STAGE_PROBABILITY_PREVIEW = {
   QUALIFICATION: 10, PROSPECT: 25, PROPOSAL: 50,
-  NEGOTIATION: 75, CONTRACT: 90, ACTIVE: 100, LOST: 0,
+  NEGOTIATION: 75, CONTRACT: 100, ACTIVE: 100, LOST: 0,
 };
 
 // Shared with backend PIPELINE_STATUSES - single source of truth
 // Must match app/models/opportunity.py and app/models/client.py
-const STAGES = ["QUALIFICATION", "PROSPECT", "PROPOSAL", "NEGOTIATION", "CONTRACT", "ACTIVE", "LOST"];
 
 const formatUsdCents = (cents) =>
   cents == null
@@ -130,22 +130,9 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
         const employeeList = await listEligibleOpportunityOwners();
         setUsers(employeeList || []);
 
-        // DEFECT-8: Auto-default opportunity owner to current user
-        const userInfo = localStorage.getItem("user_info");
-        if (userInfo && !accountManagerId) {
-          try {
-            const user = JSON.parse(userInfo);
-            // Find current user in the eligible owners list
-            const currentUser = employeeList?.find((e) => e.id === user.id || e.user_id === user.id);
-            if (currentUser) {
-              setAccountManagerId(String(currentUser.id || currentUser.user_id));
-              // DEFECT-4: Also auto-set client owner to current user
-              setClientOwnerId(String(currentUser.id || currentUser.user_id));
-            }
-          } catch (err) {
-            console.error("Failed to auto-set owner:", err);
-          }
-        }
+        // Default the owner to the person recording the opportunity, when they are an employee
+        const me = (employeeList || []).find((e) => e.is_current_user);
+        if (me) setAccountManagerId((prev) => prev || String(me.id));
       } catch (err) {
         console.error("Failed to load employees:", err);
       } finally {
@@ -160,8 +147,11 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
       try {
         const owners = await listClientOwners();
         setClientOwners(owners || []);
+        const me = (owners || []).find((u) => u.is_current_user);
+        if (me) setClientOwnerId((prev) => prev || me.id);
       } catch (err) {
         console.error("Failed to load client owners:", err);
+        setError(`Could not load client owners: ${err.message}`);
       }
     };
     loadClientOwners();
@@ -192,10 +182,6 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
   const handleSave = async () => {
     if (!clientId) {
       setError("Client is required.");
-      return;
-    }
-    if (!accountManagerId) {
-      setError("Owner is required.");
       return;
     }
     if (!clientOwnerId) {
@@ -229,12 +215,12 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
       await createOpportunity({
         client_id: clientId,
         revenue_value_usd_cents: usdCents,
-        account_manager_id: accountManagerId,
+        owner_employee_id: accountManagerId || null,
         client_owner_id: clientOwnerId || null,
         expected_close_date: expectedCloseDate || null,
         stage: "QUALIFICATION",
         service: service,
-        module: module,
+        guidewire_module: module,
         client_type: clientType,
         pricing_model: pricingModel,
       });
@@ -286,7 +272,7 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
           value={accountManagerId}
           onChange={setAccountManagerId}
           options={[
-            { label: "Select owner", value: "", disabled: true },
+            { label: users.length ? "No account manager" : "No employees with pipeline access", value: "" },
             ...users.map((u) => ({ label: `${u.first_name} ${u.last_name}`, value: u.id })),
           ]}
           disabled={loadingUsers}
@@ -300,7 +286,7 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
           onChange={setClientOwnerId}
           options={[
             { label: "Select client owner", value: "", disabled: true },
-            ...clientOwners.map((u) => ({ label: `${u.first_name} ${u.last_name}`, value: u.id })),
+            ...clientOwners.map((u) => ({ label: u.name, value: u.id })),
           ]}
           disabled={loadingUsers}
         />
@@ -374,7 +360,23 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
   );
 }
 
+// Where each stage may move next and which stages are won, as the server enforces them
+function useStageRules() {
+  const [rules, setRules] = useState({ stages: [], transitions: {}, won: [] });
+  const [rulesError, setRulesError] = useState("");
+  useEffect(() => {
+    getStageRules()
+      .then((r) => setRules(r || { stages: [], transitions: {}, won: [] }))
+      .catch((err) => {
+        console.error("[OpportunityPipeline] stage rules failed:", err);
+        setRulesError(`Could not load stage rules: ${err.message}`);
+      });
+  }, []);
+  return { ...rules, rulesError };
+}
+
 function OpportunityCard({ opportunity, onMoved, onOpenDetail }) {
+  const { transitions, rulesError } = useStageRules();
   const [moving, setMoving] = useState(false);
   const [moveError, setMoveError] = useState("");
   const [dragActive, setDragActive] = useState(false);
@@ -399,7 +401,7 @@ function OpportunityCard({ opportunity, onMoved, onOpenDetail }) {
     e.dataTransfer.setData("opportunityStage", opportunity.stage);
   };
 
-  const closed = opportunity.stage === "WON" || opportunity.stage === "LOST";
+  const nextStages = transitions[opportunity.stage] || [];
 
   return (
     <div
@@ -428,7 +430,8 @@ function OpportunityCard({ opportunity, onMoved, onOpenDetail }) {
           {moveError}
         </div>
       ) : null}
-      {!closed ? (
+      {rulesError ? <div className="mt-1 text-[11px] text-rose-700">{rulesError}</div> : null}
+      {nextStages.length ? (
         <select
           className="mt-2 w-full rounded-lg border bg-white px-2 py-1 text-xs"
           value=""
@@ -439,7 +442,7 @@ function OpportunityCard({ opportunity, onMoved, onOpenDetail }) {
           <option value="" disabled>
             Move to…
           </option>
-          {STAGES.filter((s) => s !== opportunity.stage).map((s) => (
+          {nextStages.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>
@@ -455,6 +458,7 @@ function OpportunityCard({ opportunity, onMoved, onOpenDetail }) {
 // ends). Surfaces the revenue rollup (GET .../revenue-rollup) and, once
 // WON, a form to spin up the role demand (POST .../role-demand).
 function OpportunityDetailPanel({ opportunity, onClose, onRoleDemandCreated }) {
+  const { won } = useStageRules();
   const [rollup, setRollup] = useState(null);
   const [rollupLoading, setRollupLoading] = useState(true);
   const [rollupError, setRollupError] = useState("");
@@ -594,7 +598,7 @@ function OpportunityDetailPanel({ opportunity, onClose, onRoleDemandCreated }) {
           )}
         </div>
 
-        {opportunity.stage === "WON" ? (
+        {won.includes(opportunity.stage) ? (
           <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
             <div className="mb-2 text-xs font-semibold uppercase text-gray-500">Create Role Demand</div>
             {formError ? <div className="mb-2 text-xs text-rose-700">{formError}</div> : null}
@@ -619,7 +623,7 @@ function OpportunityDetailPanel({ opportunity, onClose, onRoleDemandCreated }) {
                 <Input label="Min Experience (yrs)" value={form.min_experience_years} onChange={set("min_experience_years")} placeholder="5" />
                 <Input label="Quantity" value={form.quantity} onChange={set("quantity")} placeholder="1" />
               </div>
-              <Input label="Work Location" value={form.work_location} onChange={set("work_location")} placeholder="Remote / Hyderabad" />
+              <Input label="Work Location" value={form.work_location} onChange={set("work_location")} placeholder="REMOTE, ONSITE or HYBRID" />
               <div className="grid grid-cols-2 gap-2">
                 <Input label="Duration (hours)" value={form.duration_hours} onChange={set("duration_hours")} placeholder="2080" />
                 <Input label="Billing Rate (USD/hr)" value={form.billing_rate_usd_cents} onChange={set("billing_rate_usd_cents")} placeholder="85" />
@@ -638,7 +642,8 @@ function OpportunityDetailPanel({ opportunity, onClose, onRoleDemandCreated }) {
           </div>
         ) : (
           <div className="mt-4 text-xs text-gray-500">
-            Role demand can be created once this opportunity is moved to WON.
+            Role demands are raised once the contract is signed: move the opportunity to CONTRACT
+            (its client must belong to a business unit). That creates the project the demand staffs.
           </div>
         )}
       </div>
@@ -660,19 +665,26 @@ export default function OpportunityPipelineScreen() {
   const [listStage, setListStage] = useState("");
   const [listClientId, setListClientId] = useState("");
   const [listRows, setListRows] = useState([]);
+  const [loadError, setLoadError] = useState("");
+  const { stages } = useStageRules();
   const [listLoading, setListLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [pipeline, clientList] = await Promise.all([
-        getPipeline(),
-        listClients(),
-      ]);
-      setColumns(pipeline?.columns || []);
-      setClients(clientList?.clients || []);
-    } catch (err) {
-      console.error("Failed to load pipeline:", err);
+      // Each load stands alone: a missing permission for one must not blank the other
+      const [pipeline, clientList] = await Promise.allSettled([getPipeline(), listClients()]);
+      const problems = [];
+      if (pipeline.status === "fulfilled") setColumns(pipeline.value?.columns || []);
+      else problems.push(`pipeline: ${pipeline.reason?.message}`);
+      if (clientList.status === "fulfilled") setClients(clientList.value?.clients || []);
+      else problems.push(`clients: ${clientList.reason?.message}`);
+      if (problems.length) {
+        console.error("[OpportunityPipeline] load failed:", problems);
+        setLoadError(`Could not load ${problems.join("; ")}`);
+      } else {
+        setLoadError("");
+      }
     } finally {
       setLoading(false);
     }
@@ -725,6 +737,7 @@ export default function OpportunityPipelineScreen() {
       load();
     } catch (err) {
       console.error("Failed to move opportunity:", err);
+      setLoadError(err.message || "Could not move the opportunity.");
     }
   };
 
@@ -746,6 +759,9 @@ export default function OpportunityPipelineScreen() {
 
   return (
     <div className="space-y-4 p-6">
+      {loadError ? (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{loadError}</div>
+      ) : null}
       <Card
         title="Opportunity Pipeline"
         subtitle="Revenue Visibility Engine -- pipeline value, win probability, and weighted forecast per stage."
@@ -835,7 +851,7 @@ export default function OpportunityPipelineScreen() {
                 label="Filter by Stage"
                 value={listStage}
                 onChange={setListStage}
-                options={[{ label: "All stages", value: "" }, ...STAGES.map((s) => ({ label: s, value: s }))]}
+                options={[{ label: "All stages", value: "" }, ...stages.map((s) => ({ label: s, value: s }))]}
               />
               <Select
                 label="Filter by Client"

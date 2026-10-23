@@ -10,6 +10,7 @@ from app.core.dependencies import get_current_user, require_resource_permission
 from app.core.visibility import resolve_dashboard_head_bu
 from app.models.user import Users
 from app.services.bu_head_dashboard_service import BUHeadDashboardService
+from app.core.tenant_context import tenant_id_of
 
 router = APIRouter(prefix="/dashboards/bu-head", tags=["BU Head Dashboard"])
 
@@ -19,7 +20,7 @@ def _bu_targets_by_company(db: Session, user: Users, bu_id: int) -> list:
     from app.services.fiscal_year_service import current_fy
     from app.services.goal_tree_service import build_company_tree
 
-    tenant_id = user.tenant_id or 1
+    tenant_id = tenant_id_of(user)
     tree, _ = build_company_tree(db, tenant_id, current_fy(db, tenant_id), bu_ids={bu_id})
     return [
         {"company_id": c["entity_id"], "company": c["name"], "metrics": bu["metrics"]}

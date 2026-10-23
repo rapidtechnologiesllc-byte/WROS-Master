@@ -28,7 +28,7 @@ def queue_candidate_creation(
     first_name: str,
     last_name: str,
     *,
-    tenant_id: int = 1,
+    tenant_id: Optional[int] = None,
     source: str = "unknown",
     mobile: Optional[str] = None,
     linkedin_url: Optional[str] = None,
@@ -68,7 +68,7 @@ def queue_candidate_creation(
     Returns:
         {
             'status': 'queued',
-            'message_id': str,  # Use for polling: /api/v1/message-queue/status/{message_id}
+            'message_id': str,  # Use for polling: /api/v1/message-queue/tasks/{message_id}/status
             'task_id': str,
             'queue_item_id': str,
             'polling_endpoint': str,
@@ -152,6 +152,6 @@ def queue_candidate_creation(
         'message_id': message_id,
         'task_id': task_id,
         'queue_item_id': enqueue_result.get('queue_item_id', message_id),
-        'polling_endpoint': f'/api/v1/message-queue/status/{message_id}',
+        'polling_endpoint': f'/api/v1/message-queue/tasks/{message_id}/status',
         'polling_interval_seconds': 2
     }

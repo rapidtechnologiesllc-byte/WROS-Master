@@ -45,11 +45,9 @@ if GEMINI_API_KEY:
         logger.error(f"Error initializing LLM: {str(e)}", exc_info=True)
         # If Google credentials not available, LLM will be None
         # ATS scoring will return stub response
-        import sys
-        print(f"[WARNING] ATS Scorer: LLM initialization failed: {e}", file=sys.stderr)
+        logger.warning(f"[WARNING] ATS Scorer: LLM initialization failed: {e}")
 else:
-    import sys
-    print("[WARNING] ATS Scorer: GEMINI_API_KEY not set, using stub responses", file=sys.stderr)
+    logger.warning("[WARNING] ATS Scorer: GEMINI_API_KEY not set, using stub responses")
 
 def _invoke_llm(prompt: str) -> str:
     """Invoke the LLM and normalise the response to a plain string."""
@@ -83,7 +81,7 @@ def _extract_json(text: str) -> dict:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        raise ValueError("Operation failed")
+        raise ValueError("_extract_json failed")
 
 # ---------------------------------------------------------------------------
 # State definition

@@ -32,6 +32,7 @@ this codebase -- it's EPIC-11 scope (HRMS-1101-1110, Phase 3 Workstream
 desire_profile=None rather than fabricating one, so a caller can tell
 "not built yet" apart from "built and empty."
 """
+from app.core.tenant_context import sole_tenant_id
 import logging
 import os
 import re
@@ -471,7 +472,8 @@ def build_candidate_context(db: Session, candidate: Candidate) -> Dict:
     candidate_facts = {}
     try:
         from app.services.candidate_memory_service import get_memory
-        memory = get_memory(db, candidate.candidateID, candidate.tenant_id or 1)
+        memory = get_memory(db, candidate.candidateID,
+                            candidate.tenant_id if candidate.tenant_id is not None else sole_tenant_id(db))
 
         for fact in memory.get('facts', []):
             category = fact.get('category', 'OTHER')
@@ -1057,7 +1059,7 @@ def get_or_create_test_candidate(db: Session, current_user: Users):
             email=_unique_test_email(db, current_user, candidate_id),
             first_name=first_name,
             last_name=last_name,
-            tenant_id=1,
+            tenant_id=current_user.tenant_id,
             source='thunder_test_demo',
             mobile=current_user.whatsapp_number or DEFAULT_TEST_MOBILE,
             candidate_id=candidate_id,

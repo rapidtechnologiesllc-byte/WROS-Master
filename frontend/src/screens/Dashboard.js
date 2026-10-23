@@ -7,12 +7,11 @@ import {
   Search,
   Users,
 } from "lucide-react";
-import { useState } from "react";
 import { Button, Card, StatusBadge } from "../components/ui";
 import { useNavigate } from "react-router-dom";
 import LinkedInActivityTable from "../components/LinkedInActivityTable";
+import { ROUTES } from "../utils/Routes";
 import { hasPermission, isOrgLevel } from "../utils/permissionsRoleTemplate";
-import { getHrMe } from "../services/api/users";
 
 function StatCard({ title, value, icon, onClick }) {
   return (
@@ -38,7 +37,7 @@ export default function Dashboard({
 }) {
   const navigate = useNavigate();
 
-  // Landing per role is chosen at login (utils/permissionsRoleTemplate landingPath)
+  // Home renders this for roles without a dashboard of their own (authority.home_dashboard)
 
   // Get user's BU for filtering
   const userBuId = parseInt(localStorage.getItem("hrms_business_unit_id") || "0", 10);
@@ -151,7 +150,7 @@ export default function Dashboard({
           <Button
             variant="secondary"
             className="mt-3 w-full"
-            onClick={() => navigate("/offers")}
+            onClick={() => navigate(ROUTES.OFFERS_LISTING)}
           >
             Manage Offers
           </Button>

@@ -6,6 +6,7 @@ Thunder off until Import) and exactly one open follow-up task for its
 owner, due today so it shows on My Tasks. Moving the item to the next stage
 completes that task and opens the next one; Imported to Thunder has none.
 """
+from app.core.tenant_context import sole_tenant_id
 import hashlib
 import re
 from datetime import datetime
@@ -74,7 +75,9 @@ def _display_name(db: Session, item: LinkedInCandidatePipeline) -> str:
 
 def creation_idempotency_key(item: LinkedInCandidatePipeline, tenant_id: Optional[int]) -> str:
     # Same key format as candidate_creation_wrapper.queue_candidate_creation()
-    return f"candidate_create:{placeholder_email(item.linkedin_profile_slug)}:{tenant_id or 1}:{CANDIDATE_SOURCE}"
+    if tenant_id is None:
+        raise ValueError("creation_idempotency_key needs the tenant")
+    return f"candidate_create:{placeholder_email(item.linkedin_profile_slug)}:{tenant_id}:{CANDIDATE_SOURCE}"
 
 def queue_pipeline_candidate(
     db: Session,
@@ -97,7 +100,7 @@ def queue_pipeline_candidate(
         email=email or placeholder_email(item.linkedin_profile_slug),
         first_name=(first_name or "").strip() or guess_first,
         last_name=(last_name or "").strip() or guess_last,
-        tenant_id=tenant_id or 1,
+        tenant_id=tenant_id if tenant_id is not None else sole_tenant_id(db),
         source=CANDIDATE_SOURCE,
         linkedin_url=item.linkedin_url,
         created_by_user_id=created_by_user_id,

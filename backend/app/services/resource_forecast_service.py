@@ -26,7 +26,6 @@ from sqlalchemy.orm import Session
 from app.models.demand import Demand
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
-from app.models.resource_management import BenchPoolEntry
 
 EXPIRY_HORIZON_DAYS = 90  # source doc's own default
 
@@ -36,13 +35,14 @@ def _parse_skills(raw: Optional[str]) -> List[str]:
     try:
         parsed = json.loads(raw)
     except (ValueError, TypeError):
-        raise ValueError("Operation failed")
+        raise ValueError("_parse_skills failed")
     if not isinstance(parsed, list):
-        raise ValueError("Operation failed")
+        raise ValueError("_parse_skills failed")
     return [str(s).strip() for s in parsed if str(s).strip()]
 
 def get_expiring_allocations(
     db: Session, *, tenant_id: Optional[int] = None, horizon_days: int = EXPIRY_HORIZON_DAYS,
+    scope=None,
 ) -> Dict[str, List[Dict]]:
     """Step 1: ACTIVE allocations with a planning end_date within the
     next horizon_days, bucketed into <30 / 30-60 / 60-90 day horizons
@@ -60,6 +60,8 @@ def get_expiring_allocations(
     )
     if tenant_id is not None:
         query = query.filter(EmployeeAllocation.tenant_id == tenant_id)
+    if scope is not None:  # the caller's business units (app.core.data_scope.allocation_filter)
+        query = query.filter(scope)
 
     buckets = {"under_30_days": [], "30_to_60_days": [], "60_to_90_days": []}
     for allocation in query.all():
@@ -104,10 +106,9 @@ def get_skill_gap_analysis(
     a BU that doesn't exist on the row would fabricate data, not narrow
     it. A BU Head reading this sees their own open demand against the
     real, full bench -- directionally correct, not silently wrong."""
-    bench_query = db.query(BenchPoolEntry)
-    if tenant_id is not None:
-        bench_query = bench_query.filter(BenchPoolEntry.tenant_id == tenant_id)
-    bench_entries = bench_query.all()
+    from app.services.resource_management_service import get_current_bench_pool
+
+    bench_entries = get_current_bench_pool(db, tenant_id=tenant_id)  # billable bench only, one rule
 
     bench_skill_counts: Dict[str, int] = {}
     for entry in bench_entries:

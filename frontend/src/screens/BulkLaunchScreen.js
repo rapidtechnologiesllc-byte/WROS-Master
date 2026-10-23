@@ -1,10 +1,9 @@
 // S-074/HRMS-0474 -- Bulk Candidate Engagement Launch.
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, X } from "lucide-react";
-import { bulkEngage, bulkImportCsv, getBulkJobStatus, getActiveBulkJobs, getImportHistory, cancelBulkImportJob } from "../services/api/bulkEngagement";
+import { X } from "lucide-react";
+import { bulkEngage, bulkImportCsv, getBulkJobStatus, getImportHistory, cancelBulkImportJob } from "../services/api/bulkEngagement";
 
 export default function BulkLaunchScreen() {
-  const [uploadType, setUploadType] = useState("candidate");  // Type selector
   const [file, setFile] = useState(null);
   const [importResult, setImportResult] = useState(null);
   const [importing, setImporting] = useState(false);
@@ -14,13 +13,6 @@ export default function BulkLaunchScreen() {
   const [actionError, setActionError] = useState(null);
   const pollRef = useRef(null);
   const fileInputRef = useRef(null);
-
-  const uploadTypeOptions = [
-    { value: "candidate", label: "Candidates", icon: "👤", description: "Import candidate records" },
-    { value: "job", label: "Jobs", icon: "💼", description: "Import job openings" },
-    { value: "employee", label: "Employees", icon: "👨‍💼", description: "Import employee records" },
-    { value: "bank_statement", label: "Bank Statements", icon: "🏦", description: "Import bank statements" },
-  ];
 
   // NEW: Load ongoing imports on component mount and auto-refresh
   useEffect(() => {
@@ -58,7 +50,7 @@ export default function BulkLaunchScreen() {
 
   const handleCancelImport = async (jobId) => {
     try {
-      const result = await cancelBulkImportJob(jobId);
+      await cancelBulkImportJob(jobId);
       setActionError(null);
 
       // Refresh import history (including completed/cancelled jobs)
@@ -72,12 +64,6 @@ export default function BulkLaunchScreen() {
 
   const handleImport = async () => {
     if (!file) return;
-
-    // Only candidate import is currently implemented
-    if (uploadType !== "candidate") {
-      setActionError(`${uploadTypeOptions.find(o => o.value === uploadType)?.label} bulk import coming soon!`);
-      return;
-    }
 
     setImporting(true);
     try {
@@ -100,8 +86,9 @@ export default function BulkLaunchScreen() {
         if (status.status === "COMPLETED") {
           clearInterval(pollRef.current);
         }
-      } catch {
-        // transient poll failure -- try again next tick
+      } catch (err) {
+        // a failed poll is retried on the next tick, and shown so a persistent failure is visible
+        setActionError(`Could not refresh the launch status: ${err.message}`);
       }
     }, 5000);
   };
@@ -133,31 +120,9 @@ export default function BulkLaunchScreen() {
           </button>
         </div>
       )}
-      {/* Step 0: Select Upload Type */}
-      <div className="rounded-2xl border bg-white p-5 shadow-sm">
-        <h3 className="mb-4 text-sm font-semibold text-gray-900">0. Select Upload Type</h3>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {uploadTypeOptions.map((option) => (
-            <button
-              key={option.value}
-              onClick={() => { setUploadType(option.value); setFile(null); setImportResult(null); }}
-              className={`rounded-lg border-2 p-4 text-center transition-all ${
-                uploadType === option.value
-                  ? "border-bx-navy bg-blue-50"
-                  : "border-gray-200 bg-white hover:border-gray-300"
-              }`}
-            >
-              <div className="text-2xl">{option.icon}</div>
-              <div className="mt-2 text-xs font-semibold text-gray-900">{option.label}</div>
-              <div className="mt-1 text-xs text-gray-600">{option.description}</div>
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Step 1: Import */}
       <div className="rounded-2xl border bg-white p-5 shadow-sm">
-        <h3 className="mb-3 text-sm font-semibold text-gray-900">1. Import {uploadTypeOptions.find(o => o.value === uploadType)?.label}</h3>
+        <h3 className="mb-3 text-sm font-semibold text-gray-900">1. Import candidates (CSV)</h3>
         <div
           onClick={() => fileInputRef.current?.click()}
           onDragOver={(e) => e.preventDefault()}

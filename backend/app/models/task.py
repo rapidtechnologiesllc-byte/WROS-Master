@@ -18,8 +18,7 @@ partition numbering, visibility, or round-robin scope.
 
 Org-wide Task # is just the autoincrement primary key itself -- no
 separate counter table needed; a single Integer IDENTITY/autoincrement
-column is already a real, atomic, monotonic, org-wide sequence in both
-SQLite and SQL Server.
+column is already a real, atomic, monotonic, org-wide sequence.
 """
 import logging
 import uuid
@@ -130,6 +129,9 @@ class Task(Base):
     # flagged if none is set). Same polymorphic-lite nullable-link
     # posture as expense_id/document_id/interview_id above.
     invoice_id = Column(String(512), ForeignKey("invoices.id"), nullable=True, index=True)
+    # In-app path the task opens (e.g. "/workforce/core-certification"); My Tasks follows it
+    # before any title-based guess. Always a same-site path (task_service.create_task checks).
+    link = Column(String(512), nullable=True)
 
     due_date = Column(DateTime, nullable=True, index=True)
     is_external = Column(Boolean, nullable=False, default=False)

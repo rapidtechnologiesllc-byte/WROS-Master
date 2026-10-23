@@ -19,7 +19,8 @@ field, same ownership boundary as the existing self-service timesheet.
 """
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
@@ -207,3 +208,47 @@ def get_investment_position(
         return get_client_investment_position(db, client_id)
     except ExpenseValidationError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.post(
+    "/expenses/{expense_id}/receipt",
+    response_model=ExpenseItem,
+    dependencies=[Depends(require_resource_permission("my-expenses", "create"))],
+)
+async def upload_expense_receipt(
+    expense_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Attach the receipt to your own expense; it is read and checked straight away
+    (app.services.expense_receipt_service)."""
+    from app.services.expense_receipt_service import ReceiptError, attach_and_check
+
+    expense = db.query(ExpenseRecord).filter(ExpenseRecord.id == expense_id,
+                                             ExpenseRecord.tenant_id == current_user.tenant_id,
+                                             ExpenseRecord.logged_by_user_id == current_user.UserID).first()
+    if expense is None:
+        raise HTTPException(status_code=404, detail=f"Expense {expense_id!r} not found.")
+    try:
+        return attach_and_check(db, expense, file.filename, file.content_type, await file.read())
+    except ReceiptError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/expenses/{expense_id}/receipt")
+def download_expense_receipt(
+    expense_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """The receipt file: the person who logged it, their reviewer, or anyone who may see the expense."""
+    import os
+
+    expense = db.query(ExpenseRecord).filter(ExpenseRecord.id == expense_id,
+                                             ExpenseRecord.tenant_id == current_user.tenant_id,
+                                             ExpenseRecord.logged_by_user_id == current_user.UserID).first() \
+        or _expense_or_404(db, expense_id, current_user)
+    if not expense.receipt_file_path or not os.path.isfile(expense.receipt_file_path):
+        raise HTTPException(status_code=404, detail="No receipt attached")
+    return FileResponse(expense.receipt_file_path, media_type=expense.receipt_content_type)

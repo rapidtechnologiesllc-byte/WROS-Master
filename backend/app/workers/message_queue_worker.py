@@ -12,6 +12,7 @@ from functools import wraps
 
 from app.core.database import SessionLocal
 from sqlalchemy import and_, or_
+from sqlalchemy import func as sa_func
 
 from app.models.channel_queue import ChannelQueueItem
 from app.services.delivery_errors import DeliveryDeferred
@@ -103,6 +104,42 @@ def _dead_letter_stale_scheduled(db, now: datetime) -> int:
     return len(stale)
 
 
+MAX_RETRIES = 5
+
+
+def _reclaim_stuck_processing(db, now: datetime) -> int:
+    """Autonomous recovery: a message left in PROCESSING (worker killed or restarted
+    mid-message -- the cron watchdog restarts it) would otherwise sit there forever. Anything
+    PROCESSING for longer than twice its handler timeout plus a minute goes back through the
+    normal retry path (FAILED, due now), or to DEAD_LETTER once its retries are used up.
+    Safe because exactly one worker runs (flock), so nothing older than that is live."""
+    candidates = db.query(ChannelQueueItem).filter(
+        ChannelQueueItem.status == "PROCESSING",
+        sa_func.coalesce(ChannelQueueItem.processing_started_at, ChannelQueueItem.updated_at)
+        < now - timedelta(seconds=DEFAULT_HANDLER_TIMEOUT_SECONDS),
+    ).all()
+    reclaimed = 0
+    for message in candidates:
+        started = message.processing_started_at or message.updated_at
+        limit = timedelta(seconds=2 * _handler_timeout(message.type) + 60)
+        if now - started < limit:
+            continue
+        message.retry_count = (message.retry_count or 0) + 1
+        message.error = (f"Worker stopped while processing (PROCESSING since {started.isoformat()}, "
+                         f"limit {int(limit.total_seconds())}s); reclaimed automatically")
+        message.completed_at = now
+        if message.retry_count >= MAX_RETRIES:
+            message.status = "DEAD_LETTER"
+        else:
+            message.status = "FAILED"
+            message.next_retry_at = now
+        reclaimed += 1
+    if reclaimed:
+        db.commit()
+        logger.warning(f"[Worker] Reclaimed {reclaimed} message(s) stuck in PROCESSING")
+    return reclaimed
+
+
 def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Dict[str, Any]:
     """
     Main worker function to process all message queues.
@@ -132,6 +169,7 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
         # SCHEDULED is a delayed message (enqueue(delay_seconds=...)) that is now due.
         now = datetime.utcnow()
         _dead_letter_stale_scheduled(db, now)
+        _reclaim_stuck_processing(db, now)
         pending_messages = db.query(ChannelQueueItem).filter(or_(
             and_(ChannelQueueItem.status == "PENDING",
                  or_(ChannelQueueItem.next_retry_at.is_(None), ChannelQueueItem.next_retry_at <= now)),
@@ -142,7 +180,7 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
         retry_messages = db.query(ChannelQueueItem).filter(
             ChannelQueueItem.status == "FAILED",
             ChannelQueueItem.next_retry_at <= datetime.utcnow(),
-            ChannelQueueItem.retry_count < 5  # MAX_RETRIES
+            ChannelQueueItem.retry_count < MAX_RETRIES
         ).order_by(ChannelQueueItem.created_at).limit(batch_size // 2).all()
 
         # Re-queue retry messages back to PENDING
@@ -172,6 +210,7 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
 
                     # Mark as PROCESSING (already in session, no add needed)
                     message.status = "PROCESSING"
+                    message.processing_started_at = datetime.utcnow()
                     try:
                         db.commit()
                     except Exception as commit_err:
@@ -356,6 +395,7 @@ def process_candidate_queue(batch_size: int = 5) -> Dict[str, Any]:
             for message in pending_messages:
                 try:
                     message.status = "PROCESSING"
+                    message.processing_started_at = datetime.utcnow()
                     db.commit()
 
                     result = CandidateQueueProcessor.process(message, db)

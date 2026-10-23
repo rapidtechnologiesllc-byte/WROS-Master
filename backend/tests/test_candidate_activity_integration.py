@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.candidate_history import CandidateHistory
 from app.models.user import Users
+from tests import factories
 from app.models.referral import EmployeeReferral
 from app.services.candidate_activity_service import (
     log_candidate_created,
@@ -41,7 +42,7 @@ class TestPhase2Integration:
             candidate_id=test_candidate.candidateID,
             created_by_user_id=test_user.UserID,
             created_by_name=test_user.UserName,
-            recruitment_source="DIRECT"
+            recruitment_source="LINKEDIN"
         )
         db.commit()
 
@@ -54,7 +55,7 @@ class TestPhase2Integration:
         assert history is not None, "CandidateHistory entry not created"
         assert history.performed_by_id == test_user.UserID
         assert history.performed_by_name == test_user.UserName
-        assert "DIRECT" in (history.note or "")
+        assert "Source: LINKEDIN" in (history.note or "")  # a direct source adds no note
 
     def test_candidate_creation_without_logging_still_succeeds(self, db: Session, test_candidate: Candidate):
         """
@@ -73,7 +74,7 @@ class TestPhase2Integration:
 
     # ========== PHASE 2.2: Referral Linking ==========
 
-    def test_referral_linking_logs_events(self, db: Session, test_candidate: Candidate):
+    def test_referral_linking_logs_events(self, db: Session, test_user: Users, test_candidate: Candidate):
         """
         Test: Linking candidate to referral logs both link and status change events.
 
@@ -86,7 +87,7 @@ class TestPhase2Integration:
         referral = EmployeeReferral(
             referral_id="REF_001",
             job_id="JOB_001",
-            referring_employee_id="EMP_001",
+            referring_employee_id=test_user.UserID,
             referred_candidate_email="test@example.com",
             referred_candidate_name="Test",
             referral_status="PENDING"
@@ -103,8 +104,8 @@ class TestPhase2Integration:
             db,
             candidate_id=test_candidate.candidateID,
             referral_id=referral.referral_id,
-            referred_by_employee_id="EMP_001",
-            referred_by_employee_name="John Smith"
+            referrer_name="John Smith",
+            recorded_by_user_id=test_user.UserID,
         )
         log_referral_status_changed(
             db,
@@ -118,7 +119,7 @@ class TestPhase2Integration:
         # VERIFY: Both history entries created
         history = db.query(CandidateHistory).filter(
             CandidateHistory.candidateID == test_candidate.candidateID
-        ).order_by(CandidateHistory.event_at.desc()).all()
+        ).order_by(CandidateHistory.event_at.desc(), CandidateHistory.id.desc()).all()
 
         assert len(history) >= 2, "Expected at least 2 history entries (linked + status change)"
         assert history[0].event_type == "Referral Status Changed"
@@ -133,7 +134,7 @@ class TestPhase2Integration:
 
     # ========== PHASE 2.3: Status Updates ==========
 
-    def test_status_change_logs_transition(self, db: Session, test_candidate: Candidate):
+    def test_status_change_logs_transition(self, db: Session, test_user: Users, test_candidate: Candidate):
         """
         Test: Manual status change logs transition with reason.
 
@@ -168,7 +169,7 @@ class TestPhase2Integration:
             old_status=old_status,
             new_status=new_status,
             reason=reason,
-            changed_by_user_id="USR_001",
+            changed_by_user_id=test_user.UserID,
             changed_by_name="HR Manager"
         )
         db.commit()
@@ -176,15 +177,15 @@ class TestPhase2Integration:
         # VERIFY: History entry created
         history = db.query(CandidateHistory).filter(
             CandidateHistory.candidateID == test_candidate.candidateID
-        ).order_by(CandidateHistory.event_at.desc()).first()
+        ).order_by(CandidateHistory.event_at.desc(), CandidateHistory.id.desc()).first()
 
         assert history is not None
         assert "Applied" in (history.note or "")
         assert "Screening" in (history.note or "")
         assert reason in (history.note or "")
-        assert history.performed_by_id == "USR_001"
+        assert history.performed_by_id == test_user.UserID
 
-    def test_multiple_status_changes_create_audit_trail(self, db: Session, test_candidate: Candidate):
+    def test_multiple_status_changes_create_audit_trail(self, db: Session, test_user: Users, test_candidate: Candidate):
         """
         Test: Multiple status changes create complete audit trail.
 
@@ -214,7 +215,7 @@ class TestPhase2Integration:
             candidate_status.piplineStatus = new
             log_candidate_status_change(
                 db, test_candidate.candidateID, old, new, reason,
-                changed_by_user_id="USR_001", changed_by_name="HR"
+                changed_by_user_id=test_user.UserID, changed_by_name="HR"
             )
             db.commit()
 
@@ -249,7 +250,7 @@ class TestPhase2Integration:
 
         history = db.query(CandidateHistory).filter(
             CandidateHistory.candidateID == test_candidate.candidateID
-        ).order_by(CandidateHistory.event_at.desc()).first()
+        ).order_by(CandidateHistory.event_at.desc(), CandidateHistory.id.desc()).first()
 
         assert history is not None
         assert "INTERVIEW_SCHEDULED" in history.note or "Interview Scheduled" in history.event_type
@@ -275,7 +276,7 @@ class TestPhase2Integration:
 
         history = db.query(CandidateHistory).filter(
             CandidateHistory.candidateID == test_candidate.candidateID
-        ).order_by(CandidateHistory.event_at.desc()).first()
+        ).order_by(CandidateHistory.event_at.desc(), CandidateHistory.id.desc()).first()
 
         assert history is not None
         assert "OFFER_RELEASED" in history.note or "Offer Released" in history.event_type
@@ -301,7 +302,7 @@ class TestPhase2Integration:
 
         history = db.query(CandidateHistory).filter(
             CandidateHistory.candidateID == test_candidate.candidateID
-        ).order_by(CandidateHistory.event_at.desc()).first()
+        ).order_by(CandidateHistory.event_at.desc(), CandidateHistory.id.desc()).first()
 
         assert history is not None
         assert "REJECTED" in history.note or "Rejected" in history.event_type
@@ -341,30 +342,9 @@ class TestPhase2Integration:
 
 @pytest.fixture
 def test_user(db: Session) -> Users:
-    """Create test user"""
-    user = Users(
-        UserID="USR_TEST_001",
-        UserEmail="test.user@example.com",
-        UserName="Test User",
-        UserRole="HR"
-    )
-    db.add(user)
-    db.commit()
-    return user
+    return factories.user(db, UserName="Test User", UserRole="HR")
 
 
 @pytest.fixture
 def test_candidate(db: Session) -> Candidate:
-    """Create test candidate"""
-    candidate = Candidate(
-        candidateID="CAND_TEST_001",
-        candidateEmail="test.candidate@example.com",
-        candidateFirstName="Test",
-        candidateLastName="Candidate",
-        candidatePassword="test_pass_hash",
-        candidateSource="Direct",
-        tenant_id=1
-    )
-    db.add(candidate)
-    db.commit()
-    return candidate
+    return factories.candidate(db, candidateSource="Direct")

@@ -1,4 +1,5 @@
 """Ops Alert Handler - Converts queue ops_alert messages to visible dashboard tasks."""
+from app.core.tenant_context import sole_tenant_id
 import logging
 from typing import Dict, Any
 from datetime import datetime, timedelta
@@ -17,8 +18,10 @@ class OpsAlertHandler:
     MAX_RETRIES = 3
     RETRY_DELAY_MINUTES = 10
 
+    TIMEOUT_SECONDS = 8
+
     @staticmethod
-    @time_bound(timeout_seconds=8)
+    @time_bound(timeout_seconds=TIMEOUT_SECONDS)
     def process(message: Any, db: Session) -> Dict[str, Any]:
         """Convert ops_alert queue message to Task record.
 
@@ -31,12 +34,9 @@ class OpsAlertHandler:
         """
         try:
             payload = message.payload or {}
-            alert_type = payload.get('alert_type', 'ops_alert')
             message_id = payload.get('message_id', 'UNKNOWN')
             error_classification = payload.get('error_classification', 'UNKNOWN')
             safety_score = payload.get('safety_score', 50)
-            root_cause = payload.get('root_cause', '')
-            recommended_action = payload.get('recommended_action', '')
 
             logger.info(
                 f"[OpsAlert] Converting ops_alert to Task: "
@@ -69,7 +69,7 @@ class OpsAlertHandler:
                 status="NEW",
                 assigned_to_user_id=None,
                 visibility_scope="ORG_WIDE",
-                tenant_id=1,
+                tenant_id=sole_tenant_id(db),
             )
             db.add(task)
             db.flush()

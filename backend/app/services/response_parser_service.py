@@ -84,7 +84,7 @@ def _first_number(text: str) -> Optional[float]:
     try:
         return float(match.group(0).replace(",", ""))
     except ValueError:
-        raise ValueError("Operation failed")
+        raise ValueError("_first_number failed")
 
 def normalize_notice_period_days(raw_value: str) -> Optional[int]:
     text = (raw_value or "").lower().strip()

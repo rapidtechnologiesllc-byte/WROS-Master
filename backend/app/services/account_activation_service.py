@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 ACCOUNT_EMAIL_TASK = "send_account_email"
 TTL = {"ACTIVATE": timedelta(days=7), "RESET": timedelta(hours=2)}
 MIN_PASSWORD_LENGTH = 10
+RESET_EMAIL_WINDOW_MINUTES = 10
 
 
 class ActivationError(Exception):
@@ -54,13 +55,15 @@ def link_for(plaintext: str) -> str:
     return f"{settings.FRONTEND_BASE_URL.rstrip('/')}/activate?token={plaintext}"
 
 
-def queue_account_email(user: Users, purpose: str = "ACTIVATE") -> bool:
-    """Call after commit. One queued email per request (uuid task id)."""
+def queue_account_email(user: Users, purpose: str = "ACTIVATE", *, once_key: Optional[str] = None) -> bool:
+    """Call after commit. One queued email per request (uuid task id); with once_key, one ever for
+    this user, purpose and key (a re-applied import never emails the same person twice)."""
     import uuid
 
     from app.services.thunder_mail.cadence_service import enqueue_once
 
-    return enqueue_once(ACCOUNT_EMAIL_TASK, f"account-email-{user.UserID}-{purpose}-{uuid.uuid4().hex[:12]}",
+    suffix = once_key or uuid.uuid4().hex[:12]
+    return enqueue_once(ACCOUNT_EMAIL_TASK, f"account-email-{user.UserID}-{purpose}-{suffix}",
                         {"user_id": user.UserID, "purpose": purpose}, user.tenant_id)
 
 
@@ -95,10 +98,19 @@ def request_reset(db: Session, email: str) -> None:
     if user is None:
         logger.info("[Account] reset requested for an unknown email")
         return
-    recent = db.query(AccountActivationToken).filter(
+    # One reset email per 10 minutes per account. The token is created when the worker sends
+    # the email, so a reset already queued (not yet sent) counts too -- otherwise rapid
+    # requests before the worker runs each queue another email.
+    from app.models.channel_queue import ChannelQueueItem
+    window_start = datetime.utcnow() - timedelta(minutes=RESET_EMAIL_WINDOW_MINUTES)
+    recent_token = db.query(AccountActivationToken.id).filter(
         AccountActivationToken.user_id == user.UserID, AccountActivationToken.purpose == "RESET",
-        AccountActivationToken.created_at > datetime.utcnow() - timedelta(minutes=10)).first()
-    if recent is not None:  # one reset email per 10 minutes per account
+        AccountActivationToken.created_at > window_start).first()
+    recent_queued = db.query(ChannelQueueItem.id).filter(
+        ChannelQueueItem.type == ACCOUNT_EMAIL_TASK,
+        ChannelQueueItem.id.like(f"account-email-{user.UserID}-RESET-%"),
+        ChannelQueueItem.created_at > window_start).first()
+    if recent_token is not None or recent_queued is not None:
         return
     queue_account_email(user, "RESET")
 

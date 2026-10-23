@@ -48,7 +48,7 @@ def queue_enrichment(pipeline_id: str, tenant_id: Optional[int], attempt: int = 
         data={"pipeline_id": str(pipeline_id), "tenant_id": tenant_id, "attempt": attempt},
         delay_seconds=delay_seconds,
         idempotency_key=f"{TASK_NAME}:{pipeline_id}:{attempt}{run_key}",
-        tenant_id=int(tenant_id or 1),
+        tenant_id=int(tenant_id) if tenant_id is not None else None,  # enqueue resolves a missing tenant
     )
 
 

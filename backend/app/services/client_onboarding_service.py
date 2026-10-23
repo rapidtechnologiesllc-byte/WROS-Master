@@ -82,7 +82,7 @@ def placement_start_date(db: Session, submission: Submission) -> date:
 
 
 def mark_started(db: Session, submission: Submission) -> None:
-    from app.models.employee_allocation import EmployeeAllocation
+    from app.models.employee_allocation import HOLDING_STATUSES, EmployeeAllocation
 
     row = for_submission(db, submission.id)
     if row is None:
@@ -90,7 +90,7 @@ def mark_started(db: Session, submission: Submission) -> None:
     employee = db.query(Employee).filter(Employee.candidate_id == submission.candidate_id).first()
     allocation = None if employee is None else db.query(EmployeeAllocation).filter(
         EmployeeAllocation.employee_id == employee.id, EmployeeAllocation.demand_id == submission.demand_id,
-        EmployeeAllocation.status == "ACTIVE").first()
+        EmployeeAllocation.status.in_(HOLDING_STATUSES)).first()
     row.status = "STARTED"
     row.allocation_id = allocation.id if allocation else row.allocation_id
     row.employee_id = employee.id if employee else row.employee_id

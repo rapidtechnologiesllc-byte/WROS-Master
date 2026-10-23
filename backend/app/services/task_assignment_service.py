@@ -39,15 +39,12 @@ OPEN_TASK_WIP_CAP = 8  # v1 proxy for "overloaded" -- see module docstring.
 OPEN_STATUSES = ("NEW", "IN_PROGRESS", "ON_HOLD")
 
 def resolve_reporting_manager(db: Session, user_id: str) -> Optional[Users]:
-    """Users has no reporting-manager column of its own -- the real
-    hierarchy lives on Employee (wros_user_id links an Employee record
-    to its login Users account; reporting_manager_user_id is already a
-    direct Users.UserID). Returns None if the user has no linked
-    Employee record or no manager set -- never invents one."""
+    """The user's manager from the org chart (org_structure_service.manager_user_for). None if
+    the user has no employee record or nobody sits above them -- never invents one."""
+    from app.services.org_structure_service import manager_user_for
+
     employee = db.query(Employee).filter(Employee.wros_user_id == user_id).first()
-    if not employee or not employee.reporting_manager_user_id:
-        return None
-    return db.query(Users).filter(Users.UserID == employee.reporting_manager_user_id).first()
+    return manager_user_for(db, employee) if employee else None
 
 def _open_task_counts_by_user(db: Session, user_ids: List[str]) -> dict:
     if not user_ids:

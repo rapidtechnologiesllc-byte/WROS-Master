@@ -14,32 +14,38 @@ logger = logging.getLogger(__name__)
 CLOSED_JOB_STATUSES = ("closed", "filled", "cancelled", "inactive", "deleted")
 
 
-def _recruiter_filter():
-    """Recruiters: active users whose role is a recruiter or HR manager."""
-    role = func.lower(Users.UserRole)
-    return (Users.terminated_at.is_(None)) & (role.like("%recruit%") | (role == "hr manager"))
+def active_recruiters(db: Session, tenant_id) -> list:
+    """The recruiter pool, by templates and permissions only (never the legacy UserRole text):
+    active people in the Recruitment function (a template's specialization or their
+    department) who may edit candidates (Manage Role set U add-on U overrides). HR Managers
+    are in HR, not Recruitment, so they are never in the pool."""
+    from app.core import authority
+
+    return [u for u in db.query(Users).filter(
+        Users.tenant_id == tenant_id,
+        Users.terminated_at.is_(None),
+    ).order_by(Users.CreatedAt).all()
+        if authority.in_function(db, u, "Recruitment") and authority.has_permission(db, u, "candidates.edit")]
 
 
-def assign_to_recruiter_roundrobin(db: Session) -> Optional[Users]:
-    """Return the recruiter with the fewest open jobs (None if there are no recruiters)."""
-    open_jobs = (
-        db.query(Jobs.recuriterID.label("recruiter_id"), func.count(Jobs.jobID).label("job_count"))
-        .filter(func.lower(func.coalesce(Jobs.jobStatus, "")).notin_(CLOSED_JOB_STATUSES))
-        .group_by(Jobs.recuriterID)
-        .subquery()
-    )
-    row = (
-        db.query(Users, func.coalesce(open_jobs.c.job_count, 0).label("load"))
-        .outerjoin(open_jobs, open_jobs.c.recruiter_id == Users.UserID)
-        .filter(_recruiter_filter())
-        .order_by("load", Users.CreatedAt)
-        .first()
-    )
-    if row is None:
-        logger.warning("[Recruiter Assignment] No active recruiters found")
+def assign_to_recruiter_roundrobin(db: Session, tenant_id) -> Optional[Users]:
+    """Return the tenant's recruiter with the fewest open jobs (None if there are no recruiters)."""
+    if tenant_id is None:
+        raise ValueError("tenant_id is required to pick a recruiter")
+    recruiters = active_recruiters(db, tenant_id)
+    if not recruiters:
+        logger.warning(f"[Recruiter Assignment] No active recruiters in tenant {tenant_id}")
         return None
-    recruiter, load = row
-    logger.info(f"[Recruiter Assignment] Picked {recruiter.UserName or recruiter.UserEmail} ({load} open jobs)")
+    loads = dict(
+        db.query(Jobs.recuriterID, func.count(Jobs.jobID))
+        .filter(Jobs.recuriterID.in_([r.UserID for r in recruiters]),
+                func.lower(func.coalesce(Jobs.jobStatus, "")).notin_(CLOSED_JOB_STATUSES))
+        .group_by(Jobs.recuriterID)
+        .all()
+    )
+    recruiter = min(recruiters, key=lambda r: loads.get(r.UserID, 0))  # ties: earliest created
+    logger.info(f"[Recruiter Assignment] Picked {recruiter.UserName or recruiter.UserEmail} "
+                f"({loads.get(recruiter.UserID, 0)} open jobs)")
     return recruiter
 
 
@@ -122,12 +128,8 @@ class RecruiterAssignmentServiceForCandidates:
                         'days_active': None
                     }
 
-            # Guard 3: Find all active recruiters
-            recruiters = db.query(Users).filter(
-                Users.tenant_id == tenant_id,
-                Users.UserRole.ilike('%Recruiter%'),
-                Users.terminated_at.is_(None),
-            ).all()
+            # Guard 3: the recruiter pool (role template only, never UserRole text)
+            recruiters = active_recruiters(db, tenant_id)
 
             if not recruiters:
                 logger.error(f"[CandidateRecruiterAssignment] No recruiters in tenant {tenant_id}")

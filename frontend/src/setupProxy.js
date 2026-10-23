@@ -1,10 +1,12 @@
 const { createProxyMiddleware } = require('http-proxy-middleware');
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8081';
+
 module.exports = function(app) {
   app.use(
     '/api',
     createProxyMiddleware({
-      target: 'http://localhost:61849',
+      target: API_URL,
       changeOrigin: true,
       pathRewrite: {
         '^/api': '/api',
@@ -16,7 +18,7 @@ module.exports = function(app) {
   app.use(
     '/auth',
     createProxyMiddleware({
-      target: 'http://localhost:61849',
+      target: API_URL,
       changeOrigin: true,
     })
   );
@@ -24,7 +26,7 @@ module.exports = function(app) {
   app.use(
     '/message-queue',
     createProxyMiddleware({
-      target: 'http://localhost:61849',
+      target: API_URL,
       changeOrigin: true,
     })
   );

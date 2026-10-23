@@ -2,11 +2,12 @@
 // 2026-08-04 (app.services.employee_self_service) on top of the
 // already-real, already-tested HR-operated timesheet engine. Every
 // employee only ever sees/edits their OWN allocation and timesheet.
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { X, AlertTriangle, CheckCircle } from "lucide-react";
 import { Card, Button, Select } from "../components/ui";
 import {
-  getMyAllocations, getMyCurrentTimesheet, getMyTimesheetHistory, logMyHours, submitMyTimesheet,
+  getMyAllocations, getMyTimesheetForWeek, getMyTimesheetHistory, getMyTimesheetWeeks, logMyHours, submitMyTimesheet,
 } from "../services/api/myTimesheet";
 
 const STATUS_STYLES = {
@@ -22,64 +23,87 @@ function weekDays(weekStartingDate) {
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
-    return d.toISOString().slice(0, 10);
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${d.getFullYear()}-${month}-${day}`;
   });
+}
+
+function weekLabel(monday, index) {
+  if (index === 0) return `This week (from ${monday})`;
+  if (index === 1) return `Last week (from ${monday})`;
+  return `Week of ${monday}`;
 }
 
 export default function MyTimesheetScreen() {
   const [allocations, setAllocations] = useState([]);
   const [allocationId, setAllocationId] = useState("");
+  const [weeks, setWeeks] = useState([]);
+  const [week, setWeek] = useState("");
   const [timesheet, setTimesheet] = useState(null);
   const [hours, setHours] = useState({});
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // the server's own reason when this login has no employee record (404), shown instead of the screen
+  const [notLinked, setNotLinked] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
+  const [response, setResponse] = useState("");
+  // a resubmit task links here with ?week=YYYY-MM-DD&allocation=<id>
+  const [searchParams] = useSearchParams();
+  const linkedWeek = searchParams.get("week");
+  const linkedAllocation = searchParams.get("allocation");
 
-  const loadAllocations = async () => {
-    setActionError(null);
-    try {
-      const allocs = await getMyAllocations();
-      setAllocations(allocs || []);
-      if (allocs?.length) setAllocationId(allocs[0].id);
-    } catch {
-      setActionError("Could not load your project allocations.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadTimesheet = async (id) => {
-    if (!id) return;
-    setActionError(null);
-    try {
-      const ts = await getMyCurrentTimesheet(id);
-      setTimesheet(ts);
-      const byDate = {};
-      (ts.entries || []).forEach((e) => { byDate[e.entry_date] = String(e.hours); });
-      setHours(byDate);
-    } catch {
-      setActionError("Could not load this week's timesheet.");
-    }
-  };
-
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     try {
       setHistory(await getMyTimesheetHistory());
-    } catch {
-      // non-critical -- history is a secondary view
+    } catch (err) {
+      setActionError(`Could not load your recent timesheets: ${err.message}`);
     }
-  };
-
-  useEffect(() => {
-    loadAllocations();
-    loadHistory();
   }, []);
 
   useEffect(() => {
-    if (allocationId) loadTimesheet(allocationId);
-  }, [allocationId]);
+    const load = async () => {
+      setActionError(null);
+      try {
+        const [allocs, allowedWeeks] = await Promise.all([getMyAllocations(), getMyTimesheetWeeks()]);
+        setAllocations(allocs);
+        setWeeks(allowedWeeks);
+        const linkedAlloc = allocs.find((a) => a.id === linkedAllocation);
+        if (allocs.length) setAllocationId((linkedAlloc || allocs[0]).id);
+        if (allowedWeeks.length) setWeek(allowedWeeks.includes(linkedWeek) ? linkedWeek : allowedWeeks[0]);
+        await loadHistory();
+      } catch (err) {
+        if (err.status === 404) {
+          setNotLinked(err.message);
+        } else {
+          setActionError(`Could not load your project allocations: ${err.message}`);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [loadHistory, linkedAllocation, linkedWeek]);
+
+  useEffect(() => {
+    if (!allocationId || !week) return;
+    const loadTimesheet = async () => {
+      setActionError(null);
+      setTimesheet(null);
+      try {
+        const ts = await getMyTimesheetForWeek(allocationId, week);
+        setTimesheet(ts);
+        const byDate = {};
+        (ts.entries || []).forEach((e) => { byDate[e.entry_date] = String(e.hours); });
+        setHours(byDate);
+      } catch (err) {
+        setActionError(`Could not open the week of ${week}: ${err.message}`);
+      }
+    };
+    loadTimesheet();
+  }, [allocationId, week]);
 
   const handleSave = async () => {
     if (!timesheet) return;
@@ -105,8 +129,9 @@ export default function MyTimesheetScreen() {
     setActionError(null);
     setActionSuccess(null);
     try {
-      const submitted = await submitMyTimesheet(timesheet.id);
+      const submitted = await submitMyTimesheet(timesheet.id, response.trim());
       setTimesheet(submitted);
+      setResponse("");
       setActionSuccess("Timesheet submitted for approval.");
       loadHistory();
     } catch (err) {
@@ -116,7 +141,17 @@ export default function MyTimesheetScreen() {
 
   if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
 
-  if (allocations.length === 0) {
+  if (notLinked) {
+    return (
+      <div className="p-6 max-w-3xl mx-auto">
+        <Card>
+          <p className="text-sm text-gray-700">{notLinked}</p>
+        </Card>
+      </div>
+    );
+  }
+
+  if (allocations.length === 0 && !actionError) {
     return (
       <div className="p-6 max-w-3xl mx-auto">
         <Card>
@@ -128,7 +163,10 @@ export default function MyTimesheetScreen() {
 
   const days = timesheet ? weekDays(timesheet.week_starting_date) : [];
   const total = days.reduce((sum, d) => sum + (Number(hours[d]) || 0), 0);
-  const editable = timesheet && timesheet.status === "DRAFT";
+  // a rejected week is edited in place (the first change reopens it) or answered with a response
+  const editable = timesheet && (timesheet.status === "DRAFT" || timesheet.status === "REJECTED");
+  const rejection = timesheet?.rejection;
+  const flaggedDays = rejection?.flagged_dates || [];
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
@@ -162,8 +200,17 @@ export default function MyTimesheetScreen() {
           </button>
         </div>
       )}
-      {allocations.length > 1 && (
-        <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-3">
+        {weeks.length > 1 && (
+          <div className="w-64">
+            <Select
+              value={week}
+              onChange={setWeek}
+              options={weeks.map((w, i) => ({ value: w, label: weekLabel(w, i) }))}
+            />
+          </div>
+        )}
+        {allocations.length > 1 && (
           <div className="w-64">
             <Select
               value={allocationId}
@@ -171,8 +218,8 @@ export default function MyTimesheetScreen() {
               options={allocations.map((a) => ({ value: a.id, label: `${a.demand_job_title} (${a.role || "assigned"})` }))}
             />
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {timesheet && (
         <Card
@@ -183,9 +230,11 @@ export default function MyTimesheetScreen() {
             </span>
           }
         >
-          {timesheet.status === "REJECTED" && timesheet.rejection_reason && (
+          {rejection && (
             <div className="mb-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-bx px-3 py-2">
-              Rejected: {timesheet.rejection_reason}
+              <div className="font-semibold">Rejected: {rejection.reason}</div>
+              {flaggedDays.length ? <div>Days to fix: {flaggedDays.join(", ")}</div> : null}
+              <div className="mt-1 text-gray-700">Change the entries, or explain below why they are right, then submit again.</div>
             </div>
           )}
           <div className="grid grid-cols-7 gap-2 mb-4">
@@ -195,12 +244,13 @@ export default function MyTimesheetScreen() {
                   {new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { weekday: "short" })}
                 </div>
                 <input
+                  title={flaggedDays.includes(d) ? "Flagged by your approver" : undefined}
                   type="number"
                   min="0"
                   max="24"
                   step="0.5"
                   disabled={!editable}
-                  className="w-full text-center text-sm border border-bx-border rounded-bx px-1 py-2 outline-none focus:border-bx-orange disabled:bg-bx-light disabled:text-gray-400"
+                  className={`w-full text-center text-sm border rounded-bx px-1 py-2 outline-none focus:border-bx-orange disabled:bg-bx-light disabled:text-gray-400 ${flaggedDays.includes(d) ? "border-red-500 bg-red-50" : "border-bx-border"}`}
                   value={hours[d] ?? ""}
                   onChange={(e) => setHours({ ...hours, [d]: e.target.value })}
                 />
@@ -208,6 +258,15 @@ export default function MyTimesheetScreen() {
             ))}
           </div>
           <p className="text-sm text-gray-600 mb-3">Total: <span className="font-semibold text-bx-navy">{total}</span> hours</p>
+          {editable && rejection && (
+            <textarea
+              className="mb-2 w-full rounded-bx border border-bx-border px-2 py-1 text-sm"
+              rows={2}
+              placeholder="Your response to the rejection (required if you resubmit without changes)"
+              value={response}
+              onChange={(e) => setResponse(e.target.value)}
+            />
+          )}
           {editable && (
             <div className="flex gap-2">
               <Button variant="secondary" disabled={saving} onClick={handleSave}>{saving ? "Saving..." : "Save"}</Button>

@@ -8,7 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.tenant_context import tenant_id_of
+from app.core.dependencies import get_current_user, require_resource_permission
 from app.models.learning_transcript import (
     LearningTranscript,
     LearningAuditSummary,
@@ -18,7 +19,9 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 import logging
 
-router = APIRouter(prefix="/learning", tags=["learning"])
+# Learning audit data is SLM administration, like the other learning routers.
+router = APIRouter(prefix="/learning", tags=["learning"],
+                   dependencies=[Depends(require_resource_permission("slm-dashboard", "view"))])
 logger = logging.getLogger(__name__)
 
 
@@ -40,7 +43,7 @@ def get_all_learning_transcript(
 
     try:
         query = db.query(LearningTranscript).filter(
-            LearningTranscript.tenant_id == current_user.get("tenant_id")
+            LearningTranscript.tenant_id == tenant_id_of(current_user)
         )
 
         if module_name:
@@ -114,7 +117,7 @@ def get_learning_transcript_detail(
         transcript = db.query(LearningTranscript).filter(
             and_(
                 LearningTranscript.id == transcript_id,
-                LearningTranscript.tenant_id == current_user.get("tenant_id"),
+                LearningTranscript.tenant_id == tenant_id_of(current_user),
             )
         ).first()
 
@@ -260,7 +263,7 @@ def get_audit_summary(
     try:
         summaries = db.query(LearningAuditSummary).filter(
             and_(
-                LearningAuditSummary.tenant_id == current_user.get("tenant_id"),
+                LearningAuditSummary.tenant_id == tenant_id_of(current_user),
                 LearningAuditSummary.period == period,
                 LearningAuditSummary.period_start >= datetime.utcnow() - timedelta(days=days),
             )
@@ -316,7 +319,7 @@ def get_learning_by_entity(
         transcripts = db.query(LearningTranscript).filter(
             and_(
                 LearningTranscript.entity_id == entity_id,
-                LearningTranscript.tenant_id == current_user.get("tenant_id"),
+                LearningTranscript.tenant_id == tenant_id_of(current_user),
             )
         ).order_by(LearningTranscript.created_at).all()
 
@@ -380,7 +383,7 @@ def get_module_performance(
             transcripts = db.query(LearningTranscript).filter(
                 and_(
                     LearningTranscript.module_name == module,
-                    LearningTranscript.tenant_id == current_user.get("tenant_id"),
+                    LearningTranscript.tenant_id == tenant_id_of(current_user),
                     LearningTranscript.created_at >= datetime.utcnow() - timedelta(days=days),
                 )
             ).all()

@@ -56,7 +56,7 @@ python -m uvicorn app.main:app --reload  # Runs on :5000
 ```bash
 # Create database and user
 psql -U postgres -c "CREATE DATABASE onboarding_prod;"
-psql -U postgres -c "CREATE USER app_user WITH PASSWORD 'P7kQmR9xL2wJnV5sT8pM';"
+psql -U postgres -c "CREATE USER app_user WITH PASSWORD '<local-db-password>';"
 psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE onboarding_prod TO app_user;"
 
 # Run migrations
@@ -169,7 +169,7 @@ pytest tests/ -v
 
 ### Backend (.env or set via CI/CD)
 ```
-DATABASE_URL=postgresql://app_user:P7kQmR9xL2wJnV5sT8pM@localhost:5432/onboarding_prod
+DATABASE_URL=postgresql://app_user:<local-db-password>@localhost:5432/onboarding_prod
 BACKEND_PORT=8080
 BACKEND_HOST=0.0.0.0
 ```
@@ -182,7 +182,7 @@ REACT_APP_API_BASE_URL=http://46.224.149.7:8080
 ### Careers (.env)
 ```
 CAREERS_PORT=5000
-DATABASE_URL=postgresql://app_user:P7kQmR9xL2wJnV5sT8pM@localhost:5432/onboarding_prod
+DATABASE_URL=postgresql://app_user:<local-db-password>@localhost:5432/onboarding_prod
 ```
 
 ## Troubleshooting

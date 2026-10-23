@@ -3,16 +3,33 @@ import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
 from uuid import uuid4
-import random
 
 logger = logging.getLogger(__name__)
 
 QUEUE_TYPE_CANDIDATE = 'CANDIDATE_QUEUE'
 QUEUE_TYPE_THUNDER = 'THUNDER_QUEUE'
 QUEUE_TYPE_EMAIL = 'EMAIL_QUEUE'
+QUEUE_TYPE_FLASH = 'FLASH_QUEUE'
 
 DEFAULT_DELAY_SECONDS = 0
 QUEUE_ITEM_RETRY_COUNT_INITIAL = 0
+
+
+# Queue items that have not finished yet (an idempotency key matches these, not finished ones)
+IN_FLIGHT_STATUSES = ("PENDING", "SCHEDULED", "PROCESSING", "WAITING_FOR_SLM")
+
+
+def queue_label(task_name: str) -> str:
+    """The channel_type label of a queued task (CLAUDE.md queue routing): Thunder work is
+    THUNDER_QUEUE, other candidate work CANDIDATE_QUEUE, everything else (jobs, interviews,
+    offers, projects, recruiter runs) FLASH_QUEUE. The main poll in queue_processor_service
+    does not filter on this label; workers filter only on CANDIDATE_QUEUE and EMAIL_QUEUE."""
+    name = task_name.lower()
+    if 'thunder' in name:
+        return QUEUE_TYPE_THUNDER
+    if 'candidate' in name:
+        return QUEUE_TYPE_CANDIDATE
+    return QUEUE_TYPE_FLASH
 
 
 class MessageQueueService:
@@ -29,7 +46,7 @@ class MessageQueueService:
         trace_id: Optional[str] = None,  # HIGH FIX #4: Correlation ID for tracing
         idempotency_key: Optional[str] = None,
         status: Optional[str] = None,  # Allow overriding default status (e.g., 'WAITING_FOR_SLM')
-        tenant_id: int = 1  # PHASE 2: Tenant context for delivery_factory routing (default: BlitzenX)
+        tenant_id: Optional[int] = None  # delivery routing: given, else data["tenant_id"], else the only tenant
     ) -> Dict[str, Any]:
         """Queue a task to custom message queue. Uses database as primary store."""
         if not task_name:
@@ -38,6 +55,17 @@ class MessageQueueService:
 
         data = data or {}
         task_id = task_id or str(uuid4())
+        if tenant_id is None:
+            tenant_id = data.get("tenant_id")
+        if tenant_id is None:
+            from app.core.database import SessionLocal
+            from app.core.tenant_context import sole_tenant_id
+            lookup = SessionLocal()
+            try:
+                tenant_id = sole_tenant_id(lookup)
+            finally:
+                lookup.close()
+        tenant_id = int(tenant_id)
         trace_id = trace_id or str(uuid4())  # Generate trace_id if not provided
         data['__trace_id'] = trace_id  # Embed trace_id in payload for propagation
 
@@ -79,13 +107,25 @@ class MessageQueueService:
             if not idempotency_key:
                 idempotency_key = f"{task_name}:{task_id}"
 
+            # The same request while an earlier one is still in flight is the same message: return
+            # it instead of queueing a duplicate (a double-clicked "Add candidate", a retried API
+            # call). Once that message has finished, the same key queues again normally.
+            existing = (db.query(ChannelQueueItem)
+                        .filter(ChannelQueueItem.idempotency_key == idempotency_key,
+                                ChannelQueueItem.status.in_(IN_FLIGHT_STATUSES))
+                        .order_by(ChannelQueueItem.created_at.asc()).first())
+            if existing is not None:
+                logger.info(f"[QUEUE] {task_name}: duplicate of in-flight {existing.id} ({idempotency_key}) -- not queued again")
+                return {"status": "queued", "task_id": existing.id, "message_id": existing.message_id or existing.id,
+                        "queue_item_id": existing.id, "deduplicated": True}
+
             # Create queue item in database
             queue_item = ChannelQueueItem(
                 id=task_id,  # Use task_id as primary key for tracking
                 message_id=task_id,
                 tenant_id=tenant_id,  # PHASE 2: Set tenant context for delivery_factory routing
                 type=task_name,
-                channel_type=QUEUE_TYPE_THUNDER if 'engage_candidate_with_thunder' in task_name.lower() or 'assign_thunder' in task_name.lower() else (QUEUE_TYPE_CANDIDATE if 'candidate' in task_name.lower() else QUEUE_TYPE_THUNDER),
+                channel_type=queue_label(task_name),
                 status=queue_status,
                 payload=data,
                 retry_count=QUEUE_ITEM_RETRY_COUNT_INITIAL,

@@ -1516,7 +1516,7 @@ FIX:
 **Local Development:**
 ```bash
 # Set once in terminal
-export DATABASE_URL=postgresql://app_user:P7kQmR9xL2wJnV5sT8pM@localhost:5432/wros_dev
+export DATABASE_URL=postgresql://app_user:<local-db-password>@localhost:5432/wros_dev
 export ENVIRONMENT=development  # or leave unset (defaults to 'local')
 
 # Verify

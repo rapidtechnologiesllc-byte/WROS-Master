@@ -44,6 +44,14 @@ logger = logging.getLogger(__name__)
 # The checkout this file lives in (backend/app/services -> repo root)
 REPO_ROOT = str(pathlib.Path(__file__).resolve().parents[3])
 
+
+def require_code_commit_opt_in() -> None:
+    """Code that stages and commits to git runs only where a person explicitly allowed it
+    (ALLOW_CODE_COMMITS=1, e.g. a developer checkout). Off by default everywhere, so a run
+    on the production server can never commit into its checkout and break the next deploy."""
+    if os.getenv("ALLOW_CODE_COMMITS") != "1":
+        raise AutonomousSDLCError("Automated git commits are disabled (set ALLOW_CODE_COMMITS=1 to allow them here)")
+
 # SAFETY: Refuse to run in production
 ENVIRONMENT = os.getenv("ENVIRONMENT", "local").lower()
 ALLOWED_ENVIRONMENTS = ["local", "development", "debug"]
@@ -360,6 +368,7 @@ def _deploy_changes(develop_result: Dict[str, Any]) -> Dict[str, Any]:
         logger.info("[DEPLOY] No changes to commit")
         return {"deployed": False, "reason": "No fixes applied"}
 
+    require_code_commit_opt_in()
     try:
         logger.info("[DEPLOY] Committing changes to git")
 

@@ -107,7 +107,7 @@ class LearningEventCollector:
                 f"[EventCollector] Event recorded: "
                 f"module={module} action={action_type} "
                 f"entity={entity_id} "
-                f"predicted={predicted_outcome}({predicted_probability:.2f}) "
+                f"predicted={predicted_outcome}({'-' if predicted_probability is None else f'{predicted_probability:.2f}'}) "
                 f"actual={actual_outcome}({actual_success}) "
                 f"gap={confidence_gap}"
             )

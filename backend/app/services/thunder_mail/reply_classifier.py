@@ -3,6 +3,7 @@
 Opt-out detection is a deterministic rule that runs first and never depends
 on the LLM: no model output can turn "remove me" into "interested".
 """
+from app.core.tenant_context import sole_tenant_id
 import json
 import logging
 import re
@@ -105,7 +106,7 @@ def classify_reply(
     from app.services.prompt_framework_service import call_llm
     try:
         raw = call_llm(
-            db, str(tenant_id or 1), candidate_id, "thunder_reply_intent", "v1",
+            db, str(tenant_id if tenant_id is not None else sole_tenant_id(db)), candidate_id, "thunder_reply_intent", "v1",
             SYSTEM_PROMPT, f"Subject: {subject or ''}\n\n{(body or '')[:4000]}", 120, 0.0,
             llm_call=llm_call,
         )

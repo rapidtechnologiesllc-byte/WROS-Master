@@ -48,6 +48,34 @@ _JOBS = (
     ScheduledJob("auto_invoicing", "app.services.invoice_automation_service:run_auto_invoicing",
                  timedelta(days=1), timeout_s=600, daily_after_utc="04:00",
                  backlog_guard="app.services.invoice_automation_service:backlog_guard"),
+    # candidate-facing: queues first engagement (email cadence) for contactable candidates not yet
+    # engaged; the cadence itself enforces send caps, window, gap and consent
+    ScheduledJob("thunder_engagement_sweep", "app.services.thunder_engagement_sweep:run_sweep",
+                 timedelta(minutes=10), timeout_s=120, sends_external=True,
+                 backlog_guard="app.services.thunder_engagement_sweep:backlog_guard"),
+    # internal only: employees who meet the Core certification rules get one approval task for
+    # their BU Head; pending requests follow the current head (core_certification_service)
+    ScheduledJob("core_certification_sweep", "app.services.core_certification_service:run_daily_sweep",
+                 timedelta(days=1), timeout_s=300, daily_after_utc="05:00"),
+    # candidate- and interviewer-facing: interview reminders (before the start) and feedback
+    # nudges (after the end), each sent once and only near its due time
+    ScheduledJob("interview_reminders", "app.services.interview_reminder_job:run",
+                 timedelta(minutes=5), timeout_s=120, sends_external=True,
+                 backlog_guard="app.services.interview_reminder_job:backlog_guard"),
+    # candidate- and interviewer-facing: Flash missions (jobs created in the Flash chat) -- bench
+    # first, sourcing, interview scheduling as the requester, feedback chasing, until positions are
+    # filled by candidates who joined (flash_mission_service); off unless FLASH_MISSIONS_ENABLED
+    ScheduledJob("flash_mission_sweep", "app.services.flash_mission_service:run_sweep",
+                 timedelta(minutes=5), timeout_s=240, sends_external=True,
+                 backlog_guard="app.services.flash_mission_service:backlog_guard"),
+    # internal only: every billable working employee's weekly utilization for the last completed
+    # weeks (resource_management_service.run_utilization_snapshot); writes metrics, tells nobody
+    ScheduledJob("utilization_snapshot", "app.services.resource_management_service:run_utilization_snapshot",
+                 timedelta(days=7), timeout_s=600, daily_after_utc="06:00"),
+    # internal only: one task for the renewal owner when an ACTIVE allocation ends in
+    # RENEWAL_ALERT_DAYS (60/30/15) days; never twice for the same allocation, term and threshold
+    ScheduledJob("renewal_alerts", "app.services.allocation_renewal_service:run_renewal_alerts",
+                 timedelta(days=1), timeout_s=300, daily_after_utc="06:00"),
     ScheduledJob("birthday_drafts", "app.services.culture_agent_service:generate_birthday_drafts",
                  timedelta(days=1), timeout_s=120, daily_after_utc="03:00"),
 )

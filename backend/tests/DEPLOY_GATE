@@ -1,0 +1,5 @@
+# The production deploy gate: pytest runs exactly these (globs allowed), from backend/.
+# Read by .github/workflows/regression-tests.yml, test-and-deploy.yml and .githooks/pre-commit.
+# Since 2026-10-14 the whole backend suite passes, so the gate is the whole suite: a test that
+# is not worth running on every commit should be deleted, not left to rot outside the gate.
+tests/

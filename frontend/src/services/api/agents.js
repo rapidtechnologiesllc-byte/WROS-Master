@@ -1,29 +1,6 @@
 import { apiRequest } from "./client";
 
-// Partner ROI Agent
-
-export const getPartnerROIKpis = async (partnerId, yearMonth = null) => {
-  const url = `/agents/partner-roi/${partnerId}/kpis${yearMonth ? `?year_month=${yearMonth}` : ""}`;
-  const { data } = await apiRequest(url, { method: "GET" });
-  return data.data;
-};
-
-export const getPartnerROITrend = async (partnerId, monthsBack = 6) => {
-  const { data } = await apiRequest(
-    `/agents/partner-roi/${partnerId}/trend?months_back=${monthsBack}`,
-    { method: "GET" }
-  );
-  return data.data;
-};
-
-export const getPartnerROIActions = async (partnerId) => {
-  const { data } = await apiRequest(`/agents/partner-roi/${partnerId}/actions`, {
-    method: "GET",
-  });
-  return data.data;
-};
-
-// CFO Agent
+// CFO / CEO agents (partner performance: services/api/partnerHome.js)
 
 export const getCFOFinancialSnapshot = async (yearMonth = null) => {
   const url = `/agents/cfo/financial-snapshot${yearMonth ? `?year_month=${yearMonth}` : ""}`;

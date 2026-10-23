@@ -11,6 +11,7 @@ from app.api.v1.endpoints.documents import router as documents_router
 from app.api.v1.endpoints.offer_letters import router as offer_letters_router
 from app.api.v1.endpoints.newsletter import router as newsletter_router
 from app.api.v1.endpoints.checklists import router as checklists_router
+from app.api.v1.endpoints.checklist_templates import router as checklist_templates_router
 from app.api.v1.endpoints.candidate_status import router as candidate_status_router
 from app.api.v1.endpoints.ats import router as ats_router
 from app.api.v1.endpoints.email import router as email_router
@@ -27,6 +28,8 @@ from app.api.v1.endpoints.core_pull import router as core_pull_router
 from app.api.v1.endpoints.demand_confirmation import router as demand_confirmation_router
 from app.api.v1.endpoints.employees import router as employees_router
 from app.api.v1.endpoints.submissions import router as submissions_router
+from app.api.v1.endpoints.workforce import router as workforce_router
+from app.api.v1.endpoints.core_certification import router as core_certification_router
 from app.api.v1.endpoints.allocations import router as allocations_router
 from app.api.v1.endpoints.timesheets import router as timesheets_router
 from app.api.v1.endpoints.resource_forecast import router as resource_forecast_router
@@ -44,6 +47,7 @@ from app.api.v1.endpoints.partner_incentives import router as partner_incentives
 from app.api.v1.endpoints.revenue_targets import router as revenue_targets_router
 from app.api.v1.endpoints.forecast_and_leakage import router as forecast_and_leakage_router
 from app.api.v1.endpoints.cost_rate import router as cost_rate_router
+from app.api.v1.endpoints.margin_policies import router as margin_policies_router
 from app.api.v1.endpoints.revenue_chain import router as revenue_chain_router
 from app.api.v1.endpoints.public_chat import router as public_chat_router
 from app.api.v1.endpoints.flash import router as flash_router
@@ -66,6 +70,7 @@ from app.api.v1.endpoints.tickets import router as tickets_router
 from app.api.v1.endpoints.buddy_program import router as buddy_program_router
 from app.api.v1.endpoints.executive_signal import router as executive_signal_router
 from app.api.v1.endpoints.my_timesheet import router as my_timesheet_router
+from app.api.v1.endpoints.timesheet_approvals import router as timesheet_approvals_router
 from app.api.v1.endpoints.error_log import router as error_log_router
 from app.api.v1.endpoints.bu_context import router as bu_context_router
 from app.api.v1.endpoints.activity_timeline import router as activity_timeline_router
@@ -102,7 +107,6 @@ from app.api.v1.endpoints.learning_transcript import router as learning_transcri
 from app.api.v1.endpoints.health_check import router as health_check_router
 from app.api.v1.endpoints.slm_exports import router as slm_exports_router
 from app.api.v1.endpoints.flash_queue_metrics import router as flash_queue_metrics_router
-from app.api.v1.endpoints.csrf_token import router as csrf_token_router
 from app.api.v1.endpoints.system_diagnostics import router as system_diagnostics_router
 from app.api.v1.endpoints.api_keys import router as api_keys_router
 from app.api.v1.endpoints.role_templates import rbac_router
@@ -139,7 +143,6 @@ router.include_router(router=learning_transcript_router)
 router.include_router(router=health_check_router)
 router.include_router(router=slm_exports_router)
 router.include_router(router=flash_queue_metrics_router)
-router.include_router(router=csrf_token_router)
 router.include_router(router=system_diagnostics_router)
 router.include_router(router=api_keys_router)
 router.include_router(router=users_router)
@@ -153,6 +156,7 @@ router.include_router(router=documents_router)
 router.include_router(router=offer_letters_router)
 router.include_router(router=newsletter_router)
 router.include_router(router=checklists_router)
+router.include_router(router=checklist_templates_router)
 router.include_router(router=candidate_status_router)
 router.include_router(router=ats_router)
 router.include_router(router=email_router)
@@ -169,6 +173,8 @@ router.include_router(router=core_pull_router)
 router.include_router(router=demand_confirmation_router)
 router.include_router(router=employees_router)
 router.include_router(router=submissions_router)
+router.include_router(router=workforce_router)
+router.include_router(router=core_certification_router)
 router.include_router(router=allocations_router)
 router.include_router(router=timesheets_router)
 router.include_router(router=resource_forecast_router)
@@ -186,6 +192,7 @@ router.include_router(router=partner_incentives_router)
 router.include_router(router=revenue_targets_router)
 router.include_router(router=forecast_and_leakage_router)
 router.include_router(router=cost_rate_router)
+router.include_router(router=margin_policies_router)
 router.include_router(router=revenue_chain_router)
 router.include_router(router=public_chat_router)
 router.include_router(router=flash_router)
@@ -210,6 +217,7 @@ router.include_router(router=tickets_router)
 router.include_router(router=buddy_program_router)
 router.include_router(router=executive_signal_router)
 router.include_router(router=my_timesheet_router)
+router.include_router(router=timesheet_approvals_router)
 router.include_router(router=error_log_router)
 router.include_router(router=bu_context_router)
 router.include_router(router=activity_timeline_router)

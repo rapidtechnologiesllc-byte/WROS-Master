@@ -1,258 +1,173 @@
-import { apiFetch } from "../../services/api/client";
-import React, { useState, useEffect } from 'react'
-import styles from './EmailTemplatesScreen.module.css'
-
-const STAGES = [
-  { key: 'screening', label: 'Screening', icon: '📋' },
-  { key: 'interview', label: 'Interview', icon: '🎯' },
-  { key: 'offer', label: 'Offer', icon: '🎉' },
-  { key: 'hired', label: 'Hired', icon: '✅' },
-  { key: 'rejected', label: 'Rejected', icon: '❌' },
-]
+// Candidate stage email templates: one subject + HTML body per pipeline stage. The stages and the
+// placeholders come from the server (GET /email-templates); editing needs checklists.edit.
+import React, { useCallback, useEffect, useState } from "react";
+import { Mail } from "lucide-react";
+import { Button, Card, Input, TextArea } from "../../components/ui";
+import { alertDialog } from "../../utils/dialogs";
+import cx from "../../utils/cx";
+import { hasPermission } from "../../utils/permissionsRoleTemplate";
+import {
+  listStageEmailTemplates,
+  previewStageEmailTemplate,
+  saveStageEmailTemplate,
+} from "../../services/api/emailTemplates";
 
 export default function EmailTemplatesScreen() {
-  const [templates, setTemplates] = useState({})
-  const [selectedStage, setSelectedStage] = useState('screening')
-  const [editing, setEditing] = useState(false)
-  const [subject, setSubject] = useState('')
-  const [bodyHtml, setBodyHtml] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [preview, setPreview] = useState(false)
-  const [previewData, setPreviewData] = useState(null)
-  const [candidates, setCandidates] = useState([])
-  const [selectedCandidate, setSelectedCandidate] = useState('')
+  const [stages, setStages] = useState([]);
+  const [placeholders, setPlaceholders] = useState([]);
+  const [templates, setTemplates] = useState({});
+  const [selectedStage, setSelectedStage] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [subject, setSubject] = useState("");
+  const [bodyHtml, setBodyHtml] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [previewData, setPreviewData] = useState(null);
+  const [sampleName, setSampleName] = useState("Candidate");
+  const [sampleJob, setSampleJob] = useState("Position");
+  const canEdit = hasPermission("checklists", "edit");
+
+  const load = useCallback(async () => {
+    setLoadError("");
+    try {
+      const data = await listStageEmailTemplates();
+      setStages(data.stages);
+      setPlaceholders(data.placeholders);
+      setTemplates(Object.fromEntries(data.templates.map((t) => [t.stage, t])));
+      setSelectedStage((current) => current || data.stages[0]?.key || "");
+    } catch (error) {
+      console.error("[EmailTemplates] Failed to load templates:", error);
+      setLoadError(error.message);
+    }
+  }, []);
 
   useEffect(() => {
-    fetchTemplates()
-    fetchCandidates()
-  }, [])
+    load();
+  }, [load]);
 
+  const template = templates[selectedStage];
   useEffect(() => {
-    const template = templates[selectedStage]
-    if (template) {
-      setSubject(template.subject || '')
-      setBodyHtml(template.body_html || '')
-    }
-  }, [selectedStage, templates])
+    setSubject(template?.subject || "");
+    setBodyHtml(template?.body_html || "");
+    setEditing(false);
+  }, [selectedStage, template]);
 
-  const fetchTemplates = async () => {
-    try {
-      const response = await apiFetch('/api/v1/email-templates', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('hrms_token')}` }
-      })
-      const data = await response.json()
-      const templateMap = {}
-      data.templates?.forEach(t => {
-        templateMap[t.stage] = t
-      })
-      setTemplates(templateMap)
-    } catch (error) {
-      console.error('Failed to fetch templates:', error)
-    }
-  }
-
-  const fetchCandidates = async () => {
-    try {
-      const response = await apiFetch('/api/v1/candidates/all', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('hrms_token')}` }
-      })
-      const data = await response.json()
-      setCandidates(data.candidates || [])
-      if (data.candidates?.length > 0) {
-        setSelectedCandidate(data.candidates[0].candidate_id)
-      }
-    } catch (error) {
-      console.error('Failed to fetch candidates:', error)
-    }
-  }
+  const stageLabel = stages.find((s) => s.key === selectedStage)?.label || selectedStage;
 
   const handleSave = async () => {
-    setLoading(true)
+    setSaving(true);
     try {
-      const response = await apiFetch(`/api/v1/email-templates/${selectedStage}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('hrms_token')}`
-        },
-        body: JSON.stringify({
-          subject,
-          body_html: bodyHtml
-        })
-      })
-
-      if (response.ok) {
-        alert('Template saved successfully!')
-        setEditing(false)
-        await fetchTemplates()
-      }
+      const saved = await saveStageEmailTemplate(selectedStage, { subject, body_html: bodyHtml });
+      setTemplates((prev) => ({ ...prev, [saved.stage]: saved }));
+      alertDialog("Template saved.");
     } catch (error) {
-      console.error('Failed to save template:', error)
-      alert('Failed to save template')
+      console.error("[EmailTemplates] Failed to save template:", error);
+      alertDialog(`Failed to save template: ${error.message}`);
     } finally {
-      setLoading(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handlePreview = async () => {
-    if (!selectedCandidate) {
-      alert('Please select a candidate to preview')
-      return
-    }
-
     try {
-      const candidate = candidates.find(c => c.candidate_id === selectedCandidate)
-      if (!candidate) return
-
-      const candidateName = encodeURIComponent(candidate.candidate_name || 'Candidate')
-      const jobTitle = encodeURIComponent(candidate.candidate_job_title || 'Position')
-
-      const response = await apiFetch(`/api/v1/email-templates/${selectedStage}/preview?candidate_name=${candidateName}&job_title=${jobTitle}`,
-        {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('hrms_token')}` }
-        }
-      )
-      const data = await response.json()
-      setPreviewData(data)
-      setPreview(true)
+      setPreviewData(await previewStageEmailTemplate(selectedStage, { candidateName: sampleName, jobTitle: sampleJob }));
     } catch (error) {
-      console.error('Failed to preview template:', error)
-      alert('Failed to preview template')
+      console.error("[EmailTemplates] Failed to preview template:", error);
+      alertDialog(`Failed to preview template: ${error.message}`);
     }
+  };
+
+  if (loadError) {
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        Could not load email templates: {loadError}{" "}
+        <button className="font-semibold underline" onClick={load}>Retry</button>
+      </div>
+    );
   }
 
-  const stage = templates[selectedStage]
+  const placeholderHint = `Placeholders: ${placeholders.join(", ")}`;
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
-        <h1>Email Templates</h1>
-        <p>Manage email templates for candidate stage progression</p>
+    <div className="grid gap-4 md:grid-cols-[200px_1fr]">
+      <div className="flex flex-row flex-wrap gap-1 md:flex-col" role="tablist" aria-label="Stages">
+        {stages.map((s) => (
+          <button
+            key={s.key}
+            role="tab"
+            aria-selected={s.key === selectedStage}
+            onClick={() => setSelectedStage(s.key)}
+            className={cx(
+              "flex items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-semibold transition",
+              s.key === selectedStage
+                ? "bg-bx-navy text-white dark:bg-gray-700"
+                : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800",
+            )}
+          >
+            {s.label}
+            {!templates[s.key] && <span className="text-xs font-normal opacity-70">not set</span>}
+          </button>
+        ))}
       </div>
 
-      <div style={{ marginBottom: '20px', display: 'flex', gap: '20px', alignItems: 'center' }}>
-        <label style={{ fontWeight: '600', minWidth: '120px' }}>Preview with Candidate:</label>
-        <select
-          value={selectedCandidate}
-          onChange={(e) => setSelectedCandidate(e.target.value)}
-          style={{
-            padding: '10px 12px',
-            borderRadius: '6px',
-            border: '1px solid var(--color-border)',
-            backgroundColor: 'var(--color-bg-primary)',
-            color: 'var(--color-text-primary)',
-            fontSize: '14px',
-            minWidth: '300px',
-            maxWidth: '100%'
-          }}
-        >
-          <option value="">-- Select a candidate --</option>
-          {candidates.map(c => (
-            <option key={c.candidate_id} value={c.candidate_id}>
-              {c.candidate_name} - {c.candidate_job_title}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className={styles.layout}>
-        {/* Sidebar - Stage Selection */}
-        <div className={styles.sidebar}>
-          <h3>Stages</h3>
-          {STAGES.map(s => (
-            <button
-              key={s.key}
-              className={`${styles.stageBtn} ${selectedStage === s.key ? styles.active : ''}`}
-              onClick={() => setSelectedStage(s.key)}
-            >
-              <span className={styles.icon}>{s.icon}</span>
-              <span>{s.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Main Content */}
-        <div className={styles.content}>
-          {stage ? (
-            <>
-              <div className={styles.templateInfo}>
-                <div className={styles.stageName}>
-                  {STAGES.find(s => s.key === selectedStage)?.label} Email Template
+      <Card title={`${stageLabel} email`} subtitle="The email a candidate receives at this pipeline stage." icon={<Mail size={16} />}>
+        {editing ? (
+          <div className="space-y-4">
+            <Input label="Subject line" value={subject} onChange={setSubject} />
+            <TextArea label="Email body (HTML)" value={bodyHtml} onChange={setBodyHtml} rows={12} />
+            <p className="text-xs text-gray-500">{placeholderHint}</p>
+            <div className="flex gap-2">
+              <Button onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save template"}</Button>
+              <Button variant="secondary" onClick={() => setEditing(false)}>Cancel</Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {template ? (
+              <>
+                <div>
+                  <div className="mb-1 text-xs font-semibold text-gray-700">Subject line</div>
+                  <div className="text-sm text-gray-900">{subject}</div>
                 </div>
-                {!editing ? (
-                  <div className={styles.viewMode}>
-                    <div className={styles.field}>
-                      <label>Subject Line</label>
-                      <div className={styles.value}>{subject}</div>
-                    </div>
-                    <div className={styles.field}>
-                      <label>Email Body</label>
-                      <div className={styles.emailPreview} dangerouslySetInnerHTML={{ __html: bodyHtml }} />
-                    </div>
-                    <div className={styles.actions}>
-                      <button className={styles.btnPrimary} onClick={() => setEditing(true)}>
-                        ✏️ Edit Template
-                      </button>
-                      <button className={styles.btnSecondary} onClick={handlePreview}>
-                        👁️ Preview
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className={styles.editMode}>
-                    <div className={styles.field}>
-                      <label>Subject Line</label>
-                      <input
-                        type="text"
-                        value={subject}
-                        onChange={(e) => setSubject(e.target.value)}
-                        placeholder="E.g., Interview Invitation for [Job Title] - BlitzenX"
-                      />
-                      <small>Use [Candidate Name] and [Job Title] for placeholders</small>
-                    </div>
-                    <div className={styles.field}>
-                      <label>Email Body (HTML)</label>
-                      <textarea
-                        value={bodyHtml}
-                        onChange={(e) => setBodyHtml(e.target.value)}
-                        rows={15}
-                        placeholder="Enter HTML email content..."
-                      />
-                      <small>HTML email template. Use [Candidate Name] and [Job Title] for placeholders</small>
-                    </div>
-                    <div className={styles.actions}>
-                      <button className={styles.btnPrimary} onClick={handleSave} disabled={loading}>
-                        {loading ? 'Saving...' : '💾 Save Template'}
-                      </button>
-                      <button className={styles.btnSecondary} onClick={() => setEditing(false)}>
-                        ❌ Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <div>
+                  <div className="mb-1 text-xs font-semibold text-gray-700">Email body</div>
+                  <div className="rounded-lg border bg-gray-50 p-4 text-sm text-gray-900" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-gray-600">No template saved for this stage yet.</p>
+            )}
+            {canEdit && (
+              <Button onClick={() => setEditing(true)}>{template ? "Edit template" : "Create template"}</Button>
+            )}
+            {template && (
+              <div className="flex flex-wrap items-end gap-2 border-t pt-4">
+                <Input label="Preview with candidate name" value={sampleName} onChange={setSampleName} />
+                <Input label="and job title" value={sampleJob} onChange={setSampleJob} />
+                <Button variant="secondary" onClick={handlePreview}>Preview</Button>
               </div>
-            </>
-          ) : (
-            <div className={styles.noTemplate}>
-              <p>No template found for this stage</p>
-            </div>
-          )}
-        </div>
-      </div>
+            )}
+          </div>
+        )}
+      </Card>
 
-      {/* Preview Modal */}
-      {preview && previewData && (
-        <div className={styles.modal} onClick={() => setPreview(false)}>
-          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-            <button className={styles.closeBtn} onClick={() => setPreview(false)}>✕</button>
-            <h2>Email Preview</h2>
-            <div className={styles.previewSubject}>
-              <strong>Subject:</strong> {previewData.subject}
+      {previewData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setPreviewData(null)}>
+          <div
+            role="dialog"
+            aria-label="Email preview"
+            className="max-h-[85vh] w-full max-w-2xl overflow-auto rounded-2xl bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">Email preview</h2>
+              <Button variant="ghost" onClick={() => setPreviewData(null)}>Close</Button>
             </div>
-            <div className={styles.previewBody} dangerouslySetInnerHTML={{ __html: previewData.body_html }} />
+            <div className="mb-3 text-sm text-gray-900"><strong>Subject:</strong> {previewData.subject}</div>
+            <div className="rounded-lg border p-4 text-sm text-gray-900" dangerouslySetInnerHTML={{ __html: previewData.body_html }} />
           </div>
         </div>
       )}
     </div>
-  )
+  );
 }

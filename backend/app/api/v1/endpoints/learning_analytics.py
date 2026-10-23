@@ -15,6 +15,7 @@ from sqlalchemy import and_, desc
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_resource_permission
+from app.core.tenant_context import tenant_id_of
 from app.models.user import Users
 from app.models.genetic_weight_population import GeneticWeightPopulation
 from app.models.ab_test_deployment import ABTestDeployment, ABTestDecision, ABTestStageMetrics
@@ -22,6 +23,12 @@ from app.models.behavioral_adaptation_rules import BehavioralAdaptationRule, Rul
 from app.models.cascading_signal_log import CascadingSignalLog, CascadingSignalMetrics
 
 logger = logging.getLogger(__name__)
+
+
+def _session_tenant_id(current_user: Users = Depends(get_current_user)) -> str:
+    """The caller's tenant (these tables key tenant_id as text). Never taken from request
+    input: a query-string tenant_id let any caller read another tenant's learning data."""
+    return str(tenant_id_of(current_user))
 
 # Learning-system data is SLM administration: every route needs slm-dashboard view,
 # and anything that starts a learning cycle needs slm-dashboard edit (route-level below).
@@ -36,7 +43,7 @@ router = APIRouter(prefix="/learning", tags=["learning_analytics"],
 @router.get("/genetic-populations/{orchestrator}")
 def get_genetic_populations(
     orchestrator: str,
-    tenant_id: str = Query(..., description="Tenant ID"),
+    tenant_id: str = Depends(_session_tenant_id),
     limit: int = Query(10, description="Number of generations to return"),
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_user),
@@ -112,7 +119,7 @@ def get_genetic_populations(
 @router.get("/genetic-populations/{orchestrator}/latest")
 def get_latest_population(
     orchestrator: str,
-    tenant_id: str = Query(...),
+    tenant_id: str = Depends(_session_tenant_id),
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_user),
 ) -> Dict[str, Any]:
@@ -171,7 +178,7 @@ def get_latest_population(
 @router.get("/ab-tests/{orchestrator}")
 def get_ab_tests(
     orchestrator: str,
-    tenant_id: str = Query(...),
+    tenant_id: str = Depends(_session_tenant_id),
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_user),
 ) -> Dict[str, Any]:
@@ -238,7 +245,7 @@ def get_ab_tests(
 @router.get("/ab-tests/{orchestrator}/active")
 def get_active_ab_test(
     orchestrator: str,
-    tenant_id: str = Query(...),
+    tenant_id: str = Depends(_session_tenant_id),
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_user),
 ) -> Dict[str, Any]:
@@ -313,7 +320,7 @@ def get_active_ab_test(
 @router.get("/behavioral-rules/{orchestrator}")
 def get_behavioral_rules(
     orchestrator: str,
-    tenant_id: str = Query(...),
+    tenant_id: str = Depends(_session_tenant_id),
     is_active: Optional[bool] = Query(None),
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_user),
@@ -383,7 +390,7 @@ def get_behavioral_rules(
 def get_cascading_signal_metrics(
     source_orchestrator: str = Query(...),
     target_orchestrator: str = Query(...),
-    tenant_id: str = Query(...),
+    tenant_id: str = Depends(_session_tenant_id),
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_user),
 ) -> Dict[str, Any]:
@@ -433,7 +440,7 @@ def get_cascading_signal_metrics(
 
 @router.get("/cascading-signals/recent")
 def get_recent_signals(
-    tenant_id: str = Query(...),
+    tenant_id: str = Depends(_session_tenant_id),
     limit: int = Query(50),
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_user),

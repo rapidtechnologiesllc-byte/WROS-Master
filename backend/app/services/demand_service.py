@@ -22,8 +22,7 @@ class BenchFirstNotChecked(Exception):
 def create_demand(db: Session, **fields) -> Demand:
     """
     Enforces the spec's UNIQUE(tenant_id, client_id, job_title,
-    status='OPEN') at the application layer (a partial/conditional
-    unique index isn't portable across SQLite/SQL Server the same way).
+    status='OPEN') at the application layer.
     Only matters for demands actually being opened -- DRAFT duplicates
     are fine, since they're not yet visible to sourcing/recruiting.
     """

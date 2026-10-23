@@ -1,13 +1,14 @@
-from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, Index, Enum
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, Enum
+from sqlalchemy.orm import column_property, relationship
 import logging
 from app.models.base import Base
 
-# HRMS-P606 (R-03): only W2_FULLTIME may ever be submitted. UNKNOWN is the
-# safe-upgrade default for every existing row -- fails closed, same as C2C/1099,
-# until someone explicitly confirms the candidate is W2 full-time.
-CANDIDATE_EMPLOYMENT_TYPES = ("W2_FULLTIME", "C2C", "1099", "UNKNOWN")
+# One canonical set of employment types (CEO 2026-10-15). Which a candidate's country accepts,
+# and what each is called there ("W2 full-time" in the US, "Full-time" in India), is
+# configuration: app.services.employment_type_policy. C2C and 1099 are never accepted; UNKNOWN
+# (the default) fails closed at client submission (HRMS-P606) but may interview.
+# W2_FULLTIME rows became FULLTIME (app.core.db_contract._initialize_employment_types).
+CANDIDATE_EMPLOYMENT_TYPES = ("FULLTIME", "CONTRACT", "C2C", "1099", "UNKNOWN")
 
 # HRMS-P816: sourcing attribution. Immutable once set (BR-0816-01) --
 # enforced at the service layer (only set at creation time, in
@@ -64,9 +65,8 @@ class Candidate(Base):
     # Distinct from profile completeness (BR-01) -- never combine the two.
     resume_completeness_score = Column(Integer, nullable=True)
     # HRMS-P606 (R-03) -- fails closed to UNKNOWN for every existing row
-    # (see CANDIDATE_EMPLOYMENT_TYPES above); direct WROS-sourced candidates
-    # should be set to W2_FULLTIME explicitly by whichever story owns
-    # candidate creation/intake -- not assumed here.
+    # (see CANDIDATE_EMPLOYMENT_TYPES above); set on the profile, or FULLTIME/CONTRACT
+    # when the candidate is converted to an employee -- never assumed.
     employment_type = Column(
         Enum(*CANDIDATE_EMPLOYMENT_TYPES, name="candidate_employment_type", native_enum=False, create_constraint=True),
         nullable=False, server_default="UNKNOWN", default="UNKNOWN",
@@ -78,6 +78,10 @@ class Candidate(Base):
     # per-candidate values would come from whichever intake flow
     # eventually captures location -- not resolved here.
     timezone = Column(String(64), nullable=False, server_default="Asia/Kolkata", default="Asia/Kolkata")
+    # ISO 3166-1 alpha-2 country the candidate works from: decides which employment types are
+    # accepted (app.services.employment_type_policy). NULL = unknown: may interview, never
+    # submitted to a client.
+    country = Column(String(2), nullable=True)
     # HRMS-P816 -- internal-analytics-only, BR-0816-02: never exposed to
     # any candidate- or client-facing view/API response.
     source_channel = Column(
@@ -105,7 +109,7 @@ class Candidate(Base):
     submission_bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     associated_bu_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     # Multi-tenant isolation: tenant_id must be set, never allow None
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, server_default="1", default=1, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     submission_timestamp = Column(DateTime, nullable=True)  # When candidate was submitted to BU
     thunder_enabled = Column(Boolean, nullable=False, default=True, server_default="1")  # Enable/disable Thunder autonomous processing
 
@@ -275,7 +279,8 @@ class CandidateStatus(Base):
     __tablename__ = "candidate_status"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     candidateID = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False)
-    piplineStatus = Column(String(512), nullable=True, default="Applied")
+    # active_history: the previous value is loaded on change, so the status hook knows old -> new
+    piplineStatus = column_property(Column(String(512), nullable=True, default="Applied"), active_history=True)
     status = Column(String(512), nullable=True, default="Active")
     thunder_assigned_at = Column(DateTime(timezone=True), nullable=True)
     createdAt = Column(DateTime(timezone=False), server_default=func.now())
@@ -326,3 +331,41 @@ def _sync_experience_months(mapper, connection, candidate):
 from sqlalchemy import event as _event  # noqa: E402
 _event.listen(Candidate, "before_insert", _sync_experience_months)
 _event.listen(Candidate, "before_update", _sync_experience_months)
+
+
+# Every pipeline-status change notifies the candidate once the transaction commits
+# (app.services.candidate_status_notifications). Recorded at flush, queued after commit,
+# dropped on rollback -- so every writer is covered and nothing is sent for an undone change.
+from sqlalchemy import event as _event  # noqa: E402
+from sqlalchemy import inspect as _inspect  # noqa: E402
+from sqlalchemy.orm import Session as _Session  # noqa: E402
+
+_STATUS_CHANGES_KEY = "candidate_status_changes"
+
+
+@_event.listens_for(_Session, "before_flush")
+def _record_pipeline_status_changes(session, flush_context, instances):
+    for obj in list(session.new) + list(session.dirty):
+        if not isinstance(obj, CandidateStatus) or not obj.piplineStatus:
+            continue
+        history = _inspect(obj).attrs.piplineStatus.history
+        if obj in session.new or history.has_changes():
+            old = history.deleted[0] if history.deleted else None
+            if old != obj.piplineStatus:
+                session.info.setdefault(_STATUS_CHANGES_KEY, []).append(
+                    (obj.candidateID, old, obj.piplineStatus))
+
+
+@_event.listens_for(_Session, "after_commit")
+def _queue_pipeline_status_changes(session):
+    changes = session.info.pop(_STATUS_CHANGES_KEY, None)
+    if not changes:
+        return
+    from app.services.candidate_status_notifications import queue_status_change
+    for candidate_id, old, new in changes:
+        queue_status_change(candidate_id, old, new)
+
+
+@_event.listens_for(_Session, "after_rollback")
+def _drop_pipeline_status_changes(session):
+    session.info.pop(_STATUS_CHANGES_KEY, None)

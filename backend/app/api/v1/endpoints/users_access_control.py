@@ -18,29 +18,17 @@ Permission Model:
 
 Same pattern applied to all other resources (business_units, role_templates, etc.).
 """
-import uuid
-
+from app.core.tenant_context import tenant_id_of
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
-from typing import List, Optional
+from typing import Optional
 
 from app.core.database import get_db
-from app.core.dependencies import (
-    require_resource_permission,
-    get_current_internal_user,
-    require_role_template_permission,
-    require_resource_permission,
-)
-from app.core.permission_registry import Permissions
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
-from app.models.business_unit import BusinessUnit
 from app.models.location import Location
-from app.models.org_structure import OrgNode
 from app.models.role_template import RoleTemplate
-from app.schemas.user import AllUsersResponse, UserResponse
-from app.services.role_template_permission_service import RoleTemplatePermissionService
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/admin/users-access-control", tags=["Users Access Control"])
@@ -97,21 +85,15 @@ PARENT_COMPANY_TYPE = "HQ"
 
 
 def _validate_company_structure(db: Session, tenant_id, center_type, parent_company_id, company_id=None):
-    """A subsidiary must name an existing parent company; a parent company has none."""
-    if center_type == PARENT_COMPANY_TYPE:
-        if parent_company_id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A parent company cannot itself have a parent company")
-        return None
+    """Every company is a registered entity that reports to the holding company (the tenant,
+    e.g. BlitzenX), which owns the org-wide P&L. A parent company inside the tenant is optional
+    (legal nesting only); when given it must be another company of the same tenant."""
     if not parent_company_id:
-        has_parent = db.query(Location).filter(Location.tenant_id == tenant_id, Location.location_type == PARENT_COMPANY_TYPE).first()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Pick the parent company this subsidiary belongs to" if has_parent
-            else "Add the parent company first: a subsidiary has to belong to one",
-        )
+        return None
     parent = db.query(Location).filter(Location.id == parent_company_id, Location.tenant_id == tenant_id).first()
-    if parent is None or parent.location_type != PARENT_COMPANY_TYPE or parent.id == company_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="The parent must be an existing parent company")
+    if parent is None or parent.id == company_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="The parent must be another company of the same holding company")
     return parent.id
 
 @router.get(
@@ -131,13 +113,13 @@ def list_delivery_centers(
     from app.models.employee import Employee
     from app.services.ceo_fy_progress_service import WORKING_STATUSES_EXCLUDED
 
-    query = db.query(Location)
+    from app.models.tenant import Tenant
 
-    if hasattr(current_user, 'tenant_id'):
-        query = query.filter(Location.tenant_id == current_user.tenant_id)
-
+    tenant_id = tenant_id_of(current_user)
+    query = db.query(Location).filter(Location.tenant_id == tenant_id)
     total = query.count()
-    locations = query.order_by(Location.name).offset(skip).limit(limit).all()
+    locations = query.order_by(Location.company_seq, Location.name).offset(skip).limit(limit).all()
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     ids = [l.id for l in locations]
     names = {l.id: l.name for l in db.query(Location).filter(Location.tenant_id == current_user.tenant_id)}
     headcount = dict(
@@ -155,6 +137,8 @@ def list_delivery_centers(
             {
                 "id": l.id,
                 "name": l.name,
+                # "<tenant>-<n>": this company inside its parent company (the tenant)
+                "company_code": l.company_code,
                 "city": getattr(l, 'city', None),
                 "state": getattr(l, 'state', None),
                 "parent_company_id": l.parent_company_id,
@@ -167,6 +151,9 @@ def list_delivery_centers(
             }
             for l in locations
         ],
+        # The parent company is the tenant: it owns the org-wide P&L of all its companies
+        "parent_company": {"tenant_id": tenant_id, "name": tenant.name if tenant else None,
+                           "company_code": str(tenant_id)},
         "total": total,
         "skip": skip,
         "limit": limit
@@ -185,9 +172,12 @@ def create_delivery_center(
     # Validate input
     if not req.name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Company name is required")
-    tenant_id = current_user.tenant_id if hasattr(current_user, 'tenant_id') else 1
+    tenant_id = tenant_id_of(current_user)
     parent_id = _validate_company_structure(db, tenant_id, req.center_type, req.parent_company_id)
 
+    # Next number inside the tenant (code "<tenant>-<n>"); the unique index makes a race fail loudly
+    from sqlalchemy import func as sql_func
+    next_seq = (db.query(sql_func.max(Location.company_seq)).filter(Location.tenant_id == tenant_id).scalar() or 0) + 1
     new_dc = Location(
         parent_company_id=parent_id,
         name=req.name,
@@ -196,7 +186,8 @@ def create_delivery_center(
         country=req.country,
         location_type=req.center_type,
         headcount=req.headcount,
-        tenant_id=current_user.tenant_id if hasattr(current_user, 'tenant_id') else 1
+        tenant_id=tenant_id,
+        company_seq=next_seq,
     )
 
     db.add(new_dc)
@@ -206,6 +197,7 @@ def create_delivery_center(
     return {
         "id": new_dc.id,
         "name": new_dc.name,
+        "company_code": new_dc.company_code,
         "status": "created"
     }
 
@@ -266,12 +258,12 @@ def delete_delivery_center(
     current_user: Users = Depends(get_current_internal_user)
 ):
     """Delete delivery center (Super User only)."""
-    dc = db.query(Location).filter(Location.id == dc_id).first()
+    from app.core.references import ensure_deletable
+
+    dc = db.query(Location).filter(Location.id == dc_id, Location.tenant_id == current_user.tenant_id).first()
     if not dc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Delivery Center not found")
-    if db.query(Location).filter(Location.parent_company_id == dc.id).first():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail="This parent company has subsidiaries; delete or move them first")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
+    ensure_deletable(db, dc, f"Company '{dc.name}'")  # subsidiaries, users, seats, BU links ...
 
     db.delete(dc)
     db.commit()
@@ -300,12 +292,6 @@ class OrgNodeUpdateRequest(BaseModel):
 # ============================================================================
 # ROLE TEMPLATES ENDPOINTS
 # ============================================================================
-
-class RoleTemplateCreateRequest(BaseModel):
-    name: str
-    display_name: Optional[str] = None
-    description: Optional[str] = None
-    permissions: Optional[list] = []
 
 @router.get(
     "/role-templates",
@@ -343,37 +329,4 @@ def list_role_templates(
         "limit": limit
     }
 
-
-@router.post(
-    "/role-templates",
-    dependencies=[Depends(require_resource_permission("role-templates", "create"))]
-)
-def create_role_template(
-    req: RoleTemplateCreateRequest,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(get_current_internal_user)
-):
-    """Create a new role template (Admin and Super User only)."""
-    # Validate input
-    if not req.name:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role template name is required")
-
-    new_template = RoleTemplate(
-        name=req.name,
-        display_name=req.display_name or req.name,
-        description=req.description,
-        is_active=True,
-        tenant_id=current_user.tenant_id if hasattr(current_user, 'tenant_id') else 1
-    )
-
-    db.add(new_template)
-    db.commit()
-    db.refresh(new_template)
-
-    return {
-        "id": new_template.id,
-        "name": new_template.name,
-        "display_name": new_template.display_name,
-        "status": "created"
-    }
 

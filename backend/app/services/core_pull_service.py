@@ -29,6 +29,7 @@ from app.models.employee import Employee, EmployeeEngineHistory
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.core_pull import CorePullEvent, SpecialtyPoolReplacementPlan
 from app.models.user import Users
+from app.services.deployment_readiness_service import assert_deployable
 from app.services.notification_service import send_notification
 from app.services.orchestration_router_service import evaluate_action_intent
 
@@ -138,11 +139,9 @@ def log_replacement_plan(
         # Explicit, not the column's server_default -- must be directly
         # comparable to CorePullEvent.detected_at (also set explicitly, see
         # that constructor's comment) in _has_replacement_plan_since().
-        # Mixing a Python-side microsecond-precision timestamp against a
-        # SQLite server_default=func.now() value (no fractional seconds)
-        # can make a plan logged AFTER detection sort as "before" it purely
-        # from string-length differences -- same clock on both sides avoids
-        # that regardless of backend.
+        # Mixing a Python-side timestamp with a server_default=func.now()
+        # value (the transaction start time) can make a plan logged AFTER
+        # detection sort as "before" it -- same clock on both sides avoids that.
         logged_at=datetime.utcnow(),
     )
     db.add(plan)
@@ -241,10 +240,11 @@ def execute_core_pull(
 ) -> CorePullEvent:
     """
     CorePullEngine.execute() -- same-day, no negotiation. Not
-    allocate_employee_to_project()'s normal gate: BuddyProgramNotGraduated
-    and EmployeeAlreadyAllocated don't apply here (this employee is
-    already Core-Certified, and holding an active Speciality allocation
-    is the very thing being transferred, not a conflict to block on).
+    allocate_employee_to_project(): EmployeeAlreadyAllocated doesn't apply
+    (holding an active Speciality allocation is the very thing being
+    transferred, not a conflict to block on). The deployment gates do (CEO
+    2026-10-14: Core Pull is not exempt): Buddy graduated, no open
+    escalation, Core-certified for the Core client -- EmployeeNotDeployable.
 
     speciality_rm/bu_head: caller-supplied, best-effort notifications --
     this codebase has no RM/BU-Head roster resolution built (same posture
@@ -264,6 +264,8 @@ def execute_core_pull(
         db.query(EmployeeAllocation).filter(EmployeeAllocation.id == event.speciality_allocation_id).first()
     )
     core_demand = db.query(Demand).filter(Demand.id == event.core_demand_id).first()
+
+    assert_deployable(db, employee, core_demand)
 
     guard = check_specialty_pool_guard(db, employee)
     if guard["below_minimum"] and not _has_replacement_plan_since(db, employee.id, since=event.detected_at):
@@ -297,6 +299,11 @@ def execute_core_pull(
     )
     db.add(new_allocation)
     db.flush()
+    # the margin guard on the new Core placement: below the floor it waits for approval (no Core
+    # timesheet until then) -- Core Pull is not exempt from the rate card (CEO 2026-10-23)
+    from app.services.employee_allocation_service import apply_margin_guard
+
+    apply_margin_guard(db, new_allocation, employee, core_demand, changed_by=None, reason=f"Core-Pull {event.id}")
 
     if employee.delivery_engine != "CORE":
         employee.delivery_engine = "CORE"
@@ -321,8 +328,8 @@ def execute_core_pull(
                     f"Effective today. Please plan replacement sourcing."
                 ),
             )
-        except Exception:
-            pass  # best-effort -- never blocks the transfer itself
+        except Exception as exc:  # best-effort -- never blocks the transfer itself, but logged
+            logger.error(f"[CorePull] could not notify the Speciality RM of {event.id}: {exc}", exc_info=True)
     if bu_head is not None:
         try:
             send_notification(
@@ -332,8 +339,8 @@ def execute_core_pull(
                     f"Specialty pool now at {guard['pool_size_after_move']} Core-Certified."
                 ),
             )
-        except Exception:
-            pass
+        except Exception as exc:  # best-effort, logged
+            logger.error(f"[CorePull] could not notify the BU Head of {event.id}: {exc}", exc_info=True)
 
     return event
 
@@ -392,7 +399,7 @@ def override_core_pull(
                     f"{OVERRIDE_ALERT_WINDOW_DAYS} days. Core pool may be insufficient."
                 ),
             )
-        except Exception:
-            pass
+        except Exception as exc:  # best-effort, logged
+            logger.error(f"[CorePull] could not alert the director about overrides: {exc}", exc_info=True)
 
     return event

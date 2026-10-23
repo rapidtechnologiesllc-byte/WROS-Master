@@ -1,7 +1,24 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List
+from pydantic import AfterValidator, BaseModel, Field, PlainSerializer
+from typing import Annotated, Optional, List
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
+
+
+# Interview times are stored as naive UTC (flash spec E16). Input with an offset is converted;
+# input without one is taken as UTC. Output always says it is UTC ("...Z"), so a browser shows
+# the viewer's local time instead of treating the value as local wall-clock time.
+def _to_naive_utc(value: datetime) -> datetime:
+    if value is None or value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _utc_iso(value: datetime) -> str:
+    return _to_naive_utc(value).isoformat() + "Z"
+
+
+UtcDateTimeIn = Annotated[datetime, AfterValidator(_to_naive_utc)]
+UtcDateTime = Annotated[datetime, PlainSerializer(_utc_iso, return_type=str, when_used="json")]
 
 # ============================================
 # Interview Panel Schemas
@@ -92,16 +109,16 @@ class InterviewCreate(BaseModel):
     """Schema for creating a new interview"""
     panel_id: int
     candidate_id: str
-    start_time: datetime
-    end_time: datetime
+    start_time: UtcDateTimeIn
+    end_time: UtcDateTimeIn
     meeting_link: Optional[str] = None
     outlook_event_id: Optional[str] = None
     status: str = Field(default="Scheduled", description="Status: Scheduled, Completed, Cancelled")
 
 class InterviewUpdate(BaseModel):
     """Schema for updating an interview"""
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
+    start_time: Optional[UtcDateTimeIn] = None
+    end_time: Optional[UtcDateTimeIn] = None
     meeting_link: Optional[str] = None
     outlook_event_id: Optional[str] = None
     status: Optional[str] = None
@@ -112,8 +129,8 @@ class InterviewResponse(BaseModel):
     id: int
     panel_id: int
     candidate_id: str
-    start_time: datetime
-    end_time: datetime
+    start_time: UtcDateTime
+    end_time: UtcDateTime
     meeting_link: Optional[str] = None
     outlook_event_id: Optional[str] = None
     status: str
@@ -135,8 +152,8 @@ class InterviewDetailedResponse(BaseModel):
     candidate_id: str
     candidate_name: str
     candidate_email: str
-    start_time: datetime
-    end_time: datetime
+    start_time: UtcDateTime
+    end_time: UtcDateTime
     meeting_link: Optional[str] = None
     outlook_event_id: Optional[str] = None
     status: str
@@ -274,8 +291,8 @@ class MyInterviewItem(BaseModel):
     candidate_id: str
     candidate_name: str
     candidate_email: str
-    start_time: datetime
-    end_time: datetime
+    start_time: UtcDateTime
+    end_time: UtcDateTime
     meeting_link: Optional[str] = None
     status: str
     feedback_submitted: bool
@@ -326,8 +343,8 @@ class HMInterviewRound(BaseModel):
     """One completed interview round with all its feedback entries."""
     interview_id: int
     round_name: str
-    start_time: datetime
-    end_time: datetime
+    start_time: UtcDateTime
+    end_time: UtcDateTime
     status: str
     panel_id: int
     feedbacks: List[HMFeedbackDetail]

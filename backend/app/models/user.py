@@ -182,7 +182,7 @@ class Jobs(Base):
     max_experience_years = Column(Numeric(4, 1), nullable=True)
     work_location = Column(Enum(*JOB_WORK_LOCATIONS, name="job_work_location", native_enum=False, create_constraint=True),
                            nullable=False, default="REMOTE", server_default="REMOTE")
-    employment_type = Column(String(50), nullable=False, default="W2_FULLTIME", server_default="W2_FULLTIME")
+    employment_type = Column(String(50), nullable=False, default="FULLTIME", server_default="FULLTIME")
     interview_type_required = Column(String(20), nullable=False, default="L1_AND_L2", server_default="L1_AND_L2")
     positions_filled = Column(Integer, nullable=False, default=0, server_default="0")
     billing_rate_usd_cents = Column(Integer, nullable=True)
@@ -396,11 +396,6 @@ class UserCustomPermission(Base):
     created_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)  # Admin who set it
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Ensure only one override per user+resource
-    __table_args__ = (
-        {"sqlite_autoincrement": True},
-    )
 
     # Relationships
     user = relationship("Users", foreign_keys=[user_id])

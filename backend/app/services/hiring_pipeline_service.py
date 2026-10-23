@@ -152,6 +152,11 @@ def _walk(db: Session, pipeline: HiringPipeline) -> Tuple[str, List[str], Dict]:
             experience = check_experience_eligibility(candidate)
             if not experience["is_eligible"]:
                 return reached, [f"not eligible (5-year rule): {experience['message']}"], refs
+            from app.services.employment_type_policy import interview_check
+
+            employment = interview_check(candidate)
+            if not employment["allowed"]:
+                return reached, [f"not eligible (employment type): {employment['message']}"], refs
         reached = "L1"
         # L1 -> L2 -> OFFER
         for level, nxt in (("L1", "L2"), ("L2", "OFFER")):
@@ -433,6 +438,13 @@ def _action_screen(db: Session, pipeline: HiringPipeline) -> str:
 
 def _action_schedule(level: str):
     def action(db: Session, pipeline: HiringPipeline) -> str:
+        from app.services.interview_verdict_service import candidate_verdicts
+
+        # Fact-based: a round at this level already exists for this job (or with no job set),
+        # scheduled from the screens or by Flash -> nobody needs to be asked to schedule it
+        if any(verdict.level == level and panel.job_id in (pipeline.job_id, None)
+               for panel, verdict in candidate_verdicts(db, pipeline.candidate_id)):
+            return f"{level} round already exists: no scheduling task"
         label = "technical" if level == "L1" else "management"
         _recruiter_task(db, pipeline, f"Schedule {level} ({label}) interview: {{name}}",
                         f"{{name}} is ready for the {level} ({label}) round. Create the interview panel with "

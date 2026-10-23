@@ -12,12 +12,19 @@ logger = logging.getLogger(__name__)
 
 
 def is_org_level_user(user: Users) -> bool:
-    """Sees organization-wide data (not BU-scoped): the user's enabled role template is
-    flagged org_level_access. Never by role name, legacy UserRole or a super-user flag."""
-    role = getattr(user, "role_template", None) if user else None
-    if role is None or not role.enabled:
+    """Sees organization-wide data (not BU-scoped): one of the user's enabled templates (Manage
+    Role permission set or function add-on) is flagged org_level_access -- the same rule as
+    app.core.authority.is_org_level. Never by role name, legacy UserRole or a super-user flag."""
+    from sqlalchemy.orm import object_session
+
+    from app.core import authority
+
+    if user is None:
         return False
-    return bool(role.org_level_access)
+    db = object_session(user)
+    if db is None:
+        raise ValueError("is_org_level_user needs a user loaded from a database session")
+    return authority.is_org_level(db, user)
 
 
 def should_bypass_bu_filter(user: Users) -> bool:

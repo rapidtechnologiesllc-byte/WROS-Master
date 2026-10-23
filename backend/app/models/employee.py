@@ -1,13 +1,9 @@
 """
 HRMS-0101 (+ 0101-REV) — Employee Entity Model, Phase 2 Domain 3.
 
-Translated from the requirements doc's PostgreSQL-flavored spec to this
-codebase's actual stack (SQL Server in production, SQLite in tests):
+Translated from the requirements doc's spec:
   - `id UUID PK` -> String(36) storing str(uuid.uuid4()), not the
-    Postgres-native UUID type or MSSQL's UNIQUEIDENTIFIER -- a plain
-    string round-trips identically on both backends, which matters
-    since every test in this codebase runs against throwaway SQLite,
-    never the real database.
+    Postgres-native UUID type, matching every other string id in the schema.
   - Native ENUM columns -> SQLAlchemy Enum(..., native_enum=False, create_constraint=True),
     which renders as VARCHAR + CHECK constraint on both backends
     instead of relying on Postgres-only native enum types.
@@ -66,8 +62,12 @@ ALLOWED_STATUS_TRANSITIONS = {
     # their Buddy Program run (buddy_program_status is a separate field).
     "ACTIVE": {"BENCH", "ALLOCATED", "ON_LEAVE", "NOTICE_PERIOD", "SPECIALITY_READY", "PERFORMANCE_MANAGED"},
     "ON_LEAVE": {"ACTIVE"},
-    "BENCH": {"ALLOCATED", "NOTICE_PERIOD"},
-    "ALLOCATED": {"BENCH", "ON_LEAVE", "NOTICE_PERIOD"},
+    # The hiring pipeline puts every new employee on the BENCH (BGV cleared, joined), where
+    # they run the Buddy Program: graduating or exiting it must be reachable from here too.
+    # ACTIVE: a bench employee reclassified as non-billable (internal staff are never bench)
+    "BENCH": {"ALLOCATED", "NOTICE_PERIOD", "SPECIALITY_READY", "PERFORMANCE_MANAGED", "ACTIVE"},
+    # ACTIVE: a non-billable (internal) employee whose allocation ends -- never bench
+    "ALLOCATED": {"BENCH", "ON_LEAVE", "NOTICE_PERIOD", "ACTIVE"},
     "NOTICE_PERIOD": {"EXITED"},
     "EXITED": set(),  # terminal
     # Cleared for Specialty deployment -- resumes the normal ACTIVE-style
@@ -132,6 +132,12 @@ class Employee(Base):
 
     base_salary_usd_cents = Column(Integer, nullable=True)  # monthly
     billing_rate_usd_cents = Column(Integer, nullable=True)  # hourly
+    # Billable (client-facing) or non-billable (internal: HR, finance, recruiters, delivery leads).
+    # Chosen when the employee is added. Non-billable people are never bench; their cost is
+    # overhead, not bench loss (CEO 2026-10-22)
+    is_billable = Column(Boolean, nullable=False, default=True, server_default="true")
+    # Derived, never set by hand: NON_BILLABLE when not is_billable, else ALLOCATED with an ACTIVE
+    # allocation, else BENCH -- see app.services.bench_service.sync_billing_classification
     billing_classification = Column(Enum(*BILLING_CLASSIFICATIONS, name="billing_classification", native_enum=False, create_constraint=True), nullable=False, default="BENCH")
     work_location = Column(Enum(*WORK_LOCATIONS, name="work_location", native_enum=False, create_constraint=True), nullable=False, default="REMOTE")
 

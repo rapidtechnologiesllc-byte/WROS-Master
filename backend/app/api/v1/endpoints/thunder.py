@@ -55,6 +55,7 @@ from app.services.thunder_service import (
     run_test_chat_turn,
 )
 from app.services.whatsapp_routing_service import ConversationOwnedByHuman
+from app.core.tenant_context import tenant_id_of
 
 router = APIRouter(prefix="/thunder", tags=["thunder"])
 
@@ -148,7 +149,7 @@ def pause_thunder_queue(
     current_user: Users = Depends(require_resource_permission("message-queue", "edit")),
 ):
     from app.services.thunder_pause_service import set_thunder_paused
-    return {"paused": set_thunder_paused(db, True, changed_by=current_user.UserID, tenant_id=current_user.tenant_id or 1)}
+    return {"paused": set_thunder_paused(db, True, changed_by=current_user.UserID, tenant_id=tenant_id_of(current_user))}
 
 
 @router.post("/resume")
@@ -157,4 +158,4 @@ def resume_thunder_queue(
     current_user: Users = Depends(require_resource_permission("message-queue", "edit")),
 ):
     from app.services.thunder_pause_service import set_thunder_paused
-    return {"paused": set_thunder_paused(db, False, changed_by=current_user.UserID, tenant_id=current_user.tenant_id or 1)}
+    return {"paused": set_thunder_paused(db, False, changed_by=current_user.UserID, tenant_id=tenant_id_of(current_user))}

@@ -19,7 +19,7 @@ rapid succession (a real scenario: someone corrects a typo seconds
 after submitting) can land in the same instant on some platforms/under
 load, confirmed by reproducing it directly, not theoretical. A real
 autoincrement integer primary key is the only thing that gives a
-portable (SQLite + SQL Server), DB-guaranteed strict insertion order --
+DB-guaranteed strict insertion order --
 a UUID has none, and a secondary non-PK "sequence" column doesn't
 reliably autoincrement outside the primary-key position in either
 dialect. `id` is used only as a stable identifier here, same as it

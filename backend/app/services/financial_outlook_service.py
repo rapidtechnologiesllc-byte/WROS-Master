@@ -45,7 +45,8 @@ logger = logging.getLogger(__name__)
 
 NO_BU = None
 FIGURES = ("projected_revenue", "earned_revenue", "billed_revenue", "actual_revenue",
-           "anticipated_expense", "anticipated_bench_cost", "anticipated_deployed_cost", "anticipated_other_expense",
+           "anticipated_expense", "anticipated_bench_cost", "anticipated_deployed_cost", "anticipated_overhead_cost",
+           "anticipated_other_expense",
            "actual_expense", "actual_payroll", "actual_other_expense")
 
 
@@ -153,7 +154,9 @@ def outlook(db: Session, *, start: date, end: date, today: Optional[date] = None
                        for s in deployed_days.get(employee.id, []) if max(s[0], employed_from) <= min(s[1], employed_to))
         deployed_share = min(1.0, deployed / employed_days) if employed_days > 0 else 0.0
         row["anticipated_deployed_cost"] += round(period_cost * deployed_share)
-        row["anticipated_bench_cost"] += period_cost - round(period_cost * deployed_share)
+        # undeployed time of internal (non-billable) staff is overhead, never bench
+        row["anticipated_bench_cost" if employee.is_billable else "anticipated_overhead_cost"] += \
+            period_cost - round(period_cost * deployed_share)
         if employee.status != "PRE_JOINING" and incurred_end >= start:
             incurred = costs.period(employee, start, incurred_end)
             row["actual_payroll"] += incurred or 0

@@ -15,7 +15,7 @@ class EmployeeReferral(Base):
     referral_id = Column(String(512), primary_key=True)  # "ref_001"
 
     # Foreign keys
-    job_id = Column(String(512), nullable=False)  # Which job
+    job_id = Column(String(512), nullable=True)  # The job referred for, when one was picked
     referring_employee_id = Column(String(512), nullable=False)  # Who referred
     referred_candidate_id = Column(String(50))  # The candidate they referred (can be null initially)
 

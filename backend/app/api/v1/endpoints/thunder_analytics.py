@@ -22,11 +22,11 @@ from app.services.thunder_analytics_service import get_thunder_analytics
 
 router = APIRouter(prefix="/analytics", tags=["thunder-analytics"])
 
-@router.get("/thunder", response_model=ThunderAnalyticsResponse, dependencies=[Depends(require_resource_permission("candidates", "view"))])
+@router.get("/thunder", response_model=ThunderAnalyticsResponse, dependencies=[Depends(require_resource_permission("thunder-analytics", "view"))])
 def thunder_analytics(
     date_from: Optional[date] = Query(default=None),
     date_to: Optional[date] = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    tenant_id = resolve_default_tenant_id()
+    tenant_id = resolve_default_tenant_id(db)
     return get_thunder_analytics(db, tenant_id, date_from=date_from, date_to=date_to)

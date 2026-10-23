@@ -283,7 +283,7 @@ def send_event_notification(
 def send_interview_invite_by_id(
     interview_id: int,
     extra_notes: str = "",
-    timezone: str = "Asia/Kolkata",
+    timezone: Optional[str] = None,
     create_teams_event: bool = True,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_internal_user),
@@ -334,14 +334,25 @@ def send_interview_invite_by_id(
             interviewer_emails.append(user.UserEmail)
 
     # â"€â"€ Format times â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
-    start_iso = interview.start_time.isoformat() if interview.start_time else ""
-    end_iso = interview.end_time.isoformat() if interview.end_time else ""
-
-    if not start_iso or not end_iso:
+    if not interview.start_time or not interview.end_time:
         raise HTTPException(
             status_code=400,
             detail="Interview start/end times are not set. Update the interview first.",
         )
+    # Interview times are stored as naive UTC: the calendar event and the email show them in
+    # the requested time zone
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+    from datetime import timezone as _tz
+
+    from app.core.config import settings as _settings
+
+    timezone = timezone or candidate.timezone or _settings.INTERVIEW_DEFAULT_TIMEZONE
+    try:
+        zone = ZoneInfo(timezone)
+    except (ZoneInfoNotFoundError, ValueError):
+        raise HTTPException(status_code=400, detail=f"Unknown time zone '{timezone}'")
+    start_iso = interview.start_time.replace(tzinfo=_tz.utc).astimezone(zone).replace(tzinfo=None).isoformat()
+    end_iso = interview.end_time.replace(tzinfo=_tz.utc).astimezone(zone).replace(tzinfo=None).isoformat()
 
     logger.info(
         f"[email/interview/invite] {current_user.UserEmail} â†' "
@@ -366,6 +377,10 @@ def send_interview_invite_by_id(
         interview.outlook_event_id = result["eventId"]
     if result.get("joinUrl"):
         interview.meeting_link = result["joinUrl"]
+    # this invitation stands for the automatic one (interview_scheduling_service.queue_invite)
+    from app.services.interview_scheduling_service import mark_invite_sent
+
+    mark_invite_sent(db, interview)
     db.commit()
 
     return result

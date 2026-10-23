@@ -26,12 +26,12 @@ Specializations: Recruitment, Development, HR, Finance, Project Management, QA, 
 Rules:
 1. Cannot skip more than 2 levels (Intern → Associate/Senior Associate OK, but not Intern → Consultant)
 2. Parent must be at higher level (lower hierarchy_level number)
-3. Specializations must align (Dev reports to Dev leads/managers, not Recruitment managers)
+3. (Removed 2026-10-12) Reporting is not restricted by specialization: a person's function
+   comes from their department, and anyone may report to an eligible-level seat in their BU
 4. Same business unit unless parent is org-wide (CFO, CWP)
 5. No circular reporting chains
 """
 
-import logging
 from typing import Optional, Tuple
 from sqlalchemy.orm import Session
 
@@ -68,11 +68,46 @@ SPECIALIZATIONS = [
     "Project Management",
     "QA",
     "Business Analysis",
+    "Sales",
     "General"  # For roles without specific specialization
 ]
 
 # Define which levels can report to which levels (no more than 2 level gap)
 # Example: Level 1 can report to 2, 3; Level 4 can report to 6, 7, 8
+# Words in a department name that name a function (whole words only: "Key Accounts" is a
+# sales team, not Finance; "Three Rivers" is not HR)
+FUNCTION_WORDS = {
+    # Sales first: "Key Accounts" is a sales team, not Finance
+    "Sales": ("sales", "business development", "key accounts", "strategic accounts", "global accounts",
+              "named accounts", "account management"),
+    "Finance": ("finance", "accounting", "accounts"),
+    "HR": ("hr", "human resources", "people"),
+    "Recruitment": ("recruitment", "recruiting", "talent acquisition"),
+    "Development": ("development", "engineering"),
+    "Project Management": ("project management", "pmo"),
+    "QA": ("qa", "quality assurance", "testing"),
+    "Business Analysis": ("business analysis",),
+}
+
+def function_of_department_name(name: Optional[str]) -> str:
+    """The function (specialization) a department name stands for, else General."""
+    import re
+
+    text = " ".join(re.findall(r"[a-z0-9]+", (name or "").lower()))
+    for function, words in FUNCTION_WORDS.items():
+        if any(re.search(rf"\b{re.escape(w)}\b", text) for w in words):
+            return function
+    return "General"
+
+
+def specialization_for_department(session: Session, department_id: Optional[str]) -> str:
+    """A seat's function comes from its department, never a separate pick."""
+    if not department_id:
+        return "General"
+    department = session.query(Department).filter(Department.id == department_id).first()
+    return function_of_department_name(department.name if department else None)
+
+
 def get_valid_parent_levels(employee_level: int) -> list:
     """Get valid parent hierarchy levels for an employee at a given level"""
     if employee_level >= 17:
@@ -123,10 +158,6 @@ class OrgHierarchyValidator:
             if not isinstance(employee_hierarchy_level, int) or employee_hierarchy_level < 1 or employee_hierarchy_level > 17:
                 return (False, f"Invalid hierarchy level: {employee_hierarchy_level}. Must be 1-17.")
 
-            # Validate specialization
-            if employee_specialization not in SPECIALIZATIONS:
-                return (False, f"Unknown specialization: {employee_specialization}. Valid: {', '.join(SPECIALIZATIONS)}")
-
             # CEO doesn't report to anyone
             if employee_hierarchy_level == 17:
                 if parent_node_id is not None:
@@ -163,17 +194,6 @@ class OrgHierarchyValidator:
                     f"{HIERARCHY_LEVELS[parent_level]} (Level {parent_level}). "
                     f"Valid parent levels: {', '.join(valid_level_names)} (levels {valid_parent_levels})"
                 )
-
-            # Check specialization alignment
-            # Only enforce specialization match for non-executive roles (levels < 13)
-            if employee_hierarchy_level < 13 and parent_level < 13:  # Both are non-executive
-                if parent.specialization != employee_specialization:
-                    return (
-                        False,
-                        f"{HIERARCHY_LEVELS[employee_hierarchy_level]} in {employee_specialization} cannot report to "
-                        f"{HIERARCHY_LEVELS[parent_level]} in {parent.specialization}. "
-                        f"Reporting must stay within same specialization domain."
-                    )
 
             # Check business unit consistency (within same BU unless parent is org-wide).
             # A parent with no department isn't scoped to any BU.
@@ -246,13 +266,6 @@ class OrgHierarchyValidator:
             if tenant_id is not None:
                 query = query.filter(OrgNode.tenant_id == tenant_id)
 
-            # Non-executive employees must match a non-executive parent's specialization
-            if employee_hierarchy_level < 13:
-                query = query.filter(
-                    (OrgNode.specialization == employee_specialization)
-                    | (OrgNode.hierarchy_level >= 13)
-                )
-
             # OrgNode has no business_unit_id; its BU comes from its department.
             # Nodes without a department aren't BU-scoped; Partner/CEO are org-wide.
             if business_unit_id:
@@ -266,36 +279,8 @@ class OrgHierarchyValidator:
 
         except Exception as e:
             logger.error(f"Error getting valid supervisors: {e}", exc_info=True)
-            raise ValueError("Operation failed")
+            raise ValueError(f"get_valid_supervisors failed: {e}") from e
 
-    @staticmethod
-    def print_hierarchy_rules():
-        """Print the hierarchy rules for documentation"""
-        print("\n" + "=" * 80)
-        print("ORGANIZATIONAL HIERARCHY RULES (17 LEVELS + SPECIALIZATIONS)")
-        print("=" * 80)
-
-        for level in range(1, 18):
-            level_name = HIERARCHY_LEVELS[level]
-            valid_parents = get_valid_parent_levels(level)
-            parent_names = [f"{HIERARCHY_LEVELS[p]} (L{p})" for p in valid_parents]
-            parents_str = ", ".join(parent_names) if parent_names else "(top level - reports to nobody)"
-
-            print(f"\nLevel {level}: {level_name}")
-            print(f"  └─ Reports to: {parents_str}")
-
-        print("\n" + "=" * 80)
-        print("SPECIALIZATIONS:")
-        for spec in SPECIALIZATIONS:
-            print(f"  • {spec}")
-        print("\n" + "=" * 80)
-        print("RULES:")
-        print("  1. Cannot skip more than 2 levels (employee can report up max 2 levels)")
-        print("  2. Parent must be at higher level (lower hierarchy_level number)")
-        print("  3. Non-executive roles must report within same specialization")
-        print("  4. Same business unit unless parent is org-wide (Partner/CEO)")
-        print("  5. No circular reporting chains")
-        print("=" * 80 + "\n")
 
 def validate_before_employee_creation(
     session: Session,

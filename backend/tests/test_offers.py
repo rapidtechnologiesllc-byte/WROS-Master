@@ -13,6 +13,7 @@ from app.models.candidate import Candidate
 from app.models.user import Users, Jobs
 from app.services.offer_management_service import OfferManagementService
 from app.models.tenant import Tenant
+from tests import factories
 
 @pytest.fixture
 def db_session(db: Session):
@@ -21,52 +22,19 @@ def db_session(db: Session):
 
 @pytest.fixture
 def test_tenant(db_session: Session):
-    """Create a test tenant."""
-    tenant = Tenant(id=1, name="Test Tenant", domain="test.local")
-    db_session.add(tenant)
-    db_session.commit()
-    return tenant
+    return factories.tenant(db_session)
 
 @pytest.fixture
 def test_user(db_session: Session, test_tenant):
-    """Create a test user."""
-    user = Users(
-        UserID=str(uuid4()),
-        UserEmail="recruiter@test.com",
-        UserName="Test Recruiter",
-        UserPassword="hashed_password_123",
-        tenant_id=test_tenant.id
-    )
-    db_session.add(user)
-    db_session.commit()
-    return user
+    return factories.user(db_session, UserEmail=f"recruiter-{factories.uid()}@test.com", UserRole="Recruiter")
 
 @pytest.fixture
 def test_candidate(db_session: Session, test_tenant):
-    """Create a test candidate."""
-    candidate = Candidate(
-        candidateID=str(uuid4()),
-        candidateEmail="candidate@test.com",
-        candidateFirstName="John",
-        candidateLastName="Doe",
-        tenant_id=test_tenant.id
-    )
-    db_session.add(candidate)
-    db_session.commit()
-    return candidate
+    return factories.candidate(db_session, candidateFirstName="John", candidateLastName="Doe")
 
 @pytest.fixture
 def test_job(db_session: Session, test_tenant):
-    """Create a test job."""
-    job = Jobs(
-        jobID=str(uuid4()),
-        jobTitle="Senior Engineer",
-        jobLocation="San Francisco",
-        tenant_id=test_tenant.id
-    )
-    db_session.add(job)
-    db_session.commit()
-    return job
+    return factories.job(db_session, jobTitle="Senior Engineer", jobLocation="San Francisco")
 
 logger = logging.getLogger(__name__)
 

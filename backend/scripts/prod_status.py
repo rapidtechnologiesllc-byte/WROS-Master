@@ -236,6 +236,36 @@ def main() -> int:
             db.rollback()
             print("roles: [FAIL]", mask(exc))
 
+        # Before roles become data and the org chart drives reporting (counts and titles only)
+        section("Org chart readiness (no personal data)")
+        for label, sql in (
+            ("users with / without an org seat", "SELECT CASE WHEN org_node_id IS NULL THEN 'no seat' ELSE 'seated' END, "
+                                                  "count(*) FROM users GROUP BY 1"),
+            ("users by job title", "SELECT coalesce(job_title, '(none)'), count(*) FROM users GROUP BY 1 ORDER BY 2 DESC"),
+            ("users by department", "SELECT coalesce(d.name, '(none)'), count(*) FROM users u "
+                                    "LEFT JOIN departments d ON d.id = u.department_id GROUP BY 1 ORDER BY 2 DESC"),
+            ("legacy-recruiter users by department", "SELECT coalesce(d.name, '(none)'), count(*) FROM users u "
+                                                     "LEFT JOIN departments d ON d.id = u.department_id "
+                                                     "WHERE u.\"UserRole\" ILIKE '%recruiter%' GROUP BY 1"),
+            ("legacy-recruiter users by role template", "SELECT coalesce(rt.name, '(none)'), count(*) FROM users u "
+                                                        "LEFT JOIN role_templates rt ON rt.id = u.role_template_id "
+                                                        "WHERE u.\"UserRole\" ILIKE '%recruiter%' GROUP BY 1"),
+            ("employees with a hand-set manager", "SELECT 'reporting_manager_user_id', count(*) FROM employees "
+                                                  "WHERE reporting_manager_user_id IS NOT NULL UNION ALL "
+                                                  "SELECT 'manager_id', count(*) FROM employees WHERE manager_id IS NOT NULL"),
+            ("BU location heads", "SELECT 'rows', count(*) FROM business_unit_location_heads"),
+            ("org roles", "SELECT 'rows', count(*) FROM org_roles"),
+            ("org-roles permission by template", "SELECT rt.name, p.can_view FROM role_template_permissions p "
+                                                 "JOIN resources r ON r.id = p.resource_id "
+                                                 "JOIN role_templates rt ON rt.id = p.role_template_id "
+                                                 "WHERE r.name = 'org-roles'"),
+        ):
+            try:
+                print(label + ":", ", ".join(f"{a}={b}" for a, b in rows(sql)) or "none")
+            except Exception as exc:
+                db.rollback()
+                print(label + ": [FAIL]", mask(exc))
+
         section("Billing chain links")
         for label, sql in (
             ("active allocations without a project", "SELECT status, count(*) FROM employee_allocations "

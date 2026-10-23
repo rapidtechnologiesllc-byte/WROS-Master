@@ -7,6 +7,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
 from app.core.config import settings
+from app.services.role_template_permission_service import invalidate_permissions
 from app.models.role_template import Resource, RoleTemplate, RoleTemplatePermission
 from app.models.business_unit import BusinessUnit
 from pydantic import BaseModel
@@ -15,6 +16,7 @@ import json
 
 from app.core.audit import write_audit_log
 from app.models.audit_log import AuditLog
+from app.core.tenant_context import tenant_id_of
 
 router = APIRouter(prefix="/admin/role-templates", tags=["Role Templates"])
 
@@ -52,6 +54,8 @@ class RoleTemplateCreate(BaseModel):
     name: str
     display_name: str
     description: Optional[str] = None
+    # The function this add-on is for (Recruitment, HR, Finance ...); "General" = any function
+    specialization: str = "General"
     permissions: List[PermissionInput]
 
 class ToggleStatusRequest(BaseModel):
@@ -64,18 +68,58 @@ class GrantRevokePermissionInput(BaseModel):
 class RoleTemplateUpdate(BaseModel):
     display_name: Optional[str] = None
     description: Optional[str] = None
+    specialization: Optional[str] = None
     permissions: List[PermissionInput] = []
 
-class RoleTemplateResponse(BaseModel):
-    id: int
-    name: str
-    display_name: str
-    description: Optional[str]
-    is_system: bool
-    permissions: List[dict]
 
-    class Config:
-        from_attributes = True
+def _function(db: Session, tenant_id: int, value: Optional[str]) -> str:
+    """A template's function: General or one of the tenant's active functions (Manage Functions)."""
+    from app.services.function_service import canonical_name
+
+    try:
+        return canonical_name(db, tenant_id, value)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+def _owner_role(db: Session, template_id: int):
+    """{id, name, hierarchy_level} of the Manage Role whose permission set this is, else None."""
+    from app.services.org_roles_service import owning_role
+
+    role = owning_role(db, template_id)
+    return {"id": role.id, "name": role.name, "hierarchy_level": role.hierarchy_level} if role else None
+
+
+def _guard_role_set(db: Session, template: RoleTemplate, current_user: Users) -> None:
+    """A Manage Role's permission set decides what everyone holding that role may do, so
+    changing it takes the same right as managing the roles themselves (org-roles edit)."""
+    from app.core import authority
+
+    if _owner_role(db, template.id) and not authority.has_permission(db, current_user, "org-roles.edit"):
+        raise HTTPException(status_code=403,
+                            detail="Changing a role's permissions needs the Manage Roles (org-roles) edit permission")
+
+
+def _canonical_resource(db: Session, name: str, tenant_id: int) -> Resource:
+    from app.services.role_template_permission_service import RoleTemplatePermissionService
+
+    resource = RoleTemplatePermissionService.get_resource_by_name(db, name, tenant_id)
+    if resource is None:
+        raise HTTPException(status_code=404, detail=f"Resource '{name}' not found")
+    return resource
+
+
+@router.get(
+    "/functions",
+    dependencies=[Depends(require_resource_permission("role-templates", "view"))]
+)
+def list_functions(db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)):
+    """Functions an add-on can be for: General plus the tenant's active functions (Manage
+    Functions). The user form suggests the add-on whose function is the person's function."""
+    from app.services.function_service import function_names
+
+    return {"functions": function_names(db, tenant_id_of(current_user))}
+
 
 @router.get(
     "",
@@ -119,6 +163,7 @@ def list_role_templates(
             "enabled": template.enabled,
             "hierarchy_level": template.hierarchy_level,
             "specialization": template.specialization,
+            "owner_role": _owner_role(db, template.id),
             "permissions": perm_list,
         })
 
@@ -169,6 +214,7 @@ def get_role_template(
         "enabled": template.enabled,
         "hierarchy_level": template.hierarchy_level,
         "specialization": template.specialization,
+        "owner_role": _owner_role(db, template.id),
         "permissions": perm_list,
     }
 
@@ -197,6 +243,7 @@ def create_role_template(
         name=data.name,
         display_name=data.display_name,
         description=data.description,
+        specialization=_function(db, current_user.tenant_id, data.specialization),
         is_system=False,
         tenant_id=current_user.tenant_id,
         created_by=current_user.UserEmail
@@ -209,6 +256,7 @@ def create_role_template(
         perm = RoleTemplatePermission(
             role_template_id=template.id,
             resource_id=perm_input.resource_id,
+            tenant_id=template.tenant_id,
             can_view=perm_input.can_view,
             can_create=perm_input.can_create,
             can_edit=perm_input.can_edit,
@@ -263,6 +311,7 @@ def update_role_template(
             raise HTTPException(status_code=404, detail="Role template not found")
 
         logger.info(f"[PUT] Found template: {template.name}")
+        _guard_role_set(db, template, current_user)
 
         # Update basic fields
         if data.display_name:
@@ -271,6 +320,12 @@ def update_role_template(
         if data.description is not None:
             template.description = data.description
             logger.info("[PUT] Updated description")
+        if data.specialization is not None:
+            function = _function(db, template.tenant_id, data.specialization)
+            if function != "General" and _owner_role(db, template.id):
+                raise HTTPException(status_code=400, detail="A role's permissions apply to everyone holding the role; "
+                                                            "a function belongs on a function add-on")
+            template.specialization = function
 
         # Delete existing permissions
         logger.info(f"[PUT] Deleting existing permissions for template {template_id}")
@@ -287,6 +342,7 @@ def update_role_template(
                 perm = RoleTemplatePermission(
                     role_template_id=template.id,
                     resource_id=perm_input.resource_id,
+                    tenant_id=template.tenant_id,
                     can_view=perm_input.can_view,
                     can_create=perm_input.can_create,
                     can_edit=perm_input.can_edit,
@@ -299,16 +355,18 @@ def update_role_template(
         db.flush()
         logger.info("[PUT] Committing transaction")
         db.commit()
+        invalidate_permissions()
         logger.info(f"[PUT] Role template {template_id} updated successfully")
 
         return {"message": "Role template updated successfully"}
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[PUT] Error updating role template {template_id}: {str(e)}", exc_info=True)
         db.rollback()
         import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Error updating role template: {str(e)}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error updating role template: {str(e)}")
 
@@ -338,21 +396,21 @@ def grant_permission(
     if not resource_name or not action:
         raise HTTPException(status_code=400, detail="resource_name and action are required")
 
-    # Find resource by name
-    resource = db.query(Resource).filter(Resource.name == resource_name).first()
-    if not resource:
-        raise HTTPException(status_code=404, detail=f"Resource '{resource_name}' not found")
+    _guard_role_set(db, template, current_user)
+    resource = _canonical_resource(db, resource_name, template.tenant_id)
 
     # Get or create permission
     perm = db.query(RoleTemplatePermission).filter(
         RoleTemplatePermission.role_template_id == template.id,
-        RoleTemplatePermission.resource_id == resource.id
+        RoleTemplatePermission.resource_id == resource.id,
+        RoleTemplatePermission.tenant_id == template.tenant_id,
     ).first()
 
     if not perm:
         perm = RoleTemplatePermission(
             role_template_id=template.id,
             resource_id=resource.id,
+            tenant_id=template.tenant_id,
             can_view=False,
             can_create=False,
             can_edit=False,
@@ -379,6 +437,7 @@ def grant_permission(
     # Only commit if something changed
     if action_updated or not perm.id:
         db.commit()
+        invalidate_permissions()
 
     return {"message": f"Permission granted: {resource_name} - {action}"}
 
@@ -408,15 +467,14 @@ def revoke_permission(
     if not resource_name or not action:
         raise HTTPException(status_code=400, detail="resource_name and action are required")
 
-    # Find resource by name
-    resource = db.query(Resource).filter(Resource.name == resource_name).first()
-    if not resource:
-        raise HTTPException(status_code=404, detail=f"Resource '{resource_name}' not found")
+    _guard_role_set(db, template, current_user)
+    resource = _canonical_resource(db, resource_name, template.tenant_id)
 
     # Get permission
     perm = db.query(RoleTemplatePermission).filter(
         RoleTemplatePermission.role_template_id == template.id,
-        RoleTemplatePermission.resource_id == resource.id
+        RoleTemplatePermission.resource_id == resource.id,
+        RoleTemplatePermission.tenant_id == template.tenant_id,
     ).first()
 
     if not perm:
@@ -441,6 +499,7 @@ def revoke_permission(
     # Only commit if something changed
     if action_updated:
         db.commit()
+        invalidate_permissions()
 
     return {"message": f"Permission revoked: {resource_name} - {action}"}
 
@@ -464,25 +523,24 @@ def delete_role_template(
 
     if template.is_system:
         raise HTTPException(status_code=400, detail="Cannot delete system role templates")
+    owner = _owner_role(db, template.id)
+    if owner:
+        raise HTTPException(status_code=400,
+                            detail=f"This is the {owner['name']} role's permission set; it goes with the role")
 
-    # Check if any users are using this template
-    users_count = db.query(Users).filter(
-        Users.role_template_id == template.id
-    ).count()
+    # Its own permission rows go with it; anything else still using it (people holding it as
+    # their add-on, ...) blocks the delete -- the session is never committed on a 409
+    from app.core.references import ensure_deletable
 
-    if users_count > 0:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot delete template: {users_count} users are using it"
-        )
-
-    # Delete permissions and template
     db.query(RoleTemplatePermission).filter(
         RoleTemplatePermission.role_template_id == template.id
     ).delete()
+    db.flush()
+    ensure_deletable(db, template, f"Role template '{template.display_name or template.name}'")
 
     db.delete(template)
     db.commit()
+    invalidate_permissions()
 
     return {"message": "Role template deleted successfully"}
 
@@ -505,10 +563,17 @@ def toggle_template_status(
     if not template:
         raise HTTPException(status_code=404, detail="Role template not found")
 
+    owner = _owner_role(db, template.id)
+    if owner and not request.is_active:
+        raise HTTPException(status_code=400,
+                            detail=f"This is the {owner['name']} role's permission set; disabling it would "
+                                   "silently strip everyone holding the role. Revoke permissions instead.")
+
     # Set enabled status from request
     template.enabled = request.is_active
     db.add(template)
     db.commit()
+    invalidate_permissions()
     db.refresh(template)
 
     return {
@@ -557,7 +622,7 @@ def _leader_requirement(min_level: int) -> str:
 
 
 def _bu_tenant(user: Users) -> int:
-    return user.tenant_id if getattr(user, "tenant_id", None) else 1
+    return tenant_id_of(user)
 
 
 def _leader(db: Session, tenant_id: int, user_id: str, min_level: int, label: str) -> Users:
@@ -635,15 +700,16 @@ def business_unit_leader_options(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
-    """Users who can be named Partner / BU Head on a business unit (by role)."""
-    from app.models.role_template import RoleTemplate
+    """Users who can be named Partner / BU Head on a business unit (by role level -- the same
+    authority.level that _leader checks, so the picker and the save can't disagree)."""
+    from app.core import authority
+
+    people = db.query(Users).filter(Users.tenant_id == _bu_tenant(current_user)).order_by(Users.UserName).all()
+    levels = {u.UserID: authority.level(db, u) for u in people}
 
     def users_at(min_level):
-        rows = (db.query(Users).join(RoleTemplate, RoleTemplate.id == Users.role_template_id)
-                .filter(Users.tenant_id == _bu_tenant(current_user), RoleTemplate.enabled.is_(True),
-                        RoleTemplate.hierarchy_level >= min_level)
-                .order_by(Users.UserName).all())
-        return [{"user_id": u.UserID, "name": u.UserName or u.UserEmail} for u in rows]
+        return [{"user_id": u.UserID, "name": u.UserName or u.UserEmail} for u in people
+                if levels[u.UserID] >= min_level]
 
     return {"partners": users_at(settings.PARTNER_MIN_LEVEL), "heads": users_at(settings.BU_LEADER_MIN_LEVEL),
             "partner_requirement": _leader_requirement(settings.PARTNER_MIN_LEVEL),
@@ -679,7 +745,7 @@ def create_business_unit_rbac(
         raise HTTPException(status_code=400, detail="Business Unit name is required")
 
     # Determine tenant_id (default to 1 if None)
-    tenant_id = current_user.tenant_id if hasattr(current_user, 'tenant_id') and current_user.tenant_id else 1
+    tenant_id = tenant_id_of(current_user)
 
     new_bu = BusinessUnit(
         name=req.name,
@@ -713,7 +779,7 @@ def update_business_unit_rbac(
     """Update a business unit. Accessible from RBAC endpoints (matches create_business_unit_rbac's field set - region/continent are accepted but BusinessUnit has no such columns, same as create)."""
     bu = db.query(BusinessUnit).filter(
         BusinessUnit.id == bu_id,
-        BusinessUnit.tenant_id == (current_user.tenant_id if hasattr(current_user, 'tenant_id') and current_user.tenant_id else 1),
+        BusinessUnit.tenant_id == tenant_id_of(current_user),
     ).first()
     if not bu:
         raise HTTPException(status_code=404, detail="Business unit not found")
@@ -745,11 +811,14 @@ def delete_business_unit_rbac(
     """Delete a business unit. Accessible from RBAC endpoints."""
     bu = db.query(BusinessUnit).filter(
         BusinessUnit.id == bu_id,
-        BusinessUnit.tenant_id == (current_user.tenant_id if hasattr(current_user, 'tenant_id') and current_user.tenant_id else 1),
+        BusinessUnit.tenant_id == tenant_id_of(current_user),
     ).first()
     if not bu:
         raise HTTPException(status_code=404, detail="Business unit not found")
 
+    from app.core.references import ensure_deletable
+
+    ensure_deletable(db, bu, f"Business unit '{bu.display_name or bu.name}'")
     db.delete(bu)
     db.commit()
 
@@ -778,11 +847,17 @@ def get_users_for_role_template(
             detail="Role template not found"
         )
 
-    # Get users assigned to this role template
-    users = db.query(Users).filter(
-        Users.role_template_id == template_id,
-        Users.tenant_id == current_user.tenant_id
-    ).all()
+    # Who gets this template: as their function add-on, or -- for a role's permission set --
+    # everyone whose Job Title is that role
+    from sqlalchemy import func, or_
+
+    from app.services.org_roles_service import owning_role
+
+    holds = Users.role_template_id == template_id
+    role = owning_role(db, template_id)
+    if role is not None:
+        holds = or_(holds, func.lower(func.trim(Users.job_title)) == role.name.strip().lower())
+    users = db.query(Users).filter(holds, Users.tenant_id == current_user.tenant_id).all()
 
     return {
         "template_id": template_id,

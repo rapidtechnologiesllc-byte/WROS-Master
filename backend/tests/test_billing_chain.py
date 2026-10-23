@@ -59,7 +59,7 @@ def _world(db, *, partner=True, currency="USD", contact=True):
         db.flush()
     unit = None
     if partner:
-        unit = BusinessUnit(name=f"bu-{_uid()}", display_name="BU")
+        unit = BusinessUnit(tenant_id=1, name=f"bu-{_uid()}", display_name="BU")
         db.add(unit)
         db.flush()
     client = Client(tenant_id=1, company_name=f"Client {_uid()}", business_unit_id=unit.id if unit else None,
@@ -75,7 +75,7 @@ def _world(db, *, partner=True, currency="USD", contact=True):
     db.flush()
     job = Jobs(tenant_id=1, client_id=client.id, project_id=project.id, jobTitle="Dev", jobDescription="d",
                jobSkills="x", jobExperience="5", jobLocation="Remote", billing_rate_usd_cents=RATE)
-    worker = Employee(tenant_id=1, first_name="Sam", last_name="Lee", email=f"s{_uid()}@x.com",
+    worker = Employee(buddy_program_status="GRADUATED", core_certified=True, core_certified_date=date(2026, 1, 1), tenant_id=1, first_name="Sam", last_name="Lee", email=f"s{_uid()}@x.com",
                       joining_date=date(2025, 1, 1), status="BENCH", bu_id=unit.id if unit else None)
     db.add_all([job, worker])
     db.flush()
@@ -332,7 +332,10 @@ def test_changing_a_jobs_client_rechecks_its_project(db, api):
 def test_self_service_submit_twice_is_a_409_not_a_500(db, api):
     client, headers, user = api
     w = _world(db)
+    from tests.hiring_fixtures import finance_approver
+
     w.worker.wros_user_id = user.UserID
+    w.worker.reporting_manager_user_id = finance_approver(db).UserID  # the submission is routed to them
     allocation = _allocate(db, w)
     monday = date.today() - timedelta(days=date.today().weekday())  # submit refuses weeks > 4 weeks old
     ts = _week(db, allocation, monday, {monday: 8}, status="DRAFT")

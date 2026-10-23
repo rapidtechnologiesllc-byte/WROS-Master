@@ -4,13 +4,13 @@ Process queued candidate creation requests.
 This is the ONLY place where create_candidate() actually runs.
 """
 
+from app.core.tenant_context import sole_tenant_id
 import logging
 from typing import Dict, Any, Optional
 from datetime import date, datetime
 from sqlalchemy.orm import Session
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
-from app.core.logging import logger as base_logger
 from app.models.channel_queue import ChannelQueueItem
 
 logger = logging.getLogger(__name__)
@@ -56,6 +56,7 @@ def _optional_candidate_fields(payload: Dict[str, Any]) -> Dict[str, Any]:
         "candidateCurrentSalaryType": payload.get("candidate_current_salary_type"),
         "candidate_notice_period": payload.get("candidate_notice_period"),
         "created_by_user_id": payload.get("created_by_user_id"),
+        "assigned_recruiter_id": payload.get("assigned_recruiter_id"),  # LinkedIn pipeline should pass assigned_recruiter_id, not assigned_hr_manager_id
     }
     return {k: v for k, v in fields.items() if v not in (None, "")}
 
@@ -145,7 +146,7 @@ class CandidateCreationUnifiedHandler:
         last_name = payload.get('candidate_last_name')
         mobile = payload.get('candidate_mobile')
         source = payload.get('candidate_source', 'unknown')
-        tenant_id = payload.get('tenant_id', 1)
+        tenant_id = payload.get('tenant_id') or getattr(message, 'tenant_id', None) or sole_tenant_id(db)
 
         if not all([email, first_name, last_name]):
             raise ValueError("Missing required fields: email, first_name, last_name")
@@ -175,11 +176,35 @@ class CandidateCreationUnifiedHandler:
         db.flush()
         candidate_id = candidate.candidateID
 
+        # CRITICAL FIX: Update recruiter assignment metadata if set
+        if payload.get('assigned_recruiter_id'):
+            candidate.assigned_recruiter_changed_at = datetime.utcnow()
+            candidate.assigned_recruiter_changed_by = f"import_from_{source}"
+            db.add(candidate)
+
         # A duplicate can match on phone alone (possibly a different person),
         # so records are only attached to a candidate created by this message.
         # No commit here: queue_processor_service commits candidate + records together.
         if is_new:
+            # CRITICAL FIX: Create CandidateStatus record (was missing, causing all status bugs)
+            from app.models.candidate import CandidateStatus
+            candidate_status = CandidateStatus(
+                candidateID=candidate_id,
+                piplineStatus="Applied",  # Initial status from application
+                status="Active",  # Initial internal status
+                thunder_assigned_at=None,  # Will be set when Thunder engages
+            )
+            db.add(candidate_status)
+            db.flush()
+
             _add_education_and_experience(db, candidate_id, payload)
+            # Employee referral (Add Candidate): saved and linked in this same transaction.
+            # (An existing candidate is handled below: credited only when dormant.)
+            if payload.get('referring_employee_id'):
+                from app.services.employee_referral_service import EmployeeReferralService
+                EmployeeReferralService.record_candidate_referral(
+                    db, candidate, payload['referring_employee_id'], payload.get('referral_job_id'),
+                    recorded_by_user_id=payload.get('created_by_user_id'))
             # First entry on the candidate's History tab (the replaced
             # per-source handlers logged this; the unified one did not)
             from app.services.candidate_activity_service import log_candidate_created
@@ -219,6 +244,17 @@ class CandidateCreationUnifiedHandler:
                     logger.warning(
                         f"[CandidateCreationUnified] Failed to queue Thunder engagement for {candidate_id}: {e}"
                     )
+
+        # Employee referral of someone already in the system: credited only when they are
+        # dormant (re-checked here; the endpoint already refused an active one with a warning)
+        if not is_new and payload.get('referring_employee_id'):
+            from app.services.employee_referral_service import EmployeeReferralService
+            block = EmployeeReferralService.existing_candidate_referral_block(db, candidate)
+            if block:
+                raise ValueError(block)
+            EmployeeReferralService.record_candidate_referral(
+                db, candidate, payload['referring_employee_id'], payload.get('referral_job_id'),
+                recorded_by_user_id=payload.get('created_by_user_id'))
 
         # Queued from the LinkedIn pipeline: link the item and its open task
         if payload.get('linkedin_pipeline_id'):

@@ -6,8 +6,7 @@ Users.UserID -- see ai_conversation_service.resolve_thunder_config's
 docstring), not the separate app.models.tenant.Tenant table.
 """
 import logging
-from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, func
-from sqlalchemy.orm import relationship
+from sqlalchemy import Boolean, Column, DateTime, Enum, Integer, String, Text, UniqueConstraint, func
 
 from app.models.base import Base
 
@@ -17,7 +16,11 @@ TEMPLATE_CHANNELS = ("WHATSAPP", "EMAIL", "PORTAL", "ANY")
 # entry. Prevents breaking system references." Extend this tuple (and
 # the matching migration widening the CHECK constraint) as more
 # first-engagement/templated sends get built.
-TEMPLATE_KEYS = ("GREETING_WHATSAPP", "GREETING_EMAIL", "EMPLOYEE_WELCOME_EMAIL")
+TEMPLATE_KEYS = ("GREETING_WHATSAPP", "GREETING_EMAIL", "EMPLOYEE_WELCOME_EMAIL",
+                 # every pipeline status change emails the candidate (app.services.candidate_status_notifications)
+                 "CANDIDATE_STATUS_APPLIED", "CANDIDATE_STATUS_SCREENING", "CANDIDATE_STATUS_INTERVIEW",
+                 "CANDIDATE_STATUS_FINAL_REVIEW", "CANDIDATE_STATUS_PRE_ONBOARDING", "CANDIDATE_STATUS_HIRED",
+                 "CANDIDATE_STATUS_ONBOARDED", "CANDIDATE_STATUS_REJECTED")
 
 logger = logging.getLogger(__name__)
 

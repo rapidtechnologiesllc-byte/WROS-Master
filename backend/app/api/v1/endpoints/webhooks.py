@@ -18,83 +18,29 @@ Routes:
 """
 
 import json
-import hmac
-import hashlib
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
-from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
+from app.core.delivery_webhook_auth import (
+    WebhookNotConfigured, WebhookSignatureInvalid, twilio_public_url,
+    verify_mailgun, verify_sendgrid, verify_twilio,
+)
 from app.core.logging import logger
 from app.services.thunder_delivery_outcome_handler import ThunderDeliveryOutcomeHandler
 
 router = APIRouter(prefix="/webhooks", tags=["delivery-webhooks"])
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Signature Validation
-# ─────────────────────────────────────────────────────────────────────────────
-
-def validate_sendgrid_signature(request_body: bytes, signature: str, api_key: str) -> bool:
-    """Validate SendGrid event webhook signature using HMAC-SHA256."""
-    try:
-        timestamp = request_body.decode() if isinstance(request_body, bytes) else request_body
-        # SendGrid signature is: base64(HMAC-SHA256(timestamp + api_key))
-        computed = hmac.new(
-            api_key.encode(),
-            timestamp.encode(),
-            hashlib.sha256
-        ).digest()
-        import base64
-        expected = base64.b64encode(computed).decode()
-        return hmac.compare_digest(signature, expected)
-    except Exception as e:
-        logger.error(f"[SendGridWebhook] Signature validation error: {e}")
-        return False
-
-
-def validate_mailgun_signature(request_body: bytes, signature: Dict[str, str], api_key: str) -> bool:
-    """Validate Mailgun event webhook signature using HMAC-SHA256."""
-    try:
-        timestamp = signature.get("timestamp", "")
-        token = signature.get("token", "")
-        computed = hmac.new(
-            api_key.encode(),
-            f"{timestamp}{token}".encode(),
-            hashlib.sha256
-        ).hexdigest()
-        expected_signature = signature.get("signature", "")
-        return hmac.compare_digest(computed, expected_signature)
-    except Exception as e:
-        logger.error(f"[MailgunWebhook] Signature validation error: {e}")
-        return False
-
-
-def validate_twilio_signature(
-    request_url: str,
-    request_body: Dict[str, Any],
-    signature: str,
-    auth_token: str
-) -> bool:
-    """Validate Twilio webhook signature using HMAC-SHA1."""
-    try:
-        # Twilio signature: HMAC-SHA1 of URL + request body
-        from urllib.parse import urlencode
-        data = request_url + urlencode(sorted(request_body.items()))
-        computed = hmac.new(
-            auth_token.encode(),
-            data.encode(),
-            hashlib.sha1
-        ).digest()
-        import base64
-        expected = base64.b64encode(computed).decode()
-        return hmac.compare_digest(signature, expected)
-    except Exception as e:
-        logger.error(f"[TwilioWebhook] Signature validation error: {e}")
-        return False
+def _reject(exc: Exception) -> None:
+    """Fail closed: unconfigured secret -> 503, bad/missing signature -> 401."""
+    if isinstance(exc, WebhookNotConfigured):
+        logger.error(f"[DeliveryWebhook] Rejected: {exc}")
+        raise HTTPException(status_code=503, detail="Webhook verification is not configured")
+    logger.warning(f"[DeliveryWebhook] Rejected: {exc}")
+    raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -280,7 +226,7 @@ async def sendgrid_webhook(request: Request, background_tasks: BackgroundTasks):
     Returns 200 immediately; processing happens in background.
 
     Expected headers:
-    - X-Twilio-Email-Event-Webhook-Signature: HMAC-SHA256 signature
+    - X-Twilio-Email-Event-Webhook-Signature / -Timestamp: ECDSA signature (Signed Event Webhook)
 
     Expected body: JSON array of email events
     {
@@ -297,13 +243,18 @@ async def sendgrid_webhook(request: Request, background_tasks: BackgroundTasks):
         ]
     }
     """
+    raw_body = await request.body()
     try:
-        raw_body = await request.body()
+        verify_sendgrid(raw_body,
+                        request.headers.get("X-Twilio-Email-Event-Webhook-Signature"),
+                        request.headers.get("X-Twilio-Email-Event-Webhook-Timestamp"))
+    except (WebhookNotConfigured, WebhookSignatureInvalid) as exc:
+        _reject(exc)
+    try:
         webhook_data = json.loads(raw_body)
-
-        # TODO: Validate signature against SendGrid API key
-        # For now, accept without validation (webhook auth handled by IP whitelist)
-
+        # SendGrid posts a JSON array of events; the processor reads {"events": [...]}
+        if isinstance(webhook_data, list):
+            webhook_data = {"events": webhook_data}
         background_tasks.add_task(_process_sendgrid_webhook, webhook_data)
         return {"status": "received"}
 
@@ -328,7 +279,7 @@ async def mailgun_webhook(request: Request, background_tasks: BackgroundTasks):
     Returns 200 immediately; processing happens in background.
 
     Expected headers:
-    - X-Mailgun-Signature: HMAC-SHA256 signature
+    - none: Mailgun signs in the JSON body ("signature": {timestamp, token, signature})
 
     Expected body: JSON event
     {
@@ -349,13 +300,16 @@ async def mailgun_webhook(request: Request, background_tasks: BackgroundTasks):
         }
     }
     """
+    raw_body = await request.body()
     try:
-        raw_body = await request.body()
         webhook_data = json.loads(raw_body)
-
-        # TODO: Validate signature against Mailgun API key
-        # For now, accept without validation
-
+    except json.JSONDecodeError:
+        _reject(WebhookSignatureInvalid("Mailgun payload is not JSON"))
+    try:
+        verify_mailgun(webhook_data.get("signature") if isinstance(webhook_data, dict) else None)
+    except (WebhookNotConfigured, WebhookSignatureInvalid) as exc:
+        _reject(exc)
+    try:
         background_tasks.add_task(_process_mailgun_webhook, webhook_data)
         return {"status": "received"}
 
@@ -394,14 +348,14 @@ async def twilio_sms_webhook(request: Request, background_tasks: BackgroundTasks
         "tenant_id": "..."
     }
     """
+    # Twilio sends form-encoded data and signs the public URL + parameters
+    webhook_data = dict(await request.form())
     try:
-        # Twilio sends form-encoded data
-        form_data = await request.form()
-        webhook_data = dict(form_data)
-
-        # TODO: Validate signature using Twilio auth token
-        # For now, accept without validation
-
+        verify_twilio(twilio_public_url(request.url.path, request.url.query),
+                      webhook_data, request.headers.get("X-Twilio-Signature"))
+    except (WebhookNotConfigured, WebhookSignatureInvalid) as exc:
+        _reject(exc)
+    try:
         background_tasks.add_task(_process_twilio_sms_webhook, webhook_data)
         return {"status": "received"}
 
@@ -437,14 +391,14 @@ async def twilio_whatsapp_webhook(request: Request, background_tasks: Background
         "tenant_id": "..."
     }
     """
+    # Twilio sends form-encoded data and signs the public URL + parameters
+    webhook_data = dict(await request.form())
     try:
-        # Twilio sends form-encoded data
-        form_data = await request.form()
-        webhook_data = dict(form_data)
-
-        # TODO: Validate signature using Twilio auth token
-        # For now, accept without validation
-
+        verify_twilio(twilio_public_url(request.url.path, request.url.query),
+                      webhook_data, request.headers.get("X-Twilio-Signature"))
+    except (WebhookNotConfigured, WebhookSignatureInvalid) as exc:
+        _reject(exc)
+    try:
         background_tasks.add_task(_process_twilio_whatsapp_webhook, webhook_data)
         return {"status": "received"}
 

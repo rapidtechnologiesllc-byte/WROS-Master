@@ -69,12 +69,14 @@ from app.models.user import Users
 from app.schemas.timesheet import (
     AnomalyFlagItem,
     AnomalyFlagsResponse,
+    ApproveTimesheetRequest,
     CreateWeeklyDraftRequest,
     DisputeItem,
     DisputeListResponse,
     RaiseDisputeRequest,
     RejectTimesheetRequest,
     ResolveDisputeRequest,
+    SubmitTimesheetRequest,
     TimesheetEntryItem,
     TimesheetItem,
     TimesheetListResponse,
@@ -97,13 +99,12 @@ from app.services.timesheet_service import (
     InvalidTimesheetTransition,
     StaleTimesheetSubmission,
     TimesheetNotEditable,
-    approve_timesheet,
     create_weekly_draft,
-    reject_timesheet,
     reopen_for_editing,
-    submit_timesheet,
     upsert_entries,
 )
+
+from app.services.timesheet_approval_service import rejection_for_employee
 
 router = APIRouter(prefix="/timesheets", tags=["timesheets"])
 
@@ -132,6 +133,7 @@ def _to_item(db: Session, timesheet: Timesheet) -> TimesheetItem:
         approved_by=timesheet.approved_by,
         approved_at=timesheet.approved_at,
         rejection_reason=timesheet.rejection_reason,
+        rejection=rejection_for_employee(db, timesheet) if timesheet.status in ("REJECTED", "DRAFT") else None,
         entries=[
             TimesheetEntryItem(
                 id=e.id, entry_date=e.entry_date, hours=float(e.hours),
@@ -162,6 +164,35 @@ def _get_timesheet_or_404(db: Session, timesheet_id: str, user: Users) -> Timesh
     if timesheet is None:
         raise HTTPException(status_code=404, detail="Timesheet not found.")
     return timesheet
+
+@router.get(
+    "/allocations",
+    summary="Active allocations a timesheet can be started for (the New Weekly Timesheet picker)",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
+)
+def timesheet_allocations(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Every ACTIVE allocation the caller may start a draft for (the same scope as POST
+    /weekly-draft), grouped by employee for an employee -> allocation picker."""
+    from app.api.v1.endpoints.allocations import _to_item as allocation_to_item
+
+    rows = db.query(EmployeeAllocation).filter(
+        EmployeeAllocation.tenant_id == current_user.tenant_id, EmployeeAllocation.status == "ACTIVE",
+        or_(allocation_filter(db, current_user), EmployeeAllocation.employee_id.in_(_own_employee_ids(current_user))),
+    ).order_by(EmployeeAllocation.start_date.desc()).all()
+    employees = {}
+    for allocation in rows:
+        item = allocation_to_item(db, allocation)
+        entry = employees.setdefault(item.employee_id, {"employee_id": item.employee_id,
+                                                        "employee_name": item.employee_name, "allocations": []})
+        entry["allocations"].append({
+            "id": item.id, "client_name": item.client_name, "demand_job_title": item.demand_job_title,
+            "start_date": item.start_date, "end_date": item.end_date,
+        })
+    return {"employees": sorted(employees.values(), key=lambda e: e["employee_name"].lower())}
+
 
 @router.post(
     "/weekly-draft",
@@ -194,6 +225,7 @@ def create_draft(
     db.commit()
     try:
         MessageQueueService.enqueue(
+            tenant_id=timesheet.tenant_id,
             task_name="timesheet_created",
             data={
                 "timesheet_id": timesheet.id,
@@ -206,7 +238,7 @@ def create_draft(
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to create timesheet {timesheet.id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to create timesheet")
+        raise HTTPException(status_code=500, detail="Saved, but the follow-up event could not be queued (create timesheet); retry or tell support.")
     return _to_item(db, timesheet)
 
 @router.put(
@@ -234,6 +266,7 @@ def upsert_timesheet_entries(
     db.commit()
     try:
         MessageQueueService.enqueue(
+            tenant_id=timesheet.tenant_id,
             task_name="timesheet_entries_updated",
             data={
                 "timesheet_id": timesheet.id,
@@ -247,89 +280,77 @@ def upsert_timesheet_entries(
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to update timesheet entries {timesheet.id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to update timesheet")
+        raise HTTPException(status_code=500, detail="Saved, but the follow-up event could not be queued (update timesheet); retry or tell support.")
+
+def run_approval_step(db: Session, step):
+    """Run one approval-loop step and map its refusals to HTTP; commits, then sends the notices.
+    Shared by /timesheets, /my/timesheet and /timesheet-approvals so every path routes the same way."""
+    from app.services import timesheet_approval_service as approvals
+
+    try:
+        review = step()
+    except (approvals.NotTheApprover,) as exc:
+        db.rollback()
+        raise HTTPException(status_code=403, detail=str(exc))
+    except (approvals.NoTimesheetApprover, InvalidTimesheetTransition) as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc))
+    except (approvals.ResubmitNeedsChange, approvals.AddressedNotConfirmed, InvalidTimesheetEntry,
+            StaleTimesheetSubmission, ValueError) as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
+    db.commit()
+    approvals.send_notices(db, review)
+    return review
+
 
 @router.post(
     "/{timesheet_id}/submit",
     response_model=TimesheetItem,
-    summary="Submit a draft timesheet",
+    summary="Submit a draft timesheet (routed to the employee's approver with a task)",
     dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
 )
 def submit(
     timesheet_id: str,
+    body: Optional[SubmitTimesheetRequest] = None,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    timesheet = _get_timesheet_or_404(db, timesheet_id, current_user)
-    try:
-        timesheet = submit_timesheet(db, timesheet)
-    except InvalidTimesheetTransition as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
-    except InvalidTimesheetEntry as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
-    except StaleTimesheetSubmission as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
+    from app.services.timesheet_approval_service import submit_for_approval
 
-    # Persist the change first; the queued event refers to saved rows
-    db.commit()
-    try:
-        # Queue timesheet_submitted for manager dashboard & commission recalculation
-        MessageQueueService.enqueue(
-            task_name="timesheet_submitted",
-            data={
-                "timesheet_id": timesheet_id,
-                "employee_id": timesheet.employee_id,
-                "week_of": str(timesheet.week_starting_date),
-                "total_hours": float(timesheet.total_hours or 0),
-                "submitted_by": current_user.UserID,
-            },
-        )
-        db.refresh(timesheet)
-        return _to_item(db, timesheet)
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Failed to submit timesheet {timesheet_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to submit timesheet")
+    timesheet = _get_timesheet_or_404(db, timesheet_id, current_user)
+    run_approval_step(db, lambda: submit_for_approval(db, timesheet, current_user,
+                                                      response=body.response if body else None))
+    db.refresh(timesheet)
+    return _to_item(db, timesheet)
+
 
 @router.post(
     "/{timesheet_id}/approve",
     response_model=TimesheetItem,
-    summary="Approve a submitted timesheet",
+    summary="Approve a submitted timesheet (the routed approver, or timesheet edit rights on its BU)",
     dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
 )
 def approve(
     timesheet_id: str,
+    body: Optional[ApproveTimesheetRequest] = None,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    timesheet = _get_timesheet_or_404(db, timesheet_id, current_user)
-    try:
-        timesheet = approve_timesheet(db, timesheet, approved_by=current_user.UserID)
-    except InvalidTimesheetTransition as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
+    from app.services.timesheet_approval_service import approve as approve_step
 
-    # Persist the change first; the queued event refers to saved rows
-    db.commit()
-    try:
-        MessageQueueService.enqueue(
-            task_name="timesheet_approved",
-            data={
-                "timesheet_id": timesheet_id,
-                "employee_id": timesheet.employee_id,
-                "approved_by": current_user.UserID,
-            },
-        )
-        db.refresh(timesheet)
-        return _to_item(db, timesheet)
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Failed to approve timesheet {timesheet_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to approve timesheet")
+    timesheet = _get_timesheet_or_404(db, timesheet_id, current_user)
+    body = body or ApproveTimesheetRequest()
+    run_approval_step(db, lambda: approve_step(db, timesheet, current_user, comment=body.comment,
+                                               addressed=body.addressed))
+    db.refresh(timesheet)
+    return _to_item(db, timesheet)
+
 
 @router.post(
     "/{timesheet_id}/reject",
     response_model=TimesheetItem,
-    summary="Reject a submitted timesheet",
+    summary="Reject a submitted timesheet with a reason (the employee gets a resubmit task)",
     dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
 )
 def reject(
@@ -338,32 +359,13 @@ def reject(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    timesheet = _get_timesheet_or_404(db, timesheet_id, current_user)
-    try:
-        timesheet = reject_timesheet(db, timesheet, body.reason)
-    except InvalidTimesheetTransition as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
-    except InvalidTimesheetEntry as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
+    from app.services.timesheet_approval_service import reject as reject_step
 
-    # Persist the change first; the queued event refers to saved rows
-    db.commit()
-    try:
-        MessageQueueService.enqueue(
-            task_name="timesheet_rejected",
-            data={
-                "timesheet_id": timesheet_id,
-                "employee_id": timesheet.employee_id,
-                "rejection_reason": body.reason,
-                "rejected_by": current_user.UserID,
-            },
-        )
-        db.refresh(timesheet)
-        return _to_item(db, timesheet)
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Failed to reject timesheet {timesheet_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to reject timesheet")
+    timesheet = _get_timesheet_or_404(db, timesheet_id, current_user)
+    run_approval_step(db, lambda: reject_step(db, timesheet, current_user, reason=body.reason,
+                                              flagged_dates=body.flagged_dates))
+    db.refresh(timesheet)
+    return _to_item(db, timesheet)
 
 @router.post(
     "/{timesheet_id}/reopen",
@@ -386,6 +388,7 @@ def reopen(
     db.commit()
     try:
         MessageQueueService.enqueue(
+            tenant_id=timesheet.tenant_id,
             task_name="timesheet_reopened",
             data={
                 "timesheet_id": timesheet_id,
@@ -398,7 +401,7 @@ def reopen(
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to reopen timesheet {timesheet_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to reopen timesheet")
+        raise HTTPException(status_code=500, detail="Saved, but the follow-up event could not be queued (reopen timesheet); retry or tell support.")
 
 
 @router.get(
@@ -463,6 +466,7 @@ def scan_anomalies(
     db.commit()
     try:
         MessageQueueService.enqueue(
+            tenant_id=timesheet.tenant_id,
             task_name="timesheet_anomalies_scanned",
             data={
                 "timesheet_id": timesheet_id,
@@ -474,7 +478,7 @@ def scan_anomalies(
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to scan timesheet anomalies {timesheet_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to scan anomalies")
+        raise HTTPException(status_code=500, detail="Saved, but the follow-up event could not be queued (scan anomalies); retry or tell support.")
 
 @router.get(
     "/{timesheet_id}/anomalies",
@@ -532,6 +536,7 @@ def create_dispute(
     db.commit()
     try:
         MessageQueueService.enqueue(
+            tenant_id=timesheet.tenant_id,
             task_name="dispute_raised",
             data={
                 "dispute_id": dispute.id,
@@ -546,7 +551,7 @@ def create_dispute(
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to create dispute for timesheet {timesheet_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to raise dispute")
+        raise HTTPException(status_code=500, detail="Saved, but the follow-up event could not be queued (raise dispute); retry or tell support.")
 
 @router.get(
     "/{timesheet_id}/disputes",
@@ -600,6 +605,7 @@ def resolve_dispute_endpoint(
     db.commit()
     try:
         MessageQueueService.enqueue(
+            tenant_id=current_user.tenant_id,
             task_name="dispute_resolved",
             data={
                 "dispute_id": dispute_id,
@@ -614,5 +620,5 @@ def resolve_dispute_endpoint(
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to resolve dispute {dispute_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to resolve dispute")
+        raise HTTPException(status_code=500, detail="Saved, but the follow-up event could not be queued (resolve dispute); retry or tell support.")
 

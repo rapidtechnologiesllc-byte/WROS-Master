@@ -249,7 +249,7 @@ def format_whatsapp_digest(digest: Dict) -> str:
         risks_str = ", ".join(f"{r['name']} ({r['score']})" for r in digest["top_risks"])
         lines.append(f"⚠️ *Top Risks:* {risks_str}")
     lines.append("")
-    lines.append(f"View full dashboard: {Settings.FRONTEND_BASE_URL.rstrip('/')}/recruiter/risk-dashboard")
+    lines.append(f"View full dashboard: {Settings.FRONTEND_BASE_URL.rstrip('/')}/recruiter/watch?view=risk")
     return "\n".join(lines)
 
 def format_email_digest_html(digest: Dict) -> str:
@@ -272,7 +272,7 @@ def format_email_digest_html(digest: Dict) -> str:
     {link_list(digest['interviews_today'], lambda i: f"{i['name']} — {i['level']} — {i['local_time']} with {i['interviewer']}")}
     <h3>Top Risks</h3>
     {link_list(digest['top_risks'], lambda r: f"{r['name']} — {r['score']} ({r['top_signal']})")}
-    <p><a href="{Settings.FRONTEND_BASE_URL.rstrip('/')}/recruiter/risk-dashboard">View Full Dashboard</a></p>
+    <p><a href="{Settings.FRONTEND_BASE_URL.rstrip('/')}/recruiter/watch?view=risk">View Full Dashboard</a></p>
     <p>-- Thunder, your AI Recruiting Assistant<br/>BlitzenX</p>
     """
     return html
@@ -352,13 +352,14 @@ def run_daily_digest_job(db: Session) -> Dict:
                 # ("HH:MM"). This job's own cadence is 30-min, so only
                 # the hour component is honored -- same precision this
                 # check already had pre-S-077, just no longer hardcoded.
-                try:
-                    from app.services.tenant_ai_config_service import get_tenant_ai_config
-                    send_time = get_tenant_ai_config(db, tenant_id).get("digest_send_time")
-                    if send_time:
-                        digest_hour = int(str(send_time).split(":")[0])
-                except Exception:
-                    pass
+                from app.services.tenant_ai_config_service import get_tenant_ai_config
+                tenant_config = get_tenant_ai_config(db, tenant_id)
+                if tenant_config.get("digest_enabled") is False:  # the organisation switched digests off
+                    result["skipped"] += 1
+                    continue
+                send_time = tenant_config.get("digest_send_time")
+                if send_time:
+                    digest_hour = int(str(send_time).split(":")[0])
                 if local_hour != digest_hour:
                     result["skipped"] += 1
                     continue

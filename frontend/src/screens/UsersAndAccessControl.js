@@ -21,6 +21,7 @@ import { apiRequest } from "../services/api/client";
 import { listBusinessUnits } from "../services/api/rbac";
 import { getHrMe } from "../services/api/users";
 import RoleTemplateEditor from "../components/RoleTemplateEditor";
+import { alertDialog, confirmDialog } from "../utils/dialogs";
 
 function SimpleModal({ isOpen, onClose, title, children }) {
   if (!isOpen) return null;
@@ -75,13 +76,14 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
   // previous render's value and could delete a different user.
   const handleDelete = async (userId) => {
     if (!userId) return;
-    if (!window.confirm("Are you sure? This action cannot be undone.")) return;
+    const name = users.find(u => u.user_id === userId)?.user_name || "this user";
+    if (!(await confirmDialog(`Delete ${name}?\n\nSomeone with history (jobs, interviews, offers ...) is deactivated instead: they can no longer sign in and their records are kept.`, { danger: true }))) return;
 
     setActionError(null);
     setBusy(true);
     try {
-      await deleteHrUser(userId);
-      setActionSuccess("User deleted successfully.");
+      const result = await deleteHrUser(userId);
+      await alertDialog(result?.message || "User deleted.");
       window.location.reload();
     } catch (err) {
       setActionError(err.message || "Failed to delete user.");
@@ -163,7 +165,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
           onChange={(val) => setSearchTerm(val)}
           className="max-w-xs"
         />
-        {hasPermission("users", "edit") && (
+        {hasPermission("users-access-control", "edit") && (
           <Button
             onClick={() => navigate('/admin/users-access-control/users/create')}
             className="gap-2"
@@ -176,10 +178,26 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
 
       <Table
         columns={[
-          { header: "Name", accessor: "user_name", key: "name" },
+          {
+            header: "Name",
+            key: "name",
+            cell: (row) => (
+              <span className={row.active === false ? "text-gray-400" : ""}>
+                {row.user_name}
+                {row.active === false && <span className="ml-2 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">Deactivated</span>}
+              </span>
+            ),
+          },
           { header: "Email", accessor: "user_email", key: "email" },
           { header: "Job Title", accessor: "job_title", key: "job_title" },
           { header: "Role Template", accessor: "permission_role", key: "role_template" },
+          {
+            header: "Org Chart",
+            key: "org_chart",
+            cell: (row) => (row.org_node_id
+              ? <span className="text-xs text-green-700">Connected</span>
+              : <span className="text-xs font-medium text-amber-700" title="Edit the user to choose who they report to">Not in org chart</span>),
+          },
           {
             header: "Actions",
             key: "actions",
@@ -204,7 +222,7 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
                 >
                   <Lock className="h-4 w-4" />
                 </button>
-                {hasPermission("users-access-control", "delete") && (
+                {hasPermission("users-access-control", "delete") && row.active !== false && (
                   <button
                     onClick={() => handleDelete(row.user_id)}
                     className="text-red-600 hover:text-red-700"
@@ -273,16 +291,26 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
   const [actionSuccess, setActionSuccess] = useState(null);
 
   const filteredRoles = useMemo(() => {
-    if (!searchTerm) return roles;
+    // Function add-ons first, then the roles' permission sets from the top level down
+    const ordered = [...roles].sort((a, b) =>
+      (a.owner_role ? 1 : 0) - (b.owner_role ? 1 : 0)
+      || (b.owner_role?.hierarchy_level || 0) - (a.owner_role?.hierarchy_level || 0));
+    if (!searchTerm) return ordered;
     const term = searchTerm.toLowerCase();
-    return roles.filter(r =>
+    return ordered.filter(r =>
       (r.name || "").toLowerCase().includes(term) ||
       (r.description || "").toLowerCase().includes(term)
     );
   }, [roles, searchTerm]);
 
-  // Count users per template by the template id they hold (names can be renamed)
-  const getUserCount = (templateId) => users.filter((u) => u.role_template_id === templateId).length;
+  // Count users per template: holders of it as their add-on, and -- for a role's permission
+  // set -- everyone whose Job Title is that role (renames carry the title along)
+  const getUserCount = (templateId) => {
+    const owner = roles.find((r) => r.id === templateId)?.owner_role;
+    const roleName = owner ? owner.name.trim().toLowerCase() : null;
+    return users.filter((u) => u.role_template_id === templateId
+      || (roleName && (u.job_title || "").trim().toLowerCase() === roleName)).length;
+  };
 
   // Fetch users for a specific role template
   const handleShowUsers = async (roleId, roleName) => {
@@ -332,6 +360,19 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
       setActionError(err.message || "Failed to toggle template status");
     } finally {
       setTogglingTemplate({ ...togglingTemplate, [templateId]: false });
+    }
+  };
+
+  const handleDeleteTemplate = async (template) => {
+    if (!(await confirmDialog(`Delete the "${template.name}" function add-on?`, { danger: true }))) return;
+    setActionError(null);
+    try {
+      await apiRequest(`/admin/role-templates/${template.id}`, { method: "DELETE" });
+      setRoles(roles.filter(r => r.id !== template.id));
+      setActionSuccess(`Deleted ${template.name}`);
+    } catch (err) {
+      console.error("[RoleTemplates] Failed to delete template:", err);
+      setActionError(err.message || "Failed to delete template");
     }
   };
 
@@ -429,9 +470,12 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
                     <h3 className={`font-semibold ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>
                       {role.name}
                     </h3>
+                    <span className={`inline-block mt-1 px-2 py-0.5 text-xs rounded ${role.owner_role ? 'bg-purple-100 text-purple-800' : 'bg-blue-50 text-blue-700'}`}>
+                      {role.owner_role ? `Role permissions · ${role.owner_role.name} (L${role.owner_role.hierarchy_level})` : 'Function add-on'}
+                    </span>
                   </div>
                   <div className="flex gap-1">
-                    <button
+                    {!role.owner_role && <button
                       onClick={() => handleToggleTemplateStatus(role.id, isActive)}
                       disabled={togglingTemplate[role.id]}
                       className={`px-2 py-1 rounded text-xs font-semibold transition ${
@@ -442,7 +486,17 @@ function RoleTemplatesSection({ loading, error, modules, roles, setRoles, users 
                       title={isActive ? 'Click to disable' : 'Click to enable'}
                     >
                       {togglingTemplate[role.id] ? '...' : (isActive ? 'ON' : 'OFF')}
-                    </button>
+                    </button>}
+                    {!role.owner_role && !role.is_system && userCount === 0 && hasPermission("role-templates", "edit") && (
+                      <button
+                        onClick={() => handleDeleteTemplate(role)}
+                        className="ml-1 text-red-600 hover:text-red-700"
+                        title="Delete this function add-on"
+                        aria-label={`Delete ${role.name}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -719,14 +773,15 @@ function BusinessUnitsSection() {
 
 
   const handleDeleteBusinessUnit = async (buId) => {
-    if (!window.confirm("Are you sure you want to delete this business unit?")) return;
+    if (!(await confirmDialog("Delete this business unit?", { danger: true }))) return;
     setActionError(null);
     try {
       await apiRequest(`/rbac/business-units/${buId}`, { method: "DELETE" });
       loadBusinessUnits();
       setActionSuccess("Business Unit deleted successfully");
     } catch (err) {
-      setActionError("Failed to delete business unit");
+      console.error("[BusinessUnits] Failed to delete business unit:", err);
+      setActionError(err.message || "Failed to delete business unit");
     }
   };
 
@@ -823,7 +878,8 @@ function BusinessUnitsSection() {
 // ORGANIZATIONAL HIERARCHY SECTION
 
 function OrganizationalHierarchySection() {
-  const EMPTY_NODE_FORM = { name: "", hierarchy_level: "", specialization: "", parent_id: "", department_id: "", company_id: "" };
+  const EMPTY_NODE_FORM = { name: "", hierarchy_level: "", parent_id: "", department_id: "", company_id: "" };
+  const EMPTY_ROLE_FORM = { name: "", hierarchy_level: "", designation: "" };
 
   const [orgNodes, setOrgNodes] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -840,19 +896,43 @@ function OrganizationalHierarchySection() {
   const [submittingNode, setSubmittingNode] = useState(false);
 
   const [showDepartments, setShowDepartments] = useState(false);
-  const [deptForm, setDeptForm] = useState({ name: "", business_unit_id: "" });
+  const [deptForm, setDeptForm] = useState({ name: "", description: "" });
   const [editingDept, setEditingDept] = useState(null);
+
+  // Roles: the job titles people hold and the org level each one sits at
+  const [roles, setRoles] = useState([]);
+  const [showRoles, setShowRoles] = useState(false);
+  const [roleForm, setRoleForm] = useState(EMPTY_ROLE_FORM);
+  const [editingRole, setEditingRole] = useState(null);
+  // A role's permission set, edited in the same editor as any role template
+  const [permissionsRole, setPermissionsRole] = useState(null);
+  const [permissionModules, setPermissionModules] = useState([]);
+  const canManageRoles = hasPermission("org-roles", "edit");
+
+  const openRolePermissions = async (role) => {
+    setActionError(null);
+    try {
+      setPermissionModules(await listModulesAndResources());
+      setPermissionsRole(role);
+    } catch (err) {
+      console.error("[ManageRoles] Failed to load modules for the permissions editor:", err);
+      setActionError(`Failed to open ${role.name} permissions: ${err.message}`);
+    }
+  };
 
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [nodesRes, deptRes, buRes, refRes, companyRes] = await Promise.all([
+      const [nodesRes, deptRes, buRes, refRes, companyRes, rolesRes] = await Promise.all([
         apiRequest("/org/nodes"),
         apiRequest("/org/departments"),
         listBusinessUnits(),
         apiRequest("/org/hierarchy-reference"),
         apiRequest(DELIVERY_CENTERS_PATH),
+        // the role list is readable with user access; without it there is nothing to manage here
+        hasPermission("users-access-control", "view") ? apiRequest("/org/roles?include_inactive=true") : Promise.resolve({ data: [] }),
       ]);
+      setRoles(Array.isArray(rolesRes.data) ? rolesRes.data : []);
       setCompanies(companyRes.data?.delivery_centers || []);
       setOrgNodes(Array.isArray(nodesRes.data) ? nodesRes.data : []);
       setDepartments(Array.isArray(deptRes.data) ? deptRes.data : []);
@@ -873,20 +953,20 @@ function OrganizationalHierarchySection() {
   const deptLabel = (d) => (d.business_unit_name ? `${d.name} · ${d.business_unit_name}` : d.name);
   const departmentById = useCallback((id) => departments.find(d => d.id === id), [departments]);
 
-  // Eligible parents depend on level, specialization and the BU implied by the chosen department
+  // Eligible parents depend on level and the BU implied by the chosen department
   useEffect(() => {
     const level = Number(nodeForm.hierarchy_level);
-    if (!showAddNode || !level || !nodeForm.specialization || level >= 17) {
+    if (!showAddNode || !level || level >= 17) {
       setEligibleParents([]);
       return;
     }
-    const params = new URLSearchParams({ hierarchy_level: String(level), specialization: nodeForm.specialization });
+    const params = new URLSearchParams({ hierarchy_level: String(level) });
     const dept = departmentById(nodeForm.department_id);
     if (dept?.business_unit_id) params.set("business_unit_id", String(dept.business_unit_id));
     apiRequest(`/org/valid-supervisors?${params.toString()}`)
       .then(res => setEligibleParents(Array.isArray(res.data) ? res.data : []))
       .catch(() => setEligibleParents([]));
-  }, [showAddNode, nodeForm.hierarchy_level, nodeForm.specialization, nodeForm.department_id, departmentById]);
+  }, [showAddNode, nodeForm.hierarchy_level, nodeForm.department_id, departmentById]);
 
   const closeAddNode = () => {
     setShowAddNode(false);
@@ -903,7 +983,6 @@ function OrganizationalHierarchySection() {
         body: JSON.stringify({
           name: nodeForm.name.trim(),
           hierarchy_level: Number(nodeForm.hierarchy_level),
-          specialization: nodeForm.specialization,
           parent_id: nodeForm.parent_id || null,
           department_id: nodeForm.department_id || null,
           company_id: nodeForm.company_id,
@@ -934,7 +1013,7 @@ function OrganizationalHierarchySection() {
   };
 
   const handleDeleteNode = async (node) => {
-    if (!window.confirm(`Remove ${node.name} from the org chart?`)) return;
+    if (!(await confirmDialog(`Remove ${node.name} from the org chart?`, { danger: true, confirmLabel: "Remove" }))) return;
     setActionError(null);
     try {
       await apiRequest(`/org/nodes/${node.id}`, { method: "DELETE" });
@@ -952,27 +1031,76 @@ function OrganizationalHierarchySection() {
     try {
       await apiRequest(editingDept ? `/org/departments/${editingDept.id}` : "/org/departments", {
         method: editingDept ? "PUT" : "POST",
-        // No business unit = an org-wide department (HR, Recruitment, Finance ...)
-        body: JSON.stringify({ name: form.name.trim(), business_unit_id: form.business_unit_id ? Number(form.business_unit_id) : null }),
+        // Functions are org-wide (HR, Recruitment, Finance ...)
+        body: JSON.stringify({ name: form.name.trim(), description: form.description || null }),
       });
-      setActionSuccess(editingDept ? "Department updated" : "Department added");
+      setActionSuccess(editingDept ? "Function updated" : "Function added");
       setEditingDept(null);
-      setDeptForm({ name: "", business_unit_id: "" });
+      setDeptForm({ name: "", description: "" });
       loadAll();
     } catch (err) {
-      setActionError(err?.message || "Failed to save department");
+      setActionError(err?.message || "Failed to save function");
+    }
+  };
+
+  // Retire (hide from pickers; blocked while people hold it) or restore a function
+  const handleFunctionActive = async (dept, active) => {
+    setActionError(null);
+    try {
+      await apiRequest(`/org/departments/${dept.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ name: dept.name, description: dept.description || null, active }),
+      });
+      setActionSuccess(`${dept.name} ${active ? "restored" : "retired"}`);
+      loadAll();
+    } catch (err) {
+      console.error("[ManageFunctions] Failed to change function status:", err);
+      setActionError(err?.message || "Failed to change function status");
+    }
+  };
+
+  const handleSaveRole = async (e) => {
+    e.preventDefault();
+    setActionError(null);
+    const form = editingRole || roleForm;
+    try {
+      await apiRequest(editingRole ? `/org/roles/${editingRole.id}` : "/org/roles", {
+        method: editingRole ? "PUT" : "POST",
+        body: JSON.stringify({
+          name: form.name.trim(),
+          hierarchy_level: Number(form.hierarchy_level),
+          designation: form.designation || (editingRole ? "" : null),
+        }),
+      });
+      setActionSuccess(editingRole ? "Role updated" : "Role added");
+      setEditingRole(null);
+      setRoleForm(EMPTY_ROLE_FORM);
+      loadAll();
+    } catch (err) {
+      setActionError(err?.message || "Failed to save role");
+    }
+  };
+
+  const handleRoleActive = async (role, active) => {
+    setActionError(null);
+    try {
+      await apiRequest(`/org/roles/${role.id}`, { method: "PUT", body: JSON.stringify({ active }) });
+      setActionSuccess(active ? `${role.name} restored` : `${role.name} retired`);
+      loadAll();
+    } catch (err) {
+      setActionError(err?.message || "Failed to change role");
     }
   };
 
   const handleDeleteDepartment = async (dept) => {
-    if (!window.confirm(`Delete department ${dept.name}?`)) return;
+    if (!(await confirmDialog(`Delete function ${dept.name}?`, { danger: true }))) return;
     setActionError(null);
     try {
       await apiRequest(`/org/departments/${dept.id}`, { method: "DELETE" });
-      setActionSuccess("Department deleted");
+      setActionSuccess("Function deleted");
       loadAll();
     } catch (err) {
-      setActionError(err?.message || "Failed to delete department");
+      setActionError(err?.message || "Failed to delete function");
     }
   };
 
@@ -1031,7 +1159,7 @@ function OrganizationalHierarchySection() {
 
   const nodeLevel = Number(nodeForm.hierarchy_level);
   const canSubmitNode =
-    nodeForm.name.trim() && nodeLevel && nodeForm.specialization && nodeForm.company_id && (nodeLevel >= 17 || nodeForm.parent_id);
+    nodeForm.name.trim() && nodeLevel && nodeForm.company_id && (nodeLevel >= 17 || nodeForm.parent_id);
   const untagged = orgNodes.filter(n => !n.company_id).length;
 
   return (
@@ -1062,15 +1190,23 @@ function OrganizationalHierarchySection() {
           onClick={() => setShowDepartments(true)}
           className="flex items-center gap-2 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium"
         >
-          Manage Departments
+          Manage Functions
         </button>
+        {canManageRoles && (
+          <button
+            onClick={() => setShowRoles(true)}
+            className="flex items-center gap-2 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium"
+          >
+            Manage Roles
+          </button>
+        )}
       </div>
 
       {!loading && (
         <div className="rounded-lg border border-gray-200 p-4">
-          <h4 className="text-sm font-semibold text-gray-900 mb-2">Departments ({departments.length})</h4>
+          <h4 className="text-sm font-semibold text-gray-900 mb-2">Functions ({departments.length})</h4>
           {departments.length === 0 ? (
-            <p className="text-sm text-gray-500">No departments yet. Departments are the groups tasks and approvals are routed to (HR, Recruitment, Finance ...). Use "Manage Departments" to add them.</p>
+            <p className="text-sm text-gray-500">No functions yet. Departments are the groups tasks and approvals are routed to (HR, Recruitment, Finance ...). Use "Manage Functions" to add them.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {departments.map(dept => (
@@ -1115,33 +1251,18 @@ function OrganizationalHierarchySection() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Hierarchy Level *</label>
-                <select
-                  value={nodeForm.hierarchy_level}
-                  onChange={(e) => setNodeForm(f => ({ ...f, hierarchy_level: e.target.value, parent_id: "" }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-                >
-                  <option value="">Select level</option>
-                  {reference.levels.map(l => (
-                    <option key={l.level} value={l.level}>L{l.level} · {l.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Specialization *</label>
-                <select
-                  value={nodeForm.specialization}
-                  onChange={(e) => setNodeForm(f => ({ ...f, specialization: e.target.value, parent_id: "" }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
-                >
-                  <option value="">Select specialization</option>
-                  {reference.specializations.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Hierarchy Level *</label>
+              <select
+                value={nodeForm.hierarchy_level}
+                onChange={(e) => setNodeForm(f => ({ ...f, hierarchy_level: e.target.value, parent_id: "" }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              >
+                <option value="">Select level</option>
+                {reference.levels.map(l => (
+                  <option key={l.level} value={l.level}>L{l.level} · {l.name}</option>
+                ))}
+              </select>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -1156,7 +1277,7 @@ function OrganizationalHierarchySection() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Function</label>
                 <select
                   value={nodeForm.department_id}
                   onChange={(e) => setNodeForm(f => ({ ...f, department_id: e.target.value, parent_id: "" }))}
@@ -1170,7 +1291,7 @@ function OrganizationalHierarchySection() {
               </div>
             </div>
             <p className="text-xs text-gray-500">
-              Specialization is what the person does (it decides who they can report to). Department is the team tasks and approvals are routed to.
+              The function (Finance, HR ...) tasks and approvals route to.
             </p>
             {nodeLevel > 0 && nodeLevel < 17 && (
               <div>
@@ -1182,13 +1303,13 @@ function OrganizationalHierarchySection() {
                 >
                   <option value="">Select supervisor</option>
                   {eligibleParents.map(p => (
-                    <option key={p.id} value={p.id}>{p.name} (L{p.hierarchy_level} · {p.specialization})</option>
+                    <option key={p.id} value={p.id}>{p.name} (L{p.hierarchy_level})</option>
                   ))}
                 </select>
-                {nodeForm.specialization && eligibleParents.length === 0 && (
+                {eligibleParents.length === 0 && (
                   <p className="text-xs text-amber-600 mt-1">
                     No eligible supervisor. Level {nodeLevel} must report to Level {nodeLevel + 1}-{Math.min(nodeLevel + 2, 17)}
-                    {nodeLevel < 13 ? " in the same specialization (unless the supervisor is Level 13+)" : ""}.
+                    {nodeLevel < 16 ? " in the same business unit (or a Level 16+ leader)" : ""}.
                   </p>
                 )}
               </div>
@@ -1209,21 +1330,117 @@ function OrganizationalHierarchySection() {
         </SimpleModal>
       )}
 
+      {showRoles && (
+        <SimpleModal isOpen={true} onClose={() => { setShowRoles(false); setEditingRole(null); setRoleForm(EMPTY_ROLE_FORM); }} title="Manage Roles">
+          <p className="text-xs text-gray-500 mb-3">
+            A role is a Job Title, the org level it sits at, and the permissions everyone holding it gets (on top of their function add-on). A role people hold can't change level or be retired - give them another role first.
+          </p>
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {roles.map(role => (
+              <div key={role.id} className={`flex items-center justify-between p-3 rounded border ${role.active ? "bg-gray-50 border-gray-200" : "bg-white border-dashed border-gray-300 opacity-70"}`}>
+                <div>
+                  <span className="text-sm font-medium text-gray-900">{role.name}</span>
+                  <span className="ml-2 text-xs text-gray-500">L{role.hierarchy_level} · {role.level_name}</span>
+                  {role.designation && <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-800 text-xs rounded">{role.designation.toUpperCase()}</span>}
+                  <span className="ml-2 text-xs text-gray-500">{role.users} {role.users === 1 ? "person" : "people"}</span>
+                </div>
+                <div className="flex gap-2">
+                  {role.role_template_id && (
+                    <button onClick={() => openRolePermissions(role)} className="text-xs text-purple-700 hover:underline">
+                      Permissions
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setEditingRole({ id: role.id, name: role.name, hierarchy_level: role.hierarchy_level, designation: role.designation || "" })}
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    Edit
+                  </button>
+                  <button onClick={() => handleRoleActive(role, !role.active)} className="text-xs text-gray-600 hover:underline">
+                    {role.active ? "Retire" : "Restore"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <form onSubmit={handleSaveRole} className="mt-4 space-y-3 border-t pt-4">
+            <h4 className="text-sm font-semibold text-gray-900">{editingRole ? `Edit ${editingRole.name}` : "Add a role"}</h4>
+            <input
+              type="text"
+              value={(editingRole || roleForm).name}
+              onChange={(e) => (editingRole ? setEditingRole(r => ({ ...r, name: e.target.value })) : setRoleForm(f => ({ ...f, name: e.target.value })))}
+              placeholder="e.g., Technical Manager"
+              maxLength={150}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <select
+                value={(editingRole || roleForm).hierarchy_level}
+                onChange={(e) => (editingRole ? setEditingRole(r => ({ ...r, hierarchy_level: e.target.value })) : setRoleForm(f => ({ ...f, hierarchy_level: e.target.value })))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              >
+                <option value="">Select level</option>
+                {reference.levels.map(l => <option key={l.level} value={l.level}>L{l.level} · {l.name}</option>)}
+              </select>
+              <select
+                value={(editingRole || roleForm).designation}
+                onChange={(e) => (editingRole ? setEditingRole(r => ({ ...r, designation: e.target.value })) : setRoleForm(f => ({ ...f, designation: e.target.value })))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              >
+                <option value="">No designation</option>
+                <option value="ceo">CEO (Level 17)</option>
+                <option value="cfo">CFO (Level 16)</option>
+              </select>
+            </div>
+            <div className="flex gap-2 justify-end">
+              {editingRole && (
+                <button type="button" onClick={() => setEditingRole(null)} className="px-3 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg">
+                  Cancel
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={!(editingRole || roleForm).name.trim() || !(editingRole || roleForm).hierarchy_level}
+                className="px-3 py-2 text-sm bg-bx-orange text-white rounded-lg hover:bg-bx-orange-hover disabled:opacity-60"
+              >
+                {editingRole ? "Save Role" : "Add Role"}
+              </button>
+            </div>
+          </form>
+        </SimpleModal>
+      )}
+
+      {permissionsRole && (
+        <RoleTemplateEditor
+          mode="edit"
+          templateId={permissionsRole.role_template_id}
+          onClose={() => setPermissionsRole(null)}
+          onSuccess={() => {
+            setActionSuccess(`${permissionsRole.name} permissions saved`);
+            setPermissionsRole(null);
+          }}
+          modules={permissionModules}
+        />
+      )}
+
       {showDepartments && (
-        <SimpleModal isOpen={true} onClose={() => { setShowDepartments(false); setEditingDept(null); }} title="Manage Departments">
+        <SimpleModal isOpen={true} onClose={() => { setShowDepartments(false); setEditingDept(null); }} title="Manage Functions">
           <div className="space-y-3 max-h-80 overflow-y-auto">
             {departments.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-4">No departments yet</p>
+              <p className="text-sm text-gray-500 text-center py-4">No functions yet</p>
             ) : (
               departments.map(dept => (
-                <div key={dept.id} className="flex items-center justify-between bg-gray-50 p-3 rounded border border-gray-200">
+                <div key={dept.id} className={`flex items-center justify-between p-3 rounded border ${dept.active === false ? "bg-white border-dashed border-gray-300 opacity-70" : "bg-gray-50 border-gray-200"}`}>
                   <div>
                     <span className="text-sm font-medium text-gray-900">{dept.name}</span>
-                    <span className="ml-2 text-xs text-gray-500">{dept.business_unit_name || "Org-wide"}</span>
+                    {dept.active === false && <span className="ml-2 text-xs text-gray-500">Retired</span>}
                   </div>
                   <div className="flex gap-2">
+                    <button onClick={() => handleFunctionActive(dept, dept.active === false)} className="text-xs text-gray-600 hover:underline">
+                      {dept.active === false ? "Restore" : "Retire"}
+                    </button>
                     <button
-                      onClick={() => setEditingDept({ id: dept.id, name: dept.name, business_unit_id: dept.business_unit_id ? String(dept.business_unit_id) : "" })}
+                      onClick={() => setEditingDept({ id: dept.id, name: dept.name, description: dept.description || "" })}
                       className="p-1 text-blue-600 hover:bg-blue-50 rounded"
                       aria-label={`Edit ${dept.name}`}
                     >
@@ -1250,21 +1467,9 @@ function OrganizationalHierarchySection() {
               onChange={(e) => editingDept
                 ? setEditingDept(d => ({ ...d, name: e.target.value }))
                 : setDeptForm(d => ({ ...d, name: e.target.value }))}
-              placeholder="Department name"
+              placeholder="Function name (e.g. Recruitment)"
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-bx-orange"
             />
-            <select
-              value={(editingDept || deptForm).business_unit_id}
-              onChange={(e) => editingDept
-                ? setEditingDept(d => ({ ...d, business_unit_id: e.target.value }))
-                : setDeptForm(d => ({ ...d, business_unit_id: e.target.value }))}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-bx-orange"
-            >
-              <option value="">Org-wide (all business units)</option>
-              {businessUnits.map(bu => (
-                <option key={bu.id} value={bu.id}>{bu.display_name || bu.name}</option>
-              ))}
-            </select>
             <div className="flex gap-2 justify-end">
               {editingDept && (
                 <button type="button" onClick={() => setEditingDept(null)} className="px-3 py-1 text-xs text-gray-700 border border-gray-300 rounded hover:bg-gray-50">
@@ -1276,7 +1481,7 @@ function OrganizationalHierarchySection() {
                 className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60"
                 disabled={!(editingDept || deptForm).name.trim()}
               >
-                {editingDept ? "Save" : "Add Department"}
+                {editingDept ? "Save" : "Add Function"}
               </button>
             </div>
           </form>
@@ -1297,6 +1502,7 @@ const DELIVERY_CENTERS_PATH = '/api/v1/api/admin/users-access-control/delivery-c
 function LocationsSection() {
   const navigate = useNavigate();
   const [deliveryCenters, setDeliveryCenters] = useState([]);
+  const [parentCompany, setParentCompany] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
@@ -1310,6 +1516,7 @@ function LocationsSection() {
       setLoading(true);
       const res = await apiRequest(DELIVERY_CENTERS_PATH);
       setDeliveryCenters(res.data?.delivery_centers || []);
+      setParentCompany(res.data?.parent_company || null);
       setLoadError(null);
     } catch (err) {
       console.error("[LocationsSection] Failed to load companies:", err);
@@ -1324,7 +1531,7 @@ function LocationsSection() {
   };
 
   const handleDelete = async (dcId) => {
-    if (!window.confirm("Are you sure you want to delete this company?")) return;
+    if (!(await confirmDialog("Delete this company?", { danger: true }))) return;
     try {
       await apiRequest(`${DELIVERY_CENTERS_PATH}/${dcId}`, { method: "DELETE" });
       setActionSuccess("Company deleted");
@@ -1382,13 +1589,13 @@ function LocationsSection() {
             <div key={dc.id} className="border border-gray-200 rounded-lg p-4 flex items-start justify-between hover:bg-gray-50">
               <div className="flex-1">
                 <div className="flex items-center gap-3">
-                  <h4 className="font-semibold text-gray-900">{dc.name}</h4>
+                  <h4 className="font-semibold text-gray-900">{dc.name}{dc.company_code ? <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600">ID {dc.company_code}</span> : null}</h4>
                   <span className={`px-2 py-1 rounded text-xs font-medium ${
                     dc.center_type === "HQ"
                       ? "bg-purple-100 text-purple-800"
                       : "bg-blue-100 text-blue-800"
                   }`}>
-                    {dc.center_type === "HQ" ? "Parent company" : `Subsidiary of ${dc.parent_company_name || "?"}`}
+                    {`Reports to ${dc.parent_company_name || (parentCompany ? `${parentCompany.name} (holding, ID ${parentCompany.company_code})` : "the holding company")}`}
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-4 mt-2 text-sm text-gray-600">

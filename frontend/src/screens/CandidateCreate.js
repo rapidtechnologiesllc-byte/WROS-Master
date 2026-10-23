@@ -8,9 +8,6 @@ import {
 import { FileText, Users } from "lucide-react";
 import { createCandidate } from "../services/api/candidates";
 import { apiRequest } from "../services/api/client";
-import { uploadResume } from "../services/api/documents";
-import { getMicrosoftSigninUrl } from "../services/api/msgraph";
-import { sendPlainEmail } from "../services/api/email";
 import {
   Button,
   Card,
@@ -22,20 +19,19 @@ import {
 } from "../components/ui";
 import RateField from "../components/ui/RateField";
 import {
-  createCandidateHistoryEvent,
-  HISTORY_EVENT_TYPES,
-} from "../services/api/candidateHistory";
-import {
   extractResumeText,
   inferFieldsFromResumeText,
 } from "../utils/resumeAutofill";
-import { assignJob, getAllJobs } from "../services/api/jobs";
-import { mapJobFromApi } from "../utils/jobMappers";
+import { getAllJobs } from "../services/api/jobs";
 import { ScreenLevelBanner, useScreenBanner, ValidationSummary } from "../components/ScreenLevelBanner";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useRef } from "react";
 import { handleApiError } from "../utils/apiErrorHandler";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
+import { getReferrers } from "../services/api/referrals";
+
+// The source that records an employee referral (needs "Referred By")
+const EMPLOYEE_REFERRAL = "Employee Referral";
 
 // Rows count as filled when any field has a value; only the key field is required
 const hasAnyValue = (row, keys) => keys.some((k) => String(row[k] || "").trim());
@@ -58,7 +54,6 @@ const EMPTY_CERTIFICATION_ROW = { name: "", organization: "", issue_date: "", ex
 
 export default function CandidateCreate({ onBack, onSave }) {
   const { banner, showSuccess, showError, dismiss } = useScreenBanner();
-  const [candidateRole, setCandidateRole] = useState("");
   const [candidateJobTitle, setCandidateJobTitle] = useState("");
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
@@ -70,7 +65,6 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [dob, setDob] = useState("");
   const [source, setSource] = useState("");
   const [experience, setExperience] = useState("");
-  const [skills, setSkills] = useState("");
   const [joiningDate, setJoiningDate] = useState("");
   const [expectedSalary, setExpectedSalary] = useState("");
   const [currentSalary, setCurrentSalary] = useState("");
@@ -80,10 +74,9 @@ export default function CandidateCreate({ onBack, onSave }) {
     city: "",
   });
   const [assignedHrManagerId, setAssignedHrManagerId] = useState("");
-  const [assignedReportManagerId, setAssignedReportManagerId] = useState("");
+  const [assignedReportManagerId] = useState("");
   const [resumeFile, setResumeFile] = useState(null);
   const [resumeParsing, setResumeParsing] = useState(false);
-  const [sendLoginEmail, setSendLoginEmail] = useState(true);
   const [actionNotice, setActionNotice] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [educationRows, setEducationRows] = useState([]);
@@ -91,18 +84,17 @@ export default function CandidateCreate({ onBack, onSave }) {
   const [certificationRows, setCertificationRows] = useState([]);
   const [noticePeriod, setNoticePeriod] = useState("");
   const [errors, setErrors] = useState({});
-  const [users, setUsers] = useState([]);
   const today = new Date().toISOString().slice(0, 10);
   const [selectedJobId, setSelectedJobId] = useState("");
-  const [isAssigning, setIsAssigning] = useState(false);
-  const [jobName, setJobName] = useState("");
   const [availableJobs, setAvailableJobs] = useState([]);
   const [currentSalaryRateType, setCurrentSalaryRateType] = useState("$/Year");
   const [expectedSalaryRateType, setExpectedSalaryRateType] = useState("$/Year");
   const [showSkillsModal, setShowSkillsModal] = useState(false);
   const [selectedSkills, setSelectedSkills] = useState([]);
   const [customSource, setCustomSource] = useState("");
-  const [showEmployeeReferralList, setShowEmployeeReferralList] = useState(false);
+  const [referrers, setReferrers] = useState([]);
+  const [referringEmployeeId, setReferringEmployeeId] = useState("");
+  const [searchParams] = useSearchParams();
   const [skillName, setSkillName] = useState("");
   const [skillYears, setSkillYears] = useState("");
   const [skillDate, setSkillDate] = useState("");
@@ -169,6 +161,23 @@ export default function CandidateCreate({ onBack, onSave }) {
   useEffect(() => {
     loadAvailableJobs();
   }, []);
+
+  // "Refer a Candidate" (My Referrals) opens this screen with ?referral=1
+  useEffect(() => {
+    if (searchParams.get("referral") === "1") setSource(EMPLOYEE_REFERRAL);
+  }, [searchParams]);
+
+  // Referrer list loads once the source is Employee Referral; the caller is preselected
+  // when they are an employee themselves
+  useEffect(() => {
+    if (source !== EMPLOYEE_REFERRAL || referrers.length) return;
+    getReferrers()
+      .then((data) => {
+        setReferrers(data?.employees || []);
+        if (data?.self_employee_id) setReferringEmployeeId((current) => current || data.self_employee_id);
+      })
+      .catch((err) => showError(handleApiError(err, "Could not load the employee list.")));
+  }, [source, referrers.length]);
 
   const loadAvailableJobs = async () => {
     try {
@@ -500,10 +509,8 @@ export default function CandidateCreate({ onBack, onSave }) {
         setMobile(fields.mobile);
         clearFieldError("mobile");
       }
-      if (fields.skills) setSkills(fields.skills);
       if (fields.experience) setExperience(fields.experience);
       if (fields.currentLocation) setLocationValue(parseLocation(fields.currentLocation));
-      if (fields?.jobTitle) setJobName(fields?.jobTitle);
       const inferredEducation = inferEducationRows(text);
       if (inferredEducation.length) setEducationRows(inferredEducation);
       const inferredExperience = inferExperienceRows(text, fields._nameLine);
@@ -532,6 +539,7 @@ export default function CandidateCreate({ onBack, onSave }) {
     else if (!/^\d{7,15}$/.test(mobile.replace(/\D/g, ''))) newErrors.mobile = "Mobile must be 7-15 digits.";
     if (!email.trim()) newErrors.email = "Email is required.";
     if (!locationValue?.countryCode || !locationValue?.city) newErrors.location = "Location (Country and City) is required.";
+    if (source === EMPLOYEE_REFERRAL && !referringEmployeeId) newErrors.referringEmployee = "Select the employee who referred this candidate.";
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
@@ -582,6 +590,8 @@ export default function CandidateCreate({ onBack, onSave }) {
         candidate_gender: gender || null,
         candidate_date_of_birth: dob || null,
         candidate_source: source === "Other" ? customSource : (source || null),
+        referring_employee_id: source === EMPLOYEE_REFERRAL ? referringEmployeeId : null,
+        job_id: source === EMPLOYEE_REFERRAL ? (selectedJobId || null) : null,
         candidate_experience: experience || null,
         candidate_skills: selectedSkills.length > 0 ? selectedSkills.map(s => s.name).join(", ") : null,
         candidate_joining_date: joiningDate || null,
@@ -635,51 +645,19 @@ export default function CandidateCreate({ onBack, onSave }) {
             }))
           : null,
       });
-      const candidateName = [firstName, middleName, lastName]
-        .filter(Boolean)
-        .join(" ")
-        .trim();
 
-      // Queue response returns message_id for polling, not candidate_id
-      const messageId = data?.message_id || data?.id || "pending-" + Date.now();
-      const pollingEndpoint = data?.polling_endpoint || "/api/v1/messages/" + messageId + "/status";
-      const status = data?.status || "pending";
-
-      // Log the response for debugging
-      // Return queue response for parent handlers to use
-      return { message_id: messageId, polling_endpoint: pollingEndpoint, status };
+      // The queue answers with the message id and where to poll (/message-queue/tasks/{id}/status);
+      // without them the candidate was not queued, which is an error, not "pending"
+      if (!data?.message_id || !data?.polling_endpoint) {
+        throw new Error("Candidate creation was not queued: the server returned no message id");
+      }
+      return { message_id: data.message_id, polling_endpoint: data.polling_endpoint, status: data.status };
     } catch (err) {
       const errorMessage = handleApiError(err, "Failed to create candidate.");
       showError(errorMessage);
       throw err;
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const handleSaveAndAssignJob = async () => {
-    setIsAssigning(true);
-
-    try {
-      const queueResponse = await handleCreateCandidate();
-      // Success case: show queue status
-      if (queueResponse && queueResponse.message_id) {
-        const messageId = queueResponse.message_id;
-        const pollingEndpoint = queueResponse.polling_endpoint || "/candidates";
-
-        // Show queue status modal with polling endpoint
-        const message = `✓ Candidate queued successfully!\n\nMessage ID: ${messageId}\n\nYou will receive an email notification when the candidate is created. You can also check the status at:\n${pollingEndpoint}\n\nOnce created, you can assign jobs from the candidate detail page.`;
-        showSuccess(message);
-
-        setTimeout(() => {
-          navigate("/candidates");
-        }, 3000);
-      }
-    } catch (err) {
-      const errorMessage = handleApiError(err, "Failed to queue candidate creation.");
-      showError(errorMessage);
-    } finally {
-      setIsAssigning(false);
     }
   };
 
@@ -702,7 +680,7 @@ export default function CandidateCreate({ onBack, onSave }) {
           await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
 
           try {
-            const statusResponse = await apiRequest(`/message-queue/tasks/${messageId}/status`, {
+            const statusResponse = await apiRequest(queueResponse.polling_endpoint, {
               method: "GET",
             });
 
@@ -819,12 +797,6 @@ export default function CandidateCreate({ onBack, onSave }) {
               value={selectedJobId}
               onChange={(jobId) => {
                 setSelectedJobId(jobId);
-                const selected = availableJobs.find(j => j.jobID === jobId);
-                if (selected) {
-                  setJobName(selected.jobTitle || selected.title || "");
-                } else {
-                  setJobName("");
-                }
               }}
               options={[
                 { value: "", label: "Select a job (optional)" },
@@ -935,11 +907,12 @@ export default function CandidateCreate({ onBack, onSave }) {
               onChange={(value) => {
                 setSource(value);
                 setCustomSource("");
-                setShowEmployeeReferralList(value === "Employee Referral");
+                if (value !== EMPLOYEE_REFERRAL) setReferringEmployeeId("");
+                clearFieldError("referringEmployee");
               }}
               options={[
                 { value: "", label: "Select source" },
-                ...SOURCE_OPTIONS.map(opt => ({ value: opt.value, label: opt.label }))
+                ...SOURCE_OPTIONS.map(opt => ({ value: opt, label: opt }))
               ]}
             />
           </div>
@@ -953,10 +926,23 @@ export default function CandidateCreate({ onBack, onSave }) {
             />
           )}
 
-          {showEmployeeReferralList && (
-            <div className="md:col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-gray-700 mb-2">Select referring employee (feature coming soon)</p>
-              <p className="text-xs text-gray-500">Employee list will be populated here</p>
+          {source === EMPLOYEE_REFERRAL && (
+            <div>
+              <Select
+                label="Referred By *"
+                value={referringEmployeeId}
+                onChange={(value) => {
+                  setReferringEmployeeId(value);
+                  clearFieldError("referringEmployee");
+                }}
+                options={[
+                  { value: "", label: referrers.length ? "Select the referring employee" : "Loading employees..." },
+                  ...referrers.map((e) => ({ value: e.id, label: e.email ? `${e.name} (${e.email})` : e.name })),
+                ]}
+              />
+              {errors.referringEmployee ? (
+                <div className="mt-1 text-xs text-red-500">{errors.referringEmployee}</div>
+              ) : null}
             </div>
           )}
 

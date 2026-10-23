@@ -43,7 +43,7 @@ def reject_candidate(
     job_id: Optional[str] = None,
     rejected_by_user_id: Optional[str] = None,
     send_email: bool = True,
-    tenant_id: int = 1,
+    tenant_id: Optional[int] = None,
 ) -> CandidateRejection:
     """
     Reject a candidate and create rejection record.
@@ -154,7 +154,7 @@ def send_rejection_email(
     rejection_id: int,
     include_feedback: bool = False,
     include_next_steps: bool = True,
-    tenant_id: int = 1,
+    tenant_id: Optional[int] = None,
 ) -> CandidateRejection:
     """
     Send rejection email to candidate.
@@ -221,7 +221,7 @@ def archive_candidate(
     archive_reason: Optional[str] = None,
     archive_note: Optional[str] = None,
     archived_by_user_id: Optional[str] = None,
-    tenant_id: int = 1,
+    tenant_id: Optional[int] = None,
 ) -> CandidateRejection:
     """
     Archive (soft-delete) a rejected candidate.
@@ -377,7 +377,7 @@ def _send_rejection_email_internal(
 def get_rejection_reasons(
     db: Session,
     *,
-    tenant_id: int = 1,
+    tenant_id: Optional[int] = None,
     active_only: bool = True,
 ) -> List[CandidateRejectionReason]:
     """
@@ -404,7 +404,7 @@ def get_candidate_rejection_status(
     db: Session,
     *,
     candidate_id: str,
-    tenant_id: int = 1,
+    tenant_id: Optional[int] = None,
 ) -> Tuple[bool, Optional[CandidateRejection], List[CandidateRejection]]:
     """
     Check if candidate has been rejected and get rejection details.
@@ -430,7 +430,7 @@ def get_candidate_rejection_status(
 
     return is_rejected, latest, rejections
 
-def create_default_rejection_reasons(db: Session, tenant_id: int = 1) -> None:
+def create_default_rejection_reasons(db: Session, tenant_id: Optional[int] = None) -> None:
     """
     Initialize default rejection reasons if they don't exist.
 

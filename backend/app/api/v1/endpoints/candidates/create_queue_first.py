@@ -19,10 +19,10 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.tenant_context import tenant_id_of
 from app.core.dependencies import get_current_user, require_resource_permission
 from app.schemas.candidate import EducationRecord, ExperienceRecord, HrCertificationItem, HrSkillItem
 from app.services.message_queue_service import MessageQueueService
-from app.utils.uniq_id_generator import candidate_id_generator
 
 # CandidateEducationForm.percentage is String(10); an over-length value would
 # fail the queued commit and retry until the message is FAILED.
@@ -68,13 +68,17 @@ class CreateCandidateRequest(BaseModel):
     candidate_expected_salary_type: Optional[str] = None
     candidate_current_salary: Optional[str] = None
     candidate_current_salary_type: Optional[str] = None
-    assigned_hr_manager_id: Optional[str] = None
+    assigned_recruiter_id: Optional[str] = None  # Recruiter assigned to this candidate (not HR Manager - different role)
     assigned_report_manager_id: Optional[str] = None
     candidate_notice_period: Optional[int] = None
     education_records: Optional[List[EducationRecord]] = None
     experience_records: Optional[List[ExperienceRecord]] = None
     skill_records: Optional[List[HrSkillItem]] = None
     certification_records: Optional[List[HrCertificationItem]] = None
+    # Employee referral: who referred the candidate (Employee.id, required when the source is
+    # an employee referral) and the job they were referred for, if one was picked
+    referring_employee_id: Optional[str] = None
+    job_id: Optional[str] = None
 
     class Config:
         populate_by_name = True
@@ -99,6 +103,37 @@ class CreateCandidateRequest(BaseModel):
 
     def get_source(self):
         return self.candidate_source or self.source or "form_submission"
+
+
+EMPLOYEE_REFERRAL_SOURCE = "Employee Referral"
+
+
+def _validate_referral(db: Session, request: "CreateCandidateRequest", source: str, tenant_id: int) -> None:
+    """Fail fast (400) before queueing: an employee-referral candidate must name a current
+    employee of this tenant, and a named job must exist in the tenant."""
+    if source == EMPLOYEE_REFERRAL_SOURCE and not request.referring_employee_id:
+        raise HTTPException(status_code=400, detail="Select the employee who referred this candidate")
+    if not request.referring_employee_id:
+        return
+    from app.models.employee import Employee
+    from app.services.employee_referral_service import NOT_REFERABLE_STATUSES
+    employee = db.query(Employee).filter(Employee.id == request.referring_employee_id,
+                                         Employee.tenant_id == tenant_id).first()
+    if employee is None or employee.status in NOT_REFERABLE_STATUSES:
+        raise HTTPException(status_code=400, detail="The referring employee is not a current employee")
+    if request.job_id:
+        from app.models.user import Jobs
+        if db.query(Jobs.jobID).filter(Jobs.jobID == request.job_id, Jobs.tenant_id == tenant_id).first() is None:
+            raise HTTPException(status_code=400, detail="The selected job does not exist")
+    # Already in the system (same email/phone match creation uses): only a dormant candidate
+    # can be referred; otherwise warn now, before anything is queued
+    from app.services.candidate_service import find_duplicate_candidate
+    from app.services.employee_referral_service import EmployeeReferralService
+    existing, _ = find_duplicate_candidate(db, email=request.get_email(), mobile=request.get_mobile())
+    if existing is not None:
+        block = EmployeeReferralService.existing_candidate_referral_block(db, existing)
+        if block:
+            raise HTTPException(status_code=409, detail=block)
 
 
 class CreateCandidateResponse(BaseModel):
@@ -174,6 +209,8 @@ async def create_candidate(
                     status_code=400,
                     detail=f"Education row {i + 1}: percentage must be at most {MAX_PERCENTAGE_LENGTH} characters",
                 )
+        tenant_id = tenant_id_of(current_user)
+        _validate_referral(db, request, source, tenant_id)
 
         logger.info(f"[CANDIDATE_CREATE] Queueing candidate: {email} ({first_name} {last_name})")
 
@@ -205,7 +242,7 @@ async def create_candidate(
             "candidate_expected_salary_type": request.candidate_expected_salary_type,
             "candidate_current_salary": request.candidate_current_salary,
             "candidate_current_salary_type": request.candidate_current_salary_type,
-            "assigned_hr_manager_id": request.assigned_hr_manager_id,
+            "assigned_recruiter_id": request.assigned_recruiter_id,
             "assigned_report_manager_id": request.assigned_report_manager_id,
             "candidate_notice_period": request.candidate_notice_period,
             "education_records": [r.model_dump(mode="json") for r in request.education_records or []],
@@ -213,7 +250,9 @@ async def create_candidate(
             "skill_records": [r.model_dump(mode="json") for r in request.skill_records or []],
             "certification_records": [r.model_dump(mode="json") for r in request.certification_records or []],
             "created_by_user_id": getattr(current_user, 'UserID', None),
-            "tenant_id": getattr(current_user, 'tenant_id', 1),
+            "tenant_id": tenant_id,
+            "referring_employee_id": request.referring_employee_id,
+            "referral_job_id": request.job_id if request.referring_employee_id else None,
         }
 
         enqueue_result = MessageQueueService.enqueue(
@@ -264,7 +303,7 @@ async def create_candidate(
         return CreateCandidateResponse(
             status="queued",
             message_id=returned_message_id,
-            polling_endpoint=f"/api/v1/message-queue/status/{returned_message_id}",
+            polling_endpoint=f"/api/v1/message-queue/tasks/{returned_message_id}/status",
             polling_interval_seconds=2,
         )
 

@@ -4,18 +4,17 @@ Message Template Management API
 Endpoints for creating, editing, and managing email templates with dynamic fields.
 Templates can be edited from the UI and include placeholders like {{employee_name}}, {{department}}, etc.
 """
+from app.core.tenant_context import tenant_id_of
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional, List
+from typing import Optional
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user, require_role_template_permission
-from app.core.permission_registry import Permissions
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
 from app.models.message_template import MessageTemplate, TEMPLATE_KEYS, TEMPLATE_CHANNELS
 from app.services.template_service import TemplateService
-from app.core.logging import logger
 
 router = APIRouter(prefix="/message-templates", tags=["message-templates"])
 
@@ -45,7 +44,7 @@ class TemplateResponse(BaseModel):
         from_attributes = True
 
 
-@router.get("/keys", response_model=dict, dependencies=[Depends(require_role_template_permission(*Permissions.USERS_VIEW))])
+@router.get("/keys", response_model=dict, dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_template_keys():
     """Get available template keys and channels."""
     return {
@@ -54,7 +53,7 @@ def get_template_keys():
     }
 
 
-@router.get("/{template_key}")
+@router.get("/{template_key}", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def get_template(
     template_key: str,
     channel: str = "EMAIL",
@@ -67,7 +66,7 @@ def get_template(
 
     template = TemplateService.get_template(
         db=db,
-        tenant_id=current_user.UserID,
+        tenant_id=str(tenant_id_of(current_user)),
         template_key=template_key,
         channel=channel,
     )
@@ -79,7 +78,7 @@ def get_template(
 
 
 
-@router.post("/{template_key}")
+@router.post("/{template_key}", dependencies=[Depends(require_resource_permission("admin-settings", "edit"))])
 def create_template_version(
     template_key: str,
     request: TemplateRequest,
@@ -95,7 +94,7 @@ def create_template_version(
 
     template = TemplateService.create_template(
         db=db,
-        tenant_id=current_user.UserID,
+        tenant_id=str(tenant_id_of(current_user)),
         template_key=template_key,
         template_name=request.template_name,
         channel=request.channel,
@@ -107,7 +106,7 @@ def create_template_version(
     return TemplateResponse.from_orm(template)
 
 
-@router.post("/{template_id}/activate")
+@router.post("/{template_id}/activate", dependencies=[Depends(require_resource_permission("admin-settings", "edit"))])
 def activate_template(
     template_id: int,
     db: Session = Depends(get_db),
@@ -117,7 +116,7 @@ def activate_template(
     # Verify the template belongs to the current user's tenant
     template = db.query(MessageTemplate).filter(
         MessageTemplate.id == template_id,
-        MessageTemplate.tenant_id == current_user.UserID,
+        MessageTemplate.tenant_id == str(tenant_id_of(current_user)),
     ).first()
 
     if not template:
@@ -130,7 +129,7 @@ def activate_template(
     return {"status": "success", "message": "Template activated"}
 
 
-@router.get("/{template_id}/preview")
+@router.get("/{template_id}/preview", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def preview_template(
     template_id: int,
     candidate_id: str,
@@ -169,11 +168,11 @@ def preview_template(
     }
 
 
-@router.get("")
+@router.get("", dependencies=[Depends(require_resource_permission("admin-settings", "view"))])
 def list_templates(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
     """List all templates for the current tenant."""
-    templates = TemplateService.list_templates(db, current_user.UserID)
+    templates = TemplateService.list_templates(db, str(tenant_id_of(current_user)))
     return [TemplateResponse.from_orm(t) for t in templates]

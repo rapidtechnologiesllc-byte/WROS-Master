@@ -5,6 +5,7 @@ Without this handler, every message that exhausts its retries and gets
 dead-lettered enqueues a 'dead_letter_escalation' follow-up that nobody ever
 processes - the failure becomes invisible instead of escalated.
 """
+from app.core.tenant_context import sole_tenant_id
 import logging
 from typing import Any, Dict
 
@@ -46,7 +47,7 @@ def handle_dead_letter_escalation(message: Any, db: Session) -> Dict[str, Any]:
         status="NEW",
         assigned_to_user_id=None,
         visibility_scope="ORG_WIDE",
-        tenant_id=1,
+        tenant_id=getattr(message, "tenant_id", None) or sole_tenant_id(db),
     )
     db.add(task)
     db.flush()

@@ -2,8 +2,9 @@
 EPIC-16 -- BU P&L Engine. Real workbook has both a BU P&L sheet (Axion
 vs Prism) and a Location P&L sheet (BXIN vs BXUS legal entities) --
 only BU P&L is built here. Location P&L is NOT built: no field
-anywhere on Employee identifies which legal entity (India vs US) an
-employee sits in -- work_location (REMOTE/ONSITE/HYBRID) is a work-
+anywhere on Employee identified which legal entity (India vs US) an
+employee sits in (since then: Employee.company_id / Client.contracting_company_id -- the
+company P&L is revenue_chain_service._company_pnl) -- work_location (REMOTE/ONSITE/HYBRID) is a work-
 arrangement concept, not a legal-entity one, and Employee.delivery_
 engine (CORE/SPECIALITY) is a staffing-model split that correlates
 with but isn't the same thing as legal entity. Building Location P&L
@@ -42,6 +43,7 @@ def _legacy(section: dict) -> dict:
         "unbilled_usd_cents": section["unbilled_usd_cents"],
         "delivery_cost_usd_cents": section["delivery_cost_usd_cents"],
         "bench_cost_usd_cents": section["bench_cost_usd_cents"],
+        "overhead_cost_usd_cents": section["overhead_cost_usd_cents"],
         "expense_cost_usd_cents": section["expense_cost_usd_cents"],
     }
 
@@ -57,6 +59,7 @@ def get_bu_pnl(db: Session, *, business_unit_id: int, year: int, month: int) -> 
                 "revenue_usd_cents": 0, "cost_usd_cents": 0, "gross_margin_usd_cents": 0, "margin_pct": None,
                 "cost_data_complete": True, "billed_usd_cents": 0, "collected_usd_cents": 0,
                 "unbilled_usd_cents": 0, "delivery_cost_usd_cents": 0, "bench_cost_usd_cents": 0,
+                "overhead_cost_usd_cents": 0,
                 "expense_cost_usd_cents": 0}
     return {"business_unit_id": business_unit_id, "year": year, "month": month, **_legacy(section)}
 
@@ -81,4 +84,6 @@ def get_org_pnl_summary(db: Session, *, year: int, month: int, tenant_id: Option
         "org_cost_data_complete": org["cost_data_complete"],
         "by_business_unit": by_bu,
         "by_partner": report["by_partner"],
+        # each company's own P&L; the org totals above are the parent company's (tenant's)
+        "by_company": report["by_company"],
     }

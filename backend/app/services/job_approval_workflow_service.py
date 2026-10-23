@@ -46,7 +46,7 @@ def _first_org_level_approver(db: Session, tenant_id: int, exclude_user_id: Opti
 
 def get_approval_routing(db: Session, job: Jobs, creator: Optional[Users]) -> Tuple[Optional[Users], str]:
     """Return (approver_user, routing_reason); approver None means no approval needed or none found."""
-    tenant_id = (creator.tenant_id if creator else None) or 1
+    tenant_id = (creator.tenant_id if creator else None) or job.tenant_id
     creator_id = creator.UserID if creator else None
 
     if creator and _can_publish_jobs(db, creator):
@@ -103,7 +103,7 @@ def assign_recruiter_on_approval(db: Session, job: Jobs) -> Optional[Users]:
     if job.recuriterID:
         return db.query(Users).filter(Users.UserID == job.recuriterID).first()
 
-    recruiter = assign_to_recruiter_roundrobin(db)
+    recruiter = assign_to_recruiter_roundrobin(db, job.tenant_id)
     if not recruiter:
         logger.warning(f"[JobApproval] No available recruiters to assign to job {job.jobID}")
         return None

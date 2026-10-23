@@ -27,7 +27,7 @@ router = APIRouter(tags=["engagement-metrics"])
     summary="Get a candidate's engagement health metrics (S-070/HRMS-0470)",
 )
 def get_engagement_metrics(candidate_id: str, db: Session = Depends(get_db)):
-    tenant_id = resolve_default_tenant_id()
+    tenant_id = resolve_default_tenant_id(db)
     result = calculate_engagement_health(db, candidate_id, tenant_id)
     if result.get("outcome") != "calculated":
         raise HTTPException(status_code=404, detail=f"No engagement metrics available for candidate {candidate_id!r} (outcome: {result.get('outcome')}).")

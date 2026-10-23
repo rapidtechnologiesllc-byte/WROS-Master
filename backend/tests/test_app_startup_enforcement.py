@@ -14,7 +14,7 @@ def test_real_app_actually_imports_with_enforcement_active():
     test file importing app.main successfully, but make it explicit and
     named so a future regression here fails obviously.
     """
-from app.main import success is the assertion
+    from app.main import app  # noqa: F401 -- import success is the assertion
 
 def test_a_new_unguarded_route_would_actually_fail_startup():
     """

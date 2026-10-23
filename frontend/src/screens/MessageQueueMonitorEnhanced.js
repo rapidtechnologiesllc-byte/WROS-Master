@@ -5,17 +5,15 @@ import '../styles/MessageQueueMonitorEnhanced.css';
 
 const MessageQueueMonitorEnhanced = () => {
   const [queueDisplay, setQueueDisplay] = useState(null);
-  const [stats, setStats] = useState(null);
   const [healthMetrics, setHealthMetrics] = useState(null);
-  const [queueTypes, setQueueTypes] = useState([]);
   const [expandedGroups, setExpandedGroups] = useState({});
   const [expandedPayloads, setExpandedPayloads] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [healthError, setHealthError] = useState(null);
   const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
-    fetchQueueTypes();
     fetchQueueData();
     fetchHealthMetrics();
     const interval = setInterval(() => {
@@ -27,8 +25,7 @@ const MessageQueueMonitorEnhanced = () => {
 
   const fetchQueueData = async () => {
     try {
-      const displayData = await apiRequest('/api/v1/message-queue/display', 'GET');
-      const statsData = await apiRequest('/api/v1/message-queue/stats', 'GET');
+      const displayData = await apiRequest('/api/v1/message-queue/display', { method: 'GET' });
 
       if (displayData?.data) {
         setQueueDisplay({
@@ -36,14 +33,12 @@ const MessageQueueMonitorEnhanced = () => {
           rows: displayData.data.messages
         });
       }
-      if (statsData?.data) {
-        setStats(statsData.data);
-      }
       // Global pause flag (Pause/Resume buttons) lives on /thunder/status
       const pauseStatus = await apiRequest('/api/v1/thunder/status', { method: 'GET' });
       setIsPaused(Boolean(pauseStatus?.data?.paused));
       setError(null);
     } catch (err) {
+      console.error('[MessageQueueMonitorEnhanced] Failed to load queue data:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -52,21 +47,14 @@ const MessageQueueMonitorEnhanced = () => {
 
   const fetchHealthMetrics = async () => {
     try {
-      const health = await apiRequest('/api/v1/flash/queue-health-pulse', 'GET');
+      const health = await apiRequest('/api/v1/flash/queue-health-pulse', { method: 'GET' });
       if (health?.data) {
         setHealthMetrics(health.data);
       }
+      setHealthError(null);
     } catch (err) {
-    }
-  };
-
-  const fetchQueueTypes = async () => {
-    try {
-      const response = await apiRequest('/api/v1/message-queue/types', 'GET');
-      if (response?.queue_types) {
-        setQueueTypes(response.queue_types);
-      }
-    } catch (err) {
+      console.error('[MessageQueueMonitorEnhanced] Failed to load queue health:', err);
+      setHealthError(`Queue health unavailable: ${err.message}`);
     }
   };
 
@@ -82,15 +70,6 @@ const MessageQueueMonitorEnhanced = () => {
       ...prev,
       [messageId]: !prev[messageId]
     }));
-  };
-
-  const handleCopyMessageId = (messageId) => {
-    navigator.clipboard.writeText(messageId);
-    // Show visual feedback
-    const btn = event.target;
-    const originalText = btn.textContent;
-    btn.textContent = '✓ Copied';
-    setTimeout(() => { btn.textContent = originalText; }, 2000);
   };
 
   const getProcessingAge = (createdAt) => {
@@ -176,6 +155,7 @@ const MessageQueueMonitorEnhanced = () => {
       </div>
 
       {error && <div className="error-message">⚠ {error}</div>}
+      {healthError && <div className="error-message">⚠ {healthError}</div>}
 
       {/* Queue Groups with Compact/Expand */}
       {queueDisplay?.rows && (

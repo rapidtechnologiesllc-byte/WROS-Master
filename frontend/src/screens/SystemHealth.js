@@ -1,169 +1,133 @@
-import React, { useState, useEffect } from 'react';
-import './SystemHealth.css';
+// System Health (Admin & Settings): the backend's own health, read through the API client
+// (same origin and auth as every other screen; it used to call http://localhost:8080 from the
+// user's browser, which only worked on a developer machine). Both endpoints check system-health.view.
+import { useCallback, useEffect, useState } from "react";
+import { RefreshCw } from "lucide-react";
+import { Button, Card } from "../components/ui";
+import { apiRequest } from "../services/api/client";
 
-/**
- * System Health Dashboard
- * Displays backend API health status and system information
- * Accessible at /system-health
- */
-const SystemHealth = () => {
+const REFRESH_MS = 30000;
+
+const tone = (status) => {
+  const s = String(status || "").toUpperCase();
+  if (s === "HEALTHY" || s === "CLOSED") return "bg-green-100 text-green-800";
+  if (s === "WARNING" || s === "DEGRADED" || s === "HALF_OPEN") return "bg-amber-100 text-amber-800";
+  return "bg-red-100 text-red-800";
+};
+
+const Badge = ({ status }) => (
+  <span className={`rounded px-2 py-0.5 text-xs font-semibold ${tone(status)}`}>{String(status || "UNKNOWN").toUpperCase()}</span>
+);
+
+const Row = ({ label, value }) => (
+  <div className="flex justify-between border-b py-1.5 text-sm last:border-0">
+    <span className="text-gray-600">{label}</span>
+    <span className="font-medium text-gray-900">{value ?? "--"}</span>
+  </div>
+);
+
+export default function SystemHealth() {
   const [health, setHealth] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState(null);
   const [error, setError] = useState(null);
-  const [lastChecked, setLastChecked] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [checkedAt, setCheckedAt] = useState(null);
 
-  const fetchHealth = async () => {
+  const load = useCallback(async () => {
+    setLoading(true);
     try {
-      setLoading(true);
+      const [h, s] = await Promise.all([
+        apiRequest("/system/health", { method: "GET" }),
+        apiRequest("/system/health/summary", { method: "GET" }),
+      ]);
+      setHealth(h.data);
+      setSummary(s.data);
       setError(null);
-
-      const response = await fetch('http://localhost:8080/health');
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      setHealth(data);
-      setLastChecked(new Date().toLocaleTimeString());
+      setCheckedAt(new Date().toLocaleTimeString());
     } catch (err) {
-      setError(err.message);
-      setHealth(null);
+      setError(`Failed to load system health: ${err.message}`);
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchHealth();
-
-    // Auto-refresh every 10 seconds
-    const interval = setInterval(fetchHealth, 10000);
-
-    return () => clearInterval(interval);
   }, []);
 
-  const [searchTerm, setSearchTerm] = useState('');
+  useEffect(() => {
+    load();
+    const timer = setInterval(load, REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [load]);
 
-  const filteredEndpoints = health?.endpoints?.filter(ep =>
-    ep.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const pool = summary?.components?.database_pool || {};
+  const circuit = summary?.components?.permission_circuit || {};
+  const cache = summary?.components?.permission_cache || {};
 
   return (
-    <div className="system-health-container">
-      <div className="health-card">
-        <div className="health-header">
-          <div>
-            <h1>🏥 System Health</h1>
-            <p className="health-summary">
-              {health?.status === 'healthy'
-                ? '✓ All endpoints operational'
-                : '⚠ Some endpoints have issues'}
-            </p>
-          </div>
-          <button
-            className="refresh-btn"
-            onClick={fetchHealth}
-            disabled={loading}
-          >
-            {loading ? '⟳ Checking...' : '↻ Refresh'}
-          </button>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">System Health</h1>
+          <p className="text-sm text-gray-500">{checkedAt ? `Checked ${checkedAt} · refreshes every 30 s` : "Checking..."}</p>
         </div>
-
-        {error && (
-          <div className="health-error">
-            <span className="status-icon">✗</span>
-            <div className="error-content">
-              <h3>Backend Unavailable</h3>
-              <p>{error}</p>
-              <p className="hint">Make sure the backend is running on port 8081</p>
-            </div>
-          </div>
-        )}
-
-        {loading && !health && (
-          <div className="health-loading">
-            <span className="spinner">⟳</span>
-            <p>Checking system health...</p>
-          </div>
-        )}
-
-        {health && (
-          <div className={`health-status ${health.status === 'healthy' ? 'healthy' : 'unhealthy'}`}>
-            <div className="status-header">
-              <span className="status-icon">
-                {health.status === 'healthy' ? '✓' : '✗'}
-              </span>
-              <div className="status-info">
-                <h2>{health.status.toUpperCase()}</h2>
-                <p className="status-detail">All systems operational</p>
-              </div>
-            </div>
-
-            <div className="health-summary-section">
-              <div className="summary-stat">
-                <span className="stat-label">Application</span>
-                <span className="stat-value">{health.app}</span>
-              </div>
-              <div className="summary-stat">
-                <span className="stat-label">Version</span>
-                <span className="stat-value">{health.version}</span>
-              </div>
-              <div className="summary-stat">
-                <span className="stat-label">Last Checked</span>
-                <span className="stat-value">{lastChecked}</span>
-              </div>
-            </div>
-
-            <div className="endpoints-section">
-              <div className="endpoints-header">
-                <h3>Endpoint Status</h3>
-                <input
-                  type="text"
-                  placeholder="Search endpoints..."
-                  className="endpoints-search"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-
-              <div className="endpoints-table">
-                <div className="table-header">
-                  <div className="col-endpoint">Endpoint</div>
-                  <div className="col-status">Status</div>
-                  <div className="col-description">Description</div>
-                </div>
-
-                <div className="table-body">
-                  {filteredEndpoints.length > 0 ? (
-                    filteredEndpoints.map((endpoint, index) => (
-                      <div className="table-row" key={index}>
-                        <div className="col-endpoint"><code>{endpoint}</code></div>
-                        <div className="col-status">
-                          <span className="status-badge healthy">● Healthy</span>
-                        </div>
-                        <div className="col-description">API endpoint</div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="table-row">
-                      <div style={{ gridColumn: '1 / -1', padding: '20px', textAlign: 'center', color: '#6b7280' }}>
-                        No endpoints found
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="health-footer">
-          <p>Auto-refreshes every 10 seconds</p>
-        </div>
+        <Button variant="secondary" onClick={load} disabled={loading}>
+          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
+        </Button>
       </div>
+
+      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+
+      {summary && (
+        <Card title="Platform">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="text-sm text-gray-600">Overall</span>
+            <Badge status={summary.status} />
+          </div>
+          {summary.issues?.length > 0 && (
+            <ul className="mb-3 list-disc pl-5 text-sm text-red-700">
+              {summary.issues.map((issue) => <li key={issue}>{issue}</li>)}
+            </ul>
+          )}
+          <div className="grid gap-4 md:grid-cols-3">
+            <div>
+              <div className="mb-1 flex items-center justify-between text-sm font-semibold">Database pool <Badge status={pool.status} /></div>
+              <Row label="Utilization" value={pool.utilization_percent != null ? `${Number(pool.utilization_percent).toFixed(0)}%` : null} />
+              <Row label="Checked out" value={pool.checked_out_connections} />
+              <Row label="Capacity" value={pool.total_capacity} />
+            </div>
+            <div>
+              <div className="mb-1 flex items-center justify-between text-sm font-semibold">Permission service <Badge status={circuit.state} /></div>
+              <Row label="Failures" value={circuit.failure_count} />
+              <Row label="Last failure" value={circuit.last_failure_time} />
+            </div>
+            <div>
+              <div className="mb-1 text-sm font-semibold">Permission cache</div>
+              {Object.entries(cache).map(([key, value]) => (
+                <Row key={key} label={key.replace(/_/g, " ")} value={typeof value === "object" ? JSON.stringify(value) : String(value)} />
+              ))}
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {health && (
+        <Card title="Self-healing">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="text-sm text-gray-600">Status</span>
+            <Badge status={health.status} />
+            <span className="text-xs text-gray-500">cycle {health.cycle}</span>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            {Object.entries(health.components || {}).map(([name, component]) => (
+              <div key={name}>
+                <div className="mb-1 text-sm font-semibold capitalize">{name}</div>
+                <p className="mb-1 text-xs text-gray-500">{component.description}</p>
+                {Object.entries(component)
+                  .filter(([key]) => key !== "description")
+                  .map(([key, value]) => <Row key={key} label={key.replace(/_/g, " ")} value={String(value)} />)}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
     </div>
   );
-};
-
-export default SystemHealth;
+}

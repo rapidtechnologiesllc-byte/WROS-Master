@@ -41,7 +41,7 @@ class CandidateCreateRequest(BaseModel):
     # Format: "City, State, Country" (e.g., "San Francisco, CA, USA")
     candidate_current_location: str = Field(..., description="Required: City, State, Country format")
 
-    assigned_hr_manager_id: Optional[str] = None
+    assigned_recruiter_id: Optional[str] = None  # Recruiter assigned to candidate (not HR Manager - different role)
     assigned_report_manager_id: Optional[str] = None
 
     # Optional pre-filled education and experience details
@@ -69,9 +69,12 @@ class CandidateUpdateRequest(BaseModel):
     candidate_employee_type: Optional[str] = None
     candidate_expected_salary_type: Optional[str] = None
     candidate_current_salary_type: Optional[str] = None
-    assigned_hr_manager_id: Optional[str] = None
+    # ISO 3166-1 alpha-2 (the location picker's country); decides the accepted employment types
+    candidate_country: Optional[str] = None
+    # FULLTIME | CONTRACT | C2C | 1099 | UNKNOWN (app.services.employment_type_policy)
+    employment_type: Optional[str] = None
+    assigned_recruiter_id: Optional[str] = None  # Recruiter assigned to candidate (not HR Manager - different role)
     assigned_report_manager_id: Optional[str] = None
-    assigned_recruiter_id: Optional[str] = None
 
 class CandidateCreateResponse(BaseModel):
     candidate_id: str
@@ -155,6 +158,9 @@ class CandidateCompleteResponse(BaseModel):
     candidate_joining_date: date | None = None
     candidate_notice_period: int | None = None
     candidate_current_location: str | None = None
+    candidate_country: str | None = None
+    employment_type: str | None = None
+    employment_type_label: str | None = None
     candidate_current_salary: str | None = None
     candidate_current_salary_type: str | None = None
     candidate_expected_salary: str | None = None

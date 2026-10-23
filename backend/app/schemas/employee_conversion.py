@@ -14,9 +14,13 @@ class EmployeeConversionRequest(BaseModel):
     employment_type: str = "PERMANENT"
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    job_title: Optional[str] = None
+    job_title: Optional[str] = None  # the posting title, kept on the employee record
     # Employer company; defaults from the job's client / the BU
     company_id: Optional[str] = None
+    # The org role (managed Job Title) and the seat they report to: both required on the
+    # conversion screen so every new hire is connected to the organization
+    org_role: Optional[str] = None
+    parent_node_id: Optional[str] = None
 
 class EmployeeAccountRequest(BaseModel):
     employee_name: str

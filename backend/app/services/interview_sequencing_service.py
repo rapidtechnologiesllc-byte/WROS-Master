@@ -60,7 +60,8 @@ def _round_has_passed(db: Session, panel: InterviewPanel) -> bool:
 
     return verdict_for_panel(db, panel).verdict == "PASS"
 
-def enforce_interview_sequencing_gate(db: Session, candidate_id: str, level: str = None, job_id: str = None) -> None:
+def enforce_interview_sequencing_gate(db: Session, candidate_id: str, level: str = None, job_id: str = None,
+                                     before_panel: InterviewPanel = None) -> None:
     """
     R-05 at panel-creation time. The candidate's first panel is always
     allowed -- there is nothing to sequence against yet. Every
@@ -68,6 +69,9 @@ def enforce_interview_sequencing_gate(db: Session, candidate_id: str, level: str
     to have passed, per _round_has_passed() above. Raises
     PriorRoundNotPassed otherwise; callers must not catch this and
     proceed.
+
+    before_panel: re-check for an existing panel (an interview being scheduled on it): only
+    the rounds created before that panel count.
     """
     if level == "L2":
         from app.services.interview_verdict_service import level_passed
@@ -76,12 +80,10 @@ def enforce_interview_sequencing_gate(db: Session, candidate_id: str, level: str
             raise PriorRoundNotPassed(
                 f"Candidate {candidate_id} has no passed L1 (technical) round -- an L2 "
                 f"(management) round can only follow an L1 pass.")
-    most_recent = (
-        db.query(InterviewPanel)
-        .filter(InterviewPanel.candidate_id == candidate_id)
-        .order_by(InterviewPanel.created_at.desc(), InterviewPanel.id.desc())
-        .first()
-    )
+    earlier = db.query(InterviewPanel).filter(InterviewPanel.candidate_id == candidate_id)
+    if before_panel is not None:
+        earlier = earlier.filter(InterviewPanel.id < before_panel.id)
+    most_recent = earlier.order_by(InterviewPanel.created_at.desc(), InterviewPanel.id.desc()).first()
     if most_recent is None:
         return  # first round -- nothing to sequence against
 

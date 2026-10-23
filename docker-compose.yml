@@ -7,7 +7,7 @@ services:
     container_name: wros-postgres
     environment:
       POSTGRES_USER: app_user
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-P7kQmR9xL2wJnV5sT8pM}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
       POSTGRES_DB: wros_dev
     ports:
       - "5432:5432"
@@ -44,7 +44,7 @@ services:
       dockerfile: Dockerfile
     container_name: wros-backend
     environment:
-      DATABASE_URL: postgresql://app_user:${DB_PASSWORD:-P7kQmR9xL2wJnV5sT8pM}@postgres:5432/wros_dev
+      DATABASE_URL: postgresql://app_user:${DB_PASSWORD:?Set DB_PASSWORD in .env}@postgres:5432/wros_dev
       REDIS_URL: redis://redis:6379/0
       ENVIRONMENT: development
       PYTHONUNBUFFERED: 1
@@ -78,7 +78,7 @@ services:
       dockerfile: Dockerfile
     container_name: wros-celery-worker
     environment:
-      DATABASE_URL: postgresql://app_user:${DB_PASSWORD:-P7kQmR9xL2wJnV5sT8pM}@postgres:5432/wros_dev
+      DATABASE_URL: postgresql://app_user:${DB_PASSWORD:?Set DB_PASSWORD in .env}@postgres:5432/wros_dev
       REDIS_URL: redis://redis:6379/0
       ENVIRONMENT: development
       PYTHONUNBUFFERED: 1

@@ -25,6 +25,8 @@ from typing import Dict, List, Optional
 from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
+from app.core.tenant_context import sole_tenant_id
 from app.models.candidate import Candidate
 from app.models.candidate_ai import CandidateConversation, ConversationEvent
 from app.models.consent import ConsentRecord
@@ -151,7 +153,7 @@ def start_public_chat(
             email=email,
             first_name=first_name,
             last_name=last_name,
-            tenant_id=1,
+            tenant_id=settings.PUBLIC_CHAT_TENANT_ID or sole_tenant_id(db),
             source='public_web_chat',
             mobile=phone,
             timeout_seconds=10,
@@ -170,7 +172,7 @@ def start_public_chat(
     # User") -- neither value was ever read back out by anything
     # downstream, and it diverged from what /activity-feed and every
     # other real reader filter by. Single shared resolver now, always.
-    tenant_id = resolve_default_tenant_id()
+    tenant_id = resolve_default_tenant_id(db)
     if not tenant_id:
         raise PublicChatNoTenantAvailable(
             "No Super User account exists to own this conversation -- Thunder can't be "

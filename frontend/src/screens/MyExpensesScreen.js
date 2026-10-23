@@ -6,7 +6,8 @@ import { useEffect, useState } from "react";
 import { Receipt, Plus } from "lucide-react";
 import { Card, Button, Input, Select, TextArea, Table } from "../components/ui";
 import { listClients, createClient } from "../services/api/clients";
-import { createExpense, listMyExpenses } from "../services/api/expenses";
+import { createExpense, listMyExpenses, uploadExpenseReceipt } from "../services/api/expenses";
+import ReceiptCheck from "../components/ReceiptCheck";
 
 const PURPOSES = [
   { label: "Current client", value: "CLIENT_CURRENT" },
@@ -34,6 +35,7 @@ const emptyForm = {
   location: "",
   description: "",
   receiptRef: "",
+  receiptFile: null,
 };
 
 function LogExpenseForm({ clients, onCancel, onSaved, reloadClients }) {
@@ -77,8 +79,8 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients }) {
       setError("Expense date is required.");
       return;
     }
-    if (!form.receiptRef?.trim()) {
-      setError("Receipt reference is required.");
+    if (!form.receiptFile) {
+      setError("Attach the receipt (photo or PDF).");
       return;
     }
     if ((form.purpose === "CLIENT_CURRENT" || form.purpose === "CLIENT_PROSPECT") && !form.clientId) {
@@ -96,7 +98,7 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients }) {
     setSaving(true);
     setError("");
     try {
-      await createExpense({
+      const created = await createExpense({
         purpose: form.purpose,
         client_id: form.purpose === "CLIENT_CURRENT" || form.purpose === "CLIENT_PROSPECT" ? form.clientId : null,
         conference_name: form.purpose === "CONFERENCE" ? form.conferenceName : null,
@@ -108,8 +110,10 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients }) {
         expense_date: form.expenseDate,
         location: form.location || null,
         description: form.description || null,
-        receipt_ref: form.receiptRef || null,
+        receipt_ref: form.receiptRef || form.receiptFile.name,
       });
+      // The receipt is read and checked on upload: a match approves the manager step by itself
+      await uploadExpenseReceipt(created.id, form.receiptFile);
       onSaved();
     } catch (err) {
       setError(err.message || "Failed to log expense.");
@@ -177,7 +181,17 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients }) {
         <Input label="Amount (USD)" value={form.amount} onChange={set("amount")} placeholder="450.00" />
         <Input label="Expense Date" type="date" value={form.expenseDate} onChange={set("expenseDate")} />
         <Input label="Location" value={form.location} onChange={set("location")} />
-        <Input label="Receipt Ref *" value={form.receiptRef} onChange={set("receiptRef")} placeholder="Invoice ID, email ref, or file name" required />
+        <label className="block">
+          <div className="mb-1 text-xs font-semibold text-gray-700">Receipt * (photo or PDF)</div>
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,application/pdf"
+            onChange={(e) => setForm((f) => ({ ...f, receiptFile: e.target.files?.[0] || null }))}
+            className="block w-full text-sm"
+          />
+          <div className="mt-1 text-xs text-gray-500">Checked automatically against the amount and date.</div>
+        </label>
+        <Input label="Receipt Ref (optional)" value={form.receiptRef} onChange={set("receiptRef")} placeholder="Invoice ID or email ref" />
       </div>
       <div className="mt-3">
         <TextArea label="Description" value={form.description} onChange={set("description")} rows={2} />
@@ -258,6 +272,7 @@ export default function MyExpensesScreen() {
           {statusDisplay}
         </span>
       ),
+      receipt: <ReceiptCheck expense={e} />,
     };
   });
 
@@ -296,6 +311,7 @@ export default function MyExpensesScreen() {
               { key: "category", header: "Category" },
               { key: "amount", header: "Amount" },
               { key: "status", header: "Status" },
+              { key: "receipt", header: "Receipt" },
             ]}
             rows={rows}
           />

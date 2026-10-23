@@ -9,6 +9,7 @@ nonexistent analytics_fact_revenue S-267/S-242's own docs cite --
 confirmed absent from this codebase, same call already made for the
 Forecast vs Actual story.
 """
+from app.core.tenant_context import tenant_id_of
 import logging
 from datetime import datetime
 from typing import List, Optional
@@ -124,7 +125,7 @@ def set_partner_goal(
     """CEO-only, enforced via RBAC permission system.
     Users must have admin.manage or revenue.manage permission to set partner goals."""
 
-    tenant_id = getattr(created_by_user, 'TenantID', 1) if created_by_user else 1
+    tenant_id = tenant_id_of(created_by_user)
     has_permission = (
         PermissionHelper.has_permission(created_by_user.UserID, "admin-settings.edit", db, tenant_id) or
         PermissionHelper.has_permission(created_by_user.UserID, "revenue.edit", db, tenant_id)
@@ -244,7 +245,7 @@ def get_executive_revenue_dashboard(db: Session, *, client_ids: Optional[List[st
     }
 
 
-WON_STAGES = ("CONTRACT", "ACTIVE")
+from app.models.opportunity import WON_STAGES  # noqa: E402 -- one definition of a win
 BENCH_AGING_DAYS = 60
 
 
@@ -253,16 +254,12 @@ def _executive_extras(db: Session, *, client_ids, pipeline_by_bu: dict, total_pi
     from Business Units admin, with its FY revenue target from the goal
     tree), pipeline coverage of the org FY revenue target, capacity
     utilization and risk counts -- all from real records."""
-    from datetime import date as date_type, timedelta as td
 
     from app.models.business_unit import BusinessUnit
-    from app.models.employee import Employee
-    from app.models.employee_allocation import EmployeeAllocation
     from app.models.revenue_leakage import RevenueLeakageFlag
     from app.models.strategic_goal import GoalTarget
     from app.services.ar_followup_service import scan_overdue_invoices
 
-    now = datetime.utcnow()
     from app.services.fiscal_year_service import current_fy, fy_window
     year = current_fy(db)
     start, end = fy_window(db, year)
@@ -305,15 +302,15 @@ def _executive_extras(db: Session, *, client_ids, pipeline_by_bu: dict, total_pi
         round(total_pipeline_usd_cents / (org_target.target * 100), 2) if org_target and org_target.target else None
     )
 
-    working = db.query(Employee).filter(Employee.status.notin_(("PRE_JOINING", "EXITED"))).all()
-    allocated_ids = {
-        row[0] for row in db.query(EmployeeAllocation.employee_id).filter(EmployeeAllocation.status == "ACTIVE").all()
-    }
-    allocated = sum(1 for e in working if e.id in allocated_ids)
-    utilization = round(allocated / len(working) * 100, 1) if working else None
-    unallocated = [e for e in working if e.id not in allocated_ids]
-    aging_cutoff = date_type.today() - td(days=BENCH_AGING_DAYS)
-    bench_aging = sum(1 for e in unallocated if e.joining_date and e.joining_date <= aging_cutoff)
+    from app.services.bench_service import headcount_snapshot
+
+    # the bench rule every surface shares (bench_service): billable staff with no active allocation;
+    # bench aging counts days on the bench, not days since joining
+    snapshot = headcount_snapshot(db)
+    billable = snapshot["billable"]
+    utilization = round(len(snapshot["allocated"]) / len(billable) * 100, 1) if billable else None
+    unallocated = snapshot["bench"]
+    bench_aging = sum(1 for e in unallocated if snapshot["bench_days"][e.id] > BENCH_AGING_DAYS)
 
     leakage_flags = db.query(func.count(RevenueLeakageFlag.id)).filter(
         RevenueLeakageFlag.partial_billing_reason.is_(None)
@@ -332,16 +329,16 @@ def _executive_extras(db: Session, *, client_ids, pipeline_by_bu: dict, total_pi
             {"key": "overdue_invoices", "label": "Overdue Invoices", "severity": "medium", "value": len(overdue),
              "detail": "Sent and unpaid past the grace period"},
             {"key": "bench_aging", "label": f"Bench Aging > {BENCH_AGING_DAYS}d", "severity": "medium", "value": bench_aging,
-             "detail": f"Unallocated, joined more than {BENCH_AGING_DAYS} days ago"},
-            {"key": "unallocated", "label": "Unallocated Employees", "severity": "low", "value": len(unallocated),
-             "detail": "Working employees without an active allocation"},
+             "detail": f"On the bench more than {BENCH_AGING_DAYS} days", "link": "/workforce/bench"},
+            {"key": "unallocated", "label": "On the bench", "severity": "low", "value": len(unallocated),
+             "detail": "Billable employees without an active allocation", "link": "/workforce/bench"},
         ],
     }
 
 def get_pipeline_coverage(db: Session, *, client_ids: Optional[List[str]], revenue_target_usd_cents: int) -> Optional[float]:
     """S-244 -- reuses opportunity_service.calculate_pipeline_coverage_ratio(),
     never a second implementation."""
-    query = db.query(Opportunity).filter(Opportunity.stage.notin_(("WON", "LOST")))
+    query = db.query(Opportunity).filter(Opportunity.stage.notin_(WON_STAGES + ("LOST",)))
     if client_ids is not None:
         query = query.filter(Opportunity.client_id.in_(client_ids))
     total_pipeline = sum(o.revenue_value_usd_cents for o in query.all())

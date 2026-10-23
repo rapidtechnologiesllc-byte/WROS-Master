@@ -118,7 +118,7 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
                 email=email,
                 first_name=first_name,
                 last_name=last_name,
-                tenant_id=int(tenant_id) if tenant_id else 1,
+                tenant_id=int(tenant_id) if tenant_id else None,  # enqueue resolves a missing tenant
                 source='bulk_csv_import',
                 mobile=(row.get("phone") or "").strip() or None,
                 created_by_user_id=recruiter_id,
@@ -142,7 +142,7 @@ def import_candidates_from_csv(db: Session, csv_text: str, recruiter_id: str, te
         "skipped_duplicates": skipped_duplicates,
         "errors": errors,
         "message_ids": imported_message_ids,  # For polling candidate creation status
-        "polling_endpoint_template": "/api/v1/message-queue/status/{message_id}",
+        "polling_endpoint_template": "/api/v1/message-queue/tasks/{message_id}/status",
         "polling_interval_seconds": 2,
     }
 

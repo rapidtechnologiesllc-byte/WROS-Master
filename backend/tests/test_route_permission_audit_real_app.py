@@ -59,6 +59,21 @@ MANUALLY_VERIFIED_EXCEPTIONS = {
     # Not in PUBLIC_ROUTES, so AuthenticationMiddleware requires a bearer token before
     # this runs; it only issues a CSRF token for that already-authenticated session.
     "GET /csrf/token",
+    # Delivery-provider callbacks: no user session exists. Each handler verifies the
+    # provider's signature over the raw request and fails closed (503 when the key is not
+    # configured, 401 on a bad signature) -- app.core.delivery_webhook_auth; guarded below.
+    "POST /webhooks/sendgrid",
+    "POST /webhooks/mailgun",
+    "POST /webhooks/twilio-sms",
+    "POST /webhooks/twilio-whatsapp",
+}
+
+# webhook handler -> the signature check it must call before trusting the body
+WEBHOOK_SIGNATURE_CHECKS = {
+    "sendgrid_webhook": "verify_sendgrid(",
+    "mailgun_webhook": "verify_mailgun(",
+    "twilio_sms_webhook": "verify_twilio(",
+    "twilio_whatsapp_webhook": "verify_twilio(",
 }
 
 GENUINE_OPEN_QUESTIONS = set()  # both resolved 2026-07-20: active-jobs kept
@@ -88,6 +103,17 @@ def test_msgraph_manual_exception_guard_still_has_real_protection():
     source = inspect.getsource(msgraph)
     for route_fn_snippet in ["def send_mail(", "def schedule_meeting(", "def get_my_meetings("]:
         assert route_fn_snippet in source, f"{route_fn_snippet} not found -- route may have moved/renamed"
+
+def test_webhook_exceptions_still_verify_the_provider_signature():
+    """The four webhook routes are exempt only because each verifies its provider's
+    signature; if a check is removed, the exemption is no longer true."""
+    from app.api.v1.endpoints import webhooks
+
+    for handler, check in WEBHOOK_SIGNATURE_CHECKS.items():
+        assert check in inspect.getsource(getattr(webhooks, handler)), (
+            f"webhooks.{handler} no longer calls {check}) -- remove it from "
+            "MANUALLY_VERIFIED_EXCEPTIONS and give the route real protection.")
+
 
 def test_real_app_has_no_unexplained_routes_with_zero_identity_check():
     from app.main import app

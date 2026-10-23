@@ -55,7 +55,7 @@ def _project(db, *, weeks, contact=True):
     if db.query(Tenant).filter_by(id=1).first() is None:
         db.add(Tenant(id=1, name="test-tenant"))
         db.flush()
-    unit = BusinessUnit(name=f"bu-{_uid()}", display_name="BU")
+    unit = BusinessUnit(tenant_id=1, name=f"bu-{_uid()}", display_name="BU")
     db.add(unit)
     db.flush()
     client = Client(tenant_id=1, company_name=f"Client {_uid()}", business_unit_id=unit.id, payment_terms_days=30)

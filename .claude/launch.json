@@ -4,16 +4,42 @@
     {
       "name": "Backend",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--reload", "--host", "127.0.0.1"],
+      "runtimeArgs": [
+        "-m",
+        "uvicorn",
+        "app.main:app",
+        "--reload",
+        "--host",
+        "127.0.0.1"
+      ],
       "port": 8080,
       "autoPort": true,
       "cwd": "backend",
       "note": "autoPort enabled to use PORT environment variable for dynamic port assignment"
     },
     {
+      "name": "Backend 8081",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8081"
+      ],
+      "port": 8081,
+      "autoPort": false,
+      "cwd": "backend",
+      "note": "the port frontend/.env points REACT_APP_API_URL at"
+    },
+    {
       "name": "Frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["start"],
+      "runtimeArgs": [
+        "start"
+      ],
       "port": 3000,
       "autoPort": true,
       "cwd": "frontend"
@@ -21,7 +47,10 @@
     {
       "name": "Career Site",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 3001,
       "autoPort": false,
       "cwd": "career-site"

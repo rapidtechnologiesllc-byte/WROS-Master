@@ -3,7 +3,7 @@ Database Contract - Ensures database is properly initialized on startup.
 
 This module guarantees:
 1. All tables exist (schema creation)
-2. Required tenants exist (tenant_id=1)
+2. A primary tenant (parent company) exists
 3. RBAC modules and resources exist
 4. Default admin role template exists
 5. Admin user exists with proper permissions
@@ -14,6 +14,9 @@ Run on every backend startup to ensure data integrity.
 
 import secrets
 import string
+from typing import Optional
+
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal, engine
 from app.models.base import Base
@@ -39,11 +42,9 @@ def initialize_database():
     try:
         # Step 1: Create all tables from models
         logger.info("[Contract] Step 1: Creating database tables...")
-        # Import models package - this triggers _auto_import_all_models()
+        # Import models package - this triggers _auto_import_all_models(). Every table is declared
+        # in app.models (tests/test_slm_job_metadata.py asserts no model lives elsewhere)
         import app.models
-        # Models defined outside app.models must be imported to be created
-        import app.services.slm_job_metadata_service  # noqa: F401 -- SLMJobMetadata
-        import app.services.slm_feedback_engine  # noqa: F401 -- SLMFeedback, SLMModelVersion
         Base.metadata.create_all(bind=engine)
         logger.info("[OK] Database tables created")
 
@@ -51,6 +52,11 @@ def initialize_database():
         logger.info("[Contract] Step 1.5: Running schema migrations...")
         _run_schema_migrations()
         logger.info("[OK] Schema migrations completed")
+
+        # Step 1.6: One-time data migrations (each runs once per database, marker-guarded)
+        logger.info("[Contract] Step 1.6: Running one-time data migrations...")
+        _run_data_migrations()
+        logger.info("[OK] Data migrations completed")
 
         # Step 2: Initialize tenant
         logger.info("[Contract] Step 2: Initializing tenant...")
@@ -88,12 +94,91 @@ def initialize_database():
         logger.info("[Contract] Step 8: Seeding Thunder email variants...")
         _initialize_thunder_variants()
 
+        # Step 9: the bench pool matches the bench rule (billable, joined, no active allocation),
+        # from each person's real first bench day; billing_classification derived (idempotent)
+        logger.info("[Contract] Step 9: Reconciling the bench pool...")
+        _initialize_bench_pool()
+
         logger.info("[OK] Database contract validated - all systems ready")
 
     except Exception as e:
         logger.error(f"Error: {str(e)}", exc_info=True)
         logger.error(f"[FAILED] Database contract violation: {e}", exc_info=True)
         raise
+
+def _interview_times_to_utc(db: Session) -> int:
+    """Interview start/end were saved as India wall-clock time (every live scheduling screen sent
+    local time without an offset; the old invite endpoint assumed Asia/Kolkata). Storage is naive
+    UTC since 2026-10-15, so convert the rows saved before that. Interviews created by the new
+    scheduling path (it queues `interview-scheduled:{id}`) were already stored as UTC and are left
+    alone. Returns the number of interviews converted."""
+    return db.execute(text(
+        "UPDATE app_schema.interviews i SET "
+        "start_time = (i.start_time AT TIME ZONE :zone) AT TIME ZONE 'UTC', "
+        "end_time = (i.end_time AT TIME ZONE :zone) AT TIME ZONE 'UTC' "
+        "WHERE (i.start_time IS NOT NULL OR i.end_time IS NOT NULL) AND NOT EXISTS ("
+        "  SELECT 1 FROM app_schema.channel_queue_item q WHERE q.id = 'interview-scheduled:' || i.id)"),
+        {"zone": settings.INTERVIEW_LEGACY_STORAGE_TIMEZONE}).rowcount
+
+
+# name -> function(db) returning a row count. Append only; never rename or reorder.
+def _employee_org_history_backfill(db: Session) -> int:
+    """Cost object history (CEO 2026-10-22): every employee without history gets one row -- where
+    they sit now, from their joining date -- so the first move after this keeps past months where
+    they were. Idempotent by construction (only employees with no rows)."""
+    from app.models.employee import Employee
+    from app.models.employee_org_history import EmployeeOrgHistory, country_of_company
+
+    have = {row[0] for row in db.query(EmployeeOrgHistory.employee_id).distinct()}
+    added = 0
+    for employee in db.query(Employee).all():
+        if employee.id in have:
+            continue
+        db.add(EmployeeOrgHistory(tenant_id=employee.tenant_id, employee_id=employee.id, bu_id=employee.bu_id,
+                                  company_id=employee.company_id,
+                                  country=country_of_company(db, employee.company_id),
+                                  effective_from=employee.joining_date))
+        added += 1
+    return added
+
+
+DATA_MIGRATIONS = (
+    ("interview_times_to_utc", _interview_times_to_utc),
+    ("employee_org_history_backfill", _employee_org_history_backfill),
+)
+
+
+def _run_data_migrations():
+    db = SessionLocal()
+    try:
+        run_data_migrations(db)
+    finally:
+        db.close()
+
+
+def run_data_migrations(db: Session, migrations=DATA_MIGRATIONS) -> list:
+    """Run each one-time data migration exactly once per database; returns the names it ran.
+    The marker row in data_migrations is inserted in the same transaction as the migration: a
+    second run (or a second instance starting at the same moment, which waits on the primary key)
+    finds the marker and skips. A failing migration rolls back with its marker and fails startup."""
+    ran = []
+    try:
+        for name, migrate in migrations:
+            claimed = db.execute(text(
+                "INSERT INTO app_schema.data_migrations (name, applied_at) VALUES (:name, now()) "
+                "ON CONFLICT (name) DO NOTHING RETURNING name"), {"name": name}).first()
+            if claimed is None:
+                db.rollback()
+                continue
+            count = migrate(db)
+            db.commit()
+            ran.append(name)
+            logger.info(f"[Contract] Data migration {name}: {count} row(s)")
+    except Exception:
+        db.rollback()
+        raise
+    return ran
+
 
 def _initialize_linkedin_outreach_tasks():
     """Open a follow-up task for in-progress LinkedIn pipeline items that have none."""
@@ -107,6 +192,16 @@ def _initialize_linkedin_outreach_tasks():
         logger.error(f"[Contract] LinkedIn outreach task backfill failed (startup continues): {e}", exc_info=True)
     finally:
         db.close()
+
+def _initialize_bench_pool():
+    from app.services.bench_service import reconcile_bench_pool
+
+    db = SessionLocal()
+    try:
+        reconcile_bench_pool(db)
+    finally:
+        db.close()
+
 
 def _initialize_thunder_variants():
     """Seed approved Thunder email copy that is missing."""
@@ -122,19 +217,30 @@ def _initialize_thunder_variants():
     finally:
         db.close()
 
+def primary_tenant_id(db) -> int:
+    """The first tenant (parent company) -- owner of the shared module/resource catalog and of
+    the bootstrap admin accounts. Looked up, never assumed to be id 1."""
+    tenant_id = db.query(Tenant.id).order_by(Tenant.id).limit(1).scalar()
+    if tenant_id is None:
+        raise RuntimeError("No tenant exists - _initialize_tenant must run first")
+    return tenant_id
+
+
 def _initialize_tenant():
-    """Ensure tenant_id=1 (BlitzenX) exists."""
+    """Make sure a parent company (tenant) exists: on an empty database create one named
+    PRIMARY_TENANT_NAME. Every tenant is a parent company; its sub-companies are Companies
+    (locations) inside it and take its tenant id."""
     from sqlalchemy import text
     db = SessionLocal()
     try:
-        tenant = db.query(Tenant).filter(Tenant.id == 1).first()
+        tenant = db.query(Tenant).order_by(Tenant.id).first()
         if not tenant:
-            tenant = Tenant(id=1, name="BlitzenX")
+            tenant = Tenant(name=settings.PRIMARY_TENANT_NAME)
             db.add(tenant)
             db.commit()
-            logger.info("[Contract] Created tenant: BlitzenX (id=1)")
+            logger.info(f"[Contract] Created primary tenant: {tenant.name} (id={tenant.id})")
         else:
-            logger.info("[Contract] Tenant exists: BlitzenX (id=1)")
+            logger.info(f"[Contract] Primary tenant: {tenant.name} (id={tenant.id})")
 
         # Explicit-PK inserts don't advance Postgres's identity sequence, so
         # the next auto-generated tenant would also try to use id=1 and hit
@@ -148,6 +254,17 @@ def _initialize_tenant():
     finally:
         db.close()
 
+ROLE_AUTHORITY_SEED_KEY = "role_authority_seeded"
+ORG_LEVEL_SEED_ROLES = ("Super Admin", "Admin")
+# Resources only the seeded admin roles start with: who may define the firm's job titles
+# and levels (org-roles) is an administrator decision, not every system role's.
+ADMIN_ONLY_RESOURCES = frozenset({"org-roles"})
+# Resources granted from another permission of the same role template, never wholesale: a role may
+# start Flash missions when it may create jobs (CEO 2026-10-15; data-driven, never by role name).
+# resource -> (source resource, source action)
+DERIVED_GRANTS = {"flash-missions": ("jobs", "create")}
+
+
 def _initialize_rbac():
     """Ensure all modules, resources, and admin role exist.
 
@@ -159,27 +276,10 @@ def _initialize_rbac():
         # Import the authoritative API contract
         from app.contracts.api_contract import MODULES_AND_RESOURCES
 
-        # Define display names for modules (can enhance as needed)
-        module_display_names = {
-            "Personal": "Personal",
-            "Recruitment": "Recruitment",
-            "Workforce": "Workforce",
-            "Sales": "Sales",
-            "Project Management": "Project Management",
-            "Finance": "Finance",
-            "Reporting": "Reporting",
-            "System": "System",
-            "Executive": "Executive",
-            "Executive Dashboards": "Executive Dashboards",
-            "AI & Automation": "AI & Automation",
-            "Admin": "Admin",
-        }
+        catalog_tenant = primary_tenant_id(db)  # one shared module/resource catalog
 
-        # Use the authoritative contract structure
-        modules_data = {
-            module_name: module_display_names.get(module_name, module_name)
-            for module_name in MODULES_AND_RESOURCES.keys()
-        }
+        # Module display name = its contract name (renamed only through the contract)
+        modules_data = {module_name: module_name for module_name in MODULES_AND_RESOURCES.keys()}
 
         resources_data = MODULES_AND_RESOURCES
 
@@ -192,7 +292,7 @@ def _initialize_rbac():
                     name=module_name,
                     display_name=display_name,
                     enabled=True,
-                    tenant_id=1
+                    tenant_id=catalog_tenant
                 )
                 db.add(module)
                 db.flush()
@@ -200,6 +300,9 @@ def _initialize_rbac():
             modules[module_name] = module
 
         db.commit()
+
+        # A resource the contract moved to another module keeps its row (and every grant on it)
+        _place_contract_resources(db, modules)
 
         # Create resources
         for module_name, resource_names in resources_data.items():
@@ -216,7 +319,7 @@ def _initialize_rbac():
                         name=resource_name,
                         display_name=resource_name.replace("_", " ").title(),
                         enabled=True,
-                        tenant_id=1
+                        tenant_id=catalog_tenant
                     )
                     db.add(resource)
                     logger.info(f"[Contract] Created resource: {module_name}/{resource_name}")
@@ -232,15 +335,17 @@ def _initialize_rbac():
             ('Ops', 'Operations', 'Operations team - receives system alerts and diagnostics'),
         ]
 
-        for role_name, display_name, description in role_template_configs:
-            role_template = db.query(RoleTemplate).filter(RoleTemplate.name == role_name).first()
+        for (tenant_id,) in db.query(Tenant.id).all():  # every parent company gets the system roles
+          for role_name, display_name, description in role_template_configs:
+            role_template = db.query(RoleTemplate).filter(RoleTemplate.name == role_name,
+                                                          RoleTemplate.tenant_id == tenant_id).first()
             if not role_template:
                 role_template = RoleTemplate(
                     name=role_name,
                     display_name=display_name,
                     description=description,
                     is_system=True,
-                    tenant_id=1
+                    tenant_id=tenant_id
                 )
                 db.add(role_template)
                 db.flush()
@@ -266,16 +371,19 @@ def _initialize_rbac():
             }
             permissions_granted = 0
             for resource in resources:
-                if resource.id in existing_resource_ids:
+                if resource.id in existing_resource_ids or resource.name in DERIVED_GRANTS:
                     continue
+                # Admin-only resources start closed on the other system roles; the Role
+                # Templates editor can open them later (the row exists, so it is never re-seeded)
+                granted = resource.name not in ADMIN_ONLY_RESOURCES or role_template.name in ORG_LEVEL_SEED_ROLES
                 db.add(RoleTemplatePermission(
                     role_template_id=role_template.id,
                     resource_id=resource.id,
                     tenant_id=role_template.tenant_id,
-                    can_view=True,
-                    can_create=True,
-                    can_edit=True,
-                    can_delete=True
+                    can_view=granted,
+                    can_create=granted,
+                    can_edit=granted,
+                    can_delete=granted
                 ))
                 permissions_granted += 1
 
@@ -285,6 +393,36 @@ def _initialize_rbac():
 
     finally:
         db.close()
+
+def _place_contract_resources(db, modules) -> int:
+    """Regrouping the menu moves resources between modules in the contract. Grants and personal
+    overrides live on the Resource row, so a contract resource that has no row in its contract
+    module re-parents its existing canonical row (enabled first, then oldest) instead of getting a
+    new, grant-less row -- nobody gains or loses a permission because a menu group was renamed.
+    Modules no longer in the contract are then disabled (never deleted) by
+    _initialize_contract_catalog_only. Idempotent: a placed resource is left alone."""
+    from app.contracts.api_contract import MODULES_AND_RESOURCES
+
+    moved = 0
+    for module_name, resource_names in MODULES_AND_RESOURCES.items():
+        module = modules[module_name]
+        for resource_name in resource_names:
+            if db.query(Resource.id).filter(Resource.module_id == module.id, Resource.name == resource_name).first():
+                continue
+            existing = db.query(Resource).filter(Resource.name == resource_name) \
+                .order_by(Resource.enabled.desc(), Resource.id).first()
+            if existing is None:
+                continue  # brand-new resource: _initialize_rbac creates it
+            logger.info(f"[Contract] Moved resource {resource_name} (id {existing.id}) to module {module_name}")
+            existing.module_id = module.id
+            existing.enabled = True
+            moved += 1
+    if moved:
+        db.commit()
+        from app.services.role_template_permission_service import invalidate_permissions
+        invalidate_permissions()
+    return moved
+
 
 # Partner / BU Head role templates. Not system templates (those are seeded
 # with every permission); created once with this starting set, after which
@@ -298,11 +436,12 @@ LEADERSHIP_ROLES = {
         "permissions": {
             "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
                     "activity-feed", "ask-flash", "candidates", "jobs", "submissions", "interviews", "clients",
-                    "opportunities", "proposals", "pipeline-management", "demand-confirmation", "goals"],
+                    "opportunities", "pipeline-management", "demand-confirmation", "goals"],
+            # LinkedIn Pipeline is a sub-page of the candidates resource (init_resources), not a resource
             "v": ["offer-letters", "employees", "allocations", "utilization-dashboard", "resource-forecast",
-                  "employee-in-bench", "projects", "resources", "invoices", "forecasts", "revenue",
-                  "executive-revenue-dashboard", "kpi-dashboard", "analytics", "partner-dashboard",
-                  "partner-dashboard-view", "bu-head-dashboard", "bu-head-dashboard-view", "business-units",
+                  "workforce-overview", "projects", "resources", "invoices", "forecasts", "revenue",
+                  "partner-dashboard",
+                  "bu-head-dashboard", "business-units",
                   "delivery-centers", "organizational-hierarchy", "ask-thunder"],
         },
     },
@@ -314,10 +453,11 @@ LEADERSHIP_ROLES = {
         "permissions": {
             "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
                     "activity-feed", "ask-flash", "candidates", "jobs", "submissions", "interviews",
-                    "allocations", "timesheets", "projects", "resources", "opportunities", "demand-confirmation"],
-            "v": ["offer-letters", "employees", "onboarding", "utilization-dashboard", "resource-forecast",
-                  "employee-in-bench", "clients", "invoices", "forecasts", "revenue", "goals", "kpi-dashboard",
-                  "bu-head-dashboard", "bu-head-dashboard-view", "business-units", "delivery-centers",
+                    "allocations", "timesheets", "projects", "resources", "opportunities", "demand-confirmation",
+                    "pipeline-management", "clients"],
+            "v": ["offer-letters", "employees", "utilization-dashboard", "resource-forecast",
+                  "workforce-overview", "invoices", "forecasts", "revenue", "goals",
+                  "bu-head-dashboard", "business-units", "delivery-centers",
                   "organizational-hierarchy", "ask-thunder"],
         },
     },
@@ -332,10 +472,24 @@ LEADERSHIP_ROLES = {
         "org_level_access": True,
         "permissions": {
             "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
-                    "activity-feed", "ask-flash", "invoices", "invoice-management", "expenses", "revenue",
-                    "finance-operations", "forecasts", "budget-management", "payroll"],
-            "v": ["clients", "projects", "allocations", "timesheets", "employees", "reports",
-                  "executive-revenue-dashboard", "kpi-dashboard", "analytics", "business-units"],
+                    "activity-feed", "ask-flash", "invoices", "expenses", "revenue",
+                    "finance-operations", "forecasts"],
+            "v": ["clients", "projects", "allocations", "timesheets", "employees", "business-units",
+                  "opportunities", "pipeline-management"],
+        },
+    },
+    # Sells: finds opportunities, owns client relationships, raises role demands for won
+    # work. Scoped to their business units; no P&L (revenue) access.
+    "Sales": {
+        "display_name": "Sales",
+        "description": "Opens and works opportunities and client relationships for their business units",
+        "hierarchy_level": 8,
+        "specialization": "Sales",
+        "org_level_access": False,
+        "permissions": {
+            "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
+                    "activity-feed", "ask-flash", "clients", "opportunities", "pipeline-management"],
+            "v": ["demand-confirmation", "projects", "jobs", "business-units"],
         },
     },
     # Every converted employee gets this: their own work only. (The system "User" role is
@@ -353,16 +507,22 @@ LEADERSHIP_ROLES = {
 }
 
 
-def ensure_role(db, name: str, spec: dict) -> bool:
-    """Create one LEADERSHIP_ROLES-style role template with its permissions if missing.
-    Existing roles are never touched (the Role Templates editor owns them)."""
-    if db.query(RoleTemplate).filter(RoleTemplate.name == name).first():
+def ensure_role(db, name: str, spec: dict, tenant_id: int) -> bool:
+    """Create one LEADERSHIP_ROLES-style role template with its permissions in the tenant if
+    missing. Existing roles are never touched (the Role Templates editor owns them)."""
+    if db.query(RoleTemplate).filter(RoleTemplate.name == name, RoleTemplate.tenant_id == tenant_id).first():
         return False
-    resources = {r.name: r for r in db.query(Resource).all()}
+    from app.services.role_template_permission_service import canonical_resource
+
+    module_names = dict(db.query(Module.id, Module.name))
+    by_name = {}
+    for r in db.query(Resource).all():
+        by_name.setdefault(r.name, []).append(r)
+    resources = {name: canonical_resource(group, module_names) for name, group in by_name.items()}
     role = RoleTemplate(
         name=name, display_name=spec["display_name"], description=spec["description"],
         hierarchy_level=spec["hierarchy_level"], org_level_access=spec["org_level_access"],
-        specialization=spec.get("specialization", "General"), is_system=False, tenant_id=1,
+        specialization=spec.get("specialization", "General"), is_system=False, tenant_id=tenant_id,
     )
     db.add(role)
     db.flush()
@@ -373,7 +533,7 @@ def ensure_role(db, name: str, spec: dict) -> bool:
             if resource is None:
                 raise RuntimeError(f"Role {name}: unknown resource {resource_name!r}")
             db.add(RoleTemplatePermission(
-                role_template_id=role.id, resource_id=resource.id, tenant_id=1,
+                role_template_id=role.id, resource_id=resource.id, tenant_id=tenant_id,
                 can_view=True, can_create=mode == "vce", can_edit=mode == "vce", can_delete=False,
             ))
             granted += 1
@@ -386,11 +546,31 @@ def _initialize_leadership_roles():
     """Create the Partner, BU Head, Finance Manager and Employee role templates if missing (idempotent)."""
     db = SessionLocal()
     try:
-        for name, spec in LEADERSHIP_ROLES.items():
-            ensure_role(db, name, spec)
+        for (tenant_id,) in db.query(Tenant.id).all():
+            for name, spec in LEADERSHIP_ROLES.items():
+                ensure_role(db, name, spec, tenant_id)
         _move_converted_employees_off_user_role(db)
         _initialize_role_authority(db)
         _initialize_bu_location_heads(db)
+        _initialize_org_positions(db)
+        _initialize_org_roles(db)
+        _initialize_manage_role_permission_sets(db)
+        _initialize_canonical_resources(db)
+        _initialize_contract_catalog_only(db)
+        _initialize_thunder_conversation_owner(db)
+        _initialize_candidate_status_templates(db)
+        _initialize_submission_violation_types(db)
+        _initialize_allocation_statuses(db)
+        _initialize_employment_types(db)
+        _initialize_permission_row_tenants(db)
+        _initialize_functions(db)
+        _initialize_company_codes(db)
+        _initialize_partial_unique_indexes(db)
+        _initialize_engagement_tenant_keys(db)
+        _initialize_thunder_identity_config(db)
+        _initialize_user_template_tenants(db)
+        _initialize_pipeline_access(db)
+        _initialize_derived_grants(db)
     except Exception:
         db.rollback()
         raise
@@ -398,8 +578,6 @@ def _initialize_leadership_roles():
         db.close()
 
 
-ROLE_AUTHORITY_SEED_KEY = "role_authority_seeded"
-ORG_LEVEL_SEED_ROLES = ("Super Admin", "Admin")
 
 
 def _initialize_role_authority(db):
@@ -428,6 +606,536 @@ def _initialize_role_authority(db):
                             config_key=ROLE_AUTHORITY_SEED_KEY, config_value={"org_level_access": list(ORG_LEVEL_SEED_ROLES)}))
         db.commit()
         logger.info(f"[Contract] Set org_level_access on {updated} seeded role template(s) for tenant {tenant_id}")
+
+
+def _initialize_derived_grants(db):
+    """Every role template (any tenant) without a permission row for a DERIVED_GRANTS resource gets
+    one: view and create granted exactly when the template holds the source permission (e.g.
+    flash-missions from jobs.create). Existing rows are never touched, so a revoke in the Role
+    Templates editor sticks. Idempotent."""
+    from app.services.role_template_permission_service import canonical_resource
+
+    module_names = dict(db.query(Module.id, Module.name))
+    by_name = {}
+    for resource in db.query(Resource).all():
+        by_name.setdefault(resource.name, []).append(resource)
+    for name, (source_name, action) in DERIVED_GRANTS.items():
+        if name not in by_name:
+            continue
+        target = canonical_resource(by_name[name], module_names)
+        target_ids = [r.id for r in by_name[name]]
+        source_ids = [r.id for r in by_name.get(source_name, [])]
+        granted = 0
+        for role in db.query(RoleTemplate).all():
+            if db.query(RoleTemplatePermission.id).filter(RoleTemplatePermission.role_template_id == role.id,
+                                                          RoleTemplatePermission.resource_id.in_(target_ids)).first():
+                continue
+            holds = bool(source_ids) and db.query(RoleTemplatePermission.id).filter(
+                RoleTemplatePermission.role_template_id == role.id,
+                RoleTemplatePermission.resource_id.in_(source_ids),
+                getattr(RoleTemplatePermission, f"can_{action}").is_(True)).first() is not None
+            db.add(RoleTemplatePermission(role_template_id=role.id, resource_id=target.id,
+                                          tenant_id=role.tenant_id if role.tenant_id is not None else target.tenant_id,
+                                          can_view=holds, can_create=holds, can_edit=False, can_delete=False))
+            granted += holds
+        db.commit()
+        if granted:
+            logger.info(f"[Contract] {name}: granted to {granted} role template(s) holding {source_name}.{action}")
+
+
+PIPELINE_ACCESS_SEED_KEY = "pipeline_access_seeded"
+
+
+def _initialize_pipeline_access(db):
+    """Opportunities stopped requiring the P&L permission (revenue). So that nobody loses the
+    pipeline and the Kanban opens for everyone who works opportunities, ONCE per tenant (a
+    system_config marker; later Role Templates edits are never overwritten), by permission:
+    a role that could see revenue may view opportunities, and a role that may view
+    opportunities may view the pipeline board."""
+    from app.models.system_config import SystemConfig
+
+    resources = {r.name: r.id for r in db.query(Resource).filter(
+        Resource.name.in_(("revenue", "opportunities", "pipeline-management")))}
+    missing = {"revenue", "opportunities", "pipeline-management"} - set(resources)
+    if missing:
+        raise RuntimeError(f"Pipeline access seed: resources not seeded: {sorted(missing)}")
+
+    def grant(role, resource_name):
+        row = db.query(RoleTemplatePermission).filter(
+            RoleTemplatePermission.role_template_id == role.id,
+            RoleTemplatePermission.resource_id == resources[resource_name]).first()
+        if row is None:
+            db.add(RoleTemplatePermission(role_template_id=role.id, resource_id=resources[resource_name],
+                                          tenant_id=role.tenant_id, can_view=True, can_create=False,
+                                          can_edit=False, can_delete=False))
+        elif not row.can_view:
+            row.can_view = True
+        else:
+            return 0
+        return 1
+
+    def can_view(role, resource_name):
+        return db.query(RoleTemplatePermission.id).filter(
+            RoleTemplatePermission.role_template_id == role.id,
+            RoleTemplatePermission.resource_id == resources[resource_name],
+            RoleTemplatePermission.can_view.is_(True)).first() is not None
+
+    tenant_ids = [t for (t,) in db.query(RoleTemplate.tenant_id).distinct().all() if t is not None]
+    for tenant_id in tenant_ids:
+        if db.query(SystemConfig.id).filter(SystemConfig.tenant_id == tenant_id,
+                                            SystemConfig.business_unit_id.is_(None),
+                                            SystemConfig.config_key == PIPELINE_ACCESS_SEED_KEY).first():
+            continue
+        granted = 0
+        for role in db.query(RoleTemplate).filter(RoleTemplate.tenant_id == tenant_id).all():
+            if can_view(role, "revenue"):
+                granted += grant(role, "opportunities")
+            db.flush()
+            if can_view(role, "opportunities"):
+                granted += grant(role, "pipeline-management")
+        db.add(SystemConfig(tenant_id=tenant_id, business_unit_id=None, config_category="SYSTEM",
+                            config_key=PIPELINE_ACCESS_SEED_KEY, config_value={"granted": granted}))
+        db.commit()
+        logger.info(f"[Contract] Pipeline access: {granted} permission(s) granted for tenant {tenant_id}")
+
+
+def _initialize_org_positions(db):
+    """The fixed position ladder every org seat points at (CEO, Partner, BU Head ...). Without
+    it no seat can be created on a fresh database. Creates missing positions only, never
+    rewrites existing ones."""
+    from app.models.org_structure import OrgPosition
+    from app.services.org_structure_service import DEFAULT_POSITIONS
+
+    existing = {name for (name,) in db.query(OrgPosition.name)}
+    missing = [OrgPosition(**spec) for spec in DEFAULT_POSITIONS if spec["name"] not in existing]
+    if missing:
+        db.add_all(missing)
+        db.commit()
+        logger.info(f"[Contract] Seeded {len(missing)} org positions")
+
+
+def _initialize_org_roles(db):
+    """Seed the role list once per tenant from the org levels (idempotent: only when the
+    tenant has no roles yet, so roles renamed or retired on the screen stay that way)."""
+    from app.models.org_structure import OrgRole
+    from app.models.tenant import Tenant
+    from app.services.org_roles_service import DEFAULT_DESIGNATIONS, DEFAULT_ROLE_TITLES
+
+    for (tenant_id,) in db.query(Tenant.id).all():
+        if db.query(OrgRole.id).filter(OrgRole.tenant_id == tenant_id).first():
+            continue
+        db.add_all(OrgRole(tenant_id=tenant_id, name=name, hierarchy_level=level,
+                           designation=DEFAULT_DESIGNATIONS.get(name)) for name, level in DEFAULT_ROLE_TITLES)
+        db.commit()
+        logger.info(f"[Contract] Seeded {len(DEFAULT_ROLE_TITLES)} org roles for tenant {tenant_id}")
+
+
+def _initialize_manage_role_permission_sets(db):
+    """Every Manage Role owns a permission set (org_roles.role_template_id), created empty
+    (org_roles_service.ensure_permission_set) so nobody's access changes when it appears."""
+    from app.models.org_structure import OrgRole
+    from app.services.org_roles_service import ensure_permission_set
+
+    created = 0
+    for role in db.query(OrgRole).all():
+        created += role.role_template_id is None
+        ensure_permission_set(db, role)
+    db.commit()
+    if created:
+        from app.services.role_template_permission_service import invalidate_permissions
+        invalidate_permissions()
+        logger.info(f"[Contract] Created {created} empty Manage Role permission set(s)")
+
+
+def _initialize_canonical_resources(db):
+    """One resource per name. Legacy seeds left duplicates (e.g. 'candidates' in module
+    Recruitment and again in recruitment_management); checks resolve a name to the canonical
+    row (role_template_permission_service.canonical_resource), so grants and personal
+    overrides sitting on a duplicate were never honoured. Copy each onto the canonical row
+    where that template / user has none there yet (an existing canonical row is what is
+    enforced today and is kept), then disable the duplicate (reversible; nothing deleted).
+    Idempotent."""
+    from app.models.user import UserCustomPermission
+    from app.services.role_template_permission_service import FLAGS, canonical_resource, invalidate_permissions
+
+    module_names = dict(db.query(Module.id, Module.name))
+    groups = {}
+    for resource in db.query(Resource).order_by(Resource.id):
+        groups.setdefault((resource.tenant_id, resource.name.lower()), []).append(resource)
+    moved = disabled = 0
+    for group in groups.values():
+        if len(group) < 2:
+            continue
+        canonical = canonical_resource(group, module_names)
+        canonical.enabled = True
+        for dup in group:
+            if dup.id == canonical.id:
+                continue
+            for row in db.query(RoleTemplatePermission).filter(RoleTemplatePermission.resource_id == dup.id).all():
+                exists = db.query(RoleTemplatePermission.id).filter(
+                    RoleTemplatePermission.role_template_id == row.role_template_id,
+                    RoleTemplatePermission.resource_id == canonical.id,
+                    RoleTemplatePermission.tenant_id == row.tenant_id).first()
+                if not exists:
+                    db.add(RoleTemplatePermission(role_template_id=row.role_template_id, resource_id=canonical.id,
+                                                  tenant_id=row.tenant_id, **{f: bool(getattr(row, f)) for f in FLAGS}))
+                    db.flush()
+                    moved += 1
+            for row in db.query(UserCustomPermission).filter(UserCustomPermission.resource_id == dup.id).all():
+                exists = db.query(UserCustomPermission.id).filter(
+                    UserCustomPermission.user_id == row.user_id,
+                    UserCustomPermission.resource_id == canonical.id).first()
+                if not exists:
+                    row.resource_id = canonical.id  # one override per user and resource: move it
+                    db.flush()
+                    moved += 1
+            if dup.enabled:
+                dup.enabled = False
+                disabled += 1
+    db.commit()
+    if moved or disabled:
+        invalidate_permissions()
+        logger.info(f"[Contract] Canonical resources: moved {moved} grant(s)/override(s), disabled {disabled} duplicate(s)")
+
+
+def _initialize_contract_catalog_only(db):
+    """The role editor offers exactly the API contract's modules and resources. Anything else
+    (legacy seeds, resources retired from the contract because no page or check used them) is
+    disabled -- reversible, nothing deleted; re-enabled automatically if it returns to the
+    contract. No permission check can rely on a disabled resource: tests/test_authority.py
+    guards that every checked permission is in the contract."""
+    from app.contracts.api_contract import MODULES_AND_RESOURCES
+
+    changed = 0
+    modules = {m.id: m for m in db.query(Module).all()}
+    for module in modules.values():
+        wanted = module.name in MODULES_AND_RESOURCES
+        if bool(module.enabled) != wanted:
+            module.enabled = wanted
+            changed += 1
+    for resource in db.query(Resource).all():
+        module = modules.get(resource.module_id)
+        wanted = bool(module) and resource.name in MODULES_AND_RESOURCES.get(module.name, ())
+        if not wanted and resource.enabled:
+            resource.enabled = False
+            changed += 1
+        elif wanted and not resource.enabled and _is_canonical(db, resource, modules):
+            resource.enabled = True
+            changed += 1
+    db.commit()
+    if changed:
+        from app.services.role_template_permission_service import invalidate_permissions
+        invalidate_permissions()
+        logger.info(f"[Contract] Catalog: {changed} module/resource(s) enabled or disabled to match the contract")
+
+
+def _is_canonical(db, resource, modules) -> bool:
+    from app.services.role_template_permission_service import canonical_resource
+
+    group = db.query(Resource).filter(Resource.name == resource.name, Resource.tenant_id == resource.tenant_id).all()
+    return canonical_resource(group, {mid: m.name for mid, m in modules.items()}).id == resource.id
+
+
+def _initialize_thunder_conversation_owner(db):
+    """Engagement once created Thunder conversations as owner_type 'Thunder', which every
+    Thunder send gate refuses (only 'ai_agent' may send), so those candidates could never be
+    messaged. Hand them to the AI agent (idempotent; human-owned conversations untouched)."""
+    from app.models.candidate_ai import CandidateConversation
+    from app.services.ai_conversation_service import AI_AGENT_NAME
+
+    fixed = db.query(CandidateConversation).filter(CandidateConversation.owner_type == "Thunder") \
+        .update({CandidateConversation.owner_type: "ai_agent", CandidateConversation.owner_id: AI_AGENT_NAME},
+                synchronize_session=False)
+    db.commit()
+    if fixed:
+        logger.info(f"[Contract] Handed {fixed} Thunder-owned conversation(s) to the AI agent")
+
+
+def _initialize_candidate_status_templates(db):
+    """The template_key CHECK constraint is rebuilt from MessageTemplate's TEMPLATE_KEYS (it
+    had fallen behind: EMPLOYEE_WELCOME_EMAIL could not be saved), then every tenant gets the
+    candidate status emails seeded once (candidate_status_notifications.seed_templates)."""
+    from app.models.message_template import TEMPLATE_KEYS
+    from app.services.candidate_status_notifications import seed_templates
+
+    allowed = ", ".join("'" + key + "'" for key in TEMPLATE_KEYS)
+    db.execute(text("ALTER TABLE app_schema.message_templates DROP CONSTRAINT IF EXISTS message_template_key"))
+    db.execute(text(f"ALTER TABLE app_schema.message_templates ADD CONSTRAINT message_template_key "
+                    f"CHECK (template_key IN ({allowed}))"))
+    db.commit()
+    added = sum(seed_templates(db, tenant_id) for (tenant_id,) in db.query(Tenant.id).all())
+    db.commit()
+    if added:
+        logger.info(f"[Contract] Seeded {added} candidate status email template(s)")
+
+
+def _initialize_submission_violation_types(db):
+    """The violation_type CHECK constraint is rebuilt from VIOLATION_TYPES (create_all never
+    alters an existing table: the client-submission gates of 2026-10-14 added types). Idempotent."""
+    from app.models.submission import VIOLATION_TYPES
+
+    allowed = ", ".join("'" + kind + "'" for kind in VIOLATION_TYPES)
+    db.execute(text("ALTER TABLE app_schema.submission_violations DROP CONSTRAINT IF EXISTS submission_violation_type"))
+    db.execute(text(f"ALTER TABLE app_schema.submission_violations ADD CONSTRAINT submission_violation_type "
+                    f"CHECK (violation_type IN ({allowed}))"))
+    db.commit()
+
+
+def _initialize_allocation_statuses(db):
+    """The status and renewal_status CHECK constraints of employee_allocations are rebuilt from
+    ALLOCATION_STATUSES / RENEWAL_STATUSES (create_all never alters an existing table: the margin
+    guard added PENDING_MARGIN_APPROVAL and MARGIN_REJECTED, the renewal pipeline its column).
+    The renewal owner gets its index. Idempotent."""
+    from app.models.employee_allocation import ALLOCATION_STATUSES, RENEWAL_STATUSES
+
+    for constraint, column, values in (("employee_allocation_status", "status", ALLOCATION_STATUSES),
+                                       ("employee_allocation_renewal_status", "renewal_status", RENEWAL_STATUSES)):
+        allowed = ", ".join("'" + value + "'" for value in values)
+        db.execute(text(f"ALTER TABLE app_schema.employee_allocations DROP CONSTRAINT IF EXISTS {constraint}"))
+        db.execute(text(f"ALTER TABLE app_schema.employee_allocations ADD CONSTRAINT {constraint} "
+                        f"CHECK ({column} IN ({allowed}))"))
+    db.execute(text("CREATE INDEX IF NOT EXISTS ix_app_schema_employee_allocations_renewal_owner_user_id "
+                    "ON app_schema.employee_allocations (renewal_owner_user_id)"))
+    db.commit()
+
+
+# Values the previous release writes (gate criterion 24: schema compatible with the old code for
+# two deploy cycles). Remove once two releases with the canonical set have shipped.
+ROLLBACK_COMPAT_EMPLOYMENT_TYPES = ("W2_FULLTIME",)
+
+
+def _initialize_employment_types(db):
+    """One canonical employment-type set (CEO 2026-10-15): W2_FULLTIME becomes FULLTIME on
+    candidates, sub-vendor submissions and jobs, and the CHECK constraints are rebuilt from
+    CANDIDATE_EMPLOYMENT_TYPES. A candidate with no country gets the configured country its
+    free-text location names ("Pune, Maharashtra, India" -> IN). The policy is loaded first, so
+    a misconfigured EMPLOYMENT_TYPE_POLICY_JSON fails startup. Idempotent."""
+    from app.models.candidate import CANDIDATE_EMPLOYMENT_TYPES
+    from app.services.employment_type_policy import policy
+
+    countries = policy()["countries"]
+    # The constraint keeps the legacy W2_FULLTIME value for ROLLBACK_COMPAT_EMPLOYMENT_TYPES' life:
+    # if a deploy is rolled back, the previous release still writes W2_FULLTIME and must not fail;
+    # the next startup converts any such rows again (the UPDATE below is idempotent).
+    allowed = ", ".join("'" + kind + "'" for kind in (*CANDIDATE_EMPLOYMENT_TYPES, *ROLLBACK_COMPAT_EMPLOYMENT_TYPES))
+    for table, constraint in (("candidates", "candidate_employment_type"),
+                              ("sub_vendor_submissions", "subvendor_submission_employment_type")):
+        db.execute(text(f"ALTER TABLE app_schema.{table} DROP CONSTRAINT IF EXISTS {constraint}"))
+        db.execute(text(f"UPDATE app_schema.{table} SET employment_type = 'FULLTIME' "
+                        f"WHERE employment_type = 'W2_FULLTIME'"))
+        db.execute(text(f"ALTER TABLE app_schema.{table} ADD CONSTRAINT {constraint} "
+                        f"CHECK (employment_type IN ({allowed}))"))
+    db.execute(text("UPDATE app_schema.jobs SET employment_type = 'FULLTIME' WHERE employment_type = 'W2_FULLTIME'"))
+    db.execute(text("ALTER TABLE app_schema.jobs ALTER COLUMN employment_type SET DEFAULT 'FULLTIME'"))
+    derived = 0
+    for code, country in countries.items():
+        names = sorted({n.lower() for n in country.get("names") or []} | {(country.get("name") or "").lower()} - {""})
+        derived += db.execute(text(
+            'UPDATE app_schema.candidates SET country = :code WHERE country IS NULL '
+            'AND lower(trim(regexp_replace("candidateCurrentLocation", \'^.*,\', \'\'))) = ANY(:names)'),
+            {"code": code, "names": names}).rowcount
+    db.commit()
+    if derived:
+        logger.info(f"[Contract] Candidate country derived from location for {derived} candidate(s)")
+
+
+def _initialize_permission_row_tenants(db):
+    """Permission rows were written without a tenant (default 1) by older editor endpoints, so a
+    non-tenant-1 template's rows sat under tenant 1 and were never read. Move each to its
+    template's tenant unless that template already has a row for the resource there (that row
+    is the one in force; the stray one stays ignored). Idempotent; nothing deleted."""
+    moved = db.execute(text("""
+        UPDATE app_schema.role_template_permissions p
+        SET tenant_id = t.tenant_id
+        FROM app_schema.role_templates t
+        WHERE t.id = p.role_template_id AND p.tenant_id <> t.tenant_id
+          AND NOT EXISTS (SELECT 1 FROM app_schema.role_template_permissions q
+                          WHERE q.role_template_id = p.role_template_id AND q.resource_id = p.resource_id
+                            AND q.tenant_id = t.tenant_id)
+    """)).rowcount
+    db.commit()
+    if moved:
+        from app.services.role_template_permission_service import invalidate_permissions
+        invalidate_permissions()
+        logger.info(f"[Contract] Filed {moved} permission row(s) under their template's tenant")
+
+
+def _initialize_company_codes(db):
+    """Every company gets its number inside its tenant (code "<tenant>-<n>"), in order of
+    creation; numbers are never reused or renumbered. Idempotent."""
+    from app.models.location import Location
+
+    numbered = 0
+    for (tenant_id,) in db.query(Tenant.id).all():
+        companies = db.query(Location).filter(Location.tenant_id == tenant_id).order_by(Location.created_at, Location.id).all()
+        top = max((c.company_seq or 0 for c in companies), default=0)
+        for company in companies:
+            if company.company_seq is None:
+                top += 1
+                company.company_seq = top
+                numbered += 1
+    db.commit()
+    db.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_locations_tenant_company_seq "
+                    "ON app_schema.locations (tenant_id, company_seq) WHERE company_seq IS NOT NULL"))
+    db.commit()
+    if numbered:
+        logger.info(f"[Contract] Numbered {numbered} compan(y/ies) inside their tenant")
+
+
+def _initialize_engagement_tenant_keys(db):
+    """Candidate-engagement tables key their tenant as text. That key is the tenant id
+    (app.core.tenant_context.conversation_tenant_key); writers had drifted to arbitrary user ids
+    (the tenant's first user, the assigned recruiter, even the candidate's own id) while readers
+    looked for the tenant, so dashboards saw nothing. Idempotent:
+      - drop foreign keys from these tenant_id columns to users (the key is not a user);
+      - conversation_events.tenant_id is text with no default (no hard-coded tenant);
+      - every text tenant_id on a candidate-scoped table is set to the candidate's tenant,
+        except the Test Thunder sandbox (keyed by the tester on purpose). Each table runs in a
+        savepoint: a uniqueness clash is logged with the table name and that table is left as is.
+    """
+    from sqlalchemy import String
+
+    from app.services.thunder_service import TEST_CANDIDATE_ID_PREFIX
+
+    tables = [t for t in Base.metadata.tables.values()
+              if "tenant_id" in t.c and isinstance(t.c.tenant_id.type, String)]
+    for table in tables:
+        for (name,) in db.execute(text(
+            "SELECT con.conname FROM pg_constraint con "
+            "JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY (con.conkey) "
+            "WHERE con.contype = 'f' AND con.conrelid = to_regclass(:tbl) AND att.attname = 'tenant_id' "
+            "AND con.confrelid = to_regclass('app_schema.users')"), {"tbl": f"app_schema.{table.name}"}).all():
+            db.execute(text(f'ALTER TABLE app_schema."{table.name}" DROP CONSTRAINT "{name}"'))
+            logger.info(f"[Contract] Dropped {table.name}.{name}: tenant_id is a tenant key, not a user")
+    events_type = db.execute(text(
+        "SELECT data_type FROM information_schema.columns WHERE table_schema = 'app_schema' "
+        "AND table_name = 'conversation_events' AND column_name = 'tenant_id'")).scalar()
+    if events_type and events_type != "character varying":
+        db.execute(text("ALTER TABLE app_schema.conversation_events ALTER COLUMN tenant_id TYPE VARCHAR(50) "
+                        "USING tenant_id::text"))
+    if events_type:
+        db.execute(text("ALTER TABLE app_schema.conversation_events ALTER COLUMN tenant_id DROP DEFAULT"))
+    db.commit()
+
+    rekeyed = {}
+    for table in tables:
+        if "candidate_id" not in table.c:
+            continue
+        savepoint = db.begin_nested()
+        try:
+            count = db.execute(text(
+                f'UPDATE app_schema."{table.name}" AS t SET tenant_id = c.tenant_id::text '
+                f'FROM app_schema.candidates AS c WHERE c."candidateID" = t.candidate_id '
+                f"AND c.tenant_id IS NOT NULL AND t.tenant_id IS DISTINCT FROM c.tenant_id::text "
+                f"AND t.candidate_id NOT LIKE :sandbox"), {"sandbox": f"{TEST_CANDIDATE_ID_PREFIX}%"}).rowcount
+            savepoint.commit()
+            if count:
+                rekeyed[table.name] = count
+        except Exception as exc:
+            savepoint.rollback()
+            logger.error(f"[Contract] Could not re-key {table.name} to the candidate's tenant "
+                         f"(left unchanged): {exc}")
+    events = db.execute(text(
+        "UPDATE app_schema.conversation_events AS e SET tenant_id = c.tenant_id "
+        "FROM app_schema.candidate_conversations AS c WHERE c.id = e.conversation_id "
+        "AND e.tenant_id IS DISTINCT FROM c.tenant_id")).rowcount
+    if events:
+        rekeyed["conversation_events"] = events
+    db.commit()
+    if rekeyed:
+        logger.info(f"[Contract] Engagement records keyed by their candidate's tenant: {rekeyed}")
+
+
+def _initialize_thunder_identity_config(db):
+    """Thunder's name and persona are tenant settings (tenant_ai_config_service). A value an
+    admin saved before lived on a user row: carry it into the tenant's configuration once, so
+    nothing configured is lost. The kill switch is not carried over (it never worked from a user
+    row, and Thunder is live). Idempotent: a tenant that already has the setting keeps it."""
+    from app.models.system_config import SystemConfig
+    from app.services.tenant_ai_config_service import CONFIG_KEY, update_tenant_ai_config
+
+    for (tenant_id,) in db.query(Tenant.id).all():
+        row = db.query(SystemConfig).filter(SystemConfig.tenant_id == tenant_id, SystemConfig.config_key == CONFIG_KEY,
+                                            SystemConfig.business_unit_id.is_(None)).first()
+        saved = (row.config_value or {}) if row else {}
+        carry = {}
+        for field in ("ai_agent_name", "ai_agent_persona"):
+            if saved.get(field):
+                continue
+            value = db.query(getattr(Users, field)).filter(Users.tenant_id == tenant_id, getattr(Users, field).isnot(None),
+                                                           getattr(Users, field) != "").order_by(Users.UserID).limit(1).scalar()
+            if value:
+                carry[field] = value
+        if carry:
+            update_tenant_ai_config(db, carry, changed_by=None, tenant_id=tenant_id)
+            logger.info(f"[Contract] Tenant {tenant_id}: Thunder {sorted(carry)} carried into the tenant AI configuration")
+
+
+def _initialize_partial_unique_indexes(db):
+    """A partial unique index declared on a model (postgresql_where) must be partial in the
+    database too. create_all never alters an existing index, so one created before its WHERE was
+    declared stays a full unique index and blocks legitimate rows (a second interview at a level
+    after the first was superseded; re-opening a resolved intervention). Rebuild any such index
+    from the model. Relaxing a constraint cannot conflict with existing rows. Idempotent."""
+
+    rebuilt = []
+    for table in Base.metadata.tables.values():
+        for index in table.indexes:
+            if index.dialect_options["postgresql"].get("where") is None:
+                continue
+            row = db.execute(text("SELECT indexdef FROM pg_indexes WHERE schemaname = :s AND indexname = :n"),
+                             {"s": table.schema or "app_schema", "n": index.name}).first()
+            if row is None or " WHERE " in row[0]:
+                continue
+            db.execute(text(f'DROP INDEX IF EXISTS "{table.schema or "app_schema"}"."{index.name}"'))
+            db.commit()
+            index.create(bind=engine)
+            rebuilt.append(index.name)
+    if rebuilt:
+        logger.info(f"[Contract] Rebuilt as partial unique indexes: {', '.join(rebuilt)}")
+
+
+def _initialize_functions(db):
+    """A tenant with no functions yet gets the standard list once (Manage Functions owns it
+    afterwards: renames and retirements are never undone)."""
+    import uuid as _uuid
+
+    from app.models.org_structure import Department
+    from app.services.org_hierarchy_validator import FUNCTION_WORDS
+
+    added = 0
+    for (tenant_id,) in db.query(Tenant.id).all():
+        if db.query(Department.id).filter(Department.tenant_id == tenant_id).first():
+            continue
+        for name in FUNCTION_WORDS:
+            db.add(Department(id=str(_uuid.uuid4()), tenant_id=tenant_id, name=name, active=True))
+            added += 1
+    db.commit()
+    if added:
+        logger.info(f"[Contract] Seeded {added} standard function(s)")
+
+
+def _initialize_user_template_tenants(db):
+    """A user holding another tenant's template (possible before add-ons were validated) has
+    no add-on their tenant can show or edit. Move them to the same-named template of their own
+    tenant when one exists (same access by construction); otherwise leave and log."""
+    moved = 0
+    for user in db.query(Users).join(RoleTemplate, RoleTemplate.id == Users.role_template_id) \
+            .filter(RoleTemplate.tenant_id != Users.tenant_id).all():
+        current = db.get(RoleTemplate, user.role_template_id)
+        own = db.query(RoleTemplate).filter(RoleTemplate.tenant_id == user.tenant_id,
+                                            RoleTemplate.name == current.name).first()
+        if own is None:
+            logger.warning(f"[Contract] {user.UserID} holds template {current.id} of tenant {current.tenant_id}; "
+                           f"no {current.name!r} template in tenant {user.tenant_id} - fix on the Users screen")
+            continue
+        user.role_template_id = own.id
+        moved += 1
+    db.commit()
+    if moved:
+        from app.services.role_template_permission_service import invalidate_permissions
+        invalidate_permissions()
+        logger.info(f"[Contract] Moved {moved} user(s) to their own tenant's template")
 
 
 def _initialize_bu_location_heads(db):
@@ -488,7 +1196,7 @@ def _initialize_admin_user():
                 UserRole="Admin",
                 UserName="Admin User",
                 role_template_id=admin_role.id,
-                tenant_id=1,
+                tenant_id=primary_tenant_id(db),
                 timezone="Asia/Kolkata",
                 password_reset_required=True
             )
@@ -499,9 +1207,9 @@ def _initialize_admin_user():
             updated = False
 
             if not admin_user.tenant_id:
-                admin_user.tenant_id = 1
+                admin_user.tenant_id = primary_tenant_id(db)
                 updated = True
-                logger.info("[Contract] Updated admin user with default tenant_id=1")
+                logger.info("[Contract] Updated admin user with the primary tenant")
 
             if not admin_user.role_template_id:
                 admin_user.role_template_id = admin_role.id
@@ -523,7 +1231,7 @@ def _initialize_admin_user():
                     display_name="Super Administrator",
                     description="Super admin role with full system access",
                     is_system=True,
-                    tenant_id=1
+                    tenant_id=primary_tenant_id(db)
                 )
                 db.add(super_admin_role)
                 db.flush()
@@ -536,7 +1244,7 @@ def _initialize_admin_user():
                 UserRole="SuperUser",
                 UserName="Super User",
                 role_template_id=super_admin_role.id,
-                tenant_id=1,
+                tenant_id=primary_tenant_id(db),
                 timezone="Asia/Kolkata",
                 password_reset_required=False,
                 mfa_enabled=False
@@ -549,9 +1257,9 @@ def _initialize_admin_user():
             updated = False
 
             if not superuser.tenant_id:
-                superuser.tenant_id = 1
+                superuser.tenant_id = primary_tenant_id(db)
                 updated = True
-                logger.info("[Contract] Updated superuser with default tenant_id=1")
+                logger.info("[Contract] Updated superuser with the primary tenant")
 
             if not superuser.role_template_id:
                 super_admin_role = db.query(RoleTemplate).filter(RoleTemplate.name == "Super Admin").first()
@@ -716,445 +1424,372 @@ Best regards,
             logger.info("[Contract] Created default commission rule: 10%")
 
     except Exception as e:
-        logger.warning(f"[Contract] Could not initialize channel templates: {e}")
-        # Don't fail the entire startup if templates can't initialize
+        db.rollback()
+        logger.error(f"[Contract] Could not initialize channel templates: {e}", exc_info=True)
+        raise
     finally:
         db.close()
 
 
 def _create_performance_indexes():
-    """PHASE 3: Create database indexes for high-volume audit logging tables.
-
-    These indexes optimize queries on CandidateHistory and ActivityTimeline
-    for the new audit logging system (A+C implementation).
-    """
-    from sqlalchemy import text
+    """Indexes for the high-volume audit tables (CandidateHistory, ActivityTimeline). Idempotent;
+    a failure stops startup (SchemaMigrationError) rather than leaving the audit queries slow."""
     db = SessionLocal()
     try:
-        # Index for CandidateHistory - query by event_at (DATE range queries)
-        try:
-            db.execute(text("""
-                CREATE INDEX IF NOT EXISTS idx_candidate_history_event_at
-                ON app_schema.candidate_history(event_at DESC, "candidateID")
-            """))
-            db.commit()
-            logger.info("[Contract] Created index: idx_candidate_history_event_at")
-        except Exception as e:
-            logger.warning(f"[Contract] Could not create idx_candidate_history_event_at: {e}")
-            db.rollback()
-
-        # Index for CandidateHistory - query by candidateID and event_type
-        try:
-            db.execute(text("""
-                CREATE INDEX IF NOT EXISTS idx_candidate_history_candidate_type
-                ON app_schema.candidate_history("candidateID", event_type)
-            """))
-            db.commit()
-            logger.info("[Contract] Created index: idx_candidate_history_candidate_type")
-        except Exception as e:
-            logger.warning(f"[Contract] Could not create idx_candidate_history_candidate_type: {e}")
-            db.rollback()
-
-        # Index for ActivityTimeline - query by created_at (global feed)
-        try:
-            db.execute(text("""
-                CREATE INDEX IF NOT EXISTS idx_activity_timeline_created_at
-                ON app_schema.activity_timeline(created_at DESC, entity_id)
-            """))
-            db.commit()
-            logger.info("[Contract] Created index: idx_activity_timeline_created_at")
-        except Exception as e:
-            logger.warning(f"[Contract] Could not create idx_activity_timeline_created_at: {e}")
-            db.rollback()
-
-        # Index for ActivityTimeline - query by entity (candidate/user filters)
-        try:
-            db.execute(text("""
-                CREATE INDEX IF NOT EXISTS idx_activity_timeline_entity
-                ON app_schema.activity_timeline(entity_type, entity_id)
-            """))
-            db.commit()
-            logger.info("[Contract] Created index: idx_activity_timeline_entity")
-        except Exception as e:
-            logger.warning(f"[Contract] Could not create idx_activity_timeline_entity: {e}")
-            db.rollback()
-    except Exception as e:
-        logger.warning(f"[Contract] Could not create performance indexes: {e}")
-        # Don't fail startup if indexes can't be created
+        for name, definition in (
+            ("idx_candidate_history_event_at", 'app_schema.candidate_history(event_at DESC, "candidateID")'),
+            ("idx_candidate_history_candidate_type", 'app_schema.candidate_history("candidateID", event_type)'),
+            ("idx_activity_timeline_created_at", "app_schema.activity_timeline(created_at DESC, entity_id)"),
+            ("idx_activity_timeline_entity", "app_schema.activity_timeline(entity_type, entity_id)"),
+        ):
+            _migration_step(db, f"index {name}", f"CREATE INDEX IF NOT EXISTS {name} ON {definition}")
     finally:
         db.close()
+
+
+class SchemaMigrationError(RuntimeError):
+    """A startup schema migration failed. Startup stops: running on a half-migrated schema hides
+    the failure until a query hits the missing column (CLAUDE.md: fail fast)."""
+
+
+def _migration_step(db: Session, label: str, sql: str, params: Optional[dict] = None, *,
+                    lock_timeout: bool = False) -> int:
+    """Run one idempotent statement and commit it; a failure is logged, rolled back and raised.
+    Every statement is written to be a no-op once applied (IF [NOT] EXISTS, catalog checks), so
+    a restart on an up-to-date schema runs cleanly and only a real problem stops startup."""
+    from sqlalchemy import text
+
+    try:
+        if lock_timeout:  # ALTER TYPE takes an ACCESS EXCLUSIVE lock; never hang startup on it
+            db.execute(text("SET LOCAL lock_timeout = '5s'"))
+        result = db.execute(text(sql), params or {})
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error(f"[Contract] Migration failed: {label}: {exc}", exc_info=True)
+        raise SchemaMigrationError(f"Schema migration '{label}' failed: {exc}") from exc
+    count = result.rowcount if result.rowcount and result.rowcount > 0 else 0
+    if count:
+        logger.info(f"[Contract] Migration: {label} ({count} rows)")
+    return count
+
+
+def _column_type(db: Session, table: str, column: str) -> Optional[str]:
+    """The live data_type of app_schema.<table>.<column>, None when the column (or table) is absent."""
+    from sqlalchemy import text
+
+    return db.execute(text("""
+        SELECT data_type FROM information_schema.columns
+        WHERE table_schema = 'app_schema' AND table_name = :t AND column_name = :c
+    """), {"t": table, "c": column}).scalar()
+
 
 def _run_schema_migrations():
-    """Run schema migrations to alter existing columns, add new ones, etc.
+    """Bring existing tables up to the models (create_all() never alters an existing table).
 
-    This function handles database schema changes that cannot be automatically
-    detected by SQLAlchemy's metadata.create_all() (e.g., column type changes).
+    Every statement is idempotent -- IF [NOT] EXISTS, or a catalog check before the change -- so
+    it runs on every startup. A statement that still fails is a real problem: it is logged and
+    raised (SchemaMigrationError), and startup stops instead of running on a half-migrated schema.
     """
     db = SessionLocal()
     try:
-        from sqlalchemy import text
-
-        # Migration 1: Change api_keys_config.created_by and updated_by from Integer to String
-        # These fields store user IDs (emails), not integer IDs
-        try:
-            db.execute(text("""
-                ALTER TABLE app_schema.api_keys_config
-                ALTER COLUMN created_by TYPE VARCHAR(512);
-            """))
-            db.execute(text("""
-                ALTER TABLE app_schema.api_keys_config
-                ALTER COLUMN updated_by TYPE VARCHAR(512);
-            """))
-            db.commit()
-            logger.info("[Contract] Migration: Changed api_keys_config.created_by/updated_by to VARCHAR(512)")
-        except Exception as e:
-            # Column might already be VARCHAR or table doesn't exist yet
-            if "column" in str(e).lower() or "does not exist" in str(e).lower():
-                logger.debug(f"[Contract] Migration skipped (column already altered or table doesn't exist): {e}")
-            else:
-                logger.warning(f"[Contract] Migration warning: {e}")
-            db.rollback()
-
-        # Migration 2: Add thunder_assigned_at column to candidate_status if missing
-        # This column tracks when Thunder was assigned to the candidate
-        try:
-            db.execute(text("""
-                ALTER TABLE app_schema.candidate_status
-                ADD COLUMN thunder_assigned_at TIMESTAMP WITH TIME ZONE NULL;
-            """))
-            db.commit()
-            logger.info("[Contract] Migration: Added thunder_assigned_at column to candidate_status")
-        except Exception as e:
-            # Column might already exist
-            if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
-                logger.debug(f"[Contract] Migration skipped (column already exists): {e}")
-            elif "table" in str(e).lower() and "does not exist" in str(e).lower():
-                logger.debug(f"[Contract] Migration skipped (candidate_status table doesn't exist yet): {e}")
-            else:
-                logger.warning(f"[Contract] Migration warning: {e}")
-            db.rollback()
-
-        # Migration 3: Add candidate columns present on the Candidate model but
-        # missing from the live table (schema drift from create_all() never
-        # altering existing tables).
-        candidate_columns = [
-            ("tenant_id", "INTEGER NOT NULL DEFAULT 1"),
-            ("candidate_notice_period", "INTEGER NULL"),
-            ("referral_id", "VARCHAR(512) NULL"),
-            ("created_by_user_id", "VARCHAR(512) NULL"),
-            ("created_by_name", "VARCHAR(512) NULL"),
-            ("recruitment_source", "VARCHAR(512) NULL"),
-            ("assigned_recruiter_id", "VARCHAR(512) NULL"),
-            ("assigned_recruiter_changed_at", "TIMESTAMP NULL"),
-            ("assigned_recruiter_changed_by", "VARCHAR(512) NULL"),
-        ]
-        for column_name, column_def in candidate_columns:
-            try:
-                db.execute(text(f"""
-                    ALTER TABLE app_schema.candidates
-                    ADD COLUMN IF NOT EXISTS {column_name} {column_def};
-                """))
-                db.commit()
-                logger.info(f"[Contract] Migration: Ensured candidates.{column_name} exists")
-            except Exception as e:
-                if "table" in str(e).lower() and "does not exist" in str(e).lower():
-                    logger.debug(f"[Contract] Migration skipped (candidates table doesn't exist yet): {e}")
-                else:
-                    logger.warning(f"[Contract] Migration warning for candidates.{column_name}: {e}")
-                db.rollback()
-
-        # Migration 4: FK integrity + indexes for the candidate columns added
-        # above (candidates.referral_id -> employee_referrals.referral_id,
-        # plus lookup indexes on the audit/referral columns).
-        try:
-            db.execute(text("""
-                ALTER TABLE app_schema.candidates
-                ADD CONSTRAINT fk_candidate_referral
-                FOREIGN KEY (referral_id) REFERENCES app_schema.employee_referrals(referral_id)
-                ON DELETE SET NULL;
-            """))
-            db.commit()
-            logger.info("[Contract] Migration: Added fk_candidate_referral constraint")
-        except Exception as e:
-            if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
-                logger.debug(f"[Contract] Migration skipped (fk_candidate_referral already exists): {e}")
-            else:
-                logger.warning(f"[Contract] Migration warning for fk_candidate_referral: {e}")
-            db.rollback()
-
-        candidate_indexes = [
-            ("ix_candidate_referral_id", "referral_id"),
-            ("ix_candidate_created_by_user_id", "created_by_user_id"),
-            ("ix_candidate_recruitment_source", "recruitment_source"),
-        ]
-        for index_name, column_name in candidate_indexes:
-            try:
-                db.execute(text(f"""
-                    CREATE INDEX IF NOT EXISTS {index_name}
-                    ON app_schema.candidates({column_name});
-                """))
-                db.commit()
-                logger.info(f"[Contract] Migration: Ensured index {index_name} exists")
-            except Exception as e:
-                logger.warning(f"[Contract] Migration warning for index {index_name}: {e}")
-                db.rollback()
-
-        # Migration 5: Schema drift on other tables where the model has columns
-        # the live table lacks (same create_all()-never-alters-existing-tables
-        # gap as Migration 3). Discovered via a full model-vs-DB column scan.
-        drifted_tables = {
-            "jobs": [
-                ("is_deleted", "BOOLEAN NOT NULL DEFAULT false"),
-                ("deleted_at", "TIMESTAMP NULL"),
-                # Demand merged into Jobs: the client/delivery side of a requisition
-                ("client_id", "VARCHAR(512) NULL REFERENCES app_schema.clients(id)"),
-                ("project_id", "VARCHAR(512) NULL REFERENCES app_schema.projects(id)"),
-                ("opportunity_id", "VARCHAR(512) NULL REFERENCES app_schema.opportunities(id)"),
-                ("required_skills", "TEXT NULL"),
-                ("nice_to_have_skills", "TEXT NULL"),
-                ("max_experience_years", "NUMERIC(4,1) NULL"),
-                ("work_location", "VARCHAR(20) NOT NULL DEFAULT 'REMOTE'"),
-                ("employment_type", "VARCHAR(50) NOT NULL DEFAULT 'W2_FULLTIME'"),
-                ("interview_type_required", "VARCHAR(20) NOT NULL DEFAULT 'L1_AND_L2'"),
-                ("positions_filled", "INTEGER NOT NULL DEFAULT 0"),
-                ("billing_rate_usd_cents", "INTEGER NULL"),
-                ("budget_min_usd_cents", "INTEGER NULL"),
-                ("budget_max_usd_cents", "INTEGER NULL"),
-                ("demand_status", "VARCHAR(20) NOT NULL DEFAULT 'DRAFT'"),
-                ("sourcing_enabled", "BOOLEAN NOT NULL DEFAULT false"),
-                ("bench_first_checked", "BOOLEAN NOT NULL DEFAULT false"),
-                ("assigned_recruiter_employee_id", "VARCHAR(512) NULL REFERENCES app_schema.employees(id)"),
-                ("delivery_engine", "VARCHAR(20) NOT NULL DEFAULT 'SPECIALITY'"),
-                ("confirmation_status", "VARCHAR(20) NOT NULL DEFAULT 'POTENTIAL'"),
-                ("sow_reference", "VARCHAR(512) NULL"),
-                ("sow_received_date", "DATE NULL"),
-                ("source_type", "VARCHAR(20) NOT NULL DEFAULT 'DIRECT'"),
-                ("duration_hours", "INTEGER NULL"),
-                ("revenue_potential_usd_cents", "INTEGER NULL"),
-                ("created_by", "VARCHAR(512) NULL"),
-                ("updated_at", "TIMESTAMP NULL DEFAULT now()"),
-                ("closed_at", "TIMESTAMP NULL"),
-            ],
-            "conversation_events": [
-                ("tenant_id", "VARCHAR(50) NOT NULL DEFAULT '1'"),
-            ],
-            "linkedin_candidate_pipeline": [
-                ("email_collected_at", "TIMESTAMP NULL"),
-                ("email_from_recruiter", "VARCHAR(255) NULL"),
-                ("phone_verified_by", "VARCHAR(255) NULL"),
-                ("task_id", "VARCHAR(36) NULL"),
-            ],
-            "users": [
-                ("org_node_id", "VARCHAR(512) NULL REFERENCES app_schema.org_nodes(id)"),
-                ("location_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id)"),
-                # Existing users must not be forced into a password reset;
-                # the model still defaults new users to True.
-                ("password_reset_required", "BOOLEAN NOT NULL DEFAULT false"),
-            ],
-            # Goal tree Org -> Location (legal entity, e.g. BXUS/BXIN) -> Partner -> BU
-            "business_units": [
-                ("location_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
-                ("partner_user_id", 'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
-            ],
-            "clients": [
-                ("account_manager_user_id", 'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
-                # Contracting company (BX-US / BX-IN): revenue splits by company
-                ("contracting_company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
-            ],
-            "locations": [
-                ("state", "VARCHAR(512) NULL"),
-                ("parent_company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE RESTRICT"),
-            ],
-            "intercompany_settlements": [
-                ("business_unit_id", "INTEGER NULL REFERENCES app_schema.business_units(id) ON DELETE SET NULL"),
-            ],
-            # Production startup crashed on role_templates.hierarchy_level
-            # (2026-10-05); the rest were found by the same full scan.
-            "role_templates": [
-                ("hierarchy_level", "INTEGER NOT NULL DEFAULT 5"),
-                ("specialization", "VARCHAR(512) NOT NULL DEFAULT 'General'"),
-                ("is_super_user", "BOOLEAN NOT NULL DEFAULT false"),
-                ("org_level_access", "BOOLEAN NOT NULL DEFAULT false"),
-            ],
-            "org_nodes": [
-                ("company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
-                ("hierarchy_level", "INTEGER NOT NULL DEFAULT 5"),
-                ("specialization", "VARCHAR(512) NOT NULL DEFAULT 'General'"),
-            ],
-            "role_template_permissions": [
-                ("tenant_id", "INTEGER NOT NULL DEFAULT 1 REFERENCES app_schema.tenants(id)"),
-            ],
-            "candidates": [
-                ("thunder_enabled", "BOOLEAN NOT NULL DEFAULT true"),
-                ("status_changed_at", "TIMESTAMP NULL"),
-                ("previous_status", "VARCHAR(100) NULL"),
-                ("status_change_reason", "VARCHAR(500) NULL"),
-                ("upload_status", "VARCHAR(50) NULL"),
-                ("expected_document_count", "INTEGER NULL"),
-                ("actual_document_count", "INTEGER NULL"),
-                ("upload_started_at", "TIMESTAMP NULL"),
-                ("last_document_uploaded_at", "TIMESTAMP NULL"),
-                ("queued_at", "TIMESTAMP NULL"),
-                ("processing_started_at", "TIMESTAMP NULL"),
-                ("processing_completed_at", "TIMESTAMP NULL"),
-                ("upload_error", "TEXT NULL"),
-                ("celery_task_id", "VARCHAR(512) NULL"),
-                ('"candidateExpectedSalaryType"', "VARCHAR(50) NULL"),
-                ('"candidateCurrentSalaryType"', "VARCHAR(50) NULL"),
-            ],
-            "candidate_conversations": [
-                ("next_touch_scheduled_at", "TIMESTAMP NULL"),
-            ],
-            "employees": [
-                # Employer of record (BX-US / BX-IN): headcount splits by company
-                ("company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
-                ("guidewire_certification_current", "VARCHAR(50) NULL"),
-                ("guidewire_certification_expected", "VARCHAR(50) NULL"),
-            ],
-            "candidate_education_forms": [
-                ("education_level", "VARCHAR(100) NULL"),
-            ],
-            "candidate_experience_forms": [
-                ("responsibilities", "TEXT NULL"),
-            ],
-            "candidate_documents": [
-                ("document_name", "VARCHAR(512) NULL"),
-                ("upload_sequence", "INTEGER NULL"),
-            ],
-        }
-        for table_name, columns in drifted_tables.items():
-            for column_name, column_def in columns:
-                try:
-                    db.execute(text(f"""
-                        ALTER TABLE app_schema.{table_name}
-                        ADD COLUMN IF NOT EXISTS {column_name} {column_def};
-                    """))
-                    db.commit()
-                    logger.info(f"[Contract] Migration: Ensured {table_name}.{column_name} exists")
-                except Exception as e:
-                    if "table" in str(e).lower() and "does not exist" in str(e).lower():
-                        logger.debug(f"[Contract] Migration skipped ({table_name} table doesn't exist yet): {e}")
-                    else:
-                        logger.warning(f"[Contract] Migration warning for {table_name}.{column_name}: {e}")
-                    db.rollback()
-
-        # (org_level_access is set once by _initialize_role_authority.)
-
-        # Migration 5b: linkedin_candidate_pipeline was first created with
-        # uuid columns for user/candidate ids, but ids in this system are
-        # strings ("admin@...", "USER-...", "CAN-..."), so every query by
-        # user failed with InvalidTextRepresentation. Convert to text only
-        # while still uuid (idempotent; uuid -> text never loses data).
-        pipeline_columns = {
-            "assigned_to_user_id": "VARCHAR(255)",
-            "created_by_user_id": "VARCHAR(255)",
-            "candidate_id": "VARCHAR(512)",
-        }
-        for column_name, column_type in pipeline_columns.items():
-            try:
-                current_type = db.execute(text("""
-                    SELECT data_type FROM information_schema.columns
-                    WHERE table_schema = 'app_schema'
-                      AND table_name = 'linkedin_candidate_pipeline'
-                      AND column_name = :col
-                """), {"col": column_name}).scalar()
-                if current_type == "uuid":
-                    # ALTER TYPE takes an ACCESS EXCLUSIVE lock; never hang startup on it
-                    db.execute(text("SET LOCAL lock_timeout = '5s'"))
-                    db.execute(text(f"""
-                        ALTER TABLE app_schema.linkedin_candidate_pipeline
-                        ALTER COLUMN {column_name} TYPE {column_type} USING {column_name}::text;
-                    """))
-                    db.commit()
-                    logger.info(f"[Contract] Migration: linkedin_candidate_pipeline.{column_name} uuid -> {column_type}")
-            except Exception as e:
-                logger.warning(f"[Contract] Migration warning for linkedin_candidate_pipeline.{column_name}: {e}")
-                db.rollback()
-
-        # Migration 5c: agent_configs.tenant_id was created as uuid but
-        # tenants are integer ids -> every Agent Config query failed.
-        try:
-            current_type = db.execute(text("""
-                SELECT data_type FROM information_schema.columns
-                WHERE table_schema = 'app_schema' AND table_name = 'agent_configs' AND column_name = 'tenant_id'
-            """)).scalar()
-            if current_type == "uuid":
-                db.execute(text("SET LOCAL lock_timeout = '5s'"))
-                db.execute(text("ALTER TABLE app_schema.agent_configs ALTER COLUMN tenant_id TYPE VARCHAR(512) USING tenant_id::text"))
-                db.commit()
-                logger.info("[Contract] Migration: agent_configs.tenant_id uuid -> VARCHAR(512)")
-        except Exception as e:
-            logger.warning(f"[Contract] Migration warning for agent_configs.tenant_id: {e}")
-            db.rollback()
-
-        # Migration 5d: SLM learning-metrics tables were created with uuid
-        # tenant/candidate/job ids, but tenants are integers and candidate
-        # ids are "CAN-..." strings, so nothing could be stored or read.
-        uuid_to_text = {
-            "slm_metrics": ["tenant_id"],
-            "thunder_learning_metrics": ["tenant_id", "candidate_id"],
-            "flash_learning_metrics": ["tenant_id", "job_id"],
-            "learning_weight_updates": ["tenant_id"],
-            "learning_recommendations": ["tenant_id", "target_entity_id", "approved_by_user_id"],
-        }
-        for table_name, columns in uuid_to_text.items():
-            for column_name in columns:
-                try:
-                    current_type = db.execute(text("""
-                        SELECT data_type FROM information_schema.columns
-                        WHERE table_schema = 'app_schema' AND table_name = :t AND column_name = :c
-                    """), {"t": table_name, "c": column_name}).scalar()
-                    if current_type == "uuid":
-                        db.execute(text("SET LOCAL lock_timeout = '5s'"))
-                        db.execute(text(
-                            f"ALTER TABLE app_schema.{table_name} ALTER COLUMN {column_name} "
-                            f"TYPE VARCHAR(512) USING {column_name}::text"
-                        ))
-                        db.commit()
-                        logger.info(f"[Contract] Migration: {table_name}.{column_name} uuid -> VARCHAR(512)")
-                except Exception as e:
-                    logger.warning(f"[Contract] Migration warning for {table_name}.{column_name}: {e}")
-                    db.rollback()
-
-        # Migration 6: job_created_flash never set Jobs.tenant_id, so every
-        # queue-created job was invisible to the tenant-scoped job list.
-        # Single-tenant deployment: attribute orphaned jobs to tenant 1.
-        try:
-            result = db.execute(text("UPDATE app_schema.jobs SET tenant_id = 1 WHERE tenant_id IS NULL"))
-            db.commit()
-            if result.rowcount:
-                logger.info(f"[Contract] Migration: attributed {result.rowcount} tenant-less jobs to tenant 1")
-        except Exception as e:
-            logger.warning(f"[Contract] Migration warning for jobs.tenant_id backfill: {e}")
-            db.rollback()
-
-        # Migration 7: String columns were widened in the models (mostly to
-        # VARCHAR(512)) but create_all() never alters existing tables, so
-        # production kept the old lengths; e.g. tasks.candidate_id VARCHAR(36)
-        # rejected 40-char "CAN-<uuid>" ids and every candidate creation failed.
-        _widen_short_varchar_columns(db)
-
-        # Migration 8: 33 tables were created with tenant_id as a foreign key
-        # to users."UserID" (a tenant is not a user), so every write with a
-        # real tenant value failed -- e.g. agent seeding/logging with
-        # tenant_id="system" crashed the Agent State dashboard. Drop those
-        # constraints (removes an invalid rule only; no data changes).
-        _drop_tenant_id_user_foreign_keys(db)
-
-        # Migration 9: Org -> Company -> Partner -> BU. Departments are
-        # org-wide routing groups (BU optional); a BU operates in several
-        # companies; its partner is a user. Carry over the old single
-        # location and the org-chart partner (when that seat has a user).
-        _migrate_company_partner_structure(db)
-
-        # Migration 10: Demand merged into Jobs -- one requisition record.
-        _merge_demands_into_jobs(db)
-
-    except Exception as e:
-        logger.warning(f"[Contract] Schema migrations failed: {e}")
-        # Don't fail startup if migrations can't be run
+        _apply_schema_migrations(db)
     finally:
         db.close()
+
+
+def _apply_schema_migrations(db: Session):
+    # Migration 1: api_keys_config.created_by/updated_by hold user ids (strings), not integers
+    for column in ("created_by", "updated_by"):
+        current = _column_type(db, "api_keys_config", column)
+        if current is not None and current != "character varying":
+            _migration_step(db, f"api_keys_config.{column} -> VARCHAR(512)",
+                            f"ALTER TABLE app_schema.api_keys_config ALTER COLUMN {column} TYPE VARCHAR(512)",
+                            lock_timeout=True)
+
+    # Employee import + billable (CEO 2026-10-22): every existing employee stays billable until set
+    _migration_step(db, "employees.is_billable",
+                    "ALTER TABLE IF EXISTS app_schema.employees "
+                    "ADD COLUMN IF NOT EXISTS is_billable BOOLEAN NOT NULL DEFAULT TRUE")
+    # cost object = BU x location: existing configs stay BU-level defaults (country NULL)
+    _migration_step(db, "cost_rate_configs.country",
+                    "ALTER TABLE IF EXISTS app_schema.cost_rate_configs ADD COLUMN IF NOT EXISTS country VARCHAR(2) NULL")
+    # existing projects and allocations are client work: billable
+    _migration_step(db, "projects.is_billable",
+                    "ALTER TABLE IF EXISTS app_schema.projects "
+                    "ADD COLUMN IF NOT EXISTS is_billable BOOLEAN NOT NULL DEFAULT TRUE")
+    _migration_step(db, "employee_allocations.billable",
+                    "ALTER TABLE IF EXISTS app_schema.employee_allocations "
+                    "ADD COLUMN IF NOT EXISTS billable BOOLEAN NOT NULL DEFAULT TRUE")
+
+    # Migration 2: candidate_status.thunder_assigned_at (when Thunder was assigned)
+    _migration_step(db, "candidate_status.thunder_assigned_at",
+                    "ALTER TABLE IF EXISTS app_schema.candidate_status "
+                    "ADD COLUMN IF NOT EXISTS thunder_assigned_at TIMESTAMP WITH TIME ZONE NULL")
+
+    # Migration 3: candidate columns present on the Candidate model but missing from the live
+    # table (schema drift from create_all() never altering existing tables).
+    candidate_columns = [
+        ("tenant_id", "INTEGER NOT NULL DEFAULT 1"),
+        ("candidate_notice_period", "INTEGER NULL"),
+        ("referral_id", "VARCHAR(512) NULL"),
+        ("created_by_user_id", "VARCHAR(512) NULL"),
+        ("created_by_name", "VARCHAR(512) NULL"),
+        ("recruitment_source", "VARCHAR(512) NULL"),
+        ("assigned_recruiter_id", "VARCHAR(512) NULL"),
+        ("assigned_recruiter_changed_at", "TIMESTAMP NULL"),
+        ("assigned_recruiter_changed_by", "VARCHAR(512) NULL"),
+        ("country", "VARCHAR(2) NULL"),
+    ]
+    for column_name, column_def in candidate_columns:
+        _migration_step(db, f"candidates.{column_name}",
+                        f"ALTER TABLE IF EXISTS app_schema.candidates ADD COLUMN IF NOT EXISTS {column_name} {column_def}")
+
+    # Migration 4: candidates.referral_id -> employee_referrals.referral_id, unless a foreign key
+    # on that column already exists (create_all names its own), plus lookup indexes.
+    referral_fk = db.execute(text("""
+        SELECT 1 FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = 'app_schema'
+          AND tc.table_name = 'candidates' AND kcu.column_name = 'referral_id'
+    """)).first()
+    if referral_fk is None:
+        _migration_step(db, "fk_candidate_referral", """
+            ALTER TABLE app_schema.candidates ADD CONSTRAINT fk_candidate_referral
+            FOREIGN KEY (referral_id) REFERENCES app_schema.employee_referrals(referral_id) ON DELETE SET NULL
+        """)
+    for index_name, column_name in (("ix_candidate_referral_id", "referral_id"),
+                                    ("ix_candidate_created_by_user_id", "created_by_user_id"),
+                                    ("ix_candidate_recruitment_source", "recruitment_source")):
+        _migration_step(db, f"index {index_name}",
+                        f"CREATE INDEX IF NOT EXISTS {index_name} ON app_schema.candidates({column_name})")
+
+    # Migration 5: Schema drift on other tables where the model has columns
+    # the live table lacks (same create_all()-never-alters-existing-tables
+    # gap as Migration 3). Discovered via a full model-vs-DB column scan.
+    drifted_tables = {
+        # Renewal pipeline + margin guard (CEO 2026-10-23): existing allocations start NOT_STARTED
+        # with no margin check recorded (they were placed before the guard and are never blocked)
+        "employee_allocations": [
+            ("renewal_status", "VARCHAR(20) NOT NULL DEFAULT 'NOT_STARTED'"),
+            ("renewal_owner_user_id",
+             'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
+            ("renewal_note", "TEXT NULL"),
+            ("renewal_updated_at", "TIMESTAMP NULL"),
+            ("renewal_updated_by",
+             'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
+            ("margin_pct", "NUMERIC(7, 2) NULL"),
+            ("margin_check", "VARCHAR(40) NULL"),
+        ],
+        # Task deep link: the in-app path My Tasks opens (task_service.create_task)
+        "tasks": [
+            ("link", "VARCHAR(512) NULL"),
+        ],
+        # Expense receipts: attached file + automatic check (expense_receipt_service)
+        "expense_records": [
+            ("receipt_file_path", "VARCHAR(1024) NULL"),
+            ("receipt_content_type", "VARCHAR(100) NULL"),
+            ("receipt_check_status", "VARCHAR(20) NOT NULL DEFAULT 'NOT_ATTACHED'"),
+            ("receipt_check_detail", "TEXT NULL"),
+        ],
+        # A Manage Role's permission set (CEO 2026-10-13)
+        "org_roles": [
+            ("role_template_id", "INTEGER NULL REFERENCES app_schema.role_templates(id)"),
+        ],
+        "jobs": [
+            ("is_deleted", "BOOLEAN NOT NULL DEFAULT false"),
+            ("deleted_at", "TIMESTAMP NULL"),
+            # Demand merged into Jobs: the client/delivery side of a requisition
+            ("client_id", "VARCHAR(512) NULL REFERENCES app_schema.clients(id)"),
+            ("project_id", "VARCHAR(512) NULL REFERENCES app_schema.projects(id)"),
+            ("opportunity_id", "VARCHAR(512) NULL REFERENCES app_schema.opportunities(id)"),
+            ("required_skills", "TEXT NULL"),
+            ("nice_to_have_skills", "TEXT NULL"),
+            ("max_experience_years", "NUMERIC(4,1) NULL"),
+            ("work_location", "VARCHAR(20) NOT NULL DEFAULT 'REMOTE'"),
+            ("employment_type", "VARCHAR(50) NOT NULL DEFAULT 'FULLTIME'"),
+            ("interview_type_required", "VARCHAR(20) NOT NULL DEFAULT 'L1_AND_L2'"),
+            ("positions_filled", "INTEGER NOT NULL DEFAULT 0"),
+            ("billing_rate_usd_cents", "INTEGER NULL"),
+            ("budget_min_usd_cents", "INTEGER NULL"),
+            ("budget_max_usd_cents", "INTEGER NULL"),
+            ("demand_status", "VARCHAR(20) NOT NULL DEFAULT 'DRAFT'"),
+            ("sourcing_enabled", "BOOLEAN NOT NULL DEFAULT false"),
+            ("bench_first_checked", "BOOLEAN NOT NULL DEFAULT false"),
+            ("assigned_recruiter_employee_id", "VARCHAR(512) NULL REFERENCES app_schema.employees(id)"),
+            ("delivery_engine", "VARCHAR(20) NOT NULL DEFAULT 'SPECIALITY'"),
+            ("confirmation_status", "VARCHAR(20) NOT NULL DEFAULT 'POTENTIAL'"),
+            ("sow_reference", "VARCHAR(512) NULL"),
+            ("sow_received_date", "DATE NULL"),
+            ("source_type", "VARCHAR(20) NOT NULL DEFAULT 'DIRECT'"),
+            ("duration_hours", "INTEGER NULL"),
+            ("revenue_potential_usd_cents", "INTEGER NULL"),
+            ("created_by", "VARCHAR(512) NULL"),
+            ("updated_at", "TIMESTAMP NULL DEFAULT now()"),
+            ("closed_at", "TIMESTAMP NULL"),
+        ],
+        "conversation_events": [
+            ("tenant_id", "VARCHAR(50) NOT NULL DEFAULT '1'"),
+        ],
+        "linkedin_candidate_pipeline": [
+            ("email_collected_at", "TIMESTAMP NULL"),
+            ("email_from_recruiter", "VARCHAR(255) NULL"),
+            ("phone_verified_by", "VARCHAR(255) NULL"),
+            ("task_id", "VARCHAR(36) NULL"),
+        ],
+        "users": [
+            ("org_node_id", "VARCHAR(512) NULL REFERENCES app_schema.org_nodes(id)"),
+            ("location_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id)"),
+            # Existing users must not be forced into a password reset;
+            # the model still defaults new users to True.
+            ("password_reset_required", "BOOLEAN NOT NULL DEFAULT false"),
+        ],
+        # Goal tree Org -> Location (legal entity, e.g. BXUS/BXIN) -> Partner -> BU
+        "business_units": [
+            ("location_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
+            ("partner_user_id", 'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
+        ],
+        "clients": [
+            ("account_manager_user_id", 'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
+            # Contracting company (BX-US / BX-IN): revenue splits by company
+            ("contracting_company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
+        ],
+        "locations": [
+            ("state", "VARCHAR(512) NULL"),
+            ("parent_company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE RESTRICT"),
+            # Company code "<tenant>-<n>" (Location.company_seq)
+            ("company_seq", "INTEGER NULL"),
+        ],
+        "intercompany_settlements": [
+            ("business_unit_id", "INTEGER NULL REFERENCES app_schema.business_units(id) ON DELETE SET NULL"),
+        ],
+        # The project manager who owns delivery (PATCH /projects/{id})
+        "projects": [
+            ("manager_user_id", 'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
+        ],
+        # Production startup crashed on role_templates.hierarchy_level
+        # (2026-10-05); the rest were found by the same full scan.
+        "role_templates": [
+            ("hierarchy_level", "INTEGER NOT NULL DEFAULT 5"),
+            ("specialization", "VARCHAR(512) NOT NULL DEFAULT 'General'"),
+            ("is_super_user", "BOOLEAN NOT NULL DEFAULT false"),
+            ("org_level_access", "BOOLEAN NOT NULL DEFAULT false"),
+        ],
+        "org_nodes": [
+            ("company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
+            ("hierarchy_level", "INTEGER NOT NULL DEFAULT 5"),
+            ("specialization", "VARCHAR(512) NOT NULL DEFAULT 'General'"),
+        ],
+        "role_template_permissions": [
+            ("tenant_id", "INTEGER NOT NULL DEFAULT 1 REFERENCES app_schema.tenants(id)"),
+        ],
+        "candidates": [
+            ("thunder_enabled", "BOOLEAN NOT NULL DEFAULT true"),
+            ("status_changed_at", "TIMESTAMP NULL"),
+            ("previous_status", "VARCHAR(100) NULL"),
+            ("status_change_reason", "VARCHAR(500) NULL"),
+            ("upload_status", "VARCHAR(50) NULL"),
+            ("expected_document_count", "INTEGER NULL"),
+            ("actual_document_count", "INTEGER NULL"),
+            ("upload_started_at", "TIMESTAMP NULL"),
+            ("last_document_uploaded_at", "TIMESTAMP NULL"),
+            ("queued_at", "TIMESTAMP NULL"),
+            ("processing_started_at", "TIMESTAMP NULL"),
+            ("processing_completed_at", "TIMESTAMP NULL"),
+            ("upload_error", "TEXT NULL"),
+            ("celery_task_id", "VARCHAR(512) NULL"),
+            ('"candidateExpectedSalaryType"', "VARCHAR(50) NULL"),
+            ('"candidateCurrentSalaryType"', "VARCHAR(50) NULL"),
+        ],
+        "candidate_conversations": [
+            ("next_touch_scheduled_at", "TIMESTAMP NULL"),
+        ],
+        "employees": [
+            # Employer of record (BX-US / BX-IN): headcount splits by company
+            ("company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
+            ("guidewire_certification_current", "VARCHAR(50) NULL"),
+            ("guidewire_certification_expected", "VARCHAR(50) NULL"),
+        ],
+        "candidate_education_forms": [
+            ("education_level", "VARCHAR(100) NULL"),
+        ],
+        "candidate_experience_forms": [
+            ("responsibilities", "TEXT NULL"),
+        ],
+        "candidate_documents": [
+            ("document_name", "VARCHAR(512) NULL"),
+            ("upload_sequence", "INTEGER NULL"),
+        ],
+    }
+    # No tenant default anywhere: every row names its tenant (it once silently became 1)
+    for table_name in ("business_units", "business_unit_companies", "business_unit_location_heads",
+                       "candidates", "candidate_rejections", "candidate_rejection_reasons", "locations",
+                       "role_templates", "system_modules", "system_module_permissions",
+                       "thunder_monthly_highlights"):
+        if _column_type(db, table_name, "tenant_id") is not None:
+            _migration_step(db, f"{table_name}.tenant_id has no default",
+                            f"ALTER TABLE app_schema.{table_name} ALTER COLUMN tenant_id DROP DEFAULT")
+    for table_name, columns in drifted_tables.items():
+        for column_name, column_def in columns:
+            _migration_step(db, f"{table_name}.{column_name}",
+                            f"ALTER TABLE IF EXISTS app_schema.{table_name} "
+                            f"ADD COLUMN IF NOT EXISTS {column_name} {column_def}")
+    # Indexes on the foreign keys added above (create_all makes them on a fresh database)
+    for index_name, table_column in (
+        ("ix_projects_manager_user_id", "projects(manager_user_id)"),
+    ):
+        _migration_step(db, f"index {index_name}",
+                        f"CREATE INDEX IF NOT EXISTS {index_name} ON app_schema.{table_column}")
+
+    # (org_level_access is set once by _initialize_role_authority.)
+
+    # Migration 5b-5d: columns first created as uuid hold string / integer ids
+    # (linkedin_candidate_pipeline user/candidate ids, agent_configs and SLM learning-metrics
+    # tenant ids), so every query by them failed. Convert while still uuid (uuid -> text never
+    # loses data).
+    uuid_to_text = {
+        "linkedin_candidate_pipeline": [("assigned_to_user_id", "VARCHAR(255)"), ("created_by_user_id", "VARCHAR(255)"),
+                                        ("candidate_id", "VARCHAR(512)")],
+        "agent_configs": [("tenant_id", "VARCHAR(512)")],
+        "slm_metrics": [("tenant_id", "VARCHAR(512)")],
+        "thunder_learning_metrics": [("tenant_id", "VARCHAR(512)"), ("candidate_id", "VARCHAR(512)")],
+        "flash_learning_metrics": [("tenant_id", "VARCHAR(512)"), ("job_id", "VARCHAR(512)")],
+        "learning_weight_updates": [("tenant_id", "VARCHAR(512)")],
+        "learning_recommendations": [("tenant_id", "VARCHAR(512)"), ("target_entity_id", "VARCHAR(512)"),
+                                     ("approved_by_user_id", "VARCHAR(512)")],
+    }
+    for table_name, columns in uuid_to_text.items():
+        for column_name, column_type in columns:
+            if _column_type(db, table_name, column_name) == "uuid":
+                _migration_step(db, f"{table_name}.{column_name} uuid -> {column_type}",
+                                f"ALTER TABLE app_schema.{table_name} ALTER COLUMN {column_name} "
+                                f"TYPE {column_type} USING {column_name}::text", lock_timeout=True)
+
+    # Migration 6: job_created_flash never set Jobs.tenant_id, so every queue-created job was
+    # invisible to the tenant-scoped job list. Single-tenant deployment: attribute orphaned jobs
+    # to tenant 1.
+    _migration_step(db, "tenant-less jobs attributed to tenant 1",
+                    "UPDATE app_schema.jobs SET tenant_id = 1 WHERE tenant_id IS NULL")
+
+    # Migration 7: String columns were widened in the models (mostly to VARCHAR(512)) but
+    # create_all() never alters existing tables, so production kept the old lengths; e.g.
+    # tasks.candidate_id VARCHAR(36) rejected 40-char "CAN-<uuid>" ids and every candidate
+    # creation failed.
+    _widen_short_varchar_columns(db)
+
+    # Migration 8: 33 tables were created with tenant_id as a foreign key to users."UserID" (a
+    # tenant is not a user), so every write with a real tenant value failed. Drop those
+    # constraints (removes an invalid rule only; no data changes).
+    _drop_tenant_id_user_foreign_keys(db)
+
+    # Migration 9: Org -> Company -> Partner -> BU. Departments are org-wide routing groups (BU
+    # optional); a BU operates in several companies; its partner is a user. Carry over the old
+    # single location and the org-chart partner (when that seat has a user).
+    _migrate_company_partner_structure(db)
+
+    # Migration 10: Demand merged into Jobs -- one requisition record.
+    _merge_demands_into_jobs(db)
 
 
 def _migrate_company_partner_structure(db: Session):
@@ -1164,6 +1799,9 @@ def _migrate_company_partner_structure(db: Session):
     steps = [
         ("departments.business_unit_id nullable",
          "ALTER TABLE app_schema.departments ALTER COLUMN business_unit_id DROP NOT NULL"),
+        # A referral recorded on Add Candidate need not name a job
+        ("employee_referrals.job_id nullable",
+         "ALTER TABLE app_schema.employee_referrals ALTER COLUMN job_id DROP NOT NULL"),
         ("business_unit_companies from business_units.location_id", """
             INSERT INTO app_schema.business_unit_companies (tenant_id, business_unit_id, company_id, created_at)
             SELECT bu.tenant_id, bu.id, bu.location_id, now()
@@ -1180,14 +1818,7 @@ def _migrate_company_partner_structure(db: Session):
         """),
     ]
     for label, sql in steps:
-        try:
-            result = db.execute(text(sql))
-            db.commit()
-            if result.rowcount and result.rowcount > 0:
-                logger.info(f"[Contract] Migration: {label} ({result.rowcount} rows)")
-        except Exception as e:
-            logger.warning(f"[Contract] Migration warning for {label}: {e}")
-            db.rollback()
+        _migration_step(db, label, sql)
 
 
 def _merge_demands_into_jobs(db: Session):
@@ -1264,41 +1895,24 @@ def _merge_demands_into_jobs(db: Session):
         """),
     ]
     for label, sql in steps:
-        try:
-            result = db.execute(text(sql))
-            db.commit()
-            if result.rowcount and result.rowcount > 0:
-                logger.info(f"[Contract] Migration: {label} ({result.rowcount} rows)")
-        except Exception as e:
-            logger.warning(f"[Contract] Migration warning for {label}: {e}")
-            db.rollback()
+        _migration_step(db, label, sql)
 
     # Repoint foreign keys demands(id) -> jobs("jobID")
-    try:
-        fks = db.execute(text("""
-            SELECT tc.table_name, tc.constraint_name, kcu.column_name
-            FROM information_schema.table_constraints tc
-            JOIN information_schema.key_column_usage kcu
-              ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
-            JOIN information_schema.constraint_column_usage ccu
-              ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema
-            WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = 'app_schema'
-              AND ccu.table_name = 'demands'
-        """)).fetchall()
-    except Exception as e:
-        logger.warning(f"[Contract] Migration warning listing demand foreign keys: {e}")
-        db.rollback()
-        fks = []
-    for table, constraint, column in fks:
-        try:
-            db.execute(text(f'ALTER TABLE app_schema.{table} DROP CONSTRAINT "{constraint}"'))
-            db.execute(text(f'ALTER TABLE app_schema.{table} ADD CONSTRAINT "fk_{table}_{column}_jobs" '
-                            f'FOREIGN KEY ({column}) REFERENCES app_schema.jobs("jobID")'))
-            db.commit()
-            logger.info(f"[Contract] Migration: {table}.{column} now references jobs")
-        except Exception as e:
-            logger.warning(f"[Contract] Migration warning repointing {table}.{column}: {e}")
-            db.rollback()
+    fks = db.execute(text("""
+        SELECT tc.table_name, tc.constraint_name, kcu.column_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
+        JOIN information_schema.constraint_column_usage ccu
+          ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = 'app_schema'
+          AND ccu.table_name = 'demands'
+    """)).fetchall()
+    for table, constraint, column in fks:  # once repointed, a constraint no longer shows up here
+        _migration_step(db, f"{table}.{column} references jobs",
+                        f'ALTER TABLE app_schema.{table} DROP CONSTRAINT "{constraint}", '
+                        f'ADD CONSTRAINT "fk_{table}_{column}_jobs" FOREIGN KEY ({column}) '
+                        f'REFERENCES app_schema.jobs("jobID")')
 
 
 def _drop_tenant_id_user_foreign_keys(db: Session):
@@ -1317,14 +1931,9 @@ def _drop_tenant_id_user_foreign_keys(db: Session):
           AND ccu.table_name = 'users'
     """)).fetchall()
     for schema, table, constraint in rows:
-        try:
-            db.execute(text("SET LOCAL lock_timeout = '5s'"))
-            db.execute(text(f'ALTER TABLE "{schema}"."{table}" DROP CONSTRAINT IF EXISTS "{constraint}"'))
-            db.commit()
-            logger.info(f"[Contract] Migration: dropped {table}.{constraint} (tenant_id -> users)")
-        except Exception as e:
-            logger.warning(f"[Contract] Migration warning dropping {table}.{constraint}: {e}")
-            db.rollback()
+        _migration_step(db, f"drop {table}.{constraint} (tenant_id -> users)",
+                        f'ALTER TABLE "{schema}"."{table}" DROP CONSTRAINT IF EXISTS "{constraint}"',
+                        lock_timeout=True)
 
 
 def _widen_short_varchar_columns(db: Session):
@@ -1366,17 +1975,11 @@ def _widen_short_varchar_columns(db: Session):
                 widen.append(f'ALTER COLUMN "{col.name}" TYPE VARCHAR({model_len})')
         if not widen:
             continue
-        try:
-            db.execute(text("SET LOCAL lock_timeout = '5s'"))
-            db.execute(text(f'ALTER TABLE "{schema}"."{table.name}" ' + ", ".join(widen)))
-            db.commit()
-            logger.info(f"[Contract] Migration: widened {len(widen)} varchar column(s) on {table.name}")
-        except Exception as e:
-            logger.warning(f"[Contract] Migration warning widening {table.name}: {e}")
-            db.rollback()
+        _migration_step(db, f"widen {len(widen)} varchar column(s) on {table.name}",
+                        f'ALTER TABLE "{schema}"."{table.name}" ' + ", ".join(widen), lock_timeout=True)
 
 
 if __name__ == "__main__":
     # Can be run manually to verify/initialize database
     initialize_database()
-    print("✅ Database contract initialized")
+    logger.info("✅ Database contract initialized")

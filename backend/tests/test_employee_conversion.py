@@ -92,11 +92,11 @@ def world(db):
         if db.query(Resource).filter_by(name=name).first() is None:
             db.add(Resource(module_id=module.id, name=name, display_name=name, tenant_id=1))
     db.flush()
-    ensure_role(db, "Employee", LEADERSHIP_ROLES["Employee"])
+    ensure_role(db, "Employee", LEADERSHIP_ROLES["Employee"], 1)
     admin = Users(UserID=f"ADM-{_uid()}", UserName="HR Admin", UserEmail=f"hr{_uid()}@blitzenx.com",
                   UserPassword="x", UserRole="admin", tenant_id=1, role_template_id=role.id,
                   password_reset_required=False)
-    unit = BusinessUnit(name=f"bu-{_uid()}", display_name="BU")
+    unit = BusinessUnit(tenant_id=1, name=f"bu-{_uid()}", display_name="BU")
     candidate = Candidate(candidateID=f"CAN-{_uid()}", candidateEmail=f"jo{_uid()}@example.com",
                           candidatePassword="x", candidateFirstName="Jo", candidateLastName="Park", tenant_id=1, total_experience_months=72)
     db.add_all([admin, unit, candidate])

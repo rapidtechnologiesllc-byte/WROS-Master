@@ -12,7 +12,8 @@ import requests
 from datetime import datetime
 
 # Setup environment
-os.environ['DATABASE_URL'] = 'postgresql://app_user:P7kQmR9xL2wJnV5sT8pM@localhost:5432/wros_dev'
+if not os.environ.get('DATABASE_URL'):
+    raise SystemExit('Set DATABASE_URL (local wros_dev) before running this script')
 os.environ['ENVIRONMENT'] = 'development'
 
 API_URL = "http://localhost:8080/api/v1"

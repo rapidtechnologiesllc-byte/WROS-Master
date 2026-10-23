@@ -95,7 +95,7 @@ class ThunderMonthlyHighlight(Base):
     __table_args__ = (UniqueConstraint("tenant_id", "month", name="uq_thunder_highlight_month"),)
 
     id = Column(Integer, primary_key=True)
-    tenant_id = Column(Integer, nullable=False, default=1)
+    tenant_id = Column(Integer, nullable=False)
     month = Column(String(7), nullable=False)  # YYYY-MM
     title = Column(String(255), nullable=False)
     body_html = Column(Text, nullable=False)

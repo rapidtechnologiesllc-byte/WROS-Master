@@ -16,7 +16,7 @@ not act on any of it.
 
 Tenant scoping: candidate-engagement-side signals (SLA breaches,
 intervention queue) use the real per-owner "tenant_id resolves to a
-UserID" convention (resolve_default_tenant_id()); revenue/bench-side
+UserID" convention (resolve_default_tenant_id(db)); revenue/bench-side
 signals use the separate Integer Tenant.id convention with
 tenant_id=None (returns NULL-tenant rows, the common case in a
 single-org deployment) -- this codebase's own pre-existing tenant-
@@ -36,7 +36,7 @@ def get_org_health_snapshot(db: Session) -> Dict:
     from app.services.task_assignment_service import OPEN_STATUSES
     from app.models.task import Task, TaskCapacityAlert
 
-    engagement_tenant_id = resolve_default_tenant_id()
+    engagement_tenant_id = resolve_default_tenant_id(db)
 
     intervention_summary = get_queue_summary(db, engagement_tenant_id) if engagement_tenant_id else {}
     sla_breaches = get_active_breaches(db, engagement_tenant_id) if engagement_tenant_id else []

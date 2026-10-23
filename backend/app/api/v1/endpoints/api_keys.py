@@ -12,13 +12,11 @@ Endpoints:
 """
 
 import logging
-import os
-from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_internal_user
+from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
 from app.services.api_keys_service import APIKeysService
 from app.schemas.api_keys_config import (
@@ -55,6 +53,7 @@ def _get_tenant_id(current_user: Users) -> int:
     "",
     response_model=GetAPIKeysResponse,
     summary="Get configured API providers (no secrets)",
+    dependencies=[Depends(require_resource_permission("api-keys", "view"))],
 )
 def get_api_keys(
     db: Session = Depends(get_db),
@@ -81,6 +80,7 @@ def get_api_keys(
     "",
     response_model=SaveAPIKeysResponse,
     summary="Save/update API credentials for one or more providers",
+    dependencies=[Depends(require_resource_permission("api-keys", "edit"))],
 )
 def save_api_keys(
     request: SaveAPIKeysRequest,
@@ -130,6 +130,7 @@ def save_api_keys(
     "/test",
     response_model=TestConnectionResponse,
     summary="Test connection to a provider",
+    dependencies=[Depends(require_resource_permission("api-keys", "edit"))],
 )
 def test_provider_connection(
     request: TestConnectionRequest,

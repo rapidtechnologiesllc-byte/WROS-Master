@@ -24,9 +24,9 @@ def validate_handler_slm_integration():
     handlers = list(handlers_dir.glob("*_handler.py"))
     handlers = [h for h in handlers if "test" not in h.name]
 
-    critical_handlers = [
-        "interview_scheduled_handler.py",
-    ]
+    # interview_scheduled_handler.py was the only entry: it was dead code (the interview_scheduled
+    # task runs _pause_thunder_on_interview) and is deleted (flash spec E19)
+    critical_handlers = []
 
     results = {
         "handlers_checked": 0,

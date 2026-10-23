@@ -19,13 +19,14 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, Iterable, List, Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.business_unit import BusinessUnit
 from app.models.client import Client
 from app.models.employee import Employee
 from app.models.invoice import Invoice
+from app.models.org_structure import OrgNode
 
 logger = logging.getLogger(__name__)
 
@@ -66,11 +67,14 @@ def _invoice_cents(db: Session, bu_ids: List[int], since: datetime) -> int:
 
 
 def _payroll_usd(db: Session, bu_ids: List[int], sales: bool) -> float:
-    title_is_sales = func.lower(func.coalesce(Employee.current_title, "")).like("%sales%")
+    """Sales vs delivery payroll by the function of the person's org seat (from their
+    department), never by words in a job title."""
+    in_sales = select(OrgNode.id).where(OrgNode.specialization == "Sales")
+    is_sales = Employee.org_node_id.in_(in_sales)
     cents = db.query(func.coalesce(func.sum(Employee.base_salary_usd_cents), 0)).filter(
         Employee.bu_id.in_(bu_ids),
         Employee.status.in_(WORKING_EMPLOYEE_STATUSES),
-        title_is_sales if sales else ~title_is_sales,
+        is_sales if sales else or_(Employee.org_node_id.is_(None), ~is_sales),
     ).scalar() or 0
     return cents / 100
 

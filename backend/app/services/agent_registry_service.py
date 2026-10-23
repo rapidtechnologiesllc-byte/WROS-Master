@@ -538,10 +538,3 @@ def count_agents_by_tier() -> dict:
 def count_total_agents() -> int:
     """Total count of agents."""
     return len(AGENT_REGISTRY)
-
-# Print summary
-if __name__ == "__main__":
-    print(f"Total Agents: {count_total_agents()}")
-    print(f"By Tier: {count_agents_by_tier()}")
-    for tier, count in count_agents_by_tier().items():
-        print(f"  {tier}: {count} agents")

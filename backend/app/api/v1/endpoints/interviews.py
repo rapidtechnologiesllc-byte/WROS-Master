@@ -1,5 +1,4 @@
-from app.core.database import SessionLocal
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -18,27 +17,20 @@ from app.models import (
     InterviewRehireReview,
 )
 from app.services.email_service import EmailService
-from app.services.message_queue_service import MessageQueueService
-from app.services.candidate_event_bus import CandidateEventBus
+from app.services import interview_scheduling_service as scheduling
 from app.services.interview_sequencing_service import (
-    PriorRoundNotPassed,
-    enforce_interview_sequencing_gate,
     get_hm_candidate_review_list,
 )
 from app.services.interview_rehire_guard_service import (
     RehireReviewAlreadyDecided,
     RehireReviewNotFound,
-    candidate_has_past_no_hire,
     decide_rehire_review,
     get_pending_rehire_reviews,
-    submit_rehire_request,
 )
 from app.services.submission_service import ExperienceIneligible
 from app.services.interview_feedback_task_service import (
     close_pending_feedback_task,
-    sync_pending_feedback_tasks_for_interview,
 )
-from app.core.scheduler import scheduler
 from app.core.logging import logger
 from app.schemas.interview import (
     # Panel schemas
@@ -64,12 +56,9 @@ from app.schemas.interview import (
 )
 
 from app.services.interview_verdict_service import (
-    LEVELS,
     RECOMMENDATIONS,
     VerdictError,
     candidate_verdicts,
-    ensure_verdict_row,
-    infer_level,
     record_manual_verdict,
     set_level,
 )
@@ -84,10 +73,8 @@ router = APIRouter(prefix="/interviews", tags=["interviews"])
 # the job is in the caller's BUs or not yet assigned to one. Org-level role templates see
 # everything in their tenant. A single record outside that scope is "not found" (404).
 
-def _panel_scope(db: Session, user):
-    """WHERE clause on InterviewPanel."""
-    return and_(candidate_scope_filter(db, user, InterviewPanel.candidate_id),
-                job_filter(db, user, InterviewPanel.job_id))
+_panel_scope = scheduling.panel_scope
+_visible_panel_or_404 = scheduling.visible_panel_or_404
 
 
 def _interview_scope(db: Session, user):
@@ -101,13 +88,6 @@ def _feedback_scope(db: Session, user):
     """WHERE clause on InterviewFeedback: feedback on a visible interview."""
     visible_interviews = select(Interview.id).where(_interview_scope(db, user)).correlate(None)
     return InterviewFeedback.interview_id.in_(visible_interviews)
-
-
-def _visible_panel_or_404(db: Session, user, panel_id: int) -> InterviewPanel:
-    panel = db.query(InterviewPanel).filter(InterviewPanel.id == panel_id, _panel_scope(db, user)).first()
-    if panel is None:
-        raise HTTPException(status_code=404, detail=f"Interview panel with ID {panel_id} not found")
-    return panel
 
 
 def _is_panel_member(db: Session, user, panel_id) -> bool:
@@ -143,14 +123,7 @@ def _visible_feedback_or_404(db: Session, user, feedback_id: int) -> InterviewFe
 # Internal Helpers
 # ============================================
 
-def _candidate_display_name(candidate: Candidate) -> str:
-    """Return a display-friendly full name for a candidate."""
-    parts = [
-        candidate.candidateFirstName or "",
-        candidate.candidateMiddleName or "",
-        candidate.candidateLastName or "",
-    ]
-    return " ".join(filter(None, parts)).strip() or "N/A"
+_candidate_display_name = scheduling.candidate_display_name
 
 def _record_round_verdict(db: Session, interview: Interview) -> None:
     """Recompute and save the round's verdict after its feedback or status changed."""
@@ -191,6 +164,11 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
     verdict = verdict_for_panel(db, panel)
     if verdict.verdict == "FAIL":
         cs.piplineStatus = "Rejected"
+        from app.models.candidate import Candidate
+        from app.services.candidate_contact_policy import record_rejection
+        record_rejection(db, db.query(Candidate).filter(Candidate.candidateID == candidate_id).first(),
+                         f"Interview: {verdict.level} round '{panel.round_name}' verdict No Hire",
+                         job_id=getattr(interview, "job_id", None))
         db.add(CandidateHistory(
             candidateID=candidate_id, event_type="Custom",
             note=f"Rejected: {verdict.level} round '{panel.round_name}' verdict is No Hire.",
@@ -339,415 +317,6 @@ def _notify_feedback_submitted(
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackNotify-DEFECT13] Non-critical notification error: {exc}")
 
-# ---------------------------------------------------------------------------
-# Feedback reminder scheduler --" fires after interview ends
-# ---------------------------------------------------------------------------
-
-def _schedule_feedback_reminders(interview: Interview, db: Session) -> None:
-    """
-    Schedule two APScheduler one-shot jobs per panel member who has NOT yet
-    submitted feedback:
-
-      - Job 1: 1 hour  after interview.end_time  (id: feedback_reminder_{iv}_{member}_1h)
-      - Job 2: 24 hours after interview.end_time  (id: feedback_reminder_{iv}_{member}_24h)
-
-    Both jobs re-check at fire-time whether feedback has been submitted and
-    skip silently if it has. This prevents duplicate reminders after late submission.
-
-    If end_time is None, falls back to start_time + 1 hour as the baseline.
-    """
-    IST = timezone(timedelta(hours=5, minutes=30))
-    now = datetime.now(IST)
-
-    interview_id = interview.id
-
-    # â"€â"€ Baseline: interview end time (or start + 1 h as fallback) â"€â"€â"€â"€â"€â"€â"€â"€â"€
-    raw_end = interview.end_time or (
-        interview.start_time + timedelta(hours=1) if interview.start_time else None
-    )
-    if raw_end is None:
-        logger.warning(
-            f"[FeedbackReminder] Cannot schedule reminders for interview {interview_id}: "
-            "no end_time and no start_time."
-        )
-        return
-
-    end_ist = raw_end.replace(tzinfo=IST) if raw_end.tzinfo is None else raw_end
-
-    # â"€â"€ Collect panel members â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
-    panel = db.query(InterviewPanel).filter(
-        InterviewPanel.id == interview.panel_id
-    ).first()
-    if not panel:
-        return
-
-    members = db.query(PanelMember).filter(
-        PanelMember.panel_id == panel.id
-    ).all()
-    if not members:
-        return
-
-    round_name   = panel.round_name or "Interview"
-    candidate = db.query(Candidate).filter(
-        Candidate.candidateID == interview.candidate_id
-    ).first()
-    candidate_name = _candidate_display_name(candidate) if candidate else interview.candidate_id
-
-    reminder_configs = [
-        (timedelta(hours=1),   "1 hour",   "1h"),
-        (timedelta(hours=24),  "24 hours", "24h"),
-    ]
-
-    for member in members:
-        member_id = member.interviewer_id
-
-        # Fix 1: skip members who already submitted --" no point reminding them
-        already_done = db.query(InterviewFeedback).filter(
-            InterviewFeedback.interview_id == interview_id,
-            InterviewFeedback.interviewer_id == member_id,
-        ).first()
-        if already_done:
-            logger.info(
-                f"[FeedbackReminder] Skipping reminder scheduling for member "
-                f"{member_id} on interview {interview_id} -- feedback already submitted."
-            )
-            continue
-
-        for delta, label, suffix in reminder_configs:
-            fire_at = end_ist + delta
-
-            if fire_at <= now:
-                logger.info(
-                    f"[FeedbackReminder] Skipping {suffix} reminder for member "
-                    f"{member_id} on interview {interview_id} -- already past."
-                )
-                continue
-
-            job_id = f"feedback_reminder_{interview_id}_{member_id}_{suffix}"
-
-            # Capture loop-local values for the async closure
-            _fire_at       = fire_at
-            _label         = label
-            _member_id     = member_id
-            _interview_id  = interview_id
-            _candidate_name = candidate_name
-            _round_name    = round_name
-
-            async def _send_feedback_reminder(
-                __interview_id=_interview_id,
-                __member_id=_member_id,
-                __label=_label,
-                __candidate_name=_candidate_name,
-                __round_name=_round_name,
-            ):
-                """Async APScheduler job --" send feedback reminder if not yet submitted."""
-                from app.core.database import SessionLocal
-                _db = SessionLocal()
-                try:
-                    # Re-check: has this member already submitted feedback?
-                    iv = _db.query(Interview).filter(
-                        Interview.id == __interview_id
-                    ).first()
-                    if not iv:
-                        return
-
-                    already_submitted = _db.query(InterviewFeedback).filter(
-                        InterviewFeedback.interview_id == __interview_id,
-                        InterviewFeedback.interviewer_id == __member_id,
-                    ).first()
-                    if already_submitted:
-                        logger.info(
-                            f"[FeedbackReminder] Skipping {__label} reminder for member "
-                            f"{__member_id} on interview {__interview_id} -- feedback already submitted."
-                        )
-                        return
-
-                    interviewer = _db.query(Users).filter(
-                        Users.UserID == __member_id
-                    ).first()
-                    if not interviewer or not interviewer.UserEmail:
-                        return
-
-                    interviewer_name = interviewer.UserName or interviewer.UserEmail
-
-                    EmailService.send_event_notification(
-                        to_email=interviewer.UserEmail,
-                        recipient_name=interviewer_name,
-                        event_type="action_required",
-                        heading=(
-                            f"Reminder: Please Submit Your Interview Feedback "
-                            f"-- {__candidate_name} | {__round_name}"
-                        ),
-                        message=(
-                            f"Dear <strong>{interviewer_name}</strong>,<br><br>"
-                            f"This is a <strong>{__label}</strong> reminder to submit your feedback "
-                            f"for the <strong>{__round_name}</strong> interview with candidate "
-                            f"<strong>{__candidate_name}</strong>.<br><br>"
-                            f"Your feedback has not yet been submitted. Please log in to the "
-                            f"HRMS portal and complete your evaluation at your earliest convenience."
-                        ),
-                        metadata={
-                            "Candidate": __candidate_name,
-                            "Round":     __round_name,
-                            "Reminder":  f"{__label} after interview ended",
-                        },
-                    )
-                    logger.info(
-                        f"[FeedbackReminder] {__label} reminder sent to {interviewer.UserEmail} "
-                        f"for interview {__interview_id}."
-                    )
-
-                except Exception as exc:
-                    logger.error(f"Error: {str(exc)}", exc_info=True)
-                    logger.error(
-                        f"[FeedbackReminder] Error in reminder job for interview "
-                        f"{__interview_id}, member {__member_id}: {exc}"
-                    )
-                finally:
-                    _db.close()
-
-            try:
-                scheduler.add_job(
-                    _send_feedback_reminder,
-                    trigger="date",
-                    run_date=_fire_at,
-                    id=job_id,
-                    replace_existing=True,
-                )
-                logger.info(
-                    f"[FeedbackReminder] Scheduled {suffix} reminder for member "
-                    f"{member_id} on interview {interview_id} at {_fire_at.isoformat()} (IST)"
-                )
-            except Exception as exc:
-                logger.error(f"Error: {str(exc)}", exc_info=True)
-                logger.warning(
-                    f"[FeedbackReminder] Could not schedule {suffix} reminder "
-                    f"for member {member_id}: {exc}"
-                )
-
-def _cancel_feedback_reminders(interview_id: int, member_id: str) -> None:
-    """
-    Cancel any pending APScheduler feedback-reminder jobs for a specific
-    panel member on a given interview.
-
-    Removes both the 1 h and 24 h reminder jobs if they exist.  Safe to call
-    even when the jobs were never scheduled or have already fired.
-    """
-    for suffix in ("1h", "24h"):
-        job_id = f"feedback_reminder_{interview_id}_{member_id}_{suffix}"
-        try:
-            job = scheduler.get_job(job_id)
-            if job:
-                scheduler.remove_job(job_id)
-                logger.info(
-                    f"[FeedbackReminder] Cancelled {suffix} reminder for member "
-                    f"{member_id} on interview {interview_id} (feedback submitted)."
-                )
-        except Exception as exc:
-            logger.error(f"Error: {str(exc)}", exc_info=True)
-            logger.warning(
-                f"[FeedbackReminder] Could not cancel {suffix} reminder "
-                f"for member {member_id} on interview {interview_id}: {exc}"
-            )
-
-def _cancel_all_feedback_reminders(interview_id: int, db: Session) -> None:
-    """
-    Cancel ALL pending feedback-reminder jobs (both 1 h and 24 h) for every
-    panel member on the given interview.  Used when an interview is cancelled,
-    completed, or deleted so no stale reminder emails are sent.
-    """
-    interview = db.query(Interview).filter(Interview.id == interview_id).first()
-    if not interview:
-        return
-    members = db.query(PanelMember).filter(
-        PanelMember.panel_id == interview.panel_id
-    ).all()
-    for member in members:
-        _cancel_feedback_reminders(interview_id, member.interviewer_id)
-
-def _cancel_interview_reminders(interview_id: int) -> None:
-    """
-    Cancel the pre-interview reminder jobs (1 h and 15 min before start_time).
-    Used when an interview is deleted or cancelled.
-    """
-    for suffix in ("1h", "15m"):
-        job_id = f"interview_reminder_{interview_id}_{suffix}"
-        try:
-            job = scheduler.get_job(job_id)
-            if job:
-                scheduler.remove_job(job_id)
-                logger.info(
-                    f"[InterviewReminder] Cancelled {suffix} pre-interview reminder "
-                    f"for interview {interview_id}."
-                )
-        except Exception as exc:
-            logger.error(f"Error: {str(exc)}", exc_info=True)
-            logger.warning(
-                f"[InterviewReminder] Could not cancel {suffix} reminder "
-                f"for interview {interview_id}: {exc}"
-            )
-
-def _schedule_interview_reminder(interview: Interview, db: Session) -> None:
-    """
-    Register (or replace) one-shot APScheduler jobs for the interview reminder.
-
-    Two reminders are scheduled:
-      - 1 hour  before start_time  (job id: interview_reminder_{id}_1h)
-      - 15 mins before start_time  (job id: interview_reminder_{id}_15m)
-
-    FIX: The DB stores start_time as a *naive* local time (IST, UTC+5:30).
-    APScheduler is configured with timezone="UTC", so a naive datetime passed
-    as run_date is interpreted as UTC --" causing reminders to fire 5.5 h late.
-    We attach the IST offset to make the datetime timezone-aware, which
-    APScheduler then correctly converts to its UTC timeline.
-
-    Safe to call on both create and update --" replaces any existing jobs so the
-    reminder always matches the current start_time.
-    """
-    IST = timezone(timedelta(hours=5, minutes=30))  # UTC+05:30
-
-    # Treat the naive DB timestamp as IST, then make it timezone-aware
-    if interview.start_time.tzinfo is None:
-        start_ist = interview.start_time.replace(tzinfo=IST)
-    else:
-        start_ist = interview.start_time
-
-    # Gate check using local time (also interpreted as IST on this server)
-    now_local = datetime.now(IST)
-
-    # Schedule points: 1 hour and 15 minutes before the interview
-    reminder_configs = [
-        (timedelta(hours=1),  "1 hour",    f"interview_reminder_{interview.id}_1h"),
-        (timedelta(minutes=15), "15 minutes", f"interview_reminder_{interview.id}_15m"),
-    ]
-
-    interview_id   = interview.id
-
-    for delta, label, job_id in reminder_configs:
-        fire_at = start_ist - delta
-
-        if fire_at <= now_local:
-            logger.info(
-                f"[InterviewReminder] Skipping '{label}' reminder for interview {interview_id} "
-                f"-- fire time {fire_at.isoformat()} is already past."
-            )
-            continue
-
-        # Capture loop variables for the closure
-        _fire_at   = fire_at
-        _label     = label
-        _job_id    = job_id
-
-        async def _send_reminder(
-            _interview_id=interview_id,
-            _reminder_label=_label,
-        ):
-            """Async job executed by APScheduler."""
-            _db = SessionLocal()
-            try:
-                iv = _db.query(Interview).filter(Interview.id == _interview_id).first()
-                if not iv:
-                    logger.warning(
-                        f"[InterviewReminder] Interview {_interview_id} not found at reminder time."
-                    )
-                    return
-
-                cand  = _db.query(Candidate).filter(Candidate.candidateID == iv.candidate_id).first()
-                panel = _db.query(InterviewPanel).filter(InterviewPanel.id == iv.panel_id).first()
-                round_name = panel.round_name if panel else "Interview"
-                start_str  = iv.start_time.strftime("%d %b %Y, %I:%M %p") if iv.start_time else "N/A"
-                end_str    = iv.end_time.strftime("%d %b %Y, %I:%M %p")   if iv.end_time   else "N/A"
-
-                # â"€â"€ Email to candidate â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
-                if cand and cand.candidateEmail:
-                    cand_name = _candidate_display_name(cand)
-                    try:
-                        EmailService.send_notification(
-                            to_email=cand.candidateEmail,
-                            heading=f"Reminder: Your {round_name} Interview is in {_reminder_label}",
-                            message=(
-                                f"Dear <strong>{cand_name}</strong>,<br><br>"
-                                f"This is a reminder that your <strong>{round_name}</strong> interview "
-                                f"is scheduled to begin in <strong>{_reminder_label}</strong>.<br><br>"
-                                f"<strong>Start:</strong> {start_str}<br>"
-                                f"ðŸ• <strong>End:</strong>   {end_str}<br>"
-                                + (f"<strong>Meeting Link:</strong> "
-                                   f"<a href='{iv.meeting_link}'>{iv.meeting_link}</a><br>"
-                                   if iv.meeting_link else "")
-                                + "<br>Please ensure you are ready and join on time. Best of luck!"
-                            ),
-                        )
-                        logger.info(
-                            f"[InterviewReminder] [{_reminder_label}] Reminder sent to candidate "
-                            f"{cand.candidateEmail}"
-                        )
-                    except Exception as exc:
-                        logger.error(f"Error: {str(exc)}", exc_info=True)
-                        logger.warning(f"[InterviewReminder] Could not email candidate: {exc}")
-
-                # â"€â"€ Emails to panel members â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
-                if panel:
-                    members = _db.query(PanelMember).filter(PanelMember.panel_id == panel.id).all()
-                    for member in members:
-                        interviewer = _db.query(Users).filter(
-                            Users.UserID == member.interviewer_id
-                        ).first()
-                        if interviewer and interviewer.UserEmail:
-                            cand_name = _candidate_display_name(cand) if cand else iv.candidate_id
-                            try:
-                                EmailService.send_notification(
-                                    to_email=interviewer.UserEmail,
-                                    heading=(
-                                        f"Reminder: Interview in {_reminder_label} "
-                                        f"-- {round_name}"
-                                    ),
-                                    message=(
-                                        f"Dear <strong>{interviewer.UserName or 'Interviewer'}</strong>,<br><br>"
-                                        f"This is a reminder that the <strong>{round_name}</strong> interview "
-                                        f"for candidate <strong>{cand_name}</strong> begins in "
-                                        f"<strong>{_reminder_label}</strong>.<br><br>"
-                                        f"<strong>Start:</strong> {start_str}<br>"
-                                        f"ðŸ• <strong>End:</strong>   {end_str}<br>"
-                                        + (f"<strong>Meeting Link:</strong> "
-                                           f"<a href='{iv.meeting_link}'>{iv.meeting_link}</a><br>"
-                                           if iv.meeting_link else "")
-                                    ),
-                                )
-                                logger.info(
-                                    f"[InterviewReminder] [{_reminder_label}] Reminder sent to "
-                                    f"panel member {interviewer.UserEmail}"
-                                )
-                            except Exception as exc:
-                                logger.error(f"Error: {str(exc)}", exc_info=True)
-                                logger.warning(
-                                    f"[InterviewReminder] Could not email panel member "
-                                    f"{interviewer.UserID}: {exc}"
-                                )
-            except Exception as exc:
-                logger.error(f"Error: {str(exc)}", exc_info=True)
-                logger.error(f"[InterviewReminder] Unexpected error in reminder job: {exc}")
-            finally:
-                _db.close()
-
-        try:
-            scheduler.add_job(
-                _send_reminder,
-                trigger="date",
-                run_date=_fire_at,          # timezone-aware IST â†' scheduler converts to UTC
-                id=_job_id,
-                replace_existing=True,
-            )
-            logger.info(
-                f"[InterviewReminder] Scheduled [{_label}] reminder for interview "
-                f"{interview_id} at {_fire_at.isoformat()} (IST)"
-            )
-        except Exception as exc:
-            logger.error(f"Error: {str(exc)}", exc_info=True)
-            logger.warning(
-                f"[InterviewReminder] Could not schedule [{_label}] reminder "
-                f"for interview {interview_id}: {exc}"
-            )
-
 def _resolve_hiring_manager_id_for_interview(db: Session, interview: Interview) -> str | None:
     """Backlog item, 2026-08-05: same 3-priority HM resolution
     _check_and_auto_submit_for_hire() already uses, kept as its own
@@ -852,98 +421,25 @@ def create_interview_panel(
     Raises:
         HTTPException: If candidate or job not found
     """
-    # Verify candidate exists and is in the caller's business-unit scope
-    candidate = ensure_candidate_visible(db, request.candidate_id, user)
-
-    # Validate job if provided -- another BU's job is "not found"
-    job = None
-    if request.job_id:
-        job = visible_job_or_404(db, user, request.job_id, f"Job with ID {request.job_id}")
-
-    # R-05: this candidate's next round cannot be created until their
-    # most recent prior round has actually passed. First round is
-    # always allowed (nothing to sequence against yet).
-    # CEO decision 2026-10-10: the 5-year experience rule applies at interview -- nobody with
-    # less than 5 years (or unverified experience) is interviewed. Same rule as client submission.
-    _require_experience(candidate)
-
-    level = (request.level or infer_level(request.round_name)).upper()
-    if level not in LEVELS:
-        raise HTTPException(status_code=400, detail=f"level must be one of {', '.join(LEVELS)}")
-    try:
-        enforce_interview_sequencing_gate(db, request.candidate_id, level=level, job_id=request.job_id)
-    except PriorRoundNotPassed as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-
-    # Rehire guard: a candidate with a past no-hire (Reject) outcome on
-    # any prior round/job needs a written justification, reviewed by AI
-    # and escalated to the hiring manager when not clearly justified,
-    # before a new round can be scheduled. Fail-closed -- the panel is
-    # never created in the same request unless AI actually clears it.
-    rehire_review_id = None
-    rehire_cleared_by = None
-    if candidate_has_past_no_hire(db, request.candidate_id):
-        if not request.rehire_justification or not request.rehire_justification.strip():
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "This candidate has a past no-hire outcome on record. A written "
-                    "justification is required to schedule a new interview round."
-                ),
-            )
-        review = submit_rehire_request(
-            db,
-            request.candidate_id,
-            _candidate_display_name(candidate),
-            request.round_name,
-            request.job_id,
-            user.UserID,
-            request.rehire_justification,
-        )
-        if review.status != "AI_CLEARED":
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "error": "rehire_review_pending",
-                    "review_id": review.id,
-                    "msg": (
-                        "This candidate has a past no-hire outcome. The justification "
-                        "has been sent to the hiring manager for approval before this "
-                        "round can be scheduled."
-                    ),
-                    "ai_reasoning": review.ai_reasoning,
-                },
-            )
-        rehire_review_id = review.id
-        rehire_cleared_by = "AI"
-
-    # Create panel
-    panel = InterviewPanel(
-        candidate_id=request.candidate_id,
-        round_name=request.round_name,
-        job_id=request.job_id,
-    )
-
-    db.add(panel)
-    db.flush()
-    verdict = ensure_verdict_row(db, panel, level)
+    created = scheduling.create_panel(
+        db, user, candidate_id=request.candidate_id, job_id=request.job_id, round_name=request.round_name,
+        level=request.level, rehire_justification=request.rehire_justification)
     db.commit()
+    panel = created.panel
     db.refresh(panel)
-    from app.services.hiring_pipeline_service import notify
-
-    notify(panel.candidate_id, "panel_created", panel.id)
+    scheduling.after_panel_created(panel)
 
     return InterviewPanelResponse(
         id=panel.id,
         candidate_id=panel.candidate_id,
         round_name=panel.round_name,
         job_id=panel.job_id,
-        job_title=job.jobTitle if job else None,
+        job_title=created.job.jobTitle if created.job else None,
         created_at=panel.created_at,
-        rehire_review_id=rehire_review_id,
-        rehire_cleared_by=rehire_cleared_by,
-        level=verdict.level,
-        verdict=verdict.verdict,
+        rehire_review_id=created.rehire_review_id,
+        rehire_cleared_by=created.rehire_cleared_by,
+        level=created.level,
+        verdict=created.verdict,
     )
 
 @router.get(
@@ -1004,6 +500,33 @@ def get_interview_panel(
         member_count=member_count,
         interview_count=interview_count
     )
+
+@router.get(
+    "/flash-calibration",
+    dependencies=[Depends(require_resource_permission("interviews", "view"))],
+    summary="Panel vs Flash: how often Flash's match score agreed with the panel's decision",
+)
+def flash_calibration(db: Session = Depends(get_db), user=Depends(get_current_internal_user)):
+    """Completed interviews the caller may see: agreement rate and every disagreement."""
+    from app.core.config import settings
+    from app.services.interview_calibration_service import calibration_summary
+
+    interviews = db.query(Interview).filter(_interview_scope(db, user),
+                                            Interview.feedback_status == "Completed").all()
+    return calibration_summary(db, interviews, settings.FLASH_ADVANCE_SCORE)
+
+
+@router.get(
+    "/{interview_id}/flash-comparison",
+    dependencies=[Depends(require_resource_permission("interviews", "view"))],
+    summary="Panel vs Flash for one interview",
+)
+def flash_comparison(interview_id: int, db: Session = Depends(get_db), user=Depends(get_current_internal_user)):
+    from app.core.config import settings
+    from app.services.interview_calibration_service import compare_interview
+
+    return compare_interview(db, _visible_interview_or_404(db, user, interview_id), settings.FLASH_ADVANCE_SCORE)
+
 
 @router.get(
     "/panels",
@@ -1225,7 +748,7 @@ def _rehire_review_to_response(db: Session, review: InterviewRehireReview) -> Re
 
 @router.get(
     "/rehire-reviews",
-    dependencies=[Depends(require_resource_permission("interviews", "view"))],
+    dependencies=[Depends(require_resource_permission("rehire-approval", "view"))],
     response_model=RehireReviewListResponse,
 )
 def list_rehire_reviews(
@@ -1253,7 +776,7 @@ def list_rehire_reviews(
 
 @router.post(
     "/rehire-reviews/{review_id}/decide",
-    dependencies=[Depends(require_resource_permission("interviews", "can_edit"))],
+    dependencies=[Depends(require_resource_permission("rehire-approval", "edit"))],
     response_model=RehireReviewResponse,
 )
 def decide_rehire_review_endpoint(
@@ -1291,51 +814,6 @@ def decide_rehire_review_endpoint(
 
     return _rehire_review_to_response(db, review)
 
-def _require_experience(candidate) -> None:
-    """CEO rule: nobody under 5 years' experience (or unverified) is interviewed."""
-    from app.services.submission_service import assert_experience_eligible
-
-    try:
-        assert_experience_eligible(candidate, "schedule an interview")
-    except ExperienceIneligible as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-
-def _panel_diversity_warning(db: Session, panel: InterviewPanel, interviewer_id: str) -> str | None:
-    """Backlog item, 2026-08-05 (wros_interview_regrouping_and_rehire_guard_priority):
-    Avinash -- "we also need to ensure that same panel is not used if
-    different jobs, different clients but same candidate ... allows us
-    to get different perspective on the candidate." Advisory only (same
-    "advisory where it can decide" posture as Task priority validation)
-    -- a recruiter may have a real reason to reuse an interviewer (e.g.
-    no one else has the required skill), so this warns rather than
-    blocks. Only flags OTHER panels for the same candidate on a
-    DIFFERENT job -- reusing the same interviewer across rounds of the
-    SAME job (e.g. L1 and L2 both by the same panel) is normal and not
-    a diversity concern."""
-    past_panels = (
-        db.query(InterviewPanel)
-        .join(PanelMember, PanelMember.panel_id == InterviewPanel.id)
-        .filter(
-            InterviewPanel.candidate_id == panel.candidate_id,
-            InterviewPanel.id != panel.id,
-            PanelMember.interviewer_id == interviewer_id,
-        )
-        .all()
-    )
-    if not past_panels:
-        return None
-
-    if panel.job_id is not None:
-        past_panels = [p for p in past_panels if p.job_id != panel.job_id]
-        if not past_panels:
-            return None
-
-    return (
-        f"Interviewer {interviewer_id} already served on a panel for this candidate "
-        f"on {len(past_panels)} other job(s) -- consider a different interviewer for "
-        f"a fresh perspective."
-    )
-
 # ============================================
 # Panel Member Endpoints
 # ============================================
@@ -1365,65 +843,12 @@ def assign_panel_member(
     Raises:
         HTTPException: If panel or interviewer not found, or already assigned
     """
-    # Verify panel exists and is in the caller's business-unit scope
-    panel = _visible_panel_or_404(db, user, request.panel_id)
-
-    # Verify interviewer exists
-    interviewer = db.query(Users).filter(Users.UserID == request.interviewer_id).first()
-    if not interviewer:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Interviewer with ID {request.interviewer_id} not found"
-        )
-    
-    # Check if already assigned
-    existing = db.query(PanelMember).filter(
-        PanelMember.panel_id == request.panel_id,
-        PanelMember.interviewer_id == request.interviewer_id
-    ).first()
-    
-    if existing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Interviewer {request.interviewer_id} is already assigned to panel {request.panel_id}"
-        )
-    
-    diversity_warning = _panel_diversity_warning(db, panel, request.interviewer_id)
-
-    # Create panel member
-    panel_member = PanelMember(
-        panel_id=request.panel_id,
-        interviewer_id=request.interviewer_id
-    )
-
-    db.add(panel_member)
+    panel_member, diversity_warning = scheduling.assign_member(
+        db, user, panel_id=request.panel_id, interviewer_id=request.interviewer_id)
     db.commit()
     db.refresh(panel_member)
-
-    # Fix 5: schedule feedback reminders for this new member on any
-    # active (Scheduled) interviews already linked to their panel.
-    try:
-        active_interviews = (
-            db.query(Interview)
-            .filter(
-                Interview.panel_id == request.panel_id,
-                Interview.status == "Scheduled",
-            )
-            .all()
-        )
-        for iv in active_interviews:
-            _schedule_feedback_reminders(iv, db)
-            sync_pending_feedback_tasks_for_interview(db, iv)
-            logger.info(
-                f"[FeedbackReminder] Scheduled reminders for new panel member "
-                f"{request.interviewer_id} on interview {iv.id}."
-            )
-    except Exception as exc:
-        logger.error(f"Error: {str(exc)}", exc_info=True)
-        logger.warning(
-            f"[FeedbackReminder] Could not schedule reminders for new panel member "
-            f"{request.interviewer_id}: {exc}"
-        )
+    # the new interviewer gets a feedback task on the round's scheduled interviews
+    scheduling.after_member_assigned(db, request.panel_id)
 
     return PanelMemberResponse(
         id=panel_member.id,
@@ -1552,87 +977,14 @@ def create_interview(
     Raises:
         HTTPException: If panel or candidate not found, or time validation fails
     """
-    # Verify panel and candidate exist and are in the caller's business-unit scope
-    _visible_panel_or_404(db, user, request.panel_id)
-    candidate = ensure_candidate_visible(db, request.candidate_id, user)
-
-    _require_experience(candidate)
-
-    # Validate time
-    if request.end_time <= request.start_time:
-        raise HTTPException(
-            status_code=400,
-            detail="End time must be after start time"
-        )
-
-    # Create interview
-    interview = Interview(
-        panel_id=request.panel_id,
-        candidate_id=request.candidate_id,
-        start_time=request.start_time,
-        end_time=request.end_time,
-        meeting_link=request.meeting_link,
-        outlook_event_id=request.outlook_event_id,
-        status=request.status
-    )
-
-    db.add(interview)
-    db.flush()  # the queued event carries the real interview id
-
-    # Queue interview_scheduled message (BEFORE commit for atomicity)
-    MessageQueueService.enqueue(
-        task_name="interview_scheduled",
-        data={
-            "interview_id": interview.id,
-            "candidate_id": request.candidate_id,
-            "panel_id": request.panel_id,
-            "start_time": request.start_time.isoformat() if hasattr(request.start_time, 'isoformat') else str(request.start_time),
-            "end_time": request.end_time.isoformat() if hasattr(request.end_time, 'isoformat') else str(request.end_time),
-            "meeting_link": request.meeting_link,
-            "candidate_email": candidate.candidateEmail,
-            "candidate_name": f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
-        }
-    )
-
-    # ATOMIC COMMIT
+    interview = scheduling.schedule_interview(
+        db, user, panel_id=request.panel_id, candidate_id=request.candidate_id, start=request.start_time,
+        end=request.end_time, meeting_link=request.meeting_link, outlook_event_id=request.outlook_event_id,
+        status=request.status)
     db.commit()
     db.refresh(interview)
-
-    # Emit interview_scheduled event for Thunder and other handlers
-    try:
-        CandidateEventBus.publish_event(
-            event_type=CandidateEventBus.EVENT_INTERVIEW_SCHEDULED,
-            candidate_id=request.candidate_id,
-            data={
-                "interview_id": interview.id,
-                "panel_id": request.panel_id,
-                "interview_date": request.start_time.isoformat() if hasattr(request.start_time, 'isoformat') else str(request.start_time),
-                "start_time": request.start_time.isoformat() if hasattr(request.start_time, 'isoformat') else str(request.start_time),
-                "end_time": request.end_time.isoformat() if hasattr(request.end_time, 'isoformat') else str(request.end_time),
-                "meeting_link": request.meeting_link,
-                "candidate_email": candidate.candidateEmail,
-                "candidate_name": f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
-            }
-        )
-        logger.info(f"[Interviews] Emitted interview_scheduled event for candidate {request.candidate_id}")
-    except Exception as e:
-        logger.error(f"[Interviews] Failed to emit interview_scheduled event for candidate {request.candidate_id}: {e}", exc_info=True)
-        # Don't fail interview creation if event emission fails
-
-    # Schedule pre-interview reminder (1 h and 15 min before start)
-    _schedule_interview_reminder(interview, db)
-
-    # Schedule post-interview feedback reminders (1 h and 24 h after end)
-    try:
-        _schedule_feedback_reminders(interview, db)
-    except Exception as exc:
-        logger.error(f"Error: {str(exc)}", exc_info=True)
-        logger.warning(f"[FeedbackReminder] Scheduler error on create (non-critical): {exc}")
-
-    # Backlog item, 2026-08-05: real Task Dashboard entries for each
-    # panel member's pending feedback, scoped to this exact round --
-    # additive to the email reminders above, not a replacement.
-    sync_pending_feedback_tasks_for_interview(db, interview)
+    # queued only after the commit: a rolled-back interview never leaves a message behind
+    scheduling.after_commit(db, interview, _visible_panel_or_404(db, user, interview.panel_id))
 
     return InterviewResponse(
         id=interview.id,
@@ -2016,12 +1368,13 @@ def update_interview(
     interview = _visible_interview_or_404(db, user, interview_id)
 
     previous_status = interview.status
+    previous_start = interview.start_time
 
-    # Update only provided fields
+    # Update only provided fields (stored as naive UTC)
     if request.start_time is not None:
-        interview.start_time = request.start_time
+        interview.start_time = scheduling.to_naive_utc(request.start_time)
     if request.end_time is not None:
-        interview.end_time = request.end_time
+        interview.end_time = scheduling.to_naive_utc(request.end_time)
     if request.meeting_link is not None:
         interview.meeting_link = request.meeting_link
     if request.outlook_event_id is not None:
@@ -2039,27 +1392,10 @@ def update_interview(
     db.commit()
     db.refresh(interview)
 
-    # Reschedule pre-interview reminder (replaces existing jobs)
-    _schedule_interview_reminder(interview, db)
-
-    # Fix 2: if the interview is now Cancelled or Completed, kill all reminder
-    # jobs; otherwise reschedule them with the latest end_time.
-    if interview.status in ("Cancelled", "Completed"):
-        try:
-            _cancel_all_feedback_reminders(interview.id, db)
-            logger.info(
-                f"[FeedbackReminder] Cancelled all feedback reminders for interview "
-                f"{interview.id} (status: {interview.status})."
-            )
-        except Exception as exc:
-            logger.error(f"Error: {str(exc)}", exc_info=True)
-            logger.warning(f"[FeedbackReminder] Cancel-all error on update (non-critical): {exc}")
-    else:
-        try:
-            _schedule_feedback_reminders(interview, db)
-        except Exception as exc:
-            logger.error(f"Error: {str(exc)}", exc_info=True)
-            logger.warning(f"[FeedbackReminder] Scheduler error on update (non-critical): {exc}")
+    # Reminders and feedback nudges are read from the row by the interview_reminders job, so a
+    # new time or a cancellation needs nothing here; a new time invites the candidate again
+    if interview.start_time != previous_start:
+        scheduling.queue_invite(db, interview)
 
     # Backlog item, 2026-08-05: create the HM review Task the first time
     # (and only the first time) this interview round transitions into
@@ -2106,19 +1442,6 @@ def delete_interview(
         HTTPException: If interview not found
     """
     interview = _visible_interview_or_404(db, user, interview_id)
-
-    # Fix 3: cancel all scheduler jobs BEFORE removing DB records so the
-    # helper functions can still read panel membership from the database.
-    try:
-        _cancel_all_feedback_reminders(interview_id, db)
-    except Exception as exc:
-        logger.error(f"Error: {str(exc)}", exc_info=True)
-        logger.warning(f"[FeedbackReminder] Cancel-all error on delete (non-critical): {exc}")
-    try:
-        _cancel_interview_reminders(interview_id)
-    except Exception as exc:
-        logger.error(f"Error: {str(exc)}", exc_info=True)
-        logger.warning(f"[InterviewReminder] Cancel error on delete (non-critical): {exc}")
 
     # Delete all associated feedback
     db.query(InterviewFeedback).filter(InterviewFeedback.interview_id == interview_id).delete()
@@ -2275,13 +1598,6 @@ def submit_interview_feedback(
     except Exception as exc:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[FeedbackNotify] Notification error (non-critical): {exc}")
-
-    # â"€â"€ Cancel pending feedback reminders for the member who just submitted â"€â"€
-    try:
-        _cancel_feedback_reminders(interview.id, request.interviewer_id)
-    except Exception as exc:
-        logger.error(f"Error: {str(exc)}", exc_info=True)
-        logger.warning(f"[FeedbackReminder] Cancel error (non-critical): {exc}")
 
     return InterviewFeedbackResponse(
         id=feedback.id,
@@ -2707,7 +2023,7 @@ def get_interviewer_workload(
 
 @router.get(
     "/hm-review/my-candidates", response_model=HMCandidateReviewListResponse,
-    dependencies=[Depends(require_resource_permission("interviews", "view"))],
+    dependencies=[Depends(require_resource_permission("candidate-review", "view"))],
     summary="S-102/HRMS-P207 -- the caller's own hiring-manager candidate review list: profile + all interview feedback per candidate",
 )
 def get_my_hiring_manager_candidate_review(

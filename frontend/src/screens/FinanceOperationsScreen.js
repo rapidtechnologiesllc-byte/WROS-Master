@@ -5,12 +5,15 @@
 // drives every read-only panel below -- pick once, see everything for
 // that BU/period, matching the "fewer clicks, more outcome" mandate.
 import { useCallback, useEffect, useState } from "react";
+import ReceiptCheck from "../components/ReceiptCheck";
 import { Wallet, DollarSign, Building2, RefreshCw, Search, Receipt, CheckCircle2 } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
 import { listBusinessUnits } from "../services/api/rbac";
 import { searchUsers } from "../services/api/users";
 import {
   setCostRateConfig,
+  getCostRateConfigs,
+  getCostRateCountries,
   getBuPnl,
   getBlendedDeliveryRate,
   recordReserveFundEntry,
@@ -56,6 +59,23 @@ export default function FinanceOperationsScreen() {
 
   const [statutoryPct, setStatutoryPct] = useState("");
   const [overheadPct, setOverheadPct] = useState("");
+  // cost object = BU x location: rates per BU and country ("" = every country), effective from a date
+  const [rateCountry, setRateCountry] = useState("");
+  const [rateEffective, setRateEffective] = useState("");
+  const [rateCountries, setRateCountries] = useState([]);
+  const [rates, setRates] = useState([]);
+  const loadRates = useCallback(async () => {
+    try {
+      const [list, countries] = await Promise.all([getCostRateConfigs(), getCostRateCountries()]);
+      setRates(list);
+      setRateCountries(countries);
+    } catch (err) {
+      setError(`Could not load cost rates: ${err.message}`);
+    }
+  }, []);
+  useEffect(() => {
+    loadRates();
+  }, [loadRates]);
 
   const [reserveAmount, setReserveAmount] = useState("");
   const [reserveType, setReserveType] = useState("CONTRIBUTION");
@@ -271,10 +291,13 @@ export default function FinanceOperationsScreen() {
         business_unit_id: businessUnitId ? Number(businessUnitId) : null,
         statutory_pct: parseFloat(statutoryPct || "0"),
         overhead_pct: parseFloat(overheadPct || "0"),
+        country: rateCountry || null,
+        effective_date: rateEffective || null,
       });
       setStatutoryPct("");
       setOverheadPct("");
       load();
+      loadRates();
     } catch (err) {
       setError(err.message || "Failed to set cost-rate config.");
     }
@@ -395,12 +418,36 @@ export default function FinanceOperationsScreen() {
 
             <div className="mt-6 grid gap-4 lg:grid-cols-2">
               <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                <div className="mb-3 text-sm font-semibold text-gray-900">Set Cost & Rate Config</div>
+                <div className="mb-1 text-sm font-semibold text-gray-900">Set Cost & Rate Config</div>
+                <div className="mb-3 text-xs text-gray-500">
+                  For the business unit above (none = every BU) and a location. Lookup: BU + country, then the
+                  country default, then the BU default, then the company default. Earlier days keep their rate.
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <Input label="Statutory %" value={statutoryPct} onChange={setStatutoryPct} placeholder="12" />
                   <Input label="Overhead %" value={overheadPct} onChange={setOverheadPct} placeholder="8" />
+                  <label className="block">
+                    <div className="mb-1 text-xs font-semibold text-gray-700">Location (country)</div>
+                    <select className="w-full rounded-xl border bg-white px-3 py-2 text-sm" value={rateCountry}
+                      onChange={(e) => setRateCountry(e.target.value)}>
+                      <option value="">Every country</option>
+                      {rateCountries.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+                    </select>
+                  </label>
+                  <Input label="Effective from" type="date" value={rateEffective} onChange={setRateEffective} />
                 </div>
                 <Button className="mt-3" onClick={handleSetCostRateConfig}>Save</Button>
+                <table className="mt-4 w-full text-left text-xs">
+                  <thead className="text-gray-500"><tr><th>BU</th><th>Country</th><th>Statutory</th><th>Overhead</th><th>From</th></tr></thead>
+                  <tbody>
+                    {rates.map((r) => (
+                      <tr key={r.id} className="border-t">
+                        <td>{r.business_unit_id ?? "All"}</td><td>{r.country || "All"}</td>
+                        <td>{r.statutory_pct}%</td><td>{r.overhead_pct}%</td><td>{r.effective_date}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
 
               <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
@@ -592,6 +639,7 @@ export default function FinanceOperationsScreen() {
               { key: "category", header: "Category" },
               { key: "amount", header: "Amount" },
               { key: "status", header: "Status" },
+              { key: "receipt", header: "Receipt" },
               { key: "actions", header: "" },
             ]}
             rows={allExpenses.map((e) => ({
@@ -605,6 +653,7 @@ export default function FinanceOperationsScreen() {
                   {expenseStage(e).label}
                 </span>
               ),
+              receipt: <ReceiptCheck expense={e} />,
               actions:
                 e.manager_approval_status === "PENDING" || !e.manager_approval_status ? (
                   <div className="flex gap-2">

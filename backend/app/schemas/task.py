@@ -42,8 +42,11 @@ class TaskResponse(BaseModel):
     subcategory: Optional[str]
     completed_at: Optional[datetime]
     created_at: Optional[datetime]
-    # Lets My Tasks open the candidate a task is about (e.g. LinkedIn outreach)
+    # Lets My Tasks open the record a task is about (candidate profile, its interview tab)
     candidate_id: Optional[str] = None
+    interview_id: Optional[int] = None
+    # In-app path the task opens; My Tasks follows it first
+    link: Optional[str] = None
 
     class Config:
         from_attributes = True

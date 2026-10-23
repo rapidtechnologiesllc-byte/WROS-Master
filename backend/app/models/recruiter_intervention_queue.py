@@ -67,6 +67,6 @@ class RecruiterInterventionQueue(Base):
     __table_args__ = (
         Index(
             "ix_one_open_item_per_candidate_reason", "tenant_id", "candidate_id", "queue_reason", unique=True,
-            sqlite_where=text("status = 'OPEN'"), mssql_where=text("status = 'OPEN'"),
+            postgresql_where=text("status = 'OPEN'"),
         ),
     )

@@ -12,7 +12,6 @@ from typing import Optional, List
 from sqlalchemy.orm import Session
 
 from app.models.org_structure import OrgPosition, OrgNode, Department, ApprovalChain, PartnerBUAssignment
-from app.models.business_unit import BusinessUnit
 
 # The 10 organizational positions (CEO down to Senior Consultant)
 DEFAULT_POSITIONS = [
@@ -95,6 +94,17 @@ DEFAULT_POSITIONS = [
         "approves_to_rank": 7,  # Approves to Manager (or Team Lead)
         "approves_workflows": None,
         "rbac_role_name": "senior_consultant"
+    },
+    {
+        "rank": 10,
+        # Levels 1-4 (Intern, Associate, Senior Associate, Consultant) sit here
+        # (org_hierarchy_validator.LEVEL_POSITION_CODES); without it no one at those
+        # levels could be placed in the org chart
+        "name": "Consultant",
+        "description": "Consultant - individual contributor (Intern to Consultant)",
+        "approves_to_rank": 7,  # Same approver as a Senior Consultant
+        "approves_workflows": None,
+        "rbac_role_name": "consultant"
     },
 ]
 
@@ -256,7 +266,7 @@ def create_org_node(
     tenant_id: int,
     name: str,
     hierarchy_level: int,
-    specialization: str,
+    specialization: Optional[str] = None,
     parent_id: Optional[str] = None,
     department_id: Optional[str] = None,
     company_id: Optional[str] = None,
@@ -268,9 +278,14 @@ def create_org_node(
     """
     from app.services.org_hierarchy_validator import OrgHierarchyValidator, position_id_for_level
 
+    from app.services.org_hierarchy_validator import specialization_for_department
+
     if not name or not name.strip():
         raise ValueError("Name is required")
     _validate_company(db, tenant_id, company_id)
+    if department_id:
+        specialization = specialization_for_department(db, department_id)
+    specialization = specialization or "General"
 
     business_unit_id = None
     if department_id:
@@ -302,6 +317,137 @@ def create_org_node(
     db.add(node)
     db.flush()
     return node
+
+def place_user_in_org(
+    db: Session,
+    user,
+    *,
+    hierarchy_level: int,
+    specialization: Optional[str],
+    parent_id: Optional[str],
+    company_id: Optional[str] = None,
+    department_id: Optional[str] = None,
+) -> OrgNode:
+    """Give a user their seat in the org chart, or move the seat they have.
+
+    One rule set for create and edit: the reporting rules of OrgHierarchyValidator
+    (level gap, specialization, business unit), and for an existing seat, no reporting
+    to itself or to anyone below it. Reporting across companies is allowed -- a BX-IN
+    BU head may report to a partner in BX-US; the seat keeps its own company. Adds
+    without committing; raises ValueError with a caller-safe message."""
+    from app.services.org_hierarchy_validator import (
+        OrgHierarchyValidator, position_id_for_level, specialization_for_department,
+    )
+
+    tenant_id = user.tenant_id
+    node = db.query(OrgNode).filter(OrgNode.id == user.org_node_id, OrgNode.tenant_id == tenant_id).first() \
+        if user.org_node_id else None
+    if node is None:
+        node = create_org_node(db, tenant_id=tenant_id, name=user.UserName or user.UserEmail,
+                               hierarchy_level=hierarchy_level, specialization=specialization,
+                               parent_id=parent_id, department_id=department_id, company_id=company_id)
+        user.org_node_id = node.id
+    else:
+        _validate_company(db, tenant_id, company_id)
+        business_unit_id = None
+        if department_id:
+            department = db.query(Department).filter(
+                Department.id == department_id, Department.tenant_id == tenant_id).first()
+            if department is None:
+                raise ValueError("Department not found")
+            business_unit_id = department.business_unit_id
+        ancestor = parent_id
+        while ancestor:
+            if ancestor == node.id:
+                raise ValueError("A person cannot report to themselves or to someone who reports to them")
+            row = db.query(OrgNode.parent_id).filter(OrgNode.id == ancestor).first()
+            ancestor = row[0] if row else None
+        is_valid, error = OrgHierarchyValidator.validate_reporting_relationship(
+            db, hierarchy_level, specialization, parent_id or None, business_unit_id, tenant_id)
+        if not is_valid:
+            raise ValueError(error)
+        node.hierarchy_level = hierarchy_level
+        node.specialization = specialization_for_department(db, department_id) if department_id \
+            else (specialization or "General")
+        node.position_id = position_id_for_level(db, hierarchy_level)
+        node.parent_id = parent_id or None
+        node.company_id = company_id or None
+        node.department_id = department_id or None
+        node.name = user.UserName or node.name
+    user.location_id = company_id or None
+    _sync_employee_reporting(db, user, node)
+    db.flush()
+    return node
+
+
+def _sync_employee_reporting(db: Session, user, node: OrgNode) -> None:
+    """One reporting line: the person's employee record takes their org seat, and its manager
+    is the employee record of whoever sits in the parent seat (timesheet approval and the
+    expense manager both follow the org chart)."""
+    from app.models.employee import Employee
+    from app.models.user import Users
+
+    employee = db.query(Employee).filter(Employee.wros_user_id == user.UserID).first()
+    if employee is None:
+        return
+    employee.org_node_id = node.id
+    # The row mirrors the chart (readers go through manager_user_for); an empty boss seat
+    # leaves the last known manager until someone sits above.
+    boss = manager_user_for(db, employee)
+    if boss is None:
+        return
+    employee.reporting_manager_user_id = boss.UserID
+    manager = db.query(Employee).filter(Employee.wros_user_id == boss.UserID).first()
+    if manager is not None:
+        employee.manager_id = manager.id
+
+
+def manager_user_for(db: Session, employee):
+    """Who this employee reports to, read from the org chart: the person in the nearest occupied
+    seat above theirs (a vacant boss seat passes up to the next one). An employee with no seat
+    falls back to the manager recorded on the employee row, which only seat placement writes for
+    seated people (_sync_employee_reporting). None when neither names an active login."""
+    from app.models.user import Users
+
+    login = db.query(Users).filter(Users.UserID == employee.wros_user_id).first() if employee.wros_user_id else None
+    seat_id = (login.org_node_id if login is not None else None) or employee.org_node_id
+    if seat_id:
+        node = db.query(OrgNode).filter(OrgNode.id == seat_id).first()
+        parent_id, seen = (node.parent_id if node else None), set()
+        while parent_id and parent_id not in seen:
+            seen.add(parent_id)
+            holder = db.query(Users).filter(Users.org_node_id == parent_id, Users.tenant_id == employee.tenant_id,
+                                            Users.terminated_at.is_(None)).first()
+            if holder is not None and holder.UserID != employee.wros_user_id:
+                return holder
+            row = db.query(OrgNode.parent_id).filter(OrgNode.id == parent_id).first()
+            parent_id = row[0] if row else None
+        return None
+    if employee.reporting_manager_user_id:
+        return db.query(Users).filter(Users.UserID == employee.reporting_manager_user_id,
+                                      Users.terminated_at.is_(None)).first()
+    return None
+
+
+def place_under_manager(db: Session, user, manager, *, role_level: Optional[int] = None,
+                        company_id: Optional[str] = None) -> OrgNode:
+    """Seat this login under the manager's seat -- the one way a manager is recorded when an
+    employee is added, imported or re-pointed (the employee row follows the seat). The person
+    keeps their seat's level, or takes their org role's level when they have no seat yet.
+    Raises ValueError with a caller-safe message: manager not seated, no level, or a reporting
+    line the org rules refuse."""
+    if manager.org_node_id is None:
+        raise ValueError(f"{manager.UserName or manager.UserEmail} has no seat in the org chart: place them under "
+                         "Organizational Hierarchy (or list them earlier in the same import) first")
+    seat = db.query(OrgNode).filter(OrgNode.id == user.org_node_id).first() if user.org_node_id else None
+    level = seat.hierarchy_level if seat is not None else role_level
+    if not level:
+        raise ValueError(f"{user.UserName or user.UserEmail} needs a job title that is an org role (Manage Roles) "
+                         "to sit in the org chart under their manager")
+    return place_user_in_org(db, user, hierarchy_level=int(level), specialization=None, parent_id=manager.org_node_id,
+                             company_id=company_id if company_id is not None else (seat.company_id if seat else None),
+                             department_id=user.department_id)
+
 
 def _validate_company(db: Session, tenant_id: int, company_id: Optional[str]) -> None:
     from app.models.location import Location

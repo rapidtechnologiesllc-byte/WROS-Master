@@ -169,7 +169,17 @@ class ThunderLearningIntegration:
             # "opened" or "replied" = success (engagement)
             # "no_response" after timeframe = failure
             actual_success = event_type in ["opened", "clicked", "replied", "engaged"]
+            # The prediction this outcome answers: the latest outreach on this conversation.
+            # Carrying its probability over is what measures the confidence gap.
+            from app.models.learning_events import LearningEvent
 
+            prediction = db.query(LearningEvent).filter(
+                LearningEvent.tenant_id == str(tenant_id),  # learning tables store it as text
+                LearningEvent.module == ThunderLearningIntegration.THUNDER_MODULE,
+                LearningEvent.action_type == "outreach_sent",
+                LearningEvent.entity_id == candidate_id,
+                LearningEvent.secondary_entity_id == conversation_id,
+            ).order_by(LearningEvent.event_timestamp.desc()).first()
             event = LearningEventCollector.record_event(
                 db=db,
                 tenant_id=tenant_id,
@@ -178,6 +188,9 @@ class ThunderLearningIntegration:
                 entity_type="candidate",
                 entity_id=candidate_id,
                 secondary_entity_id=conversation_id,
+                predicted_outcome=prediction.predicted_outcome if prediction else None,
+                predicted_probability=prediction.predicted_probability if prediction else None,
+                segment_id=prediction.segment_id if prediction else None,
                 actual_outcome=event_type,
                 actual_success=actual_success,
                 actual_metadata={
@@ -261,27 +274,24 @@ class ThunderLearningIntegration:
 
     @staticmethod
     def _infer_segment(candidate: Candidate) -> str:
-        """Infer segment from candidate profile for learning grouping."""
-        try:
-            # Segment by: seniority_level + location + specialization
-            components = []
+        """Learning segment from the candidate's real profile: seniority band (from total
+        experience), city, and primary skill -- e.g. "senior_bengaluru_guidewire". Parts that
+        are not on record are left out; nothing known at all is "unknown"."""
+        components = []
 
-            if hasattr(candidate, "seniority_level") and candidate.seniority_level:
-                components.append(candidate.seniority_level.lower())
+        months = candidate.total_experience_months
+        if months is not None:
+            years = months / 12
+            components.append("junior" if years < 3 else "mid" if years < 7 else "senior" if years < 12 else "lead")
 
-            if hasattr(candidate, "current_location") and candidate.current_location:
-                # Normalize location
-                loc = candidate.current_location.split(",")[0].strip().lower()
-                components.append(loc[:2].upper())  # Country/State abbreviation
+        if candidate.candidateCurrentLocation:
+            city = candidate.candidateCurrentLocation.split(",")[0].strip().lower()
+            if city:
+                components.append(city.replace(" ", "-")[:20])
 
-            if hasattr(candidate, "specialization") and candidate.specialization:
-                spec = candidate.specialization.split(";")[0].strip().lower()
-                components.append(spec[:8])  # First 8 chars of specialization
+        if candidate.candidateSkills:
+            skill = candidate.candidateSkills.replace(";", ",").split(",")[0].strip().lower()
+            if skill:
+                components.append(skill.replace(" ", "-")[:20])
 
-            if components:
-                return "_".join(components)
-
-            return "unknown"
-
-        except Exception:
-            return "unknown"
+        return "_".join(components) if components else "unknown"

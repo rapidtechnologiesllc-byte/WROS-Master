@@ -7,6 +7,7 @@ FY 2026 runs 1 Apr 2026 - 31 Mar 2027 and is labelled "FY 2026-27".
 Everything that reports "this FY" (CEO Dashboard, goal tree, executive
 revenue) takes its window from here.
 """
+from app.core.tenant_context import sole_tenant_id
 from datetime import date, datetime, timedelta
 from typing import List, Optional, Tuple
 
@@ -25,7 +26,7 @@ def _row(db: Session, tenant_id: int):
 
 
 def get_fy_start_month(db: Session, tenant_id: Optional[int] = None) -> int:
-    row = _row(db, tenant_id or 1)
+    row = _row(db, tenant_id if tenant_id is not None else sole_tenant_id(db))
     month = (row.config_value or {}).get("month") if row and isinstance(row.config_value, dict) else None
     return month if isinstance(month, int) and 1 <= month <= 12 else DEFAULT_START_MONTH
 

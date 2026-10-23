@@ -106,6 +106,29 @@ def get_tenant_scoped_query(db: Session, model, current_user: Users) -> Query:
         )
     return db.query(model).filter(model.tenant_id == current_user.tenant_id)
 
+def sole_tenant_id(db) -> int:
+    """The tenant to use when a record or message carries none: the ONLY tenant, when exactly
+    one exists (production today). With several tenants there is no safe guess, so this
+    raises instead of silently picking tenant 1."""
+    from app.models.tenant import Tenant
+
+    ids = [tid for (tid,) in db.query(Tenant.id).limit(2).all()]
+    if len(ids) != 1:
+        raise ValueError(f"No tenant on this record and {len(ids)} tenants exist - pass the tenant explicitly")
+    return ids[0]
+
+
+def tenant_id_of(user) -> int:
+    """The authenticated user's tenant_id. Fails closed (403) for an account with no
+    tenant -- never a default tenant, so data can't land in or leak from tenant 1."""
+    tenant_id = getattr(user, "tenant_id", None)
+    if tenant_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User is not assigned to a tenant",
+        )
+    return tenant_id
+
 async def require_tenant_id(
     current_user: Users = Depends(get_current_internal_user),
 ) -> int:
@@ -114,9 +137,31 @@ async def require_tenant_id(
     authenticated session. Use this in route signatures instead of ever
     reading a tenant id from request input.
     """
-    if current_user.tenant_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User is not assigned to a tenant",
-        )
-    return current_user.tenant_id
+    return tenant_id_of(current_user)
+
+
+# Candidate-engagement records (candidate_conversations, candidate_ai_assignments and the
+# Thunder tables keyed the same way) carry their tenant as text in a String column. The key is
+# the tenant's id as text -- never a user id, never a literal.
+def conversation_tenant_key(tenant_id) -> str:
+    """The engagement-record key for a tenant id (int or numeric text)."""
+    if tenant_id is None or str(tenant_id).strip() == "":
+        raise ValueError("A tenant is required for a candidate engagement record")
+    return str(int(tenant_id))
+
+
+def tenant_of_key(db, key) -> int:
+    """The tenant id behind an engagement-record key. A numeric key is the tenant id itself; a
+    non-numeric one is a staff UserID (the Test Thunder sandbox keys its conversations by the
+    tester) and resolves to that user's tenant."""
+    if key is None or str(key).strip() == "":
+        return sole_tenant_id(db)
+    text = str(key).strip()
+    if text.isdigit():
+        return int(text)
+    from app.models.user import Users
+
+    tenant_id = db.query(Users.tenant_id).filter(Users.UserID == text).scalar()
+    if tenant_id is None:
+        raise ValueError(f"Engagement key {text!r} is neither a tenant id nor a user with a tenant")
+    return tenant_id

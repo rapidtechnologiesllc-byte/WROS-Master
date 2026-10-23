@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 
 from app.models.channel_queue import ChannelQueueItem
 from app.services.message_handlers.candidate_creation_unified_handler import CandidateCreationUnifiedHandler
-from app.services.message_handlers.candidate_conversion_handler import CandidateConversionHandler
 
 logger = logging.getLogger(__name__)
 
@@ -49,11 +48,6 @@ class CandidateQueueProcessor:
                 result = CandidateCreationUnifiedHandler.process(message, db)
                 return result
 
-            elif message_type == "convert_candidate_to_employee":
-                result = CandidateConversionHandler.process(message, db)
-                CandidateConversionHandler.on_success(message, result, db)
-                return result
-
             else:
                 raise ValueError(f"Unknown message type: {message_type}")
 
@@ -61,8 +55,6 @@ class CandidateQueueProcessor:
             # Route to appropriate handler's retry logic
             if message_type == "create_candidate":
                 handler_class = CandidateCreationUnifiedHandler
-            elif message_type == "convert_candidate_to_employee":
-                handler_class = CandidateConversionHandler
             else:
                 raise RuntimeError(f"No handler for message type: {message_type}") from e
 

@@ -72,6 +72,19 @@ def validate_urgent_priority(
     note = response.split("NOTE:", 1)[1].strip() if "NOTE:" in response.upper() else response.strip()
     return is_plausible, note
 
+TASK_LINK_MAX_LENGTH = 512
+
+
+def validate_task_link(link: Optional[str]) -> None:
+    """A task link is an in-app path: it starts with "/" and not "//" (which a browser reads as
+    another site), with no whitespace or backslashes. None means no link."""
+    if link is None:
+        return
+    if (not isinstance(link, str) or not link.startswith("/") or link.startswith("//") or "\\" in link
+            or any(ch.isspace() for ch in link) or len(link) > TASK_LINK_MAX_LENGTH):
+        raise ValueError(f"Task link must be an in-app path like '/jobs/123', got {link!r}")
+
+
 def create_task(
     db: Session,
     *,
@@ -92,9 +105,11 @@ def create_task(
     expense_id: Optional[str] = None,
     invoice_id: Optional[str] = None,
     urgency_llm_call=None,
+    link: Optional[str] = None,
 ) -> Task:
     if priority not in TASK_PRIORITIES:
         raise ValueError(f"Unknown priority {priority!r}")
+    validate_task_link(link)
 
     task = Task(
         title=title, description=description, priority=priority,
@@ -102,7 +117,7 @@ def create_task(
         due_date=due_date, is_external=is_external, visibility_scope=visibility_scope,
         task_type=task_type, category=category, subcategory=subcategory,
         parent_task_id=parent_task_id, tenant_id=tenant_id,
-        assigned_to_user_id=assigned_to_user_id, expense_id=expense_id, invoice_id=invoice_id,
+        assigned_to_user_id=assigned_to_user_id, expense_id=expense_id, invoice_id=invoice_id, link=link,
     )
 
     if priority == "URGENT":
@@ -178,18 +193,22 @@ def get_upcoming_urgent_tasks(db: Session, *, assigned_to_user_id: str, now: Opt
         (Task.due_date.is_(None)) | (Task.due_date >= tomorrow_start),
     ).order_by(Task.due_date.asc().nullslast()).all()
 
-def get_scheduled_tasks(db: Session, *, assigned_to_user_id: str, now: Optional[datetime] = None, days: int = 30) -> List[Task]:
-    """Open non-urgent tasks due after today (e.g. follow-ups scheduled
-    from a task update), so the next actions are visible before their day."""
+def get_scheduled_tasks(db: Session, *, assigned_to_user_id: str, now: Optional[datetime] = None,
+                        days: Optional[int] = None) -> List[Task]:
+    """Open non-urgent tasks due after today, soonest first, so the next actions are visible
+    before their day. No horizon by default: an open task its owner cannot see anywhere is lost
+    (a 45-day Core certification follow-up was hidden by the old 30-day window); `days` limits it."""
     now = now or datetime.utcnow()
     tomorrow_start = _start_of_today(now) + timedelta(days=1)
-    return db.query(Task).filter(
+    query = db.query(Task).filter(
         Task.assigned_to_user_id == assigned_to_user_id,
         Task.status.in_(("NEW", "IN_PROGRESS", "ON_HOLD")),
         Task.priority != "URGENT",
         Task.due_date >= tomorrow_start,
-        Task.due_date < tomorrow_start + timedelta(days=days),
-    ).order_by(Task.due_date.asc()).all()
+    )
+    if days is not None:
+        query = query.filter(Task.due_date < tomorrow_start + timedelta(days=days))
+    return query.order_by(Task.due_date.asc()).all()
 
 def complete_task(db: Session, task: Task) -> Task:
     task.status = "COMPLETED"

@@ -5,8 +5,8 @@ Definitions match the goal tree and plan-vs-actual views so the screens never di
 - team: employees of the BU who are working (not PRE_JOINING / EXITED), by their
   employer company (Employee.company_id)
 - utilized: of those, people with an ACTIVE allocation
-- revenue MTD: approved / sent / paid invoices this month for the BU's clients, by the
-  client's contracting company
+- revenue MTD: earned revenue (revenue_chain_service.earned_revenue, the P&L's income line:
+  billed or approved work by timesheet week) of the BU's clients from the 1st to today
 - bench cost per day: loaded payroll (CostBook) of working bench employees
 """
 import logging
@@ -20,13 +20,11 @@ from app.models.business_unit import BusinessUnit
 from app.models.client import Client
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
-from app.models.invoice import Invoice, InvoiceLineItem
 from app.models.project import Project
 from app.services.ceo_fy_progress_service import WORKING_STATUSES_EXCLUDED
 
 logger = logging.getLogger(__name__)
 
-REVENUE_STATUSES = ("APPROVED", "SENT", "PAID")
 LIVE_PROJECT_STATUSES = ("ACTIVE",)
 
 
@@ -43,34 +41,26 @@ class BUHeadDashboardService:
 
     @staticmethod
     def get_bu_dashboard_data(db: Session, bu_id: int, today: Optional[date] = None) -> dict:
-        from app.services.revenue_chain_service import CostBook
+        from app.services.revenue_chain_service import CostBook, earned_revenue
 
         bu = db.query(BusinessUnit).filter(BusinessUnit.id == bu_id).first()
         if not bu:
             return {}
         today = today or date.today()
 
+        from app.services.bench_service import headcount_snapshot
+
         team = db.query(Employee).filter(_working(bu_id)).all()
-        allocated_ids = {
-            employee_id for (employee_id,) in db.query(EmployeeAllocation.employee_id).filter(
-                EmployeeAllocation.status == "ACTIVE",
-                EmployeeAllocation.employee_id.in_([e.id for e in team] or [""]),
-            )
-        }
-        bench = [e for e in team if e.id not in allocated_ids]
+        # the bench rule shared by every surface (bench_service): billable, joined, no ACTIVE allocation
+        snapshot = headcount_snapshot(db, bu_ids={bu_id}, today=today)
+        bench = snapshot["bench"]
 
         costs = CostBook(db)
         bench_daily = [costs.period(e, today, today) for e in bench]
         bench_cost_known = all(c is not None for c in bench_daily)
         bench_cost_daily = sum(c for c in bench_daily if c is not None)
 
-        revenue_mtd = db.query(func.sum(InvoiceLineItem.amount_usd_cents)).join(
-            Invoice, Invoice.id == InvoiceLineItem.invoice_id
-        ).join(Client, Client.id == Invoice.client_id).filter(
-            _clients(bu_id),
-            Invoice.status.in_(REVENUE_STATUSES),
-            Invoice.billing_period_start >= today.replace(day=1),
-        ).scalar() or 0
+        revenue_mtd = earned_revenue(db, start=today.replace(day=1), end=today, business_unit_ids={bu_id})
 
         active_projects = db.query(func.count(Project.id)).join(Client, Project.client_id == Client.id).filter(
             _clients(bu_id), Project.status.in_(LIVE_PROJECT_STATUSES),
@@ -86,14 +76,17 @@ class BUHeadDashboardService:
             _clients(bu_id), EmployeeAllocation.status == "ACTIVE",
         ).group_by(Project.id, Project.name).all()
 
-        team_count, utilized = len(team), len(team) - len(bench)
+        team_count, billable_count, utilized = len(team), len(snapshot["billable"]), len(snapshot["allocated"])
         return {
             "bu_name": bu.name,
             "team_size": {
                 "total": team_count,
+                "billable": billable_count,
+                "non_billable": len(snapshot["non_billable"]),
                 "utilized": utilized,
                 "bench": len(bench),
-                "utilization_percent": round(utilized / team_count * 100, 1) if team_count else 0,
+                # of billable people: internal staff are never "unutilized"
+                "utilization_percent": round(utilized / billable_count * 100, 1) if billable_count else 0,
             },
             "revenue": {
                 "mtd_usd": int(revenue_mtd // 100),

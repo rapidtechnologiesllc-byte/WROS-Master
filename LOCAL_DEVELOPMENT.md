@@ -24,7 +24,7 @@ For development when using VPN or if Docker networking is problematic.
 psql -U postgres -c "SELECT 1;"
 
 # Create development database
-psql -U postgres -c "CREATE USER app_user WITH PASSWORD 'P7kQmR9xL2wJnV5sT8pM';"
+psql -U postgres -c "CREATE USER app_user WITH PASSWORD '<local-db-password>';"
 psql -U postgres -c "CREATE DATABASE wros_dev OWNER app_user;"
 psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE wros_dev TO app_user;"
 
@@ -250,7 +250,7 @@ npm start
 Create `backend/.env`:
 
 ```bash
-DATABASE_URL=postgresql://app_user:P7kQmR9xL2wJnV5sT8pM@localhost:5432/wros_dev
+DATABASE_URL=postgresql://app_user:<local-db-password>@localhost:5432/wros_dev
 REDIS_URL=redis://localhost:6379/0
 ENVIRONMENT=development
 PYTHONUNBUFFERED=1
@@ -284,7 +284,7 @@ psql -U app_user -d wros_dev -c "SELECT 1;"
 psql -U postgres -l
 
 # Reset password if needed
-psql -U postgres -c "ALTER USER app_user WITH PASSWORD 'P7kQmR9xL2wJnV5sT8pM';"
+psql -U postgres -c "ALTER USER app_user WITH PASSWORD '<local-db-password>';"
 ```
 
 ### Redis Connection Issues
@@ -312,7 +312,7 @@ cat backend/.env
 # Test connection manually
 python -c "
 from sqlalchemy import create_engine
-engine = create_engine('postgresql://app_user:P7kQmR9xL2wJnV5sT8pM@localhost:5432/wros_dev')
+engine = create_engine('postgresql://app_user:<local-db-password>@localhost:5432/wros_dev')
 print(engine.connect())
 "
 

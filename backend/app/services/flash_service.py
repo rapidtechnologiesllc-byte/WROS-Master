@@ -43,30 +43,25 @@ access to financial data and BU only get their bu related not org
 wide" (Avinash, 2026-08-06) -- Flash is never a side-door around the
 RBAC the real dashboards already enforce.
 
-**2026-08-06, real architecture change, not just a docstring update**:
-this module made an external Gemini API call for intent classification
-until Avinash directly questioned it -- "why is it calling an external
-Gemini system and exposing our data when I explicitly asked you to
-build it entirely inside the WROS as our proprietary." Scope confirmed
-directly with him (not assumed): Flash's own intent classification,
-specifically -- rewritten to pure local regex/keyword matching, zero
-network calls, zero data ever leaves this process. See
-classify_internal_query()'s own docstring for the real trade-off this
-creates (more rigid than an LLM, needs recognizably-phrased questions).
-Thunder's own candidate-facing Gemini usage (reply generation,
-sentiment, resume parsing, etc.) is a separate, much larger system and
-is UNCHANGED by this -- that would be its own, much bigger decision,
-not made here.
+Intent classification: the rules in classify_internal_query() route the
+common phrasings with no model at all. A phrasing they miss goes to
+app.services.flash_brain.router (2026-10-15, CEO decision "hybrid"): the
+self-hosted small model, else Claude, may only pick one of AI_INTENTS and
+a short query -- it never answers. What reaches a model is redacted to
+work data first (flash_brain.redaction: no contact details, pay,
+documents or finance figures). The 2026-08-06 Gemini router is retired.
+With no brain configured (or FLASH_AGENT_ENABLED=false) the rules alone
+decide, exactly as before.
 
 Every answer is built from real DB rows -- there is no free-text LLM
-answer describing candidates, financials, or status, and (as of
-2026-08-06) no LLM call anywhere in this module at all. Anything
-outside the supported intents gets an explicit "I can't answer that
-yet" instead of an invented answer -- "strict mode," per Avinash's own
-words, same "no fake success" principle as the rest of this codebase.
+answer describing candidates, financials, or status. Anything outside the
+supported intents gets an explicit "I can't answer that yet" instead of an
+invented answer -- "strict mode," per Avinash's own words, same "no fake
+success" principle as the rest of this codebase.
 """
+from app.core.tenant_context import tenant_id_of
+from app.core.tenant_context import sole_tenant_id
 import logging
-import json
 import re
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -79,7 +74,7 @@ from app.models.candidate import Candidate, CandidateStatus
 from app.models.employee import Employee
 from app.models.business_unit import BusinessUnit
 from app.models.resource_management import BenchPoolEntry
-from app.models.user import Users
+from app.models.user import Jobs, Users
 from app.services.ar_followup_service import scan_overdue_invoices
 from app.services.pnl_service import get_bu_pnl, get_org_pnl_summary
 from app.services.task_service import get_daily_task_list
@@ -87,11 +82,16 @@ from app.services.task_service import get_daily_task_list
 INTENT_SOURCING = "sourcing"
 INTENT_CANDIDATE_STATUS = "candidate_status"
 INTENT_BENCH_AVAILABILITY = "bench_availability"
+INTENT_BENCH_COST = "bench_cost"
 INTENT_FINANCE_PNL = "finance_pnl"
 INTENT_AR_AGING = "ar_aging"
 INTENT_MY_TASKS = "my_tasks"
 INTENT_JOB_CREATE = "job_create"
 INTENT_MY_TIMESHEETS = "my_timesheets"
+INTENT_PIPELINE_SUMMARY = "pipeline_summary"
+INTENT_DECISIONS = "decisions"
+INTENT_MISSION_STATUS = "mission_status"
+INTENT_MISSION_CONTROL = "mission_control"
 INTENT_UNKNOWN = "unknown"
 
 # What the AI router may choose (it never answers -- every answer is a real DB lookup)
@@ -99,11 +99,15 @@ AI_INTENTS = {
     INTENT_SOURCING: "find candidates for a role or skills (query: the role/skills)",
     INTENT_CANDIDATE_STATUS: "where a named candidate is in hiring (query: the person's name)",
     INTENT_BENCH_AVAILABILITY: "who is on the bench / available (query: skills, may be empty)",
+    INTENT_BENCH_COST: "how much the bench is costing, bench loss (query: empty)",
     INTENT_FINANCE_PNL: "profit, margin or P&L (query: business unit name, may be empty)",
     INTENT_AR_AGING: "overdue or unpaid client invoices (query: empty)",
     INTENT_MY_TASKS: "the asker's own tasks (query: empty)",
     INTENT_MY_TIMESHEETS: "the asker's own timesheets or hours (query: empty)",
-    INTENT_JOB_CREATE: "create or open a new job (query: the job description)",
+    INTENT_JOB_CREATE: "create or open a new job, or a need for a new hire (query: the job description)",
+    INTENT_DECISIONS: "decisions or approvals waiting for the asker (query: empty)",
+    INTENT_MISSION_STATUS: "progress of Flash's own searches for jobs created in Flash (query: job title or client, may be empty)",
+    INTENT_PIPELINE_SUMMARY: "how many candidates are at each hiring stage, optionally for one client (query: client name, may be empty)",
 }
 
 UNSUPPORTED_QUERY_MESSAGE = (
@@ -127,7 +131,13 @@ PERMISSION_DENIED_FINANCE_MESSAGE = (
     "Finance Operations screen if you have it."
 )
 
+PERMISSION_DENIED_BENCH_MESSAGE = (
+    "I can't answer that -- who's on the bench is limited to people who can view employees. "
+    "Ask someone with access, or use the Bench screen if you have it."
+)
+
 MAX_CANDIDATES_RETURNED = 5
+BENCH_SCREEN_PATH = "/workforce/bench"
 
 # Backlog item, 2026-08-05 (wros_ask_thunder_bugs_and_memory_backlog):
 # Avinash -- "i ask a question to thunder and move to a different page
@@ -188,32 +198,57 @@ class ThunderQueryClassificationFailed(Exception):
 # patterns are checked most-specific-first so no category can shadow
 # another (e.g. "who's on the bench for the Java project" should hit
 # BENCH_AVAILABILITY, not SOURCING, even though both mention "Java").
-_FINANCE_PNL_PATTERN = re.compile(r"\b(margin|p\s*&\s*l|pnl|p\s+and\s+l|profit\w*)\b", re.IGNORECASE)
+_FINANCE_PNL_PATTERN = re.compile(
+    r"\b(margin|p\s*&\s*l|pnl|p\s+and\s+l|profit\w*|financials?|financially|revenue|making\s+money)\b", re.IGNORECASE)
 _AR_AGING_PATTERN = re.compile(
     r"(overdue|unpaid).{0,20}?invoices?|invoices?.{0,20}?(overdue|unpaid)|"
     r"accounts?\s+receivable|\bar\s+aging\b|who\s+owes",
     re.IGNORECASE,
 )
 _MY_TIMESHEETS_PATTERN = re.compile(r"\bmy\s+(time\s*sheets?|hours)\b|\b(did|have)\s+i\s+(submit|log)", re.IGNORECASE)
-_MY_TASKS_PATTERN = re.compile(r"\bmy\s+(open\s+)?tasks?\b|\bmy\s+plate\b|\bdue\s+today\b|\bmy\s+to.?do\b", re.IGNORECASE)
+_MY_TASKS_PATTERN = re.compile(
+    r"\bmy\s+(open\s+)?tasks?\b|\bmy\s+plate\b|\bdue\s+today\b|\bmy\s+to.?do\b|"
+    r"\bwhat\s+(do|should)\s+i\s+(need\s+to\s+)?(do|work\s+on)\b|\bon\s+my\s+(list|plate)\b", re.IGNORECASE)
+_BENCH_COST_PATTERN = re.compile(
+    r"\bbench\b.{0,40}\b(cost\w*|loss\w*|losing|spend\w*|burn\w*|expens\w*)\b|"
+    r"\b(cost\w*|loss\w*|losing|spend\w*|burn\w*)\b.{0,40}\bbench\b",
+    re.IGNORECASE,
+)
 _BENCH_PATTERN = re.compile(
-    r"\bbench\b|who.{0,4}s\s+free\b|who\s+is\s+free\b|available\s+(employee|developer|engineer|resource)",
+    r"\bbench\b|who.{0,4}s\s+free\b|\b(who|anyone|anybody|someone|somebody)\s+(is\s+)?free\b|"
+    r"\bavailable\b.{0,30}\b(employees?|developers?|engineers?|resources?|consultants?|people|staff|testers?|analysts?)\b",
     re.IGNORECASE,
 )
 _CANDIDATE_STATUS_PATTERN = re.compile(
-    r"how\W{0,4}s?\s+is\b.{0,60}\bdoing\b|status\s+(on|of)\b|pipeline\s+status\b",
+    r"how\W{0,4}s?\s+is\b.{0,60}\bdoing\b|status\s+(on|of)\b|pipeline\s+status\b|"
+    r"\bwhere\s+is\b.{0,40}\b(process|pipeline|hiring|interview)|\b(any\s+)?updates?\s+on\b",
     re.IGNORECASE,
 )
 _SOURCING_PATTERN = re.compile(
     r"\b(find|source)\s+me\b|need\s+a\s+candidate\b|candidate\s+for\b|looking\s+for\s+(a|an|someone)\b|"
     r"\bdo\s+(you|we)\s+have\b|\bdo\s+we\s+have\s+any\b|\bany\s+candidates?\b|\bis\s+there\s+a\s+candidate\b|"
-    r"\bwho\s+(do\s+we\s+have|has)\b",
+    r"\bwho\s+(do\s+we\s+have|has|can\s+do|knows)\b|\bcandidates?\s+(with|who\s+know)\b",
     re.IGNORECASE,
 )
 _JOB_CREATE_PATTERN = re.compile(
-    r"\b(create|post|open)\s+(a|an|new)?\s*(job|role|position)\b|"
+    r"\b(create|post|open)\s+(a|an|new)?\s*(job|role|position|req|requisition)\b|"
     r"\bneed\s+to\s+(create|post|open)\s+(a|an)?\s*(job|role|position)\b|"
-    r"\b(hire|hiring|recruiting)\s+for\b",
+    r"\b(hire|hiring|recruiting)\s+for\b|"
+    # "I need a Rails developer for ...": a role the user wants filled
+    r"\b(i|we)\s+(need|want)\s+(a|an|\d+)\s+[\w+#. -]{0,40}?\b(developer|engineer|architect|analyst|tester|consultant)s?\b",
+    re.IGNORECASE,
+)
+# Flash's own searches (missions): "status of my rails search", "my searches", "pause my rails search"
+_MISSION_STATUS_PATTERN = re.compile(
+    r"\b(?:status|progress|update)\s+(?:of|on)\s+(?:my|the|our)\s+(?P<q>.*?)\s*search\b|"
+    r"\bhow(?:'s|\s+is)\s+(?:my|the|our)\s+(?P<q2>.*?)\s*search\b|\bmy\s+(?:flash\s+)?searches\b",
+    re.IGNORECASE,
+)
+_MISSION_CONTROL_PATTERN = re.compile(
+    r"\b(?P<action>pause|resume|restart|cancel|stop)\s+(?:my|the|our)\s+(?P<q>.*?)\s*search\b", re.IGNORECASE)
+_DECISIONS_PATTERN = re.compile(
+    r"\b(pending|open|waiting)\s+(decisions?|approvals?)\b|\b(decisions?|approvals?)\b.{0,30}\b(waiting|pending|for\s+me)\b|"
+    r"\bwhat.{0,20}\b(waiting|pending)\b.{0,20}\b(on|for)\s+me\b",
     re.IGNORECASE,
 )
 # Simple proper-noun heuristic for candidate-name extraction: 1-3
@@ -222,7 +257,18 @@ _JOB_CREATE_PATTERN = re.compile(
 # doing"). Excludes single common sentence-starters that happen to be
 # capitalized (How/What/Who/etc.) by requiring the match not be the very
 # first word of the message.
-_PROPER_NOUN_PATTERN = re.compile(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b")
+# Capitalised words, including all-caps names such as business units ("AXION")
+_PROPER_NOUN_PATTERN = re.compile(r"\b[A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,2}\b")
+_BENCH_WORDS_PATTERN = re.compile(
+    r"\b(bench|available|free|who|whos|is|on|the|show|list|me|any|anyone|anybody|someone|somebody|knows?|people|staff|"
+    r"employees?|developers?|engineers?|resources?|consultants?|testers?|analysts?)\b|\bwho's\b",
+    re.IGNORECASE,
+)
+_PIPELINE_SUMMARY_PATTERN = re.compile(
+    r"\bhow\s+many\s+candidates\b|\bcandidates\s+(are\s+)?(in|at)\s+(the\s+)?\w+\s+stage\b|"
+    r"\bwhat.{0,4}s?\s+the\s+pipeline\b|\bpipeline\s+(for|of|summary)\b|\bhiring\s+funnel\b",
+    re.IGNORECASE,
+)
 _SENTENCE_STARTERS = {"How", "What", "Who", "Is", "Are", "Does", "Do", "Can", "Please"}
 _PRONOUN_PATTERN = re.compile(r"\b(her|him|them|she|he|they|that\s+(person|candidate))\b", re.IGNORECASE)
 # Temporal/filler words that aren't in _STOPWORDS (those are shared with
@@ -270,11 +316,27 @@ def classify_internal_query(message: str, *, history: Optional[List[Dict]] = Non
     """
     text = (message or "").strip()
 
+    if _BENCH_COST_PATTERN.search(text):  # before P&L: "bench cost" is the bench screen's question
+        return {"intent": INTENT_BENCH_COST, "query": ""}
+
     if _FINANCE_PNL_PATTERN.search(text):
         return {"intent": INTENT_FINANCE_PNL, "query": _extract_proper_noun(text)}
 
     if _AR_AGING_PATTERN.search(text):
         return {"intent": INTENT_AR_AGING, "query": ""}
+
+    control = _MISSION_CONTROL_PATTERN.search(text)
+    if control:
+        action = {"restart": "resume", "stop": "cancel"}.get(control.group("action").lower(),
+                                                              control.group("action").lower())
+        return {"intent": INTENT_MISSION_CONTROL, "query": control.group("q").strip(), "action": action}
+
+    mission = _MISSION_STATUS_PATTERN.search(text)
+    if mission:
+        return {"intent": INTENT_MISSION_STATUS, "query": (mission.group("q") or mission.group("q2") or "").strip()}
+
+    if _DECISIONS_PATTERN.search(text):
+        return {"intent": INTENT_DECISIONS, "query": ""}
 
     if _MY_TASKS_PATTERN.search(text):
         return {"intent": INTENT_MY_TASKS, "query": ""}
@@ -282,8 +344,14 @@ def classify_internal_query(message: str, *, history: Optional[List[Dict]] = Non
     if _MY_TIMESHEETS_PATTERN.search(text):
         return {"intent": INTENT_MY_TIMESHEETS, "query": ""}
 
+    if _PIPELINE_SUMMARY_PATTERN.search(text):
+        client = re.search(r"\b(?:client|for)\s+([A-Z][\w&.-]*(?:\s+[A-Z][\w&.-]*){0,3})", text)
+        return {"intent": INTENT_PIPELINE_SUMMARY, "query": client.group(1).strip() if client else ""}
+
     if _BENCH_PATTERN.search(text):
-        keywords = _extract_keywords(_NOISE_WORD_PATTERN.sub("", _BENCH_PATTERN.sub("", text)))
+        # keep the skill words ("QA"), drop only the bench/availability wording around them
+        stripped = _BENCH_WORDS_PATTERN.sub(" ", text)
+        keywords = _extract_keywords(_NOISE_WORD_PATTERN.sub("", stripped))
         return {"intent": INTENT_BENCH_AVAILABILITY, "query": " ".join(keywords)}
 
     # A pronoun ("her"/"him"/etc.) combined with a status-ish word
@@ -312,93 +380,22 @@ def _extract_keywords(text: str) -> List[str]:
     tokens = re.findall(r"[A-Za-z][A-Za-z0-9+.#]*", text or "")
     return [t for t in tokens if len(t) > 1 and t.lower() not in _STOPWORDS]
 
-def find_candidates_for_job(db: Session, job_id: str, *, top_n: int = MAX_CANDIDATES_RETURNED, tenant_id: int = 1, user_bu_id: Optional[int] = None) -> List[Dict]:
-    """
-    Find candidates matching a job's structured skill requirements using AND/OR boolean logic.
-    AND mode: all mandatory skills required
-    OR mode: any skill match counts
+def find_candidates_for_job(db: Session, job_id: str, *, top_n: int = MAX_CANDIDATES_RETURNED, tenant_id: Optional[int] = None, viewer: Optional[Users] = None) -> List[Dict]:
+    """The job's best-matching eligible candidates, from the one ranking rule
+    (job_candidate_ranking_service: tenant pool, the caller's BU scope, the 5-year
+    floor and the job's own minimum, normalised skills). Unknown job -> []."""
+    from app.services.job_candidate_ranking_service import rank_candidates_for_job
 
-    ISOLATION FIX: Filters by tenant_id (required) and user_bu_id (optional for BU scoping)
-    """
-    from app.models.user import Jobs
-    from sqlalchemy import or_ as sql_or
-
-    job = db.query(Jobs).filter(
-        Jobs.jobID == job_id,
-        Jobs.tenant_id == tenant_id  # TENANT ISOLATION FIX
-    ).first()
-    if not job or not job.required_skills_canonical:
+    job = db.query(Jobs).filter(Jobs.jobID == job_id, Jobs.tenant_id == tenant_id).first()
+    if job is None:
         return []
-
-    skills_required = job.required_skills_canonical
-    boolean_mode = job.job_skills_boolean_mode or "AND"
-
-    # ISOLATION FIX: Add tenant_id + BU filtering
-    query_filters = [
-        Candidate.tenant_id == tenant_id,  # TENANT ISOLATION
-        Candidate.candidateSkills.isnot(None),
-        Candidate.candidateExperience.isnot(None)
+    return [
+        {"candidate_id": r.candidate_id, "name": r.name, "score": r.score, "matched": r.matched,
+         "experience_months": r.experience_months}
+        for r in rank_candidates_for_job(db, job, viewer=viewer, limit=top_n)
     ]
 
-    # BU ISOLATION FIX: When user_bu_id is set, filter to that BU + unassigned
-    if user_bu_id:
-        query_filters.append(
-            sql_or(
-                Candidate.associated_bu_id.is_(None),  # Unassigned candidates
-                Candidate.associated_bu_id == user_bu_id  # Own BU
-            )
-        )
-    # If user_bu_id is None (admin), no BU filter - can see all
-
-    candidates = db.query(Candidate).filter(*query_filters).limit(500).all()
-
-    matched = []
-    for candidate in candidates:
-        candidate_skills = (candidate.candidateSkills or "").lower()
-        candidate_exp = candidate.candidateExperience or ""
-
-        if boolean_mode == "AND":
-            # All mandatory skills must match
-            matches_mandatory = all(
-                skill["name"].lower() in candidate_skills
-                for skill in skills_required if skill.get("mandatory", True)
-            )
-            if matches_mandatory:
-                # Check if experience meets minimum
-                try:
-                    years = int(candidate_exp.split()[0]) if candidate_exp else 0
-                    min_years = min((s.get("years", 0) for s in skills_required if s.get("mandatory")), default=0)
-                    if years >= min_years:
-                        matched.append({
-                            "candidate_id": candidate.candidateID,
-                            "name": f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
-                            "skills": candidate.candidateSkills,
-                            "experience": candidate_exp,
-                            "job_title": candidate.candidateJobTitle,
-                        })
-                except (ValueError, IndexError):
-                    if any(skill["name"].lower() in candidate_skills for skill in skills_required):
-                        matched.append({
-                            "candidate_id": candidate.candidateID,
-                            "name": f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
-                            "skills": candidate.candidateSkills,
-                            "experience": candidate_exp,
-                            "job_title": candidate.candidateJobTitle,
-                        })
-        else:  # OR mode
-            # At least one skill must match
-            if any(skill["name"].lower() in candidate_skills for skill in skills_required):
-                matched.append({
-                    "candidate_id": candidate.candidateID,
-                    "name": f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip(),
-                    "skills": candidate.candidateSkills,
-                    "experience": candidate_exp,
-                    "job_title": candidate.candidateJobTitle,
-                })
-
-    return matched[:top_n]
-
-def find_matching_candidates(db: Session, query_text: str, *, top_n: int = MAX_CANDIDATES_RETURNED, tenant_id: int = 1, user_bu_id: Optional[int] = None) -> List[Dict]:
+def find_matching_candidates(db: Session, query_text: str, *, top_n: int = MAX_CANDIDATES_RETURNED, tenant_id: Optional[int] = None, user_bu_id: Optional[int] = None) -> List[Dict]:
     """
     Real keyword-overlap search over the real Candidates table (skills,
     job title, experience text) -- not a fabricated ranking. Every
@@ -469,7 +466,7 @@ def find_matching_candidates(db: Session, query_text: str, *, top_n: int = MAX_C
         for c, score in scored[:top_n]
     ]
 
-def get_candidate_status_summary(db: Session, name_query: str, *, tenant_id: int = 1, user_bu_id: Optional[int] = None) -> Dict:
+def get_candidate_status_summary(db: Session, name_query: str, *, tenant_id: Optional[int] = None, user_bu_id: Optional[int] = None) -> Dict:
     """
     Real lookup by name against the real Candidates + CandidateStatus
     tables. Returns {"matches": [...]} -- zero, one, or several real
@@ -530,7 +527,7 @@ def get_candidate_status_summary(db: Session, name_query: str, *, tenant_id: int
         })
     return {"matches": matches}
 
-def find_available_bench_employees(db: Session, query_text: str, *, top_n: int = MAX_CANDIDATES_RETURNED) -> List[Dict]:
+def find_available_bench_employees(db: Session, user: Users, query_text: str, *, top_n: Optional[int] = None) -> List[Dict]:
     """
     Real read of resource_management_service's own bench pool table --
     no new data source, same "additive, not a replacement" posture as
@@ -538,24 +535,26 @@ def find_available_bench_employees(db: Session, query_text: str, *, top_n: int =
     the bench") returns the whole current pool, most-recently-benched
     first; a query_text filters by skill_tags/current_title overlap,
     same keyword-overlap technique find_matching_candidates() already
-    uses for candidates.
+    uses for candidates. Scoped like the bench screen: the caller's
+    tenant and the business units they can see.
     """
+    from app.core.data_scope import bu_filter
+
     entries = (
         db.query(BenchPoolEntry, Employee)
         .join(Employee, BenchPoolEntry.employee_id == Employee.id)
-        .order_by(BenchPoolEntry.created_at.desc())
-        .limit(200)
+        .filter(Employee.tenant_id == user.tenant_id, bu_filter(db, user, Employee.bu_id),
+                Employee.is_billable.is_(True))
+        .order_by(BenchPoolEntry.available_from.asc())
         .all()
     )
 
     keywords = _extract_keywords(query_text) if query_text else []
 
     def _skill_tags(entry: BenchPoolEntry) -> List[str]:
-        try:
-            return json.loads(entry.skill_tags) if entry.skill_tags else []
-        except (json.JSONDecodeError, TypeError) as exc:
-            logger.error(f"[Flash] Failed to parse skill_tags for bench entry {entry.id}: {exc}")
-            raise ValueError(f"Invalid JSON in skill_tags: {exc}")
+        from app.services.employee_service import skills_list
+
+        return skills_list(entry.skill_tags, entry.employee_id)
 
     results = []
     for entry, employee in entries:
@@ -576,7 +575,8 @@ def find_available_bench_employees(db: Session, query_text: str, *, top_n: int =
             "available_from": entry.available_from.isoformat() if entry.available_from else None,
         })
 
-    return results[:top_n]
+    # every match: the count Flash says must be the bench screen's count; the reply lists the first few
+    return results[:top_n] if top_n else results
 
 def _format_sourcing_reply(query_text: str, results: List[Dict]) -> str:
     if not results:
@@ -590,6 +590,71 @@ def _format_sourcing_reply(query_text: str, results: List[Dict]) -> str:
         for r in results
     ]
     return f"Found {len(results)} candidate(s) matching \"{query_text}\":\n" + "\n".join(lines)
+
+def get_bench_cost_answer(db: Session, user: Users) -> Dict:
+    """The bench screen's own totals (bench_service.bench_report), never a second calculation."""
+    from app.services.bench_service import bench_report
+
+    return bench_report(db, user)
+
+
+def _usd(cents: Optional[int]) -> str:
+    return "unknown" if cents is None else f"${cents / 100:,.0f}"
+
+
+def format_bench_cost_reply(report: Dict) -> str:
+    totals = report["totals"]
+    if not totals["people"]:
+        return f"Nobody you can see is on the bench right now. ({BENCH_SCREEN_PATH})"
+    head = (f"{totals['people']} people on the bench, {totals['bench_days']} bench days in total.")
+    if not report["financials_visible"]:
+        return head + f" Costs are limited to people who can see the P&L. Details: {BENCH_SCREEN_PATH}"
+    money = (f" Bench loss so far: {_usd(totals['bench_loss_usd_cents'])} (loaded payroll for their bench days, "
+             f"as the P&L books it), {_usd(totals['daily_cost_usd_cents'])} a day. While allocated they earned a "
+             f"margin of {_usd(totals['allocated_margin_usd_cents'])}; net {_usd(totals['net_usd_cents'])}.")
+    worst = [r for r in report["employees"][:3] if r["bench_loss_usd_cents"]]
+    top = ("\nLargest bench loss: " + "; ".join(f"{r['name']} {_usd(r['bench_loss_usd_cents'])} over {r['bench_days']} days"
+                                              for r in worst)) if worst else ""
+    gap = "" if report["cost_data_complete"] else " Some people have no salary or cost rate, so the cost is incomplete."
+    return head + money + gap + top + f"\nDetails: {BENCH_SCREEN_PATH}"
+
+
+def get_employee_status_summary(db: Session, user: Users, name_query: str) -> List[Dict]:
+    """Employees in the caller's scope whose name matches: where they stand (Workforce group,
+    allocation or days on the bench)."""
+    from app.core.data_scope import bu_filter
+    from app.services.bench_service import bench_since
+
+    keywords = _extract_keywords(name_query)
+    if not keywords:
+        return []
+    query = db.query(Employee).filter(Employee.tenant_id == user.tenant_id, bu_filter(db, user, Employee.bu_id),
+                                      Employee.status != "EXITED")
+    for kw in keywords:
+        query = query.filter(or_(Employee.first_name.ilike(f"%{kw}%"), Employee.last_name.ilike(f"%{kw}%")))
+    from app.models.employee_allocation import EmployeeAllocation
+
+    out = []
+    for e in query.limit(10).all():
+        active = db.query(EmployeeAllocation).filter(EmployeeAllocation.employee_id == e.id,
+                                                     EmployeeAllocation.status == "ACTIVE").all()
+        out.append({"name": f"{e.first_name} {e.last_name}".strip(), "status": e.status, "billable": bool(e.is_billable),
+                    "allocations": len(active),
+                    "bench_since": (bench_since(db, e).isoformat()
+                                    if e.is_billable and not active and e.status not in ("PRE_JOINING",) else None)})
+    return out
+
+
+def _format_employee_status_reply(name_query: str, people: List[Dict]) -> str:
+    if len(people) > 1:
+        return (f"I found more than one employee matching \"{name_query}\":\n"
+                + "\n".join(f"{i}. {p['name']}" for i, p in enumerate(people, start=1)) + "\nWhich one did you mean?")
+    p = people[0]
+    where = (f"on {p['allocations']} active allocation(s)" if p["allocations"]
+             else f"on the bench since {p['bench_since']}" if p["bench_since"]
+             else "internal staff (non-billable)" if not p["billable"] else "not joined yet")
+    return f"{p['name']} is an employee: status {p['status'].replace('_', ' ').lower()}, {where}."
+
 
 def _format_status_reply(name_query: str, matches: List[Dict]) -> str:
     if not matches:
@@ -742,292 +807,13 @@ def _format_bench_reply(query_text: str, results: List[Dict]) -> str:
         return f"No one is currently available {label}."
     lines = [
         f"- {r['name']} -- {r['current_title'] or 'no title on file'}; "
-        f"skills: {', '.join(r['skills']) or 'not on file'}; available since {r['available_from'] or 'unknown'}"
-        for r in results
+        f"skills: {', '.join(r['skills']) or 'not on file'}; on the bench since {r['available_from'] or 'unknown'}"
+        for r in results[:MAX_CANDIDATES_RETURNED]
     ]
-    return f"{len(results)} available {label}:\n" + "\n".join(lines)
-
-def _user_can_create_jobs(db: Session, user: Users) -> bool:
-    """Check if user has permission to create jobs (via RBAC)"""
-    from app.services.permission_helper import PermissionHelper
-    return PermissionHelper.has_any_permission(
-        user.UserID,
-        ["jobs.create"],
-        db,
-        user.tenant_id
-    )
-
-def _extract_job_details_from_history(history: Optional[List[Dict]]) -> Dict:
-    """Extract job creation details from conversation history"""
-    details = {
-        "oneliner": None,
-        "experience_level": None,
-        "is_remote": None,
-        "country": None,
-        "pay_amount": None,
-        "pay_rate_type": "$/Year",
-        "client": None,
-    }
-
-    if not history:
-        return details
-
-    # Parse previous exchanges to extract details
-    for turn in history[-5:]:  # Look back at last 5 turns
-        reply = str((turn or {}).get("reply") or "").lower()
-
-        # Extract experience level
-        if "year" in reply:
-            import re
-            exp_match = re.search(r"(\d+)(?:\s*[-–]\s*(\d+))?\s*years?", reply)
-            if exp_match:
-                details["experience_level"] = exp_match.group(0)
-
-        # Extract remote status
-        if "remote" in reply:
-            details["is_remote"] = "yes" in reply or "true" in reply or "remote" in reply
-
-        # Extract pay
-        if "$" in reply or "k" in reply:
-            import re
-            pay_match = re.search(r"\$?(\d+k?)", reply, re.IGNORECASE)
-            if pay_match:
-                details["pay_amount"] = pay_match.group(1)
-
-    return details
-
-def _get_next_job_question(details: Dict) -> tuple:
-    """Determine next question to ask based on collected details
-    Returns (question_text, field_name, response_type)"""
-
-    if details["oneliner"] is None:
-        return (
-            "Great! I'll help you create a job. First, briefly describe the role (e.g., 'Senior Java Developer with Spring Boot experience')",
-            "oneliner",
-            "text"
-        )
-
-    if details["experience_level"] is None:
-        return (
-            "What's the required experience level? (e.g., '5-7 years', 'Mid-level', 'Senior')",
-            "experience_level",
-            "text"
-        )
-
-    if details["is_remote"] is None:
-        return (
-            "Is this a remote role? (yes/no)",
-            "is_remote",
-            "boolean"
-        )
-
-    if details["is_remote"] and details["country"] is None:
-        return (
-            "Which country is this remote role for? (e.g., 'USA', 'India', 'Canada')",
-            "country",
-            "text"
-        )
-
-    if details["pay_amount"] is None:
-        return (
-            "What's the pay rate? (e.g., '150000', '150k' for annual, or '75/hour' for hourly)",
-            "pay_amount",
-            "text"
-        )
-
-    if details["client"] is None:
-        return (
-            "Who is the client/company? (e.g., 'Internal', 'Acme Corp')",
-            "client",
-            "text"
-        )
-
-    if "skills" not in details or details["skills"] is None:
-        return (
-            "What skills are required? (Format: 'Skill Name:Years:Mandatory' e.g., 'Java:5:yes, Spring Boot:3:yes, Docker:2:no')",
-            "skills",
-            "text"
-        )
-
-    return (None, None, None)
-
-def _handle_job_creation(db: Session, user: Users, oneliner: str, history: Optional[List[Dict]], conversation_state: Optional[Dict] = None) -> Dict:
-    """Handle conversational job creation flow"""
-    # Use conversation state if provided, otherwise extract from history
-    if conversation_state:
-        details = conversation_state.copy()
-    else:
-        details = _extract_job_details_from_history(history)
-
-    # If we have a one-liner from the initial message, use it
-    if oneliner:
-        details["oneliner"] = oneliner
-
-    # Determine next question to ask
-    next_q, field_name, q_type = _get_next_job_question(details)
-
-    if next_q is None:
-        # All details collected, create the job
-        return _create_job_from_details(db, user, details)
-
-    # Return next question
-    return {
-        "intent": INTENT_JOB_CREATE,
-        "reply": next_q,
-        "requires_response": True,
-        "expected_field": field_name,
-        "response_type": q_type,
-        "conversation_state": details
-    }
-
-def _parse_skills_from_string(skills_str: str) -> list:
-    """Parse skills string into structured format
-    Input: 'Java:5:yes, Spring Boot:3:yes, Docker:2:no'
-    Output: [{"name": "Java", "years": 5, "mandatory": True}, ...]
-    """
-    if not skills_str:
-        return []
-
-    skills = []
-    try:
-        for skill_part in skills_str.split(","):
-            parts = [p.strip() for p in skill_part.strip().split(":")]
-            if len(parts) >= 3:
-                name, years_str, mandatory_str = parts[0], parts[1], parts[2]
-                try:
-                    years = int(years_str)
-                    mandatory = mandatory_str.lower() in ("yes", "true", "1", "mandatory")
-                    skills.append({
-                        "name": name,
-                        "years": years,
-                        "mandatory": mandatory
-                    })
-                except ValueError:
-                    continue
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        logger.warning(f"Failed to parse skills string: {e}")
-
-    return skills if skills else [{"name": skill_str.strip(), "years": 0, "mandatory": True} for skill_str in skills_str.split(",")]
-
-def _create_job_from_details(db: Session, user: Users, details: Dict) -> Dict:
-    """Create a job from collected details and assign to recruiter"""
-    try:
-        from app.services.recruiter_assignment_service import assign_to_recruiter_roundrobin
-        from app.utils.uniq_id_generator import job_id_generator
-        from app.models.user import Jobs
-        from datetime import datetime
-
-        # Extract job title from oneliner
-        job_title = details["oneliner"].split(" ")[0] if details["oneliner"] else "Job"
-
-        # Parse skills into structured format
-        skills_str = details.get("skills", "")
-        structured_skills = _parse_skills_from_string(skills_str)
-
-        # Determine boolean mode: if any skill is optional, use OR, otherwise use AND
-        boolean_mode = "OR" if any(not s.get("mandatory", True) for s in structured_skills) else "AND"
-
-        # Create the job
-        job = Jobs(
-            jobID=job_id_generator(),
-            jobTitle=job_title,
-            jobDescription=details["oneliner"],  # Will be expanded later
-            jobSkills=details.get("skills", ""),  # Free text for backward compatibility
-            jobExperience=details.get("experience_level", ""),
-            jobLocation=details.get("country", "Remote"),
-            salaryRange=details.get("pay_amount", ""),
-            companyType="Full time",  # Default, can be updated
-            companyName=details.get("client", ""),
-            hiringManagerID=user.UserID,
-            # Job approval flow is disabled: every new job is published active
-            jobStatus="active",
-            required_skills_canonical=structured_skills,
-            job_skills_boolean_mode=boolean_mode,
-            jobCreatedAt=datetime.utcnow(),
-        )
-
-        db.add(job)
-        db.flush()  # Flush to get the job ID
-
-        # Assign to recruiter via round-robin
-        recruiter = assign_to_recruiter_roundrobin(db)
-
-        if recruiter:
-            job.recuriterID = recruiter.UserID  # the jobs table's recruiter column
-
-        db.commit()
-        from app.services.recruiting_service import start_recruiting
-
-        start_recruiting(job, "created in Flash chat")
-        return {
-            "intent": INTENT_JOB_CREATE,
-            "reply": f"✓ Job created successfully! Job ID: {job.jobID}\nAssigned to recruiter: {recruiter.UserName if recruiter else 'Pending'}",
-            "job_id": job.jobID
-        }
-
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        logger.error(f"[Flash] Job creation failed: {e}")
-        db.rollback()
-        return {
-            "intent": INTENT_JOB_CREATE,
-            "reply": f"Sorry, I couldn't create the job. Error: {str(e)[:100]}"
-        }
-
-AI_ROUTER_TIMEOUT_SECONDS = 8
-
-
-def _ai_llm_call(system_prompt: str, user_prompt: str, max_tokens: int, temperature: float) -> str:
-    import os
-
-    import requests
-
-    from app.services.prompt_framework_service import GEMINI_MODEL_URL
-
-    api_key = os.getenv("GEMINI_API_KEY", "")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY not set")
-    resp = requests.post(f"{GEMINI_MODEL_URL}?key={api_key}", timeout=AI_ROUTER_TIMEOUT_SECONDS, json={
-        "contents": [{"parts": [{"text": f"{system_prompt}\n\n{user_prompt}"}]}],
-        "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens,
-                             "responseMimeType": "application/json"}})
-    resp.raise_for_status()
-    return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-
-
-def classify_with_ai(db: Session, message: str, *, history: Optional[List[Dict]] = None,
-                     tenant_id: Optional[int] = None, llm_call=None) -> Optional[Dict]:
-    """For phrasings the rules don't recognise: the model may only pick one of AI_INTENTS
-    and extract a short query. Returns None when it can't (no key, timeout, bad output),
-    so the caller falls back to the honest "unsupported" reply -- never a guessed answer."""
-    import os
-
-    from app.services.prompt_framework_service import call_llm
-
-    if llm_call is None and _ai_llm_call.__module__ == __name__ and not os.getenv("GEMINI_API_KEY"):
-        return None  # no model configured: the rules alone decide
-    intents = "\n".join(f"- {name}: {desc}" for name, desc in AI_INTENTS.items())
-    recent = "\n".join(f"Q: {t.get('question', '')}\nA: {t.get('reply', '')[:200]}"
-                       for t in (history or [])[-MAX_HISTORY_TURNS:])
-    system_prompt = (
-        "You route questions for BlitzenX's internal staffing assistant. You never answer them. "
-        "Reply with JSON only: {\"intent\": <one of the names below or \"unknown\">, \"query\": <short text>}.\n"
-        f"Intents:\n{intents}")
-    user_prompt = (f"Recent conversation:\n{recent}\n\n" if recent else "") + f"Question: {message}"
-    try:
-        raw = call_llm(db, str(tenant_id or 1), None, "flash_intent", "v1", system_prompt, user_prompt, 80, 0.0,
-                       llm_call=llm_call or _ai_llm_call, sleep_fn=lambda _seconds: None)
-        parsed = json.loads(re.sub(r"^```(?:json)?|```$", "", raw.strip()).strip())
-    except Exception as exc:
-        logger.warning(f"[Flash] AI routing unavailable: {exc}")
-        return None
-    intent = parsed.get("intent") if isinstance(parsed, dict) else None
-    if intent not in AI_INTENTS:
-        return None
-    query = str(parsed.get("query") or "")[:200].strip()
-    return {"intent": intent, "query": query, "routed_by": "ai"}
-
+    more = len(results) - MAX_CANDIDATES_RETURNED
+    tail = f"\n...and {more} more on the bench screen ({BENCH_SCREEN_PATH})." if more > 0 else \
+        f"\nDetails: {BENCH_SCREEN_PATH}"
+    return f"{len(results)} available {label} (longest on the bench first):\n" + "\n".join(lines) + tail
 
 def get_my_timesheets_answer(db: Session, user: Users) -> Dict:
     from app.models.employee_allocation import EmployeeAllocation
@@ -1056,8 +842,50 @@ def _format_my_timesheets_reply(result: Dict) -> str:
     return "Your recent timesheets:\n" + "\n".join(lines)
 
 
+def get_pipeline_summary(db: Session, user: Users, client_query: str = "") -> Dict:
+    """Candidates per hiring stage the user may see (same business-unit scope as the candidate
+    screens), optionally only those on one client's jobs."""
+    from sqlalchemy import func as sql_func
+
+    from app.core.bu_scope import apply_bu_scope_to_candidate_query
+    from app.models.candidate import CandidateStatus
+    from app.models.client import Client
+
+    query = db.query(Candidate).filter(Candidate.tenant_id == tenant_id_of(user))
+    query = apply_bu_scope_to_candidate_query(db, query, user)
+    client = None
+    if client_query:
+        client = db.query(Client).filter(Client.tenant_id == tenant_id_of(user),
+                                         sql_func.lower(Client.company_name).like(f"%{client_query.lower()}%")).first()
+        if client is None:
+            return {"client_query": client_query, "client": None, "stages": {}, "total": 0}
+        job_ids = [j for (j,) in db.query(Jobs.jobID).filter(Jobs.client_id == client.id)]
+        query = query.filter(Candidate.job_id.in_(job_ids or [""]))
+    ids = [c for (c,) in query.with_entities(Candidate.candidateID)]
+    stages: Dict[str, int] = {}
+    if ids:
+        for stage, count in (db.query(CandidateStatus.piplineStatus, sql_func.count(CandidateStatus.id))
+                             .filter(CandidateStatus.candidateID.in_(ids))
+                             .group_by(CandidateStatus.piplineStatus).all()):
+            stages[stage or "Not started"] = count
+    return {"client_query": client_query, "client": client.company_name if client else None,
+            "stages": stages, "total": len(ids)}
+
+
+def _format_pipeline_summary(result: Dict) -> str:
+    if result["client_query"] and result["client"] is None:
+        return f"I couldn't find a client matching \"{result['client_query']}\"."
+    scope = f" for {result['client']}" if result["client"] else ""
+    if not result["total"]:
+        return f"There are no candidates in the pipeline{scope} that you can see."
+    lines = [f"Pipeline{scope}: {result['total']} candidate(s)."]
+    lines += [f"- {stage}: {count}" for stage, count in sorted(result["stages"].items(), key=lambda kv: -kv[1])]
+    return "\n".join(lines)
+
+
 def answer_internal_query(
-    db: Session, message: str, *, current_user: Optional[Users] = None, history: Optional[List[Dict]] = None, conversation_state: Optional[Dict] = None,
+    db: Session, message: str, *, current_user: Optional[Users] = None, history: Optional[List[Dict]] = None,
+    brains=None,
 ) -> Dict:
     """
     Full turn: classify -> real DB lookup -> deterministic, honest
@@ -1082,7 +910,13 @@ def answer_internal_query(
         return {"intent": INTENT_UNKNOWN, "reply": UNSUPPORTED_QUERY_MESSAGE}
 
     if classification["intent"] == INTENT_UNKNOWN:
-        routed = classify_with_ai(db, message, history=history, tenant_id=getattr(current_user, "tenant_id", None))
+        from app.services.flash_brain.llm import get_brains
+        from app.services.flash_brain.router import route_intent
+
+        brains = brains if brains is not None else get_brains()
+        tenant_id = getattr(current_user, "tenant_id", None) or sole_tenant_id(db)
+        routed = route_intent(brains, message, intents=AI_INTENTS, history=(history or [])[-MAX_HISTORY_TURNS:],
+                              tenant_id=tenant_id)
         if routed is not None:
             classification = routed
 
@@ -1098,7 +932,7 @@ def answer_internal_query(
         if not query:
             return {"intent": intent, "reply": UNSUPPORTED_QUERY_MESSAGE}
         # ISOLATION FIX: Pass tenant_id + user_bu_id for data isolation
-        tenant_id = getattr(current_user, 'tenant_id', 1) if current_user else 1
+        tenant_id = tenant_id_of(current_user)
         user_bu_id = getattr(current_user, 'business_unit_id', None) if current_user else None
         results = find_matching_candidates(db, query, tenant_id=tenant_id, user_bu_id=user_bu_id)
         return {"intent": intent, "reply": _format_sourcing_reply(query, results)}
@@ -1107,16 +941,41 @@ def answer_internal_query(
         if not query:
             return {"intent": intent, "reply": UNSUPPORTED_QUERY_MESSAGE}
         # ISOLATION FIX: Pass tenant_id + user_bu_id for data isolation
-        tenant_id = getattr(current_user, 'tenant_id', 1) if current_user else 1
+        tenant_id = tenant_id_of(current_user)
         user_bu_id = getattr(current_user, 'business_unit_id', None) if current_user else None
         status = get_candidate_status_summary(db, query, tenant_id=tenant_id, user_bu_id=user_bu_id)
+        if not status["matches"] and current_user is not None:
+            # imported staff have no candidate record: answer from the employee record
+            from app.core import authority
+
+            if authority.has_permission(db, current_user, "employees.view"):
+                people = get_employee_status_summary(db, current_user, query)
+                if people:
+                    return {"intent": intent, "reply": _format_employee_status_reply(query, people)}
         return {"intent": intent, "reply": _format_status_reply(query, status["matches"])}
+
+    if intent == INTENT_PIPELINE_SUMMARY:
+        if current_user is None:
+            return {"intent": intent, "reply": UNSUPPORTED_QUERY_MESSAGE}
+        return {"intent": intent, "reply": _format_pipeline_summary(get_pipeline_summary(db, current_user, query))}
+
+    if intent == INTENT_BENCH_COST:
+        from app.core import authority
+
+        if current_user is None or not authority.has_permission(db, current_user, "workforce-overview.view"):
+            return {"intent": intent, "reply": PERMISSION_DENIED_BENCH_MESSAGE}
+        return {"intent": intent, "reply": format_bench_cost_reply(get_bench_cost_answer(db, current_user))}
 
     if intent == INTENT_BENCH_AVAILABILITY:
         # Unlike SOURCING/CANDIDATE_STATUS, an empty query is valid here
         # ("who's on the bench" with no skill filter) -- never treated
         # as unsupported.
-        results = find_available_bench_employees(db, query)
+        # Same permission as the bench screen (employees.view), and its tenant + BU scope
+        from app.core import authority
+
+        if current_user is None or not authority.has_permission(db, current_user, "employees.view"):
+            return {"intent": intent, "reply": PERMISSION_DENIED_BENCH_MESSAGE}
+        results = find_available_bench_employees(db, current_user, query)
         return {"intent": intent, "reply": _format_bench_reply(query, results)}
 
     if intent in (INTENT_FINANCE_PNL, INTENT_AR_AGING, INTENT_MY_TASKS) and current_user is None:
@@ -1137,15 +996,35 @@ def answer_internal_query(
         tasks = get_my_tasks_answer(db, current_user)
         return {"intent": intent, "reply": _format_my_tasks_reply(tasks)}
 
-    if intent == INTENT_JOB_CREATE:
+    if intent in (INTENT_MISSION_STATUS, INTENT_MISSION_CONTROL):
+        from app.core import authority
+        from app.services import flash_mission_service
+
+        if current_user is None or not authority.has_permission(db, current_user, "jobs.view"):
+            return {"intent": intent, "reply": "You don't have permission to see jobs."}
+        if intent == INTENT_MISSION_STATUS:
+            return {"intent": intent, "reply": flash_mission_service.status_reply(db, current_user, query)}
+        return {"intent": intent, "reply": flash_mission_service.control_by_query(
+            db, current_user, classification.get("action") or "pause", query)}
+
+    if intent == INTENT_DECISIONS:
         if current_user is None:
-            return {"intent": intent, "reply": "You must be logged in to create jobs."}
+            return {"intent": intent, "reply": UNSUPPORTED_QUERY_MESSAGE}
+        from app.services.flash_brain.decisions import pending_decisions
 
-        # Check if user has permission to create jobs (HR Manager or Admin)
-        if not _user_can_create_jobs(db, current_user):
-            return {"intent": intent, "reply": "You don't have permission to create jobs. Contact HR."}
+        decisions = pending_decisions(db, current_user)
+        if not decisions:
+            return {"intent": intent, "reply": "Nothing is waiting for your decision."}
+        return {"intent": intent, "reply": f"{len(decisions)} decision(s) waiting for you:\n"
+                + "\n".join(f"- {d.text}" for d in decisions)}
 
-        # Handle job creation conversational flow
-        return _handle_job_creation(db, current_user, query, history, conversation_state)
+    if intent == INTENT_JOB_CREATE:
+        # The job_intake workflow (flash_brain.job_intake) takes over: Flash asks for what is
+        # missing, confirms in one line and creates the job through job_creation_service.
+        from app.core import authority
+
+        if current_user is None or not authority.has_permission(db, current_user, "jobs.create"):
+            return {"intent": intent, "reply": "You don't have permission to create jobs."}
+        return {"intent": intent, "reply": "Let's set up the job.", "open_workflow": "job_intake"}
 
     return {"intent": INTENT_UNKNOWN, "reply": UNSUPPORTED_QUERY_MESSAGE}

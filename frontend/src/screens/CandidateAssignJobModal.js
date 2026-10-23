@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { FileText, AlertCircle, CheckCircle, X } from "lucide-react";
 import { Button, Card } from "../components/ui";
-import { assignMultipleJobs, getAllJobs, submitCandidateToJob } from "../services/api/jobs";
+import { assignJob, getAllJobs, submitCandidateToJob } from "../services/api/jobs";
+import { getSubmissionReadiness } from "../services/api/submissions";
 import { getUserDetails, createHrAssignment } from "../services/api/users";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
 import {
   createCandidateHistoryEvent,
   HISTORY_EVENT_TYPES,
 } from "../services/api/candidateHistory";
-import { Select } from "antd";
 import {
   Label,
   SelectWrapper,
@@ -36,7 +36,6 @@ const INITIAL_FORM_STATE = {
   recruitedBy: "",
   primarySales: "",
   contactPerson: "",
-  positionType: "",
   quotedBillRate: "",
   quotedBillRateType: "$/Hour",
   agreedBillRate: "",
@@ -44,20 +43,11 @@ const INITIAL_FORM_STATE = {
   agreedPayRate: "",
   agreedPayRateType: "$/Hour",
   agreedOn: getTodayDate(),
-  corpToCorp: "",
   selectedCv: "",
   internalNotes: "",
   notifyCandidate: false,
   notifyPrimarySales: false,
 };
-const INITIAL_UDF_STATE = {
-  govtIdType: "",
-  govtIdNumber: "",
-  previousOrganization: "",
-  relevantExperience: "",
-  noticePeriod: "",
-};
-
 const TIME_ZONE_OPTIONS = [
   "Asia/Kolkata",
   "UTC",
@@ -67,13 +57,8 @@ const TIME_ZONE_OPTIONS = [
   "Asia/Singapore",
 ];
 
-const POSITION_TYPE_OPTIONS = [
-  "Full Time",
-  "Contract",
-  "Contract To Hire",
-  "Corp To Corp",
-  "W2",
-];
+// No position-type / corp-to-corp pickers: the candidate's employment type is a profile fact
+// checked against their country at submission (employment_type_policy); C2C is never accepted
 const RATE_TYPE_OPTIONS = [
   { label: "$/Hour", value: "$/Hour" },
   { label: "$/Day", value: "$/Day" },
@@ -85,50 +70,23 @@ const RATE_TYPE_OPTIONS = [
   { label: "INR/Monthly", value: "INR/Monthly" },
 ];
 const CV_OPTIONS = ["Default Resume", "Updated Resume", "Client Resume"];
+// apiRequest throws an Error whose message already joins every blocker the backend
+// returned (client.js formatApiErrorMessage). 409 also means "job not open" or
+// "job has no client", so only the duplicate gets the friendly wording.
 const getSubmitJobErrorMessage = (error) => {
-  const statusCode = error?.response?.status;
-
-  const backendMessage =
-    error?.response?.data?.detail ||
-    error?.response?.data?.message ||
-    error?.message ||
-    "";
-
-  const isAlreadyAssigned =
-    statusCode === 409 ||
-    backendMessage?.toLowerCase()?.includes("already assigned");
-
-  if (isAlreadyAssigned) {
+  const message = error?.message || "";
+  if (error?.status === 409 && message.toLowerCase().includes("already submitted")) {
     return "This candidate is already submitted to the selected job.";
   }
-
-  return backendMessage || "Unable to submit the candidate to this job.";
+  return message || "Unable to submit the candidate to this job.";
 };
-const CandidateAssignJobModal = ({
+const CandidateAssignJobModalBody = ({
   onClose,
   candidateDetails,
   selectedJob: preSelectedJob,
   allCandidates = [],
   onAssignSuccess,
 }) => {
-  // Permission Gate: Only users with jobs.edit can assign candidates to jobs
-  if (!hasPermission('jobs', 'edit')) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div className="bg-white rounded-lg p-6 max-w-md">
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Access Denied</h2>
-          <p className="text-gray-600 mb-4">You do not have permission to assign candidates to jobs.</p>
-          <button
-            onClick={onClose}
-            className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const isJobWorkspaceFlow = Boolean(preSelectedJob?.id);
   const [jobs, setJobs] = useState([]);
   const [selectedJobId, setSelectedJobId] = useState("");
@@ -149,30 +107,28 @@ const CandidateAssignJobModal = ({
   }, [preSelectedJob]);
 
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
-  const [showUdfModal, setShowUdfModal] = useState(false);
-  const [udfData, setUdfData] = useState(INITIAL_UDF_STATE);
-  const [isLoadingJobs, setIsLoadingJobs] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
-  const [hrOptions, setHrOptions] = useState([]);
   const [selectedHr1Id, setSelectedHr1Id] = useState("");
-  const [selectedHr2Id, setSelectedHr2Id] = useState("");
   const [contactPersonOptions, setContactPersonOptions] = useState([]);
   const [actionError, setActionError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
-
-  // Auto-load unique UDF fields with candidate information (non-overlapping fields only)
+  // What this button does for the candidate now (CEO 2026-10-14): before the bench they are
+  // submitted to the job (the hiring pipeline starts); a bench employee is submitted to the
+  // client; anyone else sees what blocks them. Re-checked whenever the job or candidate changes.
+  const [readiness, setReadiness] = useState(null);
   useEffect(() => {
-    if (candidateDetails && showUdfModal) {
-      setUdfData((prev) => ({
-        ...prev,
-        relevantExperience: candidateDetails?.candidate_relevant_experience || "",
-        govtIdType: candidateDetails?.candidate_govt_id_type || "",
-        govtIdNumber: candidateDetails?.candidate_govt_id_number || "",
-        previousOrganization: candidateDetails?.candidate_previous_organization || "",
-        noticePeriod: candidateDetails?.candidate_notice_period || "",
-      }));
-    }
-  }, [candidateDetails, showUdfModal]);
+    let live = true;
+    setReadiness(null);
+    if (!candidateId || !selectedJobId) return undefined;
+    getSubmissionReadiness(candidateId, selectedJobId)
+      .then((r) => live && setReadiness(r))
+      .catch((err) => live && setActionError(`Could not check the candidate: ${err.message}`));
+    return () => {
+      live = false;
+    };
+  }, [candidateId, selectedJobId]);
+  const submitsToClient = readiness?.action === "SUBMIT_TO_CLIENT";
+  const actionLabel = submitsToClient ? "Submit to Client" : "Submit to Job";
 
   const jobOptions = useMemo(() => {
     return jobs?.map((job) => {
@@ -213,22 +169,8 @@ const CandidateAssignJobModal = ({
                            selectedJob?.contact_person ||
                            "";
 
-      // Get Hiring Manager
-      const hiringManager = selectedJob?.hiring_manager_name ||
-                           selectedJob?.hiringManager ||
-                           selectedJob?.hiring_manager ||
-                           "";
 
-      // Get Department
-      const department = selectedJob?.dept ||
-                        selectedJob?.department_name ||
-                        selectedJob?.department ||
-                        "";
 
-      // Get Hiring Team (could be comma-separated)
-      const hiringTeam = selectedJob?.hiring_team ||
-                        selectedJob?.hiringTeam ||
-                        "";
 
       // Parse pay information from job
       let payAmount = "";
@@ -291,42 +233,35 @@ const CandidateAssignJobModal = ({
     }
   }, [selectedJob]);
 
+  const defaultHrUserId = (preSelectedJob || selectedJob)?.contactPerson;
   useEffect(() => {
     let isMounted = true;
 
     const fetchDefaultHr = async () => {
-      const activeJob = preSelectedJob || selectedJob;
-      const hrUserId = activeJob?.contactPerson;
-      if (!hrUserId) return;
+      if (!defaultHrUserId) return;
       try {
-        const response = await getUserDetails(hrUserId);
+        const response = await getUserDetails(defaultHrUserId);
 
         if (!isMounted) return;
 
-        const option = {
-          label: response?.user_name || response?.user_email || "Assigned HR",
-          value: response?.user_id,
-        };
-
-        setHrOptions([option]);
         setSelectedHr1Id(response?.user_id ?? "");
       } catch (error) {
+        // shown in the modal: a rejection thrown out of an effect reaches no handler
         console.error("Failed to load HR details", error);
-        throw new Error(`Failed to fetch HR details: ${error.message}`);
+        if (isMounted) setActionError(`Failed to fetch HR details: ${error.message}`);
       }
     };
     fetchDefaultHr();
     return () => {
       isMounted = false;
     };
-  }, [preSelectedJob?.contactPerson, selectedJob?.contactPerson]);
+  }, [defaultHrUserId]);
 
   useEffect(() => {
     let isMounted = true;
 
     const fetchJobs = async () => {
       try {
-        setIsLoadingJobs(true);
         setActionError(null);
 
         const response = await getAllJobs();
@@ -344,10 +279,6 @@ const CandidateAssignJobModal = ({
         if (isMounted) {
           setActionError("Failed to load jobs");
         }
-      } finally {
-        if (isMounted) {
-          setIsLoadingJobs(false);
-        }
       }
     };
 
@@ -356,55 +287,13 @@ const CandidateAssignJobModal = ({
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [preSelectedJob?.id]);
 
   const updateFormField = (field, value) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
     }));
-  };
-  const updateUdfField = (field, value) => {
-    setUdfData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
-  const buildUdfPayload = () => ({
-    govt_id_type: udfData?.govtIdType || null,
-    govt_id_number: udfData?.govtIdNumber?.trim() || null,
-    previous_organization: udfData?.previousOrganization?.trim() || null,
-    relevant_experience: udfData?.relevantExperience?.trim() || null,
-    notice_period: udfData?.noticePeriod?.trim() || null,
-  });
-  const buildSubmitActivityPayload = () => {
-    return {
-      candidate_id: candidateDetails?.id,
-      candidate_name:
-        candidateDetails?.name ||
-        `${candidateDetails?.first_name || ""} ${
-          candidateDetails?.last_name || ""
-        }`.trim(),
-      job_id: selectedJob?.id || selectedJob?.job_id || selectedJobId,
-      job_title: selectedJob?.title || selectedJob?.job_title || "",
-      submit_to: formData?.submitTo,
-      submittal_date: formData?.submittalDate,
-      submittal_time: formData?.submittalTime,
-      timezone: formData?.timeZone,
-      recruited_by: formData?.recruitedBy,
-      primary_sales: formData?.primarySales,
-      contact_person: formData?.contactPerson,
-      position_type: formData?.positionType,
-      quoted_bill_rate: formData?.quotedBillRate,
-      agreed_bill_rate: formData?.agreedBillRate,
-      agreed_pay_rate: formData?.agreedPayRate,
-      agreed_on: formData?.agreedOn,
-      corp_to_corp: formData?.corpToCorp,
-      selected_cv: formData?.selectedCv,
-      internal_notes: formData?.internalNotes,
-      notify_candidate: formData?.notifyCandidate,
-      notify_primary_sales: formData?.notifyPrimarySales,
-    };
   };
   const isEmptyValue = (value) => !String(value ?? "").trim();
 
@@ -513,15 +402,14 @@ const CandidateAssignJobModal = ({
     setActionSuccess(null);
     try {
       setIsAssigning(true);
-      // Call the correct /submissions endpoint
-      const result = await submitCandidateToJob(
-        candidateId,
-        selectedJobId,
-      );
-      if (result?.response?.status === 200 || result?.data?.id) {
+      // a bench employee goes to the client; anyone before the bench goes onto the job
+      const result = submitsToClient
+        ? await submitCandidateToJob(candidateId, selectedJobId)
+        : { response: await assignJob(selectedJobId, candidateId, {}) };
+      if (result?.response?.ok || result?.data?.id) {
         const performedBy =
           localStorage?.getItem?.("hrms_user_name") || "HR User";
-        const historyNote = `Candidate submitted to ${
+        const historyNote = `Candidate submitted to ${submitsToClient ? "the client for " : ""}${
           selectedJob?.title || selectedJob?.job_title || "selected job"
         }.`;
         const appliedDateTime =
@@ -540,10 +428,10 @@ const CandidateAssignJobModal = ({
           await createHrAssignment({
             candidate_id: candidateId,
             hr1_id: selectedHr1Id,
-            hr2_id: selectedHr2Id || "",
+            hr2_id: "",
           });
         }
-        setActionSuccess("Job submitted successfully ✅");
+        setActionSuccess(submitsToClient ? "Submitted to the client ✅" : "Submitted to the job ✅");
         await onAssignSuccess?.();
         onClose?.();
         return;
@@ -564,7 +452,7 @@ const CandidateAssignJobModal = ({
     >
       <div className="my-4 w-full max-w-7xl xl:my-0">
         <Card
-          title="Submit Job"
+          title={actionLabel}
           icon={<FileText className="h-4 w-4" />}
           bodyClassName="p-0"
           right={
@@ -794,17 +682,6 @@ const CandidateAssignJobModal = ({
               </SectionCard>
 
               <SectionCard title="Pay">
-                <FormSelect
-                  label="Position Type"
-                  value={formData?.positionType}
-                  onChange={(value) => updateFormField("positionType", value)}
-                  options={POSITION_TYPE_OPTIONS?.map((type) => ({
-                    label: type,
-                    value: type,
-                  }))}
-                  disabled={isAssigning}
-                />
-
                 <RateField
                   label="Quoted Bill Rate"
                   value={formData?.quotedBillRate}
@@ -852,30 +729,6 @@ const CandidateAssignJobModal = ({
                   disabled={isAssigning}
                 />
 
-                <div className="mt-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
-                  <FormSelect
-                    label="Corp To Corp"
-                    value={
-                      formData?.corpToCorp === true
-                        ? "yes"
-                        : formData?.corpToCorp === false
-                          ? "no"
-                          : ""
-                    }
-                    onChange={(value) =>
-                      updateFormField(
-                        "corpToCorp",
-                        value === "yes" ? true : value === "no" ? false : "",
-                      )
-                    }
-                    options={[
-                      { label: "Yes", value: "yes" },
-                      { label: "No", value: "no" },
-                    ]}
-                    disabled={isAssigning}
-                    placeholder="Select"
-                  />
-                </div>
               </SectionCard>
 
               <SectionCard title="CV">
@@ -924,12 +777,18 @@ const CandidateAssignJobModal = ({
                 Cancel
               </Button>
 
+              {readiness?.blockers?.length ? (
+                <div className="mr-auto max-w-xl text-xs text-amber-800">
+                  {readiness.blockers.map((b) => b.message).join(" ")}
+                </div>
+              ) : null}
               <Button
                 variant="primary"
                 onClick={handleSaveJob}
-                disabled={isAssigning || !selectedJobId}
+                disabled={isAssigning || !selectedJobId || !readiness || readiness.action === "NONE"
+                  || readiness.blockers.length > 0}
               >
-                {isAssigning ? "Saving..." : "Save"}
+                {isAssigning ? "Saving..." : actionLabel}
               </Button>
             </div>
           </div>
@@ -1081,133 +940,29 @@ function CheckboxField({ label, checked, onChange, disabled = false }) {
     </label>
   );
 }
-function UdfModal({ udfData, onChange, onClose }) {
-  return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
-      role="dialog"
-      aria-modal="true"
-    >
-      <div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-start justify-between border-b border-gray-200 px-6 py-4">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">UDFs</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              User defined fields for candidate submission.
-            </p>
-          </div>
-
+// The permission gate renders before any hook runs; the hooks live in the body so they
+// are called in the same order on every render (react-hooks/rules-of-hooks).
+const CandidateAssignJobModal = (props) => {
+  const { onClose } = props;
+  // Permission Gate: Only users with jobs.edit can assign candidates to jobs
+  if (!hasPermission('jobs', 'edit')) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="bg-white rounded-lg p-6 max-w-md">
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600 mb-4">You do not have permission to assign candidates to jobs.</p>
           <button
-            type="button"
             onClick={onClose}
-            className="rounded-full p-1 text-2xl leading-none text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
-            aria-label="Close UDF modal"
-          >
-            ×
-          </button>
-        </div>
-
-        <div className="overflow-y-auto p-6">
-          <div className="grid grid-cols-1 gap-x-8 gap-y-5 lg:grid-cols-3">
-            <UdfSelect
-              label="Type of Govt ID used for adding Name"
-              value={udfData?.govtIdType}
-              onChange={(value) => onChange?.("govtIdType", value)}
-              options={[
-                "PAN",
-                "Aadhar",
-                "Passport",
-                "Driving License",
-                "Voter ID",
-              ]}
-            />
-
-            <UdfInput
-              label="Govt ID - ID number as per Govt ID"
-              value={udfData?.govtIdNumber}
-              onChange={(value) => onChange?.("govtIdNumber", value)}
-            />
-
-            <UdfInput
-              label="Name of previous organization"
-              value={udfData?.previousOrganization}
-              onChange={(value) => onChange?.("previousOrganization", value)}
-            />
-
-            <UdfInput
-              label="Relevant experience e.g 10Y 5M"
-              value={udfData?.relevantExperience}
-              onChange={(value) => onChange?.("relevantExperience", value)}
-            />
-
-            <UdfInput
-              label="Notice Period"
-              value={udfData?.noticePeriod}
-              onChange={(value) => onChange?.("noticePeriod", value)}
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+            className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
             Close
           </button>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-          >
-            Save UDFs
-          </button>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
-function UdfInput({ label, value, onChange, type = "text" }) {
-  return (
-    <div>
-      <label className="mb-1.5 flex min-h-[40px] items-end text-sm font-semibold leading-5 text-gray-700">
-        {label}
-      </label>
+  return <CandidateAssignJobModalBody {...props} />;
+};
 
-      <input
-        type={type}
-        value={value || ""}
-        onChange={(event) => onChange?.(event?.target?.value)}
-        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-gray-400"
-      />
-    </div>
-  );
-}
-
-function UdfSelect({ label, value, onChange, options = [] }) {
-  return (
-    <div>
-      <label className="mb-1.5 flex min-h-[40px] items-end text-sm font-semibold leading-5 text-gray-700">
-        {label}
-      </label>
-
-      <select
-        value={value || ""}
-        onChange={(event) => onChange?.(event?.target?.value)}
-        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-gray-400"
-      >
-        <option value="">Select</option>
-
-        {options?.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
 export default CandidateAssignJobModal;

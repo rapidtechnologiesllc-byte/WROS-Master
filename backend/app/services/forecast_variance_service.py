@@ -1,26 +1,25 @@
 """
-S-242 (EPIC-02 Forecast vs Actual). Actuals come from Invoice, the same
-computation revenue_target_service._fy_invoice_total_for_clients()
-already established for the fiscal-year granularity (no
-analytics_fact_revenue ETL table exists anywhere in this codebase).
+S-242 (EPIC-02 Forecast vs Actual).
+
+Actual revenue for a month is EARNED revenue from the revenue chain
+(revenue_chain_service.earned_revenue): work billed or approved, by
+timesheet week -- the same income line as the P&L (CEO 2026-10-23: one
+definition of monthly revenue). It used to be invoices by created_at,
+which put a month's work into whatever month the invoice was raised.
+Partner revenue share and the blended delivery rate read the same
+get_monthly_actual_revenue().
+
 Forecast is opportunity_service.calculate_weighted_forecast(), the one
 shared calculation per HRMS-0209 BR-0209-01 -- no local recalculation.
-
-Does NOT depend on S-279/HRMS-0313 (Plan vs Execution Variance) despite
-S-242's own doc citing it as its actuals source -- that story is
-unrelated hiring-headcount variance (planned heads vs actual hires),
-confirmed by reading it directly. Revenue actuals come from Invoice
-either way; this module doesn't wait on S-279.
 """
+import calendar
 from datetime import date
 from typing import List, Optional
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.client import Client
-from app.models.invoice import Invoice
-from app.models.opportunity import Opportunity
+from app.models.opportunity import WON_STAGES, Opportunity
 from app.services.opportunity_service import calculate_weighted_forecast
 from app.services.revenue_target_service import status_band
 
@@ -30,16 +29,12 @@ def _month_bounds(year: int, month: int):
     return start, end
 
 def get_monthly_actual_revenue(db: Session, *, client_ids: Optional[List[str]], year: int, month: int) -> int:
-    start, end = _month_bounds(year, month)
-    query = db.query(func.sum(Invoice.total_usd_cents)).filter(
-        Invoice.status.in_(("APPROVED", "SENT", "PAID")),
-        Invoice.created_at >= start, Invoice.created_at < end,
-    )
-    if client_ids is not None:
-        if not client_ids:
-            return 0
-        query = query.filter(Invoice.client_id.in_(client_ids))
-    return query.scalar() or 0
+    """Earned revenue (USD cents) of the month for these clients (None = every client)."""
+    from app.services.revenue_chain_service import earned_revenue
+
+    start = date(year, month, 1)
+    end = date(year, month, calendar.monthrange(year, month)[1])
+    return earned_revenue(db, start=start, end=end, client_ids=client_ids)
 
 def get_monthly_weighted_forecast(db: Session, *, client_ids: Optional[List[str]], year: int, month: int) -> int:
     """WON opportunities count at their full realized value (not
@@ -58,7 +53,7 @@ def get_monthly_weighted_forecast(db: Session, *, client_ids: Optional[List[str]
         query = query.filter(Opportunity.client_id.in_(client_ids))
     opportunities = query.all()
     return sum(
-        o.revenue_value_usd_cents if o.stage == "WON" else calculate_weighted_forecast(o)
+        o.revenue_value_usd_cents if o.stage in WON_STAGES else calculate_weighted_forecast(o)
         for o in opportunities
     )
 

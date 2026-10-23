@@ -12,6 +12,8 @@ from app.core.dependencies import require_resource_permission, get_current_user
 from app.models.channel_queue import ChannelQueueItem
 from datetime import datetime
 
+from app.core.tenant_context import tenant_id_of
+
 router = APIRouter(prefix="/message-queue", tags=["Message Queue Monitor"])
 
 
@@ -255,14 +257,16 @@ def get_queue_stats(db: Session = Depends(get_db)):
     }
 
 
-@router.get("/tasks/{task_id}/status", dependencies=[Depends(get_current_user)])
-def get_task_status(task_id: str, db: Session = Depends(get_db)):
+@router.get("/tasks/{task_id}/status")
+def get_task_status(task_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """
-    Get the status of a queued task by message ID.
+    Get the status of a queued task by message ID -- the polling_endpoint every queued create
+    returns. Only tasks of the caller's own tenant are visible (another tenant's id is a 404).
 
     Returns: {status: "pending|processing|completed|failed", result: {...}, error: "..."}
     """
-    message = db.query(ChannelQueueItem).filter(ChannelQueueItem.id == task_id).first()
+    message = db.query(ChannelQueueItem).filter(ChannelQueueItem.id == task_id,
+                                                ChannelQueueItem.tenant_id == tenant_id_of(current_user)).first()
 
     if not message:
         from fastapi import HTTPException

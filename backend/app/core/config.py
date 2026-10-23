@@ -31,6 +31,11 @@ load_dotenv(os.path.join(_REPO_ROOT, ".env"))
 # just fills in what .env left blank.
 load_dotenv(os.path.join(_REPO_ROOT, ".env.local"), override=True)
 
+# A test run names its own throwaway database (TEST_DATABASE_URL, set by tests/conftest.py).
+# It must beat .env.local, or app code under test reads and writes the dev database.
+if os.getenv("TEST_DATABASE_URL"):
+    os.environ["DATABASE_URL"] = os.environ["TEST_DATABASE_URL"]
+
 # Import secrets manager for production secret retrieval
 try:
     from app.core.secrets_manager import get_secret
@@ -102,6 +107,12 @@ class Settings:
     # For production: Set via ADMIN_PASSWORD environment variable
     # For development: Falls back to temporary random password (forces reset on first login)
     ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "")
+    # Candidate rejection email: off until the rejection-email UX is decided (OPEN_ITEMS decision 5)
+    REJECTION_EMAIL_ENABLED: bool = os.getenv("REJECTION_EMAIL_ENABLED", "false").lower() == "true"
+    # Every pipeline status change is emailed to the candidate (incl. rejection, never the reason);
+    # app.services.candidate_status_notifications. The rejection handler's own email stays behind
+    # REJECTION_EMAIL_ENABLED so a rejection is never emailed twice.
+    CANDIDATE_STATUS_EMAILS_ENABLED: bool = os.getenv("CANDIDATE_STATUS_EMAILS_ENABLED", "true").lower() == "true"
 
     # S-017/HRMS-0417 -- base URL used to build the candidate portal
     # link Thunder sends via WhatsApp/Email (/candidate/{token}).
@@ -143,7 +154,126 @@ class Settings:
     
     # File Upload Settings
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
+    # Panel vs Flash calibration: Flash "advances" a candidate whose job match score is at least this
+    FLASH_ADVANCE_SCORE: int = int(os.getenv("FLASH_ADVANCE_SCORE", "60"))
+    # Employee referral bonus (US cents) when the job has no referral settings of its own
+    REFERRAL_BONUS_DEFAULT_USD_CENTS: int = int(os.getenv("REFERRAL_BONUS_DEFAULT_USD_CENTS", "50000"))
+    # A candidate already in the system can be referred (and earn the bonus) only after this many
+    # days without activity; a more recently active candidate is refused with a warning
+    REFERRAL_DORMANT_DAYS: int = int(os.getenv("REFERRAL_DORMANT_DAYS", "60"))
+    # Name of the parent company created on an empty database (the primary tenant)
+    PRIMARY_TENANT_NAME: str = os.getenv("PRIMARY_TENANT_NAME", "BlitzenX")
+    # Tenant the public website chat creates candidates in (empty = the only tenant)
+    PUBLIC_CHAT_TENANT_ID: Optional[int] = int(os.getenv("PUBLIC_CHAT_TENANT_ID")) if os.getenv("PUBLIC_CHAT_TENANT_ID") else None
+    # Expense receipts: a receipt whose amount and date match the entry approves the manager step
+    # automatically; anything else goes to the manager with the reasons
+    EXPENSE_RECEIPT_MAX_BYTES: int = int(os.getenv("EXPENSE_RECEIPT_MAX_BYTES", str(10 * 1024 * 1024)))
+    EXPENSE_RECEIPT_AMOUNT_TOLERANCE_PCT: float = float(os.getenv("EXPENSE_RECEIPT_AMOUNT_TOLERANCE_PCT", "2"))
+    EXPENSE_RECEIPT_DATE_TOLERANCE_DAYS: int = int(os.getenv("EXPENSE_RECEIPT_DATE_TOLERANCE_DAYS", "7"))
     MAX_UPLOAD_SIZE: int = int(os.getenv("MAX_UPLOAD_SIZE", "10485760"))  # 10MB default
+
+    # Flash matching: a candidate qualifies for a job at this skill-match score (0-100) or above
+    FLASH_MATCH_MIN_SCORE: int = int(os.getenv("FLASH_MATCH_MIN_SCORE", "60"))
+    # Flash's recruiter run re-runs this often while a job is active
+    FLASH_RECRUITER_INTERVAL_HOURS: int = int(os.getenv("FLASH_RECRUITER_INTERVAL_HOURS", "4"))
+
+    # Flash's language models (CEO 2026-10-15: hybrid). The large model (Claude) plans and uses
+    # tools; the small self-hosted model (Ollama-compatible /api/chat) parses and classifies.
+    # Either may be off; with both off Flash answers from its rules and says what is offline.
+    # Only work data reaches a model: app.services.flash_brain.redaction strips contact details,
+    # pay, documents and finance figures first.
+    ANTHROPIC_API_KEY: str = get_secret("anthropic-api-key", default=os.getenv("ANTHROPIC_API_KEY", "")) or ""
+    FLASH_LARGE_LLM_MODEL: str = os.getenv("FLASH_LARGE_LLM_MODEL", "claude-opus-5-5")
+    FLASH_LARGE_LLM_EFFORT: str = os.getenv("FLASH_LARGE_LLM_EFFORT", "medium")
+    FLASH_LARGE_LLM_TIMEOUT_S: float = float(os.getenv("FLASH_LARGE_LLM_TIMEOUT_S", "60"))
+    FLASH_LARGE_LLM_MAX_TOKENS: int = int(os.getenv("FLASH_LARGE_LLM_MAX_TOKENS", "16000"))
+    FLASH_LARGE_LLM_MAX_TOOL_ROUNDS: int = int(os.getenv("FLASH_LARGE_LLM_MAX_TOOL_ROUNDS", "8"))
+    # Server-side refusal fallback (Anthropic picks the fallback model by refusal category)
+    FLASH_LARGE_LLM_FALLBACKS_ENABLED: bool = os.getenv("FLASH_LARGE_LLM_FALLBACKS_ENABLED", "true").lower() == "true"
+    FLASH_SMALL_LLM_BASE_URL: str = os.getenv("FLASH_SMALL_LLM_BASE_URL", "")
+    FLASH_SMALL_LLM_MODEL: str = os.getenv("FLASH_SMALL_LLM_MODEL", "")
+    FLASH_SMALL_LLM_TIMEOUT_S: float = float(os.getenv("FLASH_SMALL_LLM_TIMEOUT_S", "15"))
+    # Kill switch: false = Flash answers from its rules only, no model call at all
+    FLASH_AGENT_ENABLED: bool = os.getenv("FLASH_AGENT_ENABLED", "true").lower() == "true"
+    # Flash conversation (one per user, kept server-side): earlier turns a reply may draw on, the
+    # most recent messages the bubble loads, and how often the closed bubble checks for news
+    FLASH_CONTEXT_TURNS: int = int(os.getenv("FLASH_CONTEXT_TURNS", "6"))
+    FLASH_CONVERSATION_PAGE: int = int(os.getenv("FLASH_CONVERSATION_PAGE", "100"))
+    FLASH_POLL_SECONDS: int = int(os.getenv("FLASH_POLL_SECONDS", "60"))
+    # Jobs created by talking to Flash (CEO 2026-10-15): employment type and openings when the user
+    # does not say
+    FLASH_JOB_DEFAULT_COMPANY_TYPE: str = os.getenv("FLASH_JOB_DEFAULT_COMPANY_TYPE", "Full time")
+    FLASH_JOB_DEFAULT_POSITIONS: int = int(os.getenv("FLASH_JOB_DEFAULT_POSITIONS", "1"))
+    # Flash missions (flash spec D): after a job is created in the chat, Flash sources, schedules
+    # interviews and chases feedback until the positions are filled -- a position is filled when the
+    # candidate JOINS (CEO 2026-10-15), never at offer. Off until piloted.
+    FLASH_MISSIONS_ENABLED: bool = os.getenv("FLASH_MISSIONS_ENABLED", "false").lower() == "true"
+    FLASH_MISSION_BATCH: int = int(os.getenv("FLASH_MISSION_BATCH", "20"))  # missions per sweep
+    # Up to this many candidates interviewed at once per open position (CEO 2026-10-15: 20)
+    FLASH_PARALLEL_CANDIDATES: int = int(os.getenv("FLASH_PARALLEL_CANDIDATES", "20"))
+    FLASH_MISSION_RECHECK_HOURS: int = int(os.getenv("FLASH_MISSION_RECHECK_HOURS", "4"))  # no eligible candidate
+    FLASH_MISSION_TRACK_CHECK_MINUTES: int = int(os.getenv("FLASH_MISSION_TRACK_CHECK_MINUTES", "15"))
+    # No match: tell the recruiter after this many days, then the hiring manager every N days; a
+    # search is never closed for having no match (CEO 2026-10-15)
+    FLASH_MISSION_ESCALATE_AFTER_DAYS: int = int(os.getenv("FLASH_MISSION_ESCALATE_AFTER_DAYS", "5"))
+    FLASH_MISSION_REESCALATE_DAYS: int = int(os.getenv("FLASH_MISSION_REESCALATE_DAYS", "7"))
+    # A queued job that never appears fails its mission after this long
+    FLASH_MISSION_JOB_WAIT_HOURS: int = int(os.getenv("FLASH_MISSION_JOB_WAIT_HOURS", "24"))
+    FLASH_MISSION_MAX_ERRORS: int = int(os.getenv("FLASH_MISSION_MAX_ERRORS", "3"))
+    # No common free slot: retry this often; tell the recruiter after this long
+    FLASH_NO_SLOT_RETRY_HOURS: int = int(os.getenv("FLASH_NO_SLOT_RETRY_HOURS", "24"))
+    FLASH_NO_SLOT_ESCALATE_HOURS: int = int(os.getenv("FLASH_NO_SLOT_ESCALATE_HOURS", "48"))
+    # Missing interview feedback: remind the interviewer this often; after this many reminders the
+    # hiring manager is told too
+    FLASH_FEEDBACK_CHASE_HOURS: int = int(os.getenv("FLASH_FEEDBACK_CHASE_HOURS", "24"))
+    FLASH_FEEDBACK_CHASES_BEFORE_HM: int = int(os.getenv("FLASH_FEEDBACK_CHASES_BEFORE_HM", "2"))
+    # Interview slots Flash picks: no sooner than this, no later than this, on the quarter hour
+    INTERVIEW_MIN_LEAD_HOURS: int = int(os.getenv("INTERVIEW_MIN_LEAD_HOURS", "24"))
+    INTERVIEW_HORIZON_DAYS: int = int(os.getenv("INTERVIEW_HORIZON_DAYS", "10"))
+    INTERVIEW_SLOT_STEP_MINUTES: int = int(os.getenv("INTERVIEW_SLOT_STEP_MINUTES", "15"))
+    # Read interviewers' Outlook busy times and put Flash's interviews in their calendar (needs the
+    # Graph app with Calendars.ReadWrite); off -> database conflicts only, the invite says the link follows
+    FLASH_USE_GRAPH_CALENDAR: bool = os.getenv("FLASH_USE_GRAPH_CALENDAR", "false").lower() == "true"
+
+    # Interview scheduling: interviewer business hours (local time), working days, buffer, length
+    INTERVIEW_WORKDAY_START_HOUR: int = int(os.getenv("INTERVIEW_WORKDAY_START_HOUR", "9"))
+    INTERVIEW_WORKDAY_END_HOUR: int = int(os.getenv("INTERVIEW_WORKDAY_END_HOUR", "17"))
+    # Python weekday numbers (Monday=0) that are never scheduled
+    INTERVIEW_WEEKEND_DAYS: tuple = tuple(
+        int(d) for d in os.getenv("INTERVIEW_WEEKEND_DAYS", "5,6").split(",") if d.strip())
+    INTERVIEW_BUFFER_MINUTES: int = int(os.getenv("INTERVIEW_BUFFER_MINUTES", "15"))
+    INTERVIEW_DURATION_MINUTES: int = int(
+        os.getenv("INTERVIEW_DURATION_MINUTES", os.getenv("DEFAULT_INTERVIEW_DURATION_MINUTES", "60")))
+    # Time zone used for a person whose profile has none
+    INTERVIEW_DEFAULT_TIMEZONE: str = os.getenv("INTERVIEW_DEFAULT_TIMEZONE", "Asia/Kolkata")
+    # Wall-clock zone that interview start/end times were saved in before storage became naive
+    # UTC (2026-10-15). Read once, by the one-time interview_times_to_utc data migration.
+    INTERVIEW_LEGACY_STORAGE_TIMEZONE: str = os.getenv("INTERVIEW_LEGACY_STORAGE_TIMEZONE", "Asia/Kolkata")
+    # Employment type by the candidate's country (CEO 2026-10-15), the one place this lives:
+    # app.services.employment_type_policy reads it. One canonical set of types (FULLTIME, CONTRACT,
+    # C2C, 1099, UNKNOWN); a country lists the types it accepts with its own labels, and "names"
+    # are how a free-text location names the country. A country not listed accepts nothing.
+    # C2C, 1099 and UNKNOWN can never be accepted (checked when the policy loads).
+    EMPLOYMENT_TYPE_POLICY_JSON: str = os.getenv("EMPLOYMENT_TYPE_POLICY_JSON", "") or """{
+      "labels": {"FULLTIME": "Full-time", "CONTRACT": "Contract", "C2C": "Corp-to-corp (C2C)",
+                 "1099": "1099 contractor", "UNKNOWN": "Not confirmed"},
+      "countries": {
+        "US": {"name": "United States", "names": ["united states", "united states of america", "usa", "us", "u.s.", "u.s.a."],
+               "accepts": {"FULLTIME": "W2 full-time", "CONTRACT": "W2 contract"}},
+        "IN": {"name": "India", "names": ["india", "in", "bharat"],
+               "accepts": {"FULLTIME": "Full-time", "CONTRACT": "Contract"}}
+      }
+    }"""
+    # Every interview invites the candidate (CEO 2026-10-15). The automatic invite waits this long
+    # so an invite sent from the screen (POST /email/interview/invite/{id}) supersedes it
+    INTERVIEW_INVITE_DELAY_SECONDS: int = int(os.getenv("INTERVIEW_INVITE_DELAY_SECONDS", "300"))
+    # interview_reminders job: reminders before the start and feedback nudges after the end (minutes),
+    # sent only within this many minutes of their due time (older ones are skipped, never sent late)
+    INTERVIEW_REMINDER_MINUTES_BEFORE: tuple = tuple(
+        int(m) for m in os.getenv("INTERVIEW_REMINDER_MINUTES_BEFORE", "60,15").split(",") if m.strip())
+    INTERVIEW_FEEDBACK_NUDGE_MINUTES_AFTER: tuple = tuple(
+        int(m) for m in os.getenv("INTERVIEW_FEEDBACK_NUDGE_MINUTES_AFTER", "60,1440").split(",") if m.strip())
+    INTERVIEW_REMINDER_GRACE_MINUTES: int = int(os.getenv("INTERVIEW_REMINDER_GRACE_MINUTES", "30"))
     
     # Email Settings (if needed in future)
     SMTP_HOST: Optional[str] = os.getenv("SMTP_HOST")
@@ -169,6 +299,13 @@ class Settings:
     THUNDER_SEND_WINDOW: str = os.getenv("THUNDER_SEND_WINDOW", "09-18")  # candidate-local hours
     THUNDER_MIN_GAP_HOURS: int = int(os.getenv("THUNDER_MIN_GAP_HOURS", "48"))
     THUNDER_NURTURE_INTERVAL_DAYS: int = int(os.getenv("THUNDER_NURTURE_INTERVAL_DAYS", "30"))
+    # Thunder first engagement (go-live 2026-10-13): every contactable candidate created in the
+    # last THUNDER_ENGAGEMENT_LOOKBACK_DAYS who is not yet in the email cadence is engaged by the
+    # thunder_engagement_sweep job. Kill switches: this flag, and the global pause on the
+    # Message Queue screen (stops every queue send at once).
+    THUNDER_ENGAGEMENT_ENABLED: bool = os.getenv("THUNDER_ENGAGEMENT_ENABLED", "true").lower() == "true"
+    THUNDER_ENGAGEMENT_LOOKBACK_DAYS: int = int(os.getenv("THUNDER_ENGAGEMENT_LOOKBACK_DAYS", "30"))
+    THUNDER_ENGAGEMENT_BATCH: int = int(os.getenv("THUNDER_ENGAGEMENT_BATCH", "50"))
 
     # Finance: invoices are emailed from this mailbox (same Graph app permissions as Thunder)
     FINANCE_MAILBOX: str = os.getenv("FINANCE_MAILBOX", "") or THUNDER_MAILBOX
@@ -178,6 +315,13 @@ class Settings:
     # org_hierarchy_validator.HIERARCHY_LEVELS). app.core.authority reads these.
     SENIOR_MANAGER_MIN_LEVEL: int = int(os.getenv("SENIOR_MANAGER_MIN_LEVEL", "9"))
     DIRECTOR_MIN_LEVEL: int = int(os.getenv("DIRECTOR_MIN_LEVEL", "11"))
+    # An employee whose active allocation ends within this many days is rolling off and may be
+    # submitted to their next client (CEO 2026-10-14)
+    ROLL_OFF_WINDOW_DAYS: int = int(os.getenv("ROLL_OFF_WINDOW_DAYS", "30"))
+    # Core certification (CEO 2026-10-14): approved billable days on Staff Aug with no escalation,
+    # and how long the BU Head's approval task runs
+    CORE_CERT_BILLABLE_DAYS: int = int(os.getenv("CORE_CERT_BILLABLE_DAYS", "90"))
+    CORE_CERT_TASK_DUE_DAYS: int = int(os.getenv("CORE_CERT_TASK_DUE_DAYS", "7"))
     BU_LEADER_MIN_LEVEL: int = int(os.getenv("BU_LEADER_MIN_LEVEL", "14"))
     PARTNER_MIN_LEVEL: int = int(os.getenv("PARTNER_MIN_LEVEL", "16"))
     CEO_LEVEL: int = int(os.getenv("CEO_LEVEL", "17"))
@@ -188,8 +332,36 @@ class Settings:
     FX_INR_PER_USD: float = float(os.getenv("FX_INR_PER_USD") or 85)
     # Paid hours in a month (40h x 52 weeks / 12); turns monthly loaded cost into an hourly cost
     STANDARD_MONTHLY_HOURS: float = float(os.getenv("STANDARD_MONTHLY_HOURS", "173.33"))
+    # My Timesheet: how many weeks before the current one an employee may open and fill. Never more
+    # than the submission window (app.models.timesheet.MAX_SUBMISSION_LOOKBACK_WEEKS)
+    TIMESHEET_SELF_SERVICE_BACK_WEEKS: int = int(os.getenv("TIMESHEET_SELF_SERVICE_BACK_WEEKS", "4"))
+    # Missing-timesheet reminders: the employee is reminded first; still missing this many days
+    # later, their approver (reporting manager -> manager -> BU head -> partner) is told
+    TIMESHEET_NAG_ESCALATION_DAYS: int = int(os.getenv("TIMESHEET_NAG_ESCALATION_DAYS", "3"))
+    # Bulk employee import: how long a dry run's token stays valid, and the largest file accepted
+    EMPLOYEE_IMPORT_TOKEN_TTL_MINUTES: int = int(os.getenv("EMPLOYEE_IMPORT_TOKEN_TTL_MINUTES", "60"))
+    EMPLOYEE_IMPORT_MAX_ROWS: int = int(os.getenv("EMPLOYEE_IMPORT_MAX_ROWS", "2000"))
     # planned billable hours per business day for projected revenue (allocation x utilization)
     STANDARD_DAILY_HOURS: float = float(os.getenv("STANDARD_DAILY_HOURS", "8"))
+    # Project expected-revenue estimate: a positive margin below this % of revenue shows as TIGHT
+    PROJECT_MARGIN_TIGHT_PCT: float = float(os.getenv("PROJECT_MARGIN_TIGHT_PCT", "20"))
+    # Utilization: a billable employee below this % in their latest week is flagged on the
+    # Utilization dashboard (the target the dashboard measures against)
+    UTILIZATION_TARGET_PCT: float = float(os.getenv("UTILIZATION_TARGET_PCT", "50"))
+    # Available hours in a week, the denominator of weekly utilization
+    UTILIZATION_STANDARD_WEEKLY_HOURS: float = float(os.getenv("UTILIZATION_STANDARD_WEEKLY_HOURS", "40"))
+    # The weekly utilization_snapshot job recomputes this many completed weeks (so late timesheet
+    # approvals are picked up)
+    UTILIZATION_SNAPSHOT_WEEKS: int = int(os.getenv("UTILIZATION_SNAPSHOT_WEEKS", "4"))
+
+    # Renewal pipeline (CEO 2026-10-23): days before an ACTIVE allocation's end date at which its
+    # renewal owner gets an alert task (comma list, e.g. "60,30,15"); how long that task runs; and
+    # how far ahead the Renewals tab looks by default
+    RENEWAL_ALERT_DAYS: str = os.getenv("RENEWAL_ALERT_DAYS", "60,30,15")
+    RENEWAL_TASK_DUE_DAYS: int = int(os.getenv("RENEWAL_TASK_DUE_DAYS", "7"))
+    RENEWAL_LIST_DAYS: int = int(os.getenv("RENEWAL_LIST_DAYS", "90"))
+    # Margin floor approvals (rate card, CEO 2026-10-23): how long the approver's task runs
+    MARGIN_APPROVAL_TASK_DUE_DAYS: int = int(os.getenv("MARGIN_APPROVAL_TASK_DUE_DAYS", "2"))
 
     # Background jobs (app/core/scheduled_jobs.py): comma-separated names. Unset = every
     # registered job (all internal: drafts, staff reminders, AR tasks, metrics); set it to ""
@@ -197,7 +369,8 @@ class Settings:
     SCHEDULED_JOBS_ENABLED: str = os.getenv(
         "SCHEDULED_JOBS_ENABLED",
         "timesheet_draft_creation,timesheet_reminders,ar_follow_up,expire_bu_ownerships,"
-        "daily_revenue_scan,engagement_metrics,birthday_drafts,hiring_pipeline_sweep,client_start_date,auto_invoicing",
+        "daily_revenue_scan,engagement_metrics,birthday_drafts,hiring_pipeline_sweep,client_start_date,auto_invoicing,"
+        "utilization_snapshot,renewal_alerts",
     )
     SCHEDULED_JOB_LEASE_GRACE_SECONDS: int = int(os.getenv("SCHEDULED_JOB_LEASE_GRACE_SECONDS", "120"))
 
