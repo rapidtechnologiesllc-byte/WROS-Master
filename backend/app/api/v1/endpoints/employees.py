@@ -37,7 +37,7 @@ from datetime import date, datetime
 from typing import Optional
 
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.data_scope import bu_filter, ensure_assignable
@@ -59,38 +59,57 @@ from app.schemas.employee import (
     EscalationListResponse,
     EscalationResolveRequest,
     MarkBenchRequest,
-    RecordUtilizationRequest,
-    UtilizationHistoryItem,
+    RecomputeUtilizationResponse,
     UtilizationSummaryItem,
     UtilizationSummaryResponse,
 )
-from app.services.employee_service import (
-    DuplicateEmployeeEmail,
-    create_employee_profile,
-)
 from app.services.resource_management_service import (
-    LOW_UTILIZATION_THRESHOLD_PCT,
     get_bench_duration_days,
     get_current_bench_pool,
     get_latest_utilization_by_employee,
     mark_employee_on_bench,
-    record_weekly_utilization_metric,
     remove_employee_from_bench,
+    snapshot_utilization,
+    utilization_population,
 )
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 
-def _skills_list(raw):
-    if not raw:
-        return []
-    try:
-        parsed = json.loads(raw)
-    except (json.JSONDecodeError, TypeError):
-        raise ValueError("_skills_list failed")
-    return parsed if isinstance(parsed, list) else []
+def _skills_list(raw, employee_id: str = None):
+    from app.services.employee_service import skills_list
 
-def _to_item(db: Session, employee: Employee) -> EmployeeItem:
-    bench_entry = db.query(BenchPoolEntry).filter(BenchPoolEntry.employee_id == employee.id).first()
+    return skills_list(raw, employee_id)
+
+
+def _allocation_summaries(db: Session, employee_ids) -> dict:
+    """{employee_id: [ACTIVE allocation summaries]} in three queries for any number of people."""
+    from app.models.client import Client
+    from app.models.demand import Demand
+    from app.models.employee_allocation import EmployeeAllocation
+
+    ids = list(employee_ids)
+    if not ids:
+        return {}
+    rows = db.query(EmployeeAllocation).filter(EmployeeAllocation.employee_id.in_(ids),
+                                               EmployeeAllocation.status == "ACTIVE").all()
+    clients = {c.id: c.company_name for c in db.query(Client).filter(Client.id.in_({r.client_id for r in rows}))} if rows else {}
+    jobs = {j.jobID: j.jobTitle for j in db.query(Demand).filter(Demand.jobID.in_({r.demand_id for r in rows}))} if rows else {}
+    out = {}
+    for r in rows:
+        out.setdefault(r.employee_id, []).append({
+            "allocation_id": r.id, "client_name": clients.get(r.client_id), "job_title": jobs.get(r.demand_id),
+            "utilization_pct": float(r.utilization_pct) if r.utilization_pct is not None else 100.0,
+            "start_date": r.start_date.isoformat() if r.start_date else None,
+            "end_date": r.end_date.isoformat() if r.end_date else None,
+        })
+    return out
+
+
+def _to_item(db: Session, employee: Employee, *, bench_entry=..., allocations=None) -> EmployeeItem:
+    if bench_entry is ...:
+        bench_entry = db.query(BenchPoolEntry).filter(BenchPoolEntry.employee_id == employee.id).first()
+    if allocations is None:
+        allocations = _allocation_summaries(db, [employee.id]).get(employee.id, [])
     return EmployeeItem(
         id=employee.id,
         employee_number=employee.employee_number,
@@ -100,7 +119,7 @@ def _to_item(db: Session, employee: Employee) -> EmployeeItem:
         status=employee.status,
         employment_type=employee.employment_type,
         current_title=employee.current_title,
-        current_skills=_skills_list(employee.current_skills),
+        current_skills=_skills_list(employee.current_skills, employee.id),
         work_location=employee.work_location,
         delivery_engine=employee.delivery_engine,
         engine_entry_date=employee.engine_entry_date,
@@ -115,6 +134,12 @@ def _to_item(db: Session, employee: Employee) -> EmployeeItem:
         guidewire_certification_expected=employee.guidewire_certification_expected,
         bu_id=employee.bu_id,
         company_id=employee.company_id,
+        is_billable=bool(employee.is_billable),
+        buddy_program_status=employee.buddy_program_status,
+        has_login=employee.wros_user_id is not None,
+        reporting_manager_user_id=employee.reporting_manager_user_id,
+        active_allocations=allocations,
+        allocated_pct=sum(a["utilization_pct"] for a in allocations),
     )
 
 def _visible_employees(db: Session, user: Users):
@@ -133,7 +158,7 @@ def _get_employee_or_404(db: Session, employee_id: str, user: Users) -> Employee
 @router.post(
     "",
     response_model=EmployeeItem,
-    summary="Create an employee profile",
+    summary="Add one employee (the import path with one row: login, scope, bench or allocation, activation email)",
     dependencies=[Depends(require_resource_permission("employees", "create"))]
 )
 def create_employee(
@@ -141,109 +166,94 @@ def create_employee(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
+    """One employee through employee_import_service, the only creation path: the same
+    resolution, gates, login linking and activation email as a bulk import row."""
+    from app.services.employee_import_service import ImportFileError, apply_rows, row_from_request
+
     ensure_assignable(db, current_user, body.business_unit_id, "employee")
-    fields = {}
-    if body.current_title is not None:
-        fields["current_title"] = body.current_title
-    if body.current_skills is not None:
-        fields["current_skills"] = json.dumps(body.current_skills)
-    if body.employment_type is not None:
-        fields["employment_type"] = body.employment_type
-    if body.work_location is not None:
-        fields["work_location"] = body.work_location
-    if body.base_salary_usd_cents is not None:
-        fields["base_salary_usd_cents"] = body.base_salary_usd_cents
-    if body.billing_rate_usd_cents is not None:
-        fields["billing_rate_usd_cents"] = body.billing_rate_usd_cents
-    if body.nationality is not None:
-        fields["nationality"] = body.nationality
-    # The org-chart seat is not set here: it belongs to the person's login account and is
-    # placed on the user form (place_user_in_org), which also sets this record's seat/manager
-    if body.business_unit_id is not None:
-        fields["bu_id"] = body.business_unit_id
-    if body.company_id:
-        fields["company_id"] = _company_or_400(db, body.company_id, current_user.tenant_id)
-    if body.reporting_manager_id is not None:
-        fields["reporting_manager_user_id"] = body.reporting_manager_id
-
-    # Optionally create a login account for this employee with the given
-    # role template - do this before creating the Employee row so a bad
-    # role_template_id fails the whole request instead of leaving an
-    # Employee with no linked account.
-    new_user = None
-    if body.role_template_id is not None:
-        from app.models.role_template import RoleTemplate
-        role_template = db.query(RoleTemplate).filter(RoleTemplate.id == body.role_template_id).first()
-        if not role_template:
-            raise HTTPException(status_code=400, detail="Role template not found")
-        if db.query(Users).filter(Users.UserEmail == body.email).first():
-            raise HTTPException(status_code=409, detail=f"A user account already exists for {body.email}")
-
-        from app.core.security import get_password_hash
-        from app.utils.uniq_id_generator import user_id_generator
-        import secrets as _secrets
-        import string as _string
-
-        temp_password = "".join(_secrets.choice(_string.ascii_letters + _string.digits) for _ in range(16))
-        new_user = Users(
-            UserID=user_id_generator(),
-            UserEmail=body.email,
-            UserName=f"{body.first_name} {body.last_name}".strip(),
-            UserPassword=get_password_hash(temp_password),
-            UserRole="User",
-            role_template_id=body.role_template_id,
-            business_unit_id=body.business_unit_id,
-            tenant_id=current_user.tenant_id,
-            password_reset_required=True,
-        )
-        db.add(new_user)
-        db.flush()
-        fields["wros_user_id"] = new_user.UserID
-
     try:
-        employee = create_employee_profile(
-            db, tenant_id=current_user.tenant_id,
-            first_name=body.first_name, last_name=body.last_name, email=body.email,
-            joining_date=body.joining_date, changed_by=current_user.UserID,
-            **fields,
-        )
-    except DuplicateEmployeeEmail as exc:
-        db.rollback()
-        raise HTTPException(status_code=409, detail=str(exc))
-    db.commit()
-    db.refresh(employee)
-
-    # Queue employee operation for FLASH orchestrator
-    try:
-        from app.services.message_queue_service import MessageQueueService
-        MessageQueueService.enqueue(
-            task_name='employee_created_flash',
-            task_id=f"employee_created:{employee.id}",
-            data={
-                'employee_id': str(employee.id),
-                'employee_email': employee.email,
-                'employee_name': f"{employee.first_name} {employee.last_name}".strip(),
-                'created_at': datetime.utcnow().isoformat()
-            }
-        )
-    except Exception as e:
-        logger.warning(f"Failed to queue employee creation: {e}")
-
-    return _to_item(db, employee)
+        row = row_from_request(db, body)
+    except ImportFileError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    outcome = apply_rows(db, current_user, [row], only_create=True)
+    result = outcome["rows"][0]
+    if result["status"] != "applied":
+        errors = result["errors"]
+        status = 409 if any("already exists" in e for e in errors) else 422
+        raise HTTPException(status_code=status, detail="; ".join(errors))
+    return _to_item(db, db.get(Employee, result["employee_id"]))
 
 
-_BULK_IMPORT_COLUMNS = (
-    "first_name", "last_name", "email", "joining_date", "current_title",
-    "current_skills", "employment_type", "work_location",
-    "base_salary_usd_cents", "billing_rate_usd_cents", "nationality",
+@router.get(
+    "/import/template",
+    summary="Employee import: the CSV template and what each column means",
+    dependencies=[Depends(require_resource_permission("employees", "create"))]
 )
+def import_template(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    from app.models.org_structure import OrgNode, OrgRole
+    from app.services import employment_type_policy
+    from app.services.employee_import_service import EMPLOYMENT_TYPE_TO_MODEL, IMPORT_COLUMNS, template_csv
 
-def _parse_bulk_import_date(raw) -> date:
-    if isinstance(raw, datetime):
-        return raw.date()
-    if isinstance(raw, date):
-        return raw
-    return datetime.strptime(str(raw).strip(), "%Y-%m-%d").date()
+    countries = [{"code": c["code"], "name": c["name"],
+                  "employment_types": [o for o in c["options"] if o["accepted"] and o["value"] in EMPLOYMENT_TYPE_TO_MODEL]}
+                 for c in employment_type_policy.describe()["countries"]]
+    tid = current_user.tenant_id
+    # Designations are org roles (they set the seat level); managers are people seated in the org
+    # chart -- the new employee's seat goes under theirs (employee_import_service._seat_under_manager)
+    roles = db.query(OrgRole).filter(OrgRole.tenant_id == tid, OrgRole.active.is_(True)) \
+        .order_by(OrgRole.hierarchy_level.desc(), OrgRole.name).all()
+    seated = db.query(Users, OrgNode).join(OrgNode, OrgNode.id == Users.org_node_id) \
+        .filter(Users.tenant_id == tid, Users.terminated_at.is_(None), OrgNode.active.is_(True)) \
+        .order_by(Users.UserName).all()
+    return {"csv": template_csv(), "countries": countries,
+            "columns": [{"name": n, "required": r, "description": d} for n, r, d in IMPORT_COLUMNS],
+            "org_roles": [{"name": r.name, "level": r.hierarchy_level} for r in roles],
+            "managers": [{"user_id": u.UserID, "name": u.UserName or u.UserEmail, "email": u.UserEmail,
+                          "title": u.job_title, "level": node.hierarchy_level} for u, node in seated]}
+
+
+@router.post(
+    "/import/dry-run",
+    summary="Employee import, step 1: preview every row (nothing is written or emailed); returns the token",
+    dependencies=[Depends(require_resource_permission("employees", "create"))]
+)
+async def import_dry_run(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    from app.services.employee_import_service import ImportFileError, dry_run
+
+    content = await file.read()
+    try:
+        return dry_run(db, current_user, content, file_name=file.filename)
+    except ImportFileError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@router.post(
+    "/import/apply",
+    summary="Employee import, step 2: apply a previewed file (same file + its token); each row all-or-nothing",
+    dependencies=[Depends(require_resource_permission("employees", "create"))]
+)
+async def import_apply(
+    token: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    from app.services.employee_import_service import ImportFileError, ImportTokenError, apply
+
+    content = await file.read()
+    try:
+        return apply(db, current_user, token, content)
+    except ImportTokenError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    except ImportFileError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 @router.get(
@@ -257,7 +267,11 @@ def list_employees(
     current_user: Users = Depends(get_current_internal_user),
 ):
     employees = _visible_employees(db, current_user).order_by(Employee.created_at.desc()).all()
-    return EmployeeListResponse(employees=[_to_item(db, e) for e in employees])
+    ids = [e.id for e in employees]
+    bench = {b.employee_id: b for b in db.query(BenchPoolEntry).filter(BenchPoolEntry.employee_id.in_(ids))} if ids else {}
+    allocations = _allocation_summaries(db, ids)
+    return EmployeeListResponse(employees=[
+        _to_item(db, e, bench_entry=bench.get(e.id), allocations=allocations.get(e.id, [])) for e in employees])
 
 class GuidewireCertificationUpdate(BaseModel):
     guidewire_certification_current: Optional[str] = None
@@ -305,6 +319,28 @@ def update_employee_organization(
     return {"employee_id": employee.id, "company_id": employee.company_id, "business_unit_id": employee.bu_id}
 
 
+class EmployeeBillableUpdate(BaseModel):
+    billable: bool
+
+
+@router.put("/{employee_id}/billable", dependencies=[Depends(require_resource_permission("employees", "edit"))])
+def update_employee_billable(
+    employee_id: str,
+    body: EmployeeBillableUpdate,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Billable (client-facing: bench when not on a project) or non-billable (internal: overhead,
+    never bench). Moves the person on or off the bench in the same transaction."""
+    from app.services.bench_service import set_billable
+
+    employee = _get_employee_or_404(db, employee_id, current_user)
+    set_billable(db, employee, body.billable, changed_by=current_user.UserID)
+    db.commit()
+    db.refresh(employee)
+    return _to_item(db, employee)
+
+
 @router.put("/{employee_id}/certifications", dependencies=[Depends(require_resource_permission("employees", "edit"))])
 def update_guidewire_certifications(
     employee_id: str,
@@ -339,18 +375,23 @@ def utilization_summary(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
+    from app.core.config import settings
+
+    target = settings.UTILIZATION_TARGET_PCT
     latest_by_employee = get_latest_utilization_by_employee(db, tenant_id=current_user.tenant_id)
-    visible = {e.id: e for e in _visible_employees(db, current_user).filter(Employee.id.in_(list(latest_by_employee)))}
+    # billable people only: internal staff are overhead, never under-utilized (CEO 2026-10-22)
+    visible = {e.id: e for e in _visible_employees(db, current_user).filter(
+        Employee.id.in_(list(latest_by_employee)), Employee.is_billable.is_(True))}
     items = []
     pct_values = []
     low_count = 0
     for employee_id, metric in latest_by_employee.items():
         employee = visible.get(employee_id)
-        if employee is None:  # outside the caller's business units
+        if employee is None:  # outside the caller's business units, or non-billable
             continue
         pct = float(metric.utilization_pct)
         pct_values.append(pct)
-        is_low = pct < LOW_UTILIZATION_THRESHOLD_PCT
+        is_low = pct < target
         if is_low:
             low_count += 1
         items.append(UtilizationSummaryItem(
@@ -364,6 +405,7 @@ def utilization_summary(
     average = round(sum(pct_values) / len(pct_values), 2) if pct_values else None
     return UtilizationSummaryResponse(
         employees=items, average_utilization_pct=average, low_utilization_count=low_count,
+        utilization_target_pct=target,
     )
 
 @router.get(
@@ -375,29 +417,22 @@ def bench_cost_summary(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    entries = get_current_bench_pool(db, tenant_id=current_user.tenant_id)
-    visible = {e.id: e for e in _visible_employees(db, current_user).filter(
-        Employee.id.in_([entry.employee_id for entry in entries]))}
-    items = []
-    total_running = 0
-    for entry in entries:
-        employee = visible.get(entry.employee_id)
-        if employee is None:  # outside the caller's business units
-            continue
-        days = get_bench_duration_days(entry)
-        daily = entry.bench_cost_usd_cents
-        running = (daily * days) if daily is not None else None
-        if running is not None:
-            total_running += running
-        items.append(BenchCostSummaryItem(
-            employee_id=entry.employee_id,
-            employee_name=f"{employee.first_name} {employee.last_name}".strip(),
-            days_on_bench=days,
-            daily_cost_usd_cents=daily,
-            monthly_cost_usd_cents=(daily * 30) if daily is not None else None,
-            running_total_usd_cents=running,
-        ))
-    return BenchCostSummaryResponse(employees=items, total_running_cost_usd_cents=total_running)
+    """The bench screen's own figures (bench_service.bench_report): loaded cost per bench day from
+    the P&L's CostBook, so this, the bench screen and the P&L bench cost always agree. (It used to
+    be raw monthly salary / 30, which disagreed with the P&L.)"""
+    from app.services.bench_service import bench_report
+    from app.services.revenue_chain_service import CostBook
+
+    report = bench_report(db, current_user, financials=True)
+    employees = {e.id: e for e in db.query(Employee).filter(Employee.id.in_([r["employee_id"] for r in report["employees"]]))}
+    costs = CostBook(db)
+    items = [BenchCostSummaryItem(
+        employee_id=r["employee_id"], employee_name=r["name"], days_on_bench=r["bench_days"],
+        daily_cost_usd_cents=r["daily_cost_usd_cents"], monthly_cost_usd_cents=costs.monthly(employees[r["employee_id"]]),
+        running_total_usd_cents=r["bench_loss_usd_cents"],
+    ) for r in report["employees"]]
+    return BenchCostSummaryResponse(employees=items,
+                                    total_running_cost_usd_cents=report["totals"]["bench_loss_usd_cents"])
 
 @router.get(
     "/{employee_id}",
@@ -415,24 +450,21 @@ def get_employee(
 
 
 @router.post(
-    "/{employee_id}/record-utilization", response_model=UtilizationHistoryItem,
+    "/utilization/recompute", response_model=RecomputeUtilizationResponse,
     dependencies=[Depends(require_resource_permission("employees", "create"))],
-    summary="Calculate + snapshot one employee's utilization for a week (S-223/HRMS-0904) -- billable hours vs available hours",
+    summary="Recompute weekly utilization now (S-223/HRMS-0904) for the billable employees the caller can see",
 )
-def record_utilization(
-    employee_id: str,
-    body: RecordUtilizationRequest,
+def recompute_utilization(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    employee = _get_employee_or_404(db, employee_id, current_user)
-    metric = record_weekly_utilization_metric(db, employee, body.week_starting_date)
+    """What the weekly utilization_snapshot job does, now, for the caller's business units: the
+    last completed weeks (settings.UTILIZATION_SNAPSHOT_WEEKS), billable working employees only."""
+    employees = utilization_population(db).filter(
+        Employee.tenant_id == current_user.tenant_id, bu_filter(db, current_user, Employee.bu_id)).all()
+    written = snapshot_utilization(db, employees)
     db.commit()
-    db.refresh(metric)
-    return UtilizationHistoryItem(
-        period_start=metric.period_start, utilization_pct=float(metric.utilization_pct),
-        billable_hours=float(metric.billable_hours), bench_hours=float(metric.bench_hours),
-    )
+    return RecomputeUtilizationResponse(employees=len(employees), snapshots=written)
 
 
 @router.post(
@@ -446,8 +478,20 @@ def mark_bench(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
+    from app.services.bench_service import belongs_on_bench, sync_billing_classification
+    from app.services.employee_service import transition_employee_status
+
     employee = _get_employee_or_404(db, employee_id, current_user)
+    if employee.status == "ACTIVE" and employee.is_billable:
+        transition_employee_status(db, employee, "BENCH", reason=f"Marked bench: {body.reason}",
+                                   changed_by=current_user.UserID)
+    if not belongs_on_bench(db, employee):
+        db.rollback()
+        raise HTTPException(status_code=409, detail=(
+            "Only a billable, joined employee with no active allocation is on the bench: end their allocation "
+            "first (or they are internal / not joined yet)."))
     mark_employee_on_bench(db, employee, reason=body.reason)
+    sync_billing_classification(db, employee)
     db.commit()
     db.refresh(employee)
     return _to_item(db, employee)
@@ -462,8 +506,14 @@ def remove_from_bench(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
+    from app.services.bench_service import belongs_on_bench
+
     employee = _get_employee_or_404(db, employee_id, current_user)
-    remove_employee_from_bench(db, employee)
+    if belongs_on_bench(db, employee):
+        raise HTTPException(status_code=409, detail=(
+            "This employee is on the bench by rule (billable, no active allocation): allocate them to a job, "
+            "or mark them non-billable."))
+    remove_employee_from_bench(db, employee)  # clears a stale row
     db.commit()
     db.refresh(employee)
     return _to_item(db, employee)

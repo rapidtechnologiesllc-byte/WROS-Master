@@ -15,8 +15,11 @@ each noted below:
   - Billable ratio's divide-by-zero (total_hours == 0) has no covering
     BR -- follows this session's established "insufficient data, not a
     misleading number" precedent (see HRMS-0806): returns None.
+  - Earned is the revenue chain's earned revenue for the client to date
+    (revenue_chain_service.earned_revenue: billed or approved work, by
+    timesheet week), the same definition as the P&L.
   - Burn rate has no formula spec at all beyond "only meaningful for
-    fixed-bid engagement types" -- implemented as actual invoiced
+    fixed-bid engagement types" -- implemented as earned
     revenue against the revenue a FIXED_BID project's elapsed timeline
     fraction alone would predict (100 = on pace, >100 = ahead of
     schedule spend, <100 = behind). Returns None whenever a project
@@ -29,14 +32,16 @@ from sqlalchemy.orm import Session
 
 from app.models.client import Client
 from app.models.employee_allocation import EmployeeAllocation
-from app.models.invoice import Invoice
 from app.models.opportunity import Opportunity
 from app.models.project import Project
 from app.models.timesheet import Timesheet
 
 REVENUE_DASHBOARD_NOTE = "Estimate only, not a finance figure."
+# "to date" starts here: before any timesheet this system holds
+EARLIEST_WORK = date(2000, 1, 1)
 
-def _calculate_burn_rate_pct(projects, earned_usd_cents: int, planned_usd_cents: Optional[int]) -> Optional[float]:
+def _calculate_burn_rate_pct(projects, earned_usd_cents: int, planned_usd_cents: Optional[int],
+                             today: Optional[date] = None) -> Optional[float]:
     if not planned_usd_cents or planned_usd_cents <= 0:
         return None
 
@@ -44,7 +49,7 @@ def _calculate_burn_rate_pct(projects, earned_usd_cents: int, planned_usd_cents:
     if not fixed_bid:
         return None
 
-    today = date.today()
+    today = today or date.today()
     total_days = 0
     elapsed_days = 0
     for p in fixed_bid:
@@ -62,7 +67,11 @@ def _calculate_burn_rate_pct(projects, earned_usd_cents: int, planned_usd_cents:
         return None
     return round((earned_usd_cents / expected_spend) * 100, 2)
 
-def get_client_revenue_dashboard(db: Session, client: Client, *, tenant_id: Optional[int] = None) -> dict:
+def get_client_revenue_dashboard(db: Session, client: Client, *, tenant_id: Optional[int] = None,
+                                 today: Optional[date] = None) -> dict:
+    from app.services.revenue_chain_service import earned_revenue
+
+    today = today or date.today()
     projects = db.query(Project).filter(Project.client_id == client.id).all()
     if not projects:
         return {
@@ -73,10 +82,8 @@ def get_client_revenue_dashboard(db: Session, client: Client, *, tenant_id: Opti
 
     project_ids = [p.id for p in projects]
 
-    invoice_totals = db.query(Invoice).filter(
-        Invoice.project_id.in_(project_ids), Invoice.status != "DRAFT",
-    ).with_entities(Invoice.total_usd_cents).all()
-    earned_usd_cents = sum(row[0] for row in invoice_totals)
+    earned_usd_cents = earned_revenue(db, start=EARLIEST_WORK, end=today, tenant_id=tenant_id,
+                                      client_ids=[client.id])
 
     planned_usd_cents = None
     planned_total = 0
@@ -101,7 +108,7 @@ def get_client_revenue_dashboard(db: Session, client: Client, *, tenant_id: Opti
         if total_hours > 0:
             billable_ratio_pct = round((billable_hours / total_hours) * 100, 2)
 
-    burn_rate_pct = _calculate_burn_rate_pct(projects, earned_usd_cents, planned_usd_cents)
+    burn_rate_pct = _calculate_burn_rate_pct(projects, earned_usd_cents, planned_usd_cents, today)
 
     return {
         "earned_usd_cents": earned_usd_cents,

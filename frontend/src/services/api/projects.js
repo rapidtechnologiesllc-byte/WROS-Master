@@ -58,3 +58,20 @@ export const getExpectedRevenue = async (projectId) => {
   const { data } = await apiRequest(`/projects/${projectId}/expected-revenue`, { method: "GET" });
   return data;
 };
+
+// The project form's choices (billing types, business types, statuses and their transitions,
+// currencies per delivery engine, project managers), from the backend's own lists.
+export const getProjectOptions = async () => {
+  const { data } = await apiRequest("/projects/options", { method: "GET" });
+  return data;
+};
+
+// Edit name, start/end dates, billing type and project manager; only the fields sent change
+// (send null to clear a date or the manager).
+export const updateProject = async (projectId, changes) => {
+  const { data } = await apiRequest(`/projects/${projectId}`, {
+    method: "PATCH",
+    body: JSON.stringify(changes),
+  });
+  return data;
+};

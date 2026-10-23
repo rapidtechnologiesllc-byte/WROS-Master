@@ -29,7 +29,7 @@ import uuid
 from datetime import date as date_type
 
 from sqlalchemy import (
-    Column, Date, DateTime, Enum, ForeignKey, Integer, Numeric,
+    Boolean, Column, Date, DateTime, Enum, ForeignKey, Integer, Numeric,
     String, func,
 )
 
@@ -73,6 +73,9 @@ class EmployeeAllocation(Base):
     # HRMS-0902 -- the RM/Admin who approves this allocation's timesheets.
     timesheet_approver_email = Column(String(300), nullable=True)
     billing_rate_usd_cents = Column(Integer, nullable=True)
+    # Billable client time or non-billable (internal) time; defaults from the project. Entries on a
+    # non-billable allocation are NON_BILLABLE and never invoiced (CEO 2026-10-22)
+    billable = Column(Boolean, nullable=False, default=True, server_default="true")
     # S-358/HRMS-0519 -- denormalized copy of Project.si_partner at
     # allocation-creation time (per the doc's own "enables fast 'who is
     # at PwC right now' queries without project table joins" rationale).

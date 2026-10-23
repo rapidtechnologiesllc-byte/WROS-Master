@@ -4,6 +4,7 @@ import { Navigate } from "react-router-dom";
 import SlmLearningScreen from "../screens/SlmLearningScreen";
 import WorkforceScreen from "../screens/WorkforceScreen";
 import WorkforceSegmentScreen from "../screens/WorkforceSegmentScreen";
+import BenchScreen from "../screens/BenchScreen";
 import CoreCertificationScreen from "../screens/CoreCertificationScreen";
 
 export const adminRoutes = [
@@ -17,5 +18,6 @@ export const adminRoutes = [
   <Route key="workforce" path="workforce" element={<WorkforceScreen />} />,
   <Route key="workforce-flag" path="workforce/flags/:flagSlug" element={<WorkforceSegmentScreen />} />,
   <Route key="workforce-core-cert" path="workforce/core-certification" element={<CoreCertificationScreen />} />,
+  <Route key="workforce-bench" path="workforce/bench" element={<BenchScreen />} />,
   <Route key="workforce-group" path="workforce/:groupSlug" element={<WorkforceSegmentScreen />} />
 ];

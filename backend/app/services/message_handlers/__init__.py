@@ -11,7 +11,6 @@ from .candidate_data_change_handler import handle_candidate_data_changed
 from .candidate_rejection_handler import handle_candidate_rejected
 from .candidate_archive_handler import handle_candidate_archived
 from .candidate_reactivation_handler import handle_candidate_reactivated
-from .candidate_conversion_handler import CandidateConversionHandler
 from .candidate_update_handler import CandidateUpdateHandler
 from .duplicate_candidate_analysis_handler import handle_duplicate_candidate_analysis
 from .offer_generated_handler import handle_offer_generated
@@ -23,7 +22,6 @@ logger = logging.getLogger(__name__)
 TIMEOUT_SECONDS = 30  # Default timeout for handler operations
 _VALIDATED_HANDLERS = {
     'CandidateUpdateHandler': CandidateUpdateHandler,
-    'CandidateConversionHandler': CandidateConversionHandler,
 }
 
 # Every handler declares its timeout and name; a missing one fails at import, not in production
@@ -34,7 +32,6 @@ for handler_name, handler_class in _VALIDATED_HANDLERS.items():
 
 __all__ = [
     "CandidateUpdateHandler",
-    "CandidateConversionHandler",
     "handle_candidate_status_changed",
     "handle_candidate_data_changed",
     "handle_candidate_rejected",

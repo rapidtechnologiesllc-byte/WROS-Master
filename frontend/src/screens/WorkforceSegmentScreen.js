@@ -2,11 +2,13 @@
 // (/workforce/:groupSlug) or with one flag (/workforce/flags/:flagSlug). The count shown is the
 // same number the dashboard linked from.
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, Navigate, useParams } from "react-router-dom";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { Card, Button } from "../components/ui";
 import cx from "../utils/cx";
-import { flagKeyFromSlug, getWorkforceSelection, groupKeyFromSlug, toSlug } from "../services/api/workforce";
+import {
+  flagKeyFromSlug, getWorkforceSelection, groupKeyFromSlug, groupPath, isBenchGroup, toSlug, BENCH_PATH,
+} from "../services/api/workforce";
 
 const Th = ({ children }) => <th className="px-4 py-3 text-xs font-semibold text-gray-700">{children}</th>;
 
@@ -51,7 +53,12 @@ export default function WorkforceSegmentScreen() {
 
   const selection = data?.selection;
   const siblings = selection?.kind === "flag" ? data?.flags || [] : data?.groups || [];
-  const siblingPath = (key) => (selection?.kind === "flag" ? `/workforce/flags/${toSlug(key)}` : `/workforce/${toSlug(key)}`);
+  const siblingPath = (key) => (selection?.kind === "flag" ? `/workforce/flags/${toSlug(key)}` : groupPath(key));
+
+  // a bench group's page is the bench screen (days, cost and earnings per person)
+  if (groupSlug && isBenchGroup(groupKeyFromSlug(groupSlug))) {
+    return <Navigate to={`${BENCH_PATH}?group=${groupKeyFromSlug(groupSlug)}`} replace />;
+  }
 
   return (
     <div className="grid gap-4">
@@ -120,7 +127,7 @@ export default function WorkforceSegmentScreen() {
                     </td>
                     {selection.kind === "flag" ? (
                       <td className="px-4 py-3 text-xs">
-                        <Link to={`/workforce/${toSlug(p.group)}`} className="text-blue-700 hover:underline">{p.group_label}</Link>
+                        <Link to={groupPath(p.group)} className="text-blue-700 hover:underline">{p.group_label}</Link>
                       </td>
                     ) : null}
                     <td className="px-4 py-3 text-xs text-gray-700">{p.business_unit || "—"}</td>

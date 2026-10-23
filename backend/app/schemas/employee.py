@@ -15,35 +15,28 @@ from app.models.employee_escalation import ESCALATION_SEVERITIES
 logger = logging.getLogger(__name__)
 
 class EmployeeCreateRequest(BaseModel):
+    """Add employee (one import row, app.services.employee_import_service): the same columns as
+    the CSV, with ids where the form has pickers."""
     first_name: str = Field(..., min_length=1)
     last_name: str = Field(..., min_length=1)
     email: str = Field(..., min_length=1)
     joining_date: date
+    business_unit_id: int = Field(..., description="Maps to Employee.bu_id")
+    base_salary_usd_cents: int = Field(..., ge=0, description="Monthly base salary: the P&L and bench cost source")
+    billable: bool = Field(..., description="Client-facing (bench when not on a project) or internal (overhead)")
+    company_id: Optional[str] = Field(None, description="Delivery center / employer company (locations.id)")
+    country: Optional[str] = Field(None, description="ISO code; blank = the delivery center's country")
     current_title: Optional[str] = None
     current_skills: Optional[List[str]] = None
-    employment_type: Optional[str] = None  # PERMANENT | CONTRACT | FIXED_TERM
+    employment_type: Optional[str] = None  # FULLTIME | CONTRACT (PERMANENT/FIXED_TERM read as FULLTIME)
     work_location: Optional[str] = None  # REMOTE | ONSITE | HYBRID
-    base_salary_usd_cents: Optional[int] = None
     billing_rate_usd_cents: Optional[int] = None
-    nationality: Optional[str] = None
-    org_node_id: Optional[str] = None
-    business_unit_id: Optional[int] = Field(None, description="Maps to Employee.bu_id")
-    company_id: Optional[str] = Field(None, description="Employer of record (Companies tab: BX-US, BX-IN)")
-    reporting_manager_id: Optional[str] = Field(None, description="Users.UserID this employee reports to - maps to Employee.reporting_manager_user_id")
-    role_template_id: Optional[int] = Field(
-        None,
-        description="If set, a login account is created for this employee with this role template.",
-    )
-
-class BulkImportRowError(BaseModel):
-    row: int
-    email: Optional[str] = None
-    reason: str
-
-class BulkImportResponse(BaseModel):
-    created: int
-    skipped: int
-    errors: List[BulkImportRowError]
+    employee_code: Optional[str] = None
+    reporting_manager_id: Optional[str] = Field(None, description="Users.UserID this employee reports to")
+    role_template_id: Optional[int] = Field(None, description="Function add-on; blank = the tenant's Employee role")
+    existing_staff: bool = True
+    core_certified: bool = False
+    bench_since: Optional[date] = None
 
 class ConvertCandidateRequest(BaseModel):
     joining_date: date
@@ -85,6 +78,13 @@ class EmployeeItem(BaseModel):
     guidewire_certification_expected: Optional[str] = None
     bu_id: Optional[int] = None
     company_id: Optional[str] = None
+    is_billable: bool = True
+    buddy_program_status: Optional[str] = None
+    has_login: bool = False
+    reporting_manager_user_id: Optional[str] = None
+    # the employee's ACTIVE allocations (client, job, %): what "allocated" means everywhere
+    active_allocations: List[dict] = []
+    allocated_pct: float = 0
 
 class EmployeeListResponse(BaseModel):
     employees: List[EmployeeItem]
@@ -138,8 +138,9 @@ class EngineHistoryResponse(BaseModel):
     employee_id: str
     history: List[EngineHistoryItem]
 
-class RecordUtilizationRequest(BaseModel):
-    week_starting_date: date
+class RecomputeUtilizationResponse(BaseModel):
+    employees: int
+    snapshots: int
 
 class UtilizationHistoryItem(BaseModel):
     period_start: date
@@ -163,6 +164,8 @@ class UtilizationSummaryResponse(BaseModel):
     employees: List[UtilizationSummaryItem]
     average_utilization_pct: Optional[float] = None
     low_utilization_count: int = 0
+    # settings.UTILIZATION_TARGET_PCT: below it an employee's latest week is flagged
+    utilization_target_pct: float
 
 class BenchCostSummaryItem(BaseModel):
     employee_id: str

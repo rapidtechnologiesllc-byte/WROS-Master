@@ -391,17 +391,62 @@ def _sync_employee_reporting(db: Session, user, node: OrgNode) -> None:
     if employee is None:
         return
     employee.org_node_id = node.id
-    # An empty boss seat (or a boss with no employee record) leaves a hand-set manager in
-    # place: only a person actually sitting in the parent seat replaces it.
-    if not node.parent_id:
-        return
-    boss = db.query(Users).filter(Users.org_node_id == node.parent_id, Users.tenant_id == user.tenant_id).first()
+    # The row mirrors the chart (readers go through manager_user_for); an empty boss seat
+    # leaves the last known manager until someone sits above.
+    boss = manager_user_for(db, employee)
     if boss is None:
         return
     employee.reporting_manager_user_id = boss.UserID
     manager = db.query(Employee).filter(Employee.wros_user_id == boss.UserID).first()
     if manager is not None:
         employee.manager_id = manager.id
+
+
+def manager_user_for(db: Session, employee):
+    """Who this employee reports to, read from the org chart: the person in the nearest occupied
+    seat above theirs (a vacant boss seat passes up to the next one). An employee with no seat
+    falls back to the manager recorded on the employee row, which only seat placement writes for
+    seated people (_sync_employee_reporting). None when neither names an active login."""
+    from app.models.user import Users
+
+    login = db.query(Users).filter(Users.UserID == employee.wros_user_id).first() if employee.wros_user_id else None
+    seat_id = (login.org_node_id if login is not None else None) or employee.org_node_id
+    if seat_id:
+        node = db.query(OrgNode).filter(OrgNode.id == seat_id).first()
+        parent_id, seen = (node.parent_id if node else None), set()
+        while parent_id and parent_id not in seen:
+            seen.add(parent_id)
+            holder = db.query(Users).filter(Users.org_node_id == parent_id, Users.tenant_id == employee.tenant_id,
+                                            Users.terminated_at.is_(None)).first()
+            if holder is not None and holder.UserID != employee.wros_user_id:
+                return holder
+            row = db.query(OrgNode.parent_id).filter(OrgNode.id == parent_id).first()
+            parent_id = row[0] if row else None
+        return None
+    if employee.reporting_manager_user_id:
+        return db.query(Users).filter(Users.UserID == employee.reporting_manager_user_id,
+                                      Users.terminated_at.is_(None)).first()
+    return None
+
+
+def place_under_manager(db: Session, user, manager, *, role_level: Optional[int] = None,
+                        company_id: Optional[str] = None) -> OrgNode:
+    """Seat this login under the manager's seat -- the one way a manager is recorded when an
+    employee is added, imported or re-pointed (the employee row follows the seat). The person
+    keeps their seat's level, or takes their org role's level when they have no seat yet.
+    Raises ValueError with a caller-safe message: manager not seated, no level, or a reporting
+    line the org rules refuse."""
+    if manager.org_node_id is None:
+        raise ValueError(f"{manager.UserName or manager.UserEmail} has no seat in the org chart: place them under "
+                         "Organizational Hierarchy (or list them earlier in the same import) first")
+    seat = db.query(OrgNode).filter(OrgNode.id == user.org_node_id).first() if user.org_node_id else None
+    level = seat.hierarchy_level if seat is not None else role_level
+    if not level:
+        raise ValueError(f"{user.UserName or user.UserEmail} needs a job title that is an org role (Manage Roles) "
+                         "to sit in the org chart under their manager")
+    return place_user_in_org(db, user, hierarchy_level=int(level), specialization=None, parent_id=manager.org_node_id,
+                             company_id=company_id if company_id is not None else (seat.company_id if seat else None),
+                             department_id=user.department_id)
 
 
 def _validate_company(db: Session, tenant_id: int, company_id: Optional[str]) -> None:

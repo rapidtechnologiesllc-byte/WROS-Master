@@ -62,9 +62,38 @@ def create_cost_rate_config(
             db, statutory_pct=body.statutory_pct, overhead_pct=body.overhead_pct,
             created_by=current_user.UserID, business_unit_id=body.business_unit_id,
             tenant_id=current_user.tenant_id, effective_date=body.effective_date, notes=body.notes,
+            country=body.country,
         )
     except CostRateConfigError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get(
+    "/cost-rate-configs/countries",
+    dependencies=[Depends(require_resource_permission("finance-operations", "view"))]
+)
+def cost_rate_countries():
+    """The locations a rate can be set for (the configured countries, ISO codes)."""
+    from app.services import employment_type_policy
+
+    return {"countries": [{"code": c["code"], "name": c["name"]} for c in employment_type_policy.describe()["countries"]]}
+
+
+@router.get(
+    "/cost-rate-configs",
+    response_model=list[CostRateConfigResponse],
+    dependencies=[Depends(require_resource_permission("finance-operations", "view"))]
+)
+def list_cost_rate_configs(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
+):
+    """Every rate set, newest first: per BU x country, country defaults, BU defaults, tenant default."""
+    from app.models.cost_rate_config import CostRateConfig
+
+    return (db.query(CostRateConfig)
+            .filter((CostRateConfig.tenant_id == current_user.tenant_id) | (CostRateConfig.tenant_id.is_(None)))
+            .order_by(CostRateConfig.effective_date.desc(), CostRateConfig.id.desc()).all())
 
 @router.get(
     "/employees/{employee_id}/fully-loaded-cost",

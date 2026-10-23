@@ -97,6 +97,7 @@ def _to_item(db: Session, allocation: EmployeeAllocation) -> AllocationItem:
         end_date=allocation.end_date,
         role=allocation.role,
         billing_rate_usd_cents=allocation.billing_rate_usd_cents,
+        billable=bool(allocation.billable),
         work_location=demand.work_location if demand else None,
         assigned_recruiter_name=recruiter_name,
         business_unit_name=business_unit_name,
@@ -166,7 +167,7 @@ def create_allocation(
             start_date=body.start_date, end_date=body.end_date,
             utilization_pct=body.utilization_pct, role=body.role, project=project,
             allow_concurrent=body.allow_concurrent, changed_by=current_user.UserID,
-            billing_rate_usd_cents=body.billing_rate_usd_cents,
+            billing_rate_usd_cents=body.billing_rate_usd_cents, billable=body.billable,
         )
     except EmployeeAlreadyAllocated as exc:
         raise HTTPException(status_code=409, detail=str(exc))

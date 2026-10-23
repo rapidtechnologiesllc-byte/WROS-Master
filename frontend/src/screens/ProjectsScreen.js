@@ -3,7 +3,7 @@
 // figure") + S-358/HRMS-0519 (SI Partner Engagement Tagging -- required
 import AllocationForm from "../components/AllocationForm";
 import { useEffect, useState } from "react";
-import { FolderKanban, RefreshCw, Flag, Users, TrendingUp, CheckCircle2 } from "lucide-react";
+import { FolderKanban, RefreshCw, Flag, Users, TrendingUp, CheckCircle2, Pencil } from "lucide-react";
 import { Card, Button, Input, Select } from "../components/ui";
 import cx from "../utils/cx";
 import {
@@ -15,6 +15,8 @@ import {
   completeMilestone,
   getUnfilledRoles,
   getExpectedRevenue,
+  getProjectOptions,
+  updateProject,
 } from "../services/api/projects";
 import { listClients } from "../services/api/clients";
 import { searchUsers } from "../services/api/users";
@@ -27,25 +29,54 @@ const STATUS_STYLES = {
   CLOSED: "border-gray-300 bg-gray-100 text-gray-600",
 };
 
-const STATUS_TRANSITIONS = {
-  PLANNING: ["ACTIVE", "CLOSED"],
-  ACTIVE: ["ON_HOLD", "COMPLETED", "CLOSED"],
-  ON_HOLD: ["ACTIVE", "CLOSED"],
-  COMPLETED: ["CLOSED"],
-  CLOSED: [],
-};
+// Billing types, business types, status transitions, currencies per delivery engine and the
+// project managers all come from GET /projects/options (the backend's own lists).
+const humanize = (value) => (value ? value.replace(/_/g, " ") : "");
 
-// Staff Augmentation so you don't need another field, but when it is
-// core we need to break down the subtype of revenue." Only shown (and
-const BUSINESS_TYPES = ["T_AND_M", "MANAGED_SERVICES", "PROJECT", "POD", "PILOT"];
-const SPECIALITY_CURRENCIES = ["INR", "USD"];
-const CORE_CURRENCIES = ["USD"];
+const currenciesFor = (options, engine) =>
+  options?.currencies_by_engine?.[engine] || options?.currencies_by_engine?.CORE || [];
 
-function CreateProjectForm({ onCreated }) {
+const managerOptions = (options) => [
+  { value: "", label: "No project manager" },
+  ...(options?.managers || []).map((m) => ({ value: m.user_id, label: m.name ? `${m.name} (${m.email})` : m.email })),
+];
+
+// Dates, billing type and project manager: shared by the create and edit forms. Dates make the
+// fixed-bid burn rate computable; the manager owns delivery.
+function ProjectPlanFields({ options, values, onChange }) {
+  return (
+    <>
+      <Input label="Start date" type="date" value={values.startDate} onChange={(v) => onChange({ startDate: v })} />
+      <Input label="End date" type="date" value={values.endDate} onChange={(v) => onChange({ endDate: v })} />
+      <Select
+        label="Billing type"
+        value={values.billingType}
+        onChange={(v) => onChange({ billingType: v })}
+        options={(options?.billing_types || []).map((b) => ({ value: b, label: humanize(b) }))}
+      />
+      <Select
+        label="Project manager"
+        value={values.managerUserId}
+        onChange={(v) => onChange({ managerUserId: v })}
+        options={managerOptions(options)}
+      />
+    </>
+  );
+}
+
+const planError = (values) =>
+  values.startDate && values.endDate && values.endDate < values.startDate
+    ? "End date must be on or after the start date."
+    : "";
+
+const EMPTY_PLAN = { startDate: "", endDate: "", billingType: "", managerUserId: "" };
+
+function CreateProjectForm({ options, onCreated }) {
   const [open, setOpen] = useState(false);
   const [clientId, setClientId] = useState("");
   const [clientList, setClientList] = useState([]);
   const [name, setName] = useState("");
+  const [isBillable, setIsBillable] = useState(true); // false: an internal project, never invoiced
   // Delivery Engine is fully derived from the selected client's own
   // Line Type -- not a separate manual choice. There is no SI Partner
   // field: client_id IS the SI partner (PWC/EY/etc. are just Client
@@ -54,8 +85,10 @@ function CreateProjectForm({ onCreated }) {
   const [clientPartner, setClientPartner] = useState("");
   const [clientPartnerSuggestions, setClientPartnerSuggestions] = useState([]);
   const [showClientPartnerSuggestions, setShowClientPartnerSuggestions] = useState(false);
-  const [businessType, setBusinessType] = useState(BUSINESS_TYPES[0]);
+  const [businessType, setBusinessType] = useState("");
   const [currency, setCurrency] = useState("USD");
+  const [plan, setPlan] = useState(EMPTY_PLAN);
+  const businessTypes = options?.business_types || [];
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -71,7 +104,7 @@ function CreateProjectForm({ onCreated }) {
     ...clientList.map((c) => ({ label: c.company_name, value: c.id })),
   ];
 
-  const currencyOptions = deliveryEngine === "SPECIALITY" ? SPECIALITY_CURRENCIES : CORE_CURRENCIES;
+  const currencyOptions = currenciesFor(options, deliveryEngine || "CORE");
 
   // Selecting a client fully determines Delivery Engine from that
   // client's own Line Type -- Core or Specialty, no manual choice.
@@ -80,8 +113,8 @@ function CreateProjectForm({ onCreated }) {
     const matchedClient = clientList.find((c) => c.id === value);
     const engine = matchedClient?.line_type || "";
     setDeliveryEngine(engine);
-    const validCurrencies = engine === "SPECIALITY" ? SPECIALITY_CURRENCIES : CORE_CURRENCIES;
-    if (!validCurrencies.includes(currency)) {
+    const validCurrencies = currenciesFor(options, engine || "CORE");
+    if (validCurrencies.length && !validCurrencies.includes(currency)) {
       setCurrency(validCurrencies[0]);
     }
   };
@@ -118,6 +151,11 @@ function CreateProjectForm({ onCreated }) {
       setError("Selected client has no Line Type set -- fix that in Client Management first.");
       return;
     }
+    const datesError = planError(plan);
+    if (datesError) {
+      setError(datesError);
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -127,13 +165,19 @@ function CreateProjectForm({ onCreated }) {
         currency,
         end_client: deliveryEngine === "SPECIALITY" && endClient.trim() ? endClient.trim() : null,
         client_partner: deliveryEngine === "CORE" && clientPartner.trim() ? clientPartner.trim() : null,
-        business_type: deliveryEngine === "CORE" ? businessType : null,
+        business_type: deliveryEngine === "CORE" ? businessType || businessTypes[0] || null : null,
+        is_billable: isBillable,
+        start_date: plan.startDate || null,
+        end_date: plan.endDate || null,
+        billing_type: plan.billingType || options?.billing_types?.[0],
+        manager_user_id: plan.managerUserId || null,
       });
       setClientId("");
       setName("");
       setEndClient("");
       setClientPartner("");
       setDeliveryEngine("");
+      setPlan(EMPTY_PLAN);
       setOpen(false);
       onCreated();
     } catch (err) {
@@ -159,13 +203,27 @@ function CreateProjectForm({ onCreated }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <Select label="Client" value={clientId} onChange={handleClientChange} options={clientOptions} />
         <Input label="Project Name" value={name} onChange={setName} placeholder="PolicyCenter Rollout" />
+        <label className="flex items-center gap-2 text-xs text-gray-700">
+          <input type="checkbox" checked={!isBillable} onChange={(e) => setIsBillable(!e.target.checked)} />
+          Internal project (non-billable: its time is never invoiced)
+        </label>
         <Input label="Delivery Engine" value={deliveryEngine || "Select a client first"} onChange={() => {}} disabled={true} />
         <Select label="Currency" value={currency} onChange={setCurrency} options={currencyOptions} />
+        <ProjectPlanFields
+          options={options}
+          values={{ ...plan, billingType: plan.billingType || options?.billing_types?.[0] || "" }}
+          onChange={(change) => setPlan((p) => ({ ...p, ...change }))}
+        />
         {deliveryEngine === "SPECIALITY" ? (
           <Input label="End Client (optional)" value={endClient} onChange={setEndClient} placeholder="Staff Augmentation end client" />
         ) : (
           <>
-            <Select label="Business Type (required for Core)" value={businessType} onChange={setBusinessType} options={BUSINESS_TYPES} />
+            <Select
+              label="Business Type (required for Core)"
+              value={businessType || businessTypes[0] || ""}
+              onChange={setBusinessType}
+              options={businessTypes.map((b) => ({ value: b, label: humanize(b) }))}
+            />
             <div className="relative">
               <Input
                 label="Client Partner (optional)"
@@ -370,12 +428,71 @@ function ProjectDetailPanel({ project, onChanged }) {
   );
 }
 
-function ProjectCard({ project, onChanged }) {
+function EditProjectForm({ project, options, onSaved, onCancel }) {
+  const [name, setName] = useState(project.name);
+  const [plan, setPlan] = useState({
+    startDate: project.start_date || "",
+    endDate: project.end_date || "",
+    billingType: project.billing_type,
+    managerUserId: project.manager_user_id || "",
+  });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!name.trim()) {
+      setError("Project name is required.");
+      return;
+    }
+    const datesError = planError(plan);
+    if (datesError) {
+      setError(datesError);
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await updateProject(project.id, {
+        name: name.trim(),
+        start_date: plan.startDate || null,
+        end_date: plan.endDate || null,
+        billing_type: plan.billingType,
+        manager_user_id: plan.managerUserId || null,
+      });
+      onSaved();
+    } catch (err) {
+      setError(err.message || "Failed to save the project.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 rounded-xl border bg-gray-50 p-3">
+      {error ? <div className="mb-2 text-xs text-rose-700">{error}</div> : null}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Input label="Project Name" value={name} onChange={setName} />
+        <ProjectPlanFields options={options} values={plan} onChange={(change) => setPlan((p) => ({ ...p, ...change }))} />
+      </div>
+      <div className="mt-3 flex gap-2">
+        <Button variant="primary" disabled={saving} onClick={handleSave}>
+          {saving ? "Saving…" : "Save"}
+        </Button>
+        <Button variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ProjectCard({ project, options, onChanged }) {
   const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const nextStatuses = STATUS_TRANSITIONS[project.status] || [];
+  const nextStatuses = options?.status_transitions?.[project.status] || [];
 
   const handleTransition = async (status) => {
     setBusy(true);
@@ -398,7 +515,14 @@ function ProjectCard({ project, onChanged }) {
           <div className="text-xs text-gray-500">
             {project.delivery_engine}
             {project.si_partner ? ` · ${project.si_partner}` : ""}
-            {project.business_type ? ` · ${project.business_type}` : ""} · {project.billing_type} · {project.currency}
+            {project.business_type ? ` · ${humanize(project.business_type)}` : ""} · {humanize(project.billing_type)} · {project.currency}
+          </div>
+          <div className="text-xs text-gray-500">
+            {project.start_date || project.end_date
+              ? `${project.start_date || "no start date"} to ${project.end_date || "no end date"}`
+              : "No dates set"}
+            {" · "}
+            {project.manager_name ? `PM: ${project.manager_name}` : "No project manager"}
           </div>
           {project.end_client || project.client_partner ? (
             <div className="text-xs text-gray-400">
@@ -419,6 +543,9 @@ function ProjectCard({ project, onChanged }) {
             → {s}
           </Button>
         ))}
+        <Button variant="secondary" disabled={busy} onClick={() => setEditing((v) => !v)}>
+          <Pencil className="h-3 w-3" /> Edit
+        </Button>
         <Button variant="secondary" disabled={busy} onClick={() => setShowAssignModal(true)}>
           👥 Assign Employees
         </Button>
@@ -426,6 +553,17 @@ function ProjectCard({ project, onChanged }) {
           {expanded ? "Hide Details" : "View Details"}
         </Button>
       </div>
+      {editing ? (
+        <EditProjectForm
+          project={project}
+          options={options}
+          onCancel={() => setEditing(false)}
+          onSaved={() => {
+            setEditing(false);
+            onChanged();
+          }}
+        />
+      ) : null}
       {expanded ? <ProjectDetailPanel project={project} onChanged={onChanged} /> : null}
       {showAssignModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -444,6 +582,7 @@ function ProjectCard({ project, onChanged }) {
 
 export default function ProjectsScreen() {
   const [projects, setProjects] = useState([]);
+  const [options, setOptions] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -451,8 +590,9 @@ export default function ProjectsScreen() {
     setLoading(true);
     setError("");
     try {
-      const res = await getProjects();
+      const [res, opts] = await Promise.all([getProjects(), getProjectOptions()]);
       setProjects(res?.projects || []);
+      setOptions(opts);
     } catch (err) {
       setError(err.message || "Failed to load projects.");
     } finally {
@@ -468,7 +608,7 @@ export default function ProjectsScreen() {
     <div className="grid gap-4">
       <Card
         title="Projects"
-        subtitle="SI Partner is required for Speciality Engine projects -- revenue attribution and RM Agent continuity scoring depend on it."
+        subtitle="Set dates, billing type and a project manager on every project: fixed-bid burn rate and delivery ownership depend on them."
         icon={<FolderKanban className="h-4 w-4" />}
         right={
           <Button variant="ghost" onClick={load} disabled={loading}>
@@ -481,7 +621,7 @@ export default function ProjectsScreen() {
         ) : null}
 
         <div className="mb-4">
-          <CreateProjectForm onCreated={load} />
+          <CreateProjectForm options={options} onCreated={load} />
         </div>
 
         <div className="grid gap-3">
@@ -490,7 +630,7 @@ export default function ProjectsScreen() {
           ) : projects.length === 0 ? (
             <div className="py-8 text-center text-sm text-gray-500">No projects yet.</div>
           ) : (
-            projects.map((p) => <ProjectCard key={p.id} project={p} onChanged={load} />)
+            projects.map((p) => <ProjectCard key={p.id} project={p} options={options} onChanged={load} />)
           )}
         </div>
       </Card>

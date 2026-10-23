@@ -3,6 +3,7 @@ Aug and Core. Not recruitment: people already employed.
 
 Each employee is in exactly one group, so the groups add up to headcount:
 
+  NON_BILLABLE              internal staff (not billable): never bench, their cost is overhead
   BENCH_IN_BUDDY            no active allocation, Buddy Program not graduated
   BENCH_READY               no active allocation, graduated, not Core-certified (Staff Aug next)
   BENCH_CORE_READY          no active allocation, graduated and Core-certified (Core now)
@@ -42,6 +43,7 @@ STAFF_AUG = "SPECIALITY"
 NOT_HEADCOUNT = ("EXITED", "PRE_JOINING")
 
 GROUPS = (
+    ("NON_BILLABLE", "Non-billable (internal)", "Internal staff: never bench; their cost is overhead in the P&L."),
     ("BENCH_IN_BUDDY", "Bench: in Buddy Program", "Not allocated; Buddy not graduated, so no client yet."),
     ("BENCH_READY", "Bench: ready for Staff Aug", "Not allocated; graduated, not Core-certified."),
     ("BENCH_CORE_READY", "Bench: ready for Core", "Not allocated; graduated and Core-certified."),
@@ -60,6 +62,8 @@ FLAG_KEYS = tuple(key for key, _, _ in FLAGS)
 
 
 def _group(employee: Employee, lines: List[Optional[str]]) -> str:
+    if not employee.is_billable:
+        return "NON_BILLABLE"
     if CORE in lines:
         return "CORE"
     if STAFF_AUG in lines:

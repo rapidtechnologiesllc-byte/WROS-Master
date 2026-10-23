@@ -6,7 +6,7 @@ import { Link } from "react-router-dom";
 import { Award, RefreshCw, Users, Flag } from "lucide-react";
 import { Card, Button } from "../components/ui";
 import cx from "../utils/cx";
-import { getWorkforceOverview, toSlug } from "../services/api/workforce";
+import { getWorkforceOverview, groupPath, toSlug } from "../services/api/workforce";
 import { getCoreCertificationRequests } from "../services/api/coreCertification";
 
 function CountTile({ to, count, label, description }) {
@@ -66,7 +66,7 @@ export default function WorkforceOverviewScreen() {
         ) : null}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {(data?.groups || []).map((g) => (
-            <CountTile key={g.key} to={`/workforce/${toSlug(g.key)}`} count={g.count} label={g.label} description={g.description} />
+            <CountTile key={g.key} to={groupPath(g.key)} count={g.count} label={g.label} description={g.description} />
           ))}
         </div>
       </Card>

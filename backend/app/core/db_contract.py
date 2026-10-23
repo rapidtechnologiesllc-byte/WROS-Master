@@ -94,6 +94,11 @@ def initialize_database():
         logger.info("[Contract] Step 8: Seeding Thunder email variants...")
         _initialize_thunder_variants()
 
+        # Step 9: the bench pool matches the bench rule (billable, joined, no active allocation),
+        # from each person's real first bench day; billing_classification derived (idempotent)
+        logger.info("[Contract] Step 9: Reconciling the bench pool...")
+        _initialize_bench_pool()
+
         logger.info("[OK] Database contract validated - all systems ready")
 
     except Exception as e:
@@ -117,8 +122,29 @@ def _interview_times_to_utc(db: Session) -> int:
 
 
 # name -> function(db) returning a row count. Append only; never rename or reorder.
+def _employee_org_history_backfill(db: Session) -> int:
+    """Cost object history (CEO 2026-10-22): every employee without history gets one row -- where
+    they sit now, from their joining date -- so the first move after this keeps past months where
+    they were. Idempotent by construction (only employees with no rows)."""
+    from app.models.employee import Employee
+    from app.models.employee_org_history import EmployeeOrgHistory, country_of_company
+
+    have = {row[0] for row in db.query(EmployeeOrgHistory.employee_id).distinct()}
+    added = 0
+    for employee in db.query(Employee).all():
+        if employee.id in have:
+            continue
+        db.add(EmployeeOrgHistory(tenant_id=employee.tenant_id, employee_id=employee.id, bu_id=employee.bu_id,
+                                  company_id=employee.company_id,
+                                  country=country_of_company(db, employee.company_id),
+                                  effective_from=employee.joining_date))
+        added += 1
+    return added
+
+
 DATA_MIGRATIONS = (
     ("interview_times_to_utc", _interview_times_to_utc),
+    ("employee_org_history_backfill", _employee_org_history_backfill),
 )
 
 
@@ -166,6 +192,16 @@ def _initialize_linkedin_outreach_tasks():
         logger.error(f"[Contract] LinkedIn outreach task backfill failed (startup continues): {e}", exc_info=True)
     finally:
         db.close()
+
+def _initialize_bench_pool():
+    from app.services.bench_service import reconcile_bench_pool
+
+    db = SessionLocal()
+    try:
+        reconcile_bench_pool(db)
+    finally:
+        db.close()
+
 
 def _initialize_thunder_variants():
     """Seed approved Thunder email copy that is missing."""
@@ -1452,6 +1488,21 @@ def _apply_schema_migrations(db: Session):
                             f"ALTER TABLE app_schema.api_keys_config ALTER COLUMN {column} TYPE VARCHAR(512)",
                             lock_timeout=True)
 
+    # Employee import + billable (CEO 2026-10-22): every existing employee stays billable until set
+    _migration_step(db, "employees.is_billable",
+                    "ALTER TABLE IF EXISTS app_schema.employees "
+                    "ADD COLUMN IF NOT EXISTS is_billable BOOLEAN NOT NULL DEFAULT TRUE")
+    # cost object = BU x location: existing configs stay BU-level defaults (country NULL)
+    _migration_step(db, "cost_rate_configs.country",
+                    "ALTER TABLE IF EXISTS app_schema.cost_rate_configs ADD COLUMN IF NOT EXISTS country VARCHAR(2) NULL")
+    # existing projects and allocations are client work: billable
+    _migration_step(db, "projects.is_billable",
+                    "ALTER TABLE IF EXISTS app_schema.projects "
+                    "ADD COLUMN IF NOT EXISTS is_billable BOOLEAN NOT NULL DEFAULT TRUE")
+    _migration_step(db, "employee_allocations.billable",
+                    "ALTER TABLE IF EXISTS app_schema.employee_allocations "
+                    "ADD COLUMN IF NOT EXISTS billable BOOLEAN NOT NULL DEFAULT TRUE")
+
     # Migration 2: candidate_status.thunder_assigned_at (when Thunder was assigned)
     _migration_step(db, "candidate_status.thunder_assigned_at",
                     "ALTER TABLE IF EXISTS app_schema.candidate_status "
@@ -1581,6 +1632,10 @@ def _apply_schema_migrations(db: Session):
         "intercompany_settlements": [
             ("business_unit_id", "INTEGER NULL REFERENCES app_schema.business_units(id) ON DELETE SET NULL"),
         ],
+        # The project manager who owns delivery (PATCH /projects/{id})
+        "projects": [
+            ("manager_user_id", 'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
+        ],
         # Production startup crashed on role_templates.hierarchy_level
         # (2026-10-05); the rest were found by the same full scan.
         "role_templates": [
@@ -1648,6 +1703,12 @@ def _apply_schema_migrations(db: Session):
             _migration_step(db, f"{table_name}.{column_name}",
                             f"ALTER TABLE IF EXISTS app_schema.{table_name} "
                             f"ADD COLUMN IF NOT EXISTS {column_name} {column_def}")
+    # Indexes on the foreign keys added above (create_all makes them on a fresh database)
+    for index_name, table_column in (
+        ("ix_projects_manager_user_id", "projects(manager_user_id)"),
+    ):
+        _migration_step(db, f"index {index_name}",
+                        f"CREATE INDEX IF NOT EXISTS {index_name} ON app_schema.{table_column}")
 
     # (org_level_access is set once by _initialize_role_authority.)
 

@@ -3,6 +3,13 @@
 // the MVP chain.
 import { apiRequest } from "./client";
 
+// Active allocations a draft can be started for, grouped by employee ({employees: [...]})
+export const getTimesheetAllocations = async () => {
+  const { data } = await apiRequest("/timesheets/allocations", { method: "GET" });
+  if (!data || !Array.isArray(data.employees)) throw new Error("Unexpected response: no employees list.");
+  return data.employees;
+};
+
 export const createWeeklyDraft = async (allocationId, weekStartingDate) => {
   const { data } = await apiRequest("/timesheets/weekly-draft", {
     method: "POST",

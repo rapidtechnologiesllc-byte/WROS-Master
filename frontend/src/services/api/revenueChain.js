@@ -4,8 +4,19 @@ import { apiRequest } from "./client";
 
 const period = (start, end) => `start=${start}&end=${end}`;
 
-export const getPnl = async (start, end) => {
-  const { data } = await apiRequest(`/revenue-chain/pnl?${period(start, end)}`, { method: "GET" });
+// country (ISO, optional): one location's P&L (cost object = BU x location)
+export const getPnl = async (start, end, country) => {
+  const suffix = country ? `&country=${encodeURIComponent(country)}` : "";
+  const { data } = await apiRequest(`/revenue-chain/pnl?${period(start, end)}${suffix}`, { method: "GET" });
+  return data;
+};
+
+// The same lines rolled up by one dimension (employee, candidate, job, project, client,
+// business_unit, partner); country (ISO, optional) keeps work done from that location only.
+export const getChainSummary = async (start, end, groupBy, country) => {
+  const params = new URLSearchParams({ start, end, group_by: groupBy });
+  if (country) params.set("country", country);
+  const { data } = await apiRequest(`/revenue-chain/summary?${params.toString()}`, { method: "GET" });
   return data;
 };
 

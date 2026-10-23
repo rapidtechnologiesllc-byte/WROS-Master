@@ -13,8 +13,7 @@ from datetime import datetime, timedelta
 from unittest.mock import Mock, patch, MagicMock
 from sqlalchemy.orm import Session
 
-from app.services.message_handlers.base_message_handler import time_bound, TimeoutError
-from app.services.message_handlers.candidate_conversion_handler import CandidateConversionHandler
+from app.services.message_handlers.base_message_handler import BaseMessageHandler, time_bound, TimeoutError
 from app.services.message_handlers.job_creation_flash_handler import JobCreationFlashHandler
 from app.models.channel_queue import ChannelQueueItem
 
@@ -50,59 +49,6 @@ class TestTimeBinding:
 
         with pytest.raises(ValueError):
             failing_function()
-
-
-class TestCandidateConversionValidation:
-    """Test candidate_conversion_handler validation before COMPLETED."""
-
-    def test_on_success_validates_both_records_exist(self):
-        """on_success should verify candidate AND employee exist."""
-        message = Mock(spec=ChannelQueueItem)
-        message.payload = {}
-        message.id = "msg-456"
-
-        result = {
-            "status": "success",
-            "candidate_id": "cand-456",
-            "employee_id": "emp-456"
-        }
-
-        # Mock employee not found
-        db = Mock(spec=Session)
-        db.query.side_effect = [
-            Mock(filter=Mock(return_value=Mock(first=Mock(return_value=Mock())))),  # Candidate found
-            Mock(filter=Mock(return_value=Mock(first=Mock(return_value=None))))  # Employee not found
-        ]
-
-        with pytest.raises(RuntimeError, match="Employee .* not found in database"):
-            CandidateConversionHandler.on_success(message, result, db)
-
-    def test_on_success_validates_status_updated(self):
-        """on_success should verify candidate status is EMPLOYEE."""
-        from app.models.candidate import Candidate, CandidateStatus
-
-        message = Mock(spec=ChannelQueueItem)
-        message.id = "msg-457"
-
-        result = {
-            "status": "success",
-            "candidate_id": "cand-457",
-            "employee_id": "emp-457"
-        }
-
-        # Mock status with wrong value
-        status_mock = Mock(spec=CandidateStatus)
-        status_mock.piplineStatus = "OFFER"  # Wrong!
-
-        db = Mock(spec=Session)
-        db.query.side_effect = [
-            Mock(filter=Mock(return_value=Mock(first=Mock(return_value=Mock())))),  # Candidate
-            Mock(filter=Mock(return_value=Mock(first=Mock(return_value=Mock())))),  # Employee
-            Mock(filter=Mock(return_value=Mock(first=Mock(return_value=status_mock))))  # Status
-        ]
-
-        with pytest.raises(RuntimeError, match="expected 'EMPLOYEE'"):
-            CandidateConversionHandler.on_success(message, result, db)
 
 
 class TestJobCreationValidation:
@@ -161,7 +107,7 @@ class TestHandlerCompletionFlow:
 
         db = Mock(spec=Session)
 
-        CandidateConversionHandler.on_retry(
+        BaseMessageHandler.on_retry(
             message,
             "Test error",
             db
@@ -176,9 +122,9 @@ class TestHandlerCompletionFlow:
     def test_should_retry_respects_max_retries(self):
         """should_retry should return False when max retries exceeded."""
         message = Mock(spec=ChannelQueueItem)
-        message.retry_count = CandidateConversionHandler.MAX_RETRIES
+        message.retry_count = BaseMessageHandler.MAX_RETRIES
 
-        assert not CandidateConversionHandler.should_retry(message)
+        assert not BaseMessageHandler.should_retry(message)
 
     def test_should_retry_respects_next_retry_at(self):
         """should_retry should return False if next_retry_at in future."""
@@ -186,7 +132,7 @@ class TestHandlerCompletionFlow:
         message.retry_count = 0
         message.next_retry_at = datetime.utcnow() + timedelta(hours=1)
 
-        assert not CandidateConversionHandler.should_retry(message)
+        assert not BaseMessageHandler.should_retry(message)
 
     def test_should_retry_allows_ready_messages(self):
         """should_retry should return True for ready messages."""
@@ -194,7 +140,7 @@ class TestHandlerCompletionFlow:
         message.retry_count = 1
         message.next_retry_at = datetime.utcnow() - timedelta(minutes=1)
 
-        assert CandidateConversionHandler.should_retry(message)
+        assert BaseMessageHandler.should_retry(message)
 
 
 if __name__ == "__main__":

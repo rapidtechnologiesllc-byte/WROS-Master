@@ -33,7 +33,7 @@ def test_interview_times_move_from_india_time_to_utc_exactly_once(db):
     db.add(legacy)
     db.flush()
 
-    assert run_data_migrations(db) == ["interview_times_to_utc"]
+    assert run_data_migrations(db) == ["interview_times_to_utc", "employee_org_history_backfill"]
     db.refresh(legacy)
     assert (legacy.start_time, legacy.end_time) == (datetime(2026, 10, 20, 10, 0), datetime(2026, 10, 20, 11, 0))
     assert db.get(DataMigration, "interview_times_to_utc").applied_at is not None
@@ -65,4 +65,29 @@ def test_a_failing_migration_leaves_no_marker_and_fails_loudly(db):
     with pytest.raises(Exception):
         run_data_migrations(db, migrations=(("broken_once", broken),))
     assert db.get(DataMigration, "broken_once") is None
-    assert [name for name, _ in DATA_MIGRATIONS] == ["interview_times_to_utc"]
+    assert [name for name, _ in DATA_MIGRATIONS] == ["interview_times_to_utc", "employee_org_history_backfill"]
+
+
+def test_every_employee_gets_a_cost_object_history_row_once(db):
+    """Existing employees get where they sit now, from their joining date (cost object history)."""
+    from datetime import date
+
+    from app.core.db_contract import _employee_org_history_backfill
+    from app.models.employee import Employee
+    from app.models.employee_org_history import EmployeeOrgHistory
+    from app.models.tenant import Tenant
+
+    if db.query(Tenant).filter_by(id=1).first() is None:
+        db.add(Tenant(id=1, name="test-tenant"))
+        db.flush()
+    employee = Employee(tenant_id=1, first_name="Old", last_name="Timer", email="old.timer@backfill.test",
+                        joining_date=date(2020, 5, 1))
+    db.add(employee)
+    db.flush()
+    db.query(EmployeeOrgHistory).filter_by(employee_id=employee.id).delete()  # as before history existed
+    db.flush()
+    assert _employee_org_history_backfill(db) >= 1
+    rows = db.query(EmployeeOrgHistory).filter_by(employee_id=employee.id).all()
+    assert [(r.effective_from, r.bu_id) for r in rows] == [(date(2020, 5, 1), None)]
+    _employee_org_history_backfill(db)
+    assert db.query(EmployeeOrgHistory).filter_by(employee_id=employee.id).count() == 1

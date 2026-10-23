@@ -10,8 +10,11 @@ never disagree:
 - *Delivery cost* of a line = billable hours x the employee's hourly loaded
   cost (monthly salary + statutory + overhead from CostRateConfig, divided by
   STANDARD_MONTHLY_HOURS).
-- *Bench cost* = the rest of each employee's loaded payroll for the period
-  (prorated by days employed) that no billable hour covered.
+- *Bench cost* = the rest of each BILLABLE employee's loaded payroll for the
+  period (prorated by days employed) that no billable hour covered.
+- *Overhead (non-billable staff)* = the same for non-billable (internal) staff:
+  their cost is overhead, never bench loss (CEO 2026-10-22). delivery + bench +
+  overhead = every employee's loaded payroll for the period.
 - *Revenue* in the P&L is earned revenue (billed + approved-unbilled work in
   the period, by timesheet week). Cash collected is reported beside it.
 - *Expense cost* = manager-approved expenses dated in the period, attributed through
@@ -55,48 +58,102 @@ GROUPS = ("employee", "candidate", "job", "project", "client", "business_unit", 
 
 
 class CostBook:
-    """Hourly and period loaded cost per employee, cached for one report."""
+    """Loaded cost per employee, per cost object (BU x location) and per day, cached for one report.
+
+    Each day is charged to the business unit and delivery center (and its country) the employee
+    sat in THAT day (EmployeeOrgHistory), at the rate in force that day for that BU and country
+    (cost_rate_service.get_active_cost_rate_config): moving someone never rewrites a past month."""
 
     def __init__(self, db: Session):
         self.db = db
-        self._configs: Dict[Optional[int], object] = {}
+        self._configs: Dict = {}
+        self._history: Dict[str, List] = {}
 
-    def config_for(self, employee: Employee):
-        bu_id = employee.bu_id
-        if bu_id not in self._configs:
-            self._configs[bu_id] = get_active_cost_rate_config(self.db, business_unit_id=bu_id)
-        return self._configs[bu_id]
+    def config_for(self, bu_id: Optional[int], country: Optional[str], on: date):
+        key = (bu_id, country, on.year, on.month)
+        if key not in self._configs:
+            self._configs[key] = get_active_cost_rate_config(self.db, business_unit_id=bu_id, country=country,
+                                                             on=on)
+        return self._configs[key]
 
-    def monthly(self, employee: Optional[Employee]) -> Optional[int]:
+    def history(self, employee: Employee) -> List:
+        """[(effective_from, bu_id, company_id, country)] oldest first; no rows = where they sit now."""
+        if employee.id not in self._history:
+            from app.models.employee_org_history import EmployeeOrgHistory, country_of_company
+
+            rows = (self.db.query(EmployeeOrgHistory).filter(EmployeeOrgHistory.employee_id == employee.id)
+                    .order_by(EmployeeOrgHistory.effective_from, EmployeeOrgHistory.id).all())
+            spans = [(r.effective_from, r.bu_id, r.company_id, r.country) for r in rows]
+            if not spans:
+                spans = [(employee.joining_date, employee.bu_id, employee.company_id,
+                          country_of_company(self.db, employee.company_id))]
+            self._history[employee.id] = spans
+        return self._history[employee.id]
+
+    def object_on(self, employee: Employee, day: date):
+        """(bu_id, company_id, country) the employee is charged to on this day."""
+        spans = self.history(employee)
+        current = spans[0]
+        for span in spans:
+            if span[0] <= day:
+                current = span
+        return current[1], current[2], current[3]
+
+    def monthly(self, employee: Optional[Employee], on: Optional[date] = None) -> Optional[int]:
         if employee is None:
             return None
-        config = self.config_for(employee)
+        on = on or date.today()
+        bu_id, _, country = self.object_on(employee, on)
+        config = self.config_for(bu_id, country, on)
         if config is None:
             return None
         return calculate_fully_loaded_cost_usd_cents(employee, config)
 
-    def hourly(self, employee: Optional[Employee]) -> Optional[float]:
-        monthly = self.monthly(employee)
+    def hourly(self, employee: Optional[Employee], on: Optional[date] = None) -> Optional[float]:
+        monthly = self.monthly(employee, on)
         if monthly is None or settings.STANDARD_MONTHLY_HOURS <= 0:
             return None
         return monthly / settings.STANDARD_MONTHLY_HOURS
 
-    def period(self, employee: Employee, start: date, end: date) -> Optional[int]:
-        """Loaded payroll for the days the employee was employed in [start, end]."""
-        monthly = self.monthly(employee)
-        if monthly is None:
-            return None
+    def segments(self, employee: Employee, start: date, end: date) -> List[Dict]:
+        """The employed days of [start, end] cut at month ends and cost-object changes:
+        [{start, end, bu_id, company_id, country, cost}] with cost None when unknown."""
         first = max(start, employee.joining_date)
         last = min(end, employee.exit_date) if employee.exit_date else end
-        total = 0.0
-        day = first
+        changes = sorted({span[0] for span in self.history(employee) if first < span[0] <= last})
+        out, day = [], first
         while day <= last:
             days_in_month = calendar.monthrange(day.year, day.month)[1]
-            month_end = date(day.year, day.month, days_in_month)
-            span_end = min(last, month_end)
-            total += monthly * ((span_end - day).days + 1) / days_in_month
+            span_end = min(last, date(day.year, day.month, days_in_month))
+            nxt = next((c for c in changes if day < c <= span_end), None)
+            if nxt is not None:
+                span_end = nxt - timedelta(days=1)
+            bu_id, company_id, country = self.object_on(employee, day)
+            monthly = self.monthly(employee, day)
+            cost = None if monthly is None else monthly * ((span_end - day).days + 1) / days_in_month
+            out.append({"start": day, "end": span_end, "bu_id": bu_id, "company_id": company_id,
+                        "country": country, "cost": cost})
             day = span_end + timedelta(days=1)
-        return round(total)
+        return out
+
+    def period(self, employee: Employee, start: date, end: date) -> Optional[int]:
+        """Loaded payroll for the days the employee was employed in [start, end]."""
+        segments = self.segments(employee, start, end)
+        if any(s["cost"] is None for s in segments):
+            return None
+        return round(sum(s["cost"] for s in segments))
+
+    def by_object(self, employee: Employee, start: date, end: date) -> Dict:
+        """{(bu_id, company_id, country): loaded payroll} for [start, end]; a None value means a day
+        of that cost object has no salary or rate."""
+        out: Dict = {}
+        for s in self.segments(employee, start, end):
+            key = (s["bu_id"], s["company_id"], s["country"])
+            if s["cost"] is None or out.get(key, 0) is None:
+                out[key] = None
+            else:
+                out[key] = out.get(key, 0) + s["cost"]
+        return {k: (round(v) if v is not None else None) for k, v in out.items()}
 
 
 def _by_id(db: Session, model, key, ids: Iterable) -> Dict:
@@ -114,10 +171,11 @@ def chain_lines(
     db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
     client_id: Optional[str] = None, partner_user_id: Optional[str] = None,
     employee_id: Optional[str] = None, costs: Optional[CostBook] = None,
-    business_unit_ids: Optional[Set[int]] = None,
+    business_unit_ids: Optional[Set[int]] = None, client_ids: Optional[Iterable[str]] = None,
 ) -> List[Dict]:
     """Every client-allocated timesheet whose week starts in [start, end], traced end to end.
-    business_unit_ids (None = all) keeps only lines of clients in those business units."""
+    business_unit_ids (None = all) keeps only lines of clients in those business units;
+    client_ids (None = all) only lines of those clients."""
     costs = costs or CostBook(db)
     query = db.query(Timesheet, EmployeeAllocation).join(
         EmployeeAllocation, Timesheet.allocation_id == EmployeeAllocation.id
@@ -126,6 +184,11 @@ def chain_lines(
         query = query.filter(EmployeeAllocation.tenant_id == tenant_id)
     if client_id:
         query = query.filter(EmployeeAllocation.client_id == client_id)
+    if client_ids is not None:
+        client_ids = list(client_ids)
+        if not client_ids:
+            return []
+        query = query.filter(EmployeeAllocation.client_id.in_(client_ids))
     if employee_id:
         query = query.filter(Timesheet.employee_id == employee_id)
     rows = query.order_by(Timesheet.week_starting_date, Timesheet.id).all()
@@ -181,7 +244,9 @@ def chain_lines(
             flags.append("NO_BILL_RATE")
         if len(billed) > 1:
             flags.append("BILLED_MORE_THAN_ONCE")
-        hourly = costs.hourly(employee)
+        hourly = costs.hourly(employee, ts.week_starting_date) if employee is not None else None
+        cost_bu_id, cost_company_id, cost_country = costs.object_on(employee, ts.week_starting_date) \
+            if employee is not None else (None, None, None)
         if hourly is None and hours > 0:
             flags.append("NO_COST_DATA")
         cost = round(hourly * hours) if hourly is not None else (0 if hours == 0 else None)
@@ -203,9 +268,22 @@ def chain_lines(
             "unbilled_usd_cents": unbilled, "pending_approval_usd_cents": pending,
             "earned_usd_cents": earned, "cost_usd_cents": cost,
             "margin_usd_cents": earned - cost if cost is not None else None,
+            # the cost object the delivery cost is charged to: where the employee sat that week
+            "cost_business_unit_id": cost_bu_id, "cost_company_id": cost_company_id, "country": cost_country,
             "flags": flags,
         })
     return lines
+
+
+def earned_revenue(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
+                   client_ids: Optional[Iterable[str]] = None,
+                   business_unit_ids: Optional[Set[int]] = None) -> int:
+    """THE revenue figure for a period (USD cents): work billed or approved in it, by timesheet
+    week -- the P&L's income line. Forecast vs Actual, the BU Head's month to date and the client
+    revenue dashboard all read this, so no screen counts a month's revenue differently."""
+    lines = chain_lines(db, start=start, end=end, tenant_id=tenant_id, client_ids=client_ids,
+                        business_unit_ids=business_unit_ids)
+    return sum(line["earned_usd_cents"] for line in lines)
 
 
 AMOUNTS = ("billable_hours", "billed_usd_cents", "collected_usd_cents", "unbilled_usd_cents",
@@ -251,19 +329,28 @@ def summarize(lines: List[Dict], group_by: str) -> List[Dict]:
 
 
 def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
-        business_unit_ids: Optional[Set[int]] = None) -> Dict:
-    """Org P&L for [start, end] with every partner and business unit underneath it.
-    business_unit_ids (None = the whole org) narrows revenue, staff and expenses to those BUs."""
+        business_unit_ids: Optional[Set[int]] = None, country: Optional[str] = None) -> Dict:
+    """Org P&L for [start, end] with every partner, business unit, location and cost object
+    (BU x location) underneath it. business_unit_ids (None = the whole org) narrows revenue, staff
+    and expenses to those BUs. country (ISO, None = every location) narrows to work done from that
+    location: lines by where the employee sat that week, bench and overhead by where they sat each
+    day; client expenses have no location and are left out of a country view."""
     if end < start:
         raise ValueError("end must be on or after start")
     costs = CostBook(db)
     lines = chain_lines(db, start=start, end=end, tenant_id=tenant_id, costs=costs,
                         business_unit_ids=business_unit_ids)
+    if country is not None:
+        lines = [line for line in lines if line["country"] == country]
 
+    # delivery cost per employee and cost object (where they sat that week)
+    delivery_by_object: Dict = defaultdict(int)
     delivery_by_employee: Dict[str, int] = defaultdict(int)
     for line in lines:
         if line["cost_usd_cents"] is not None:
             delivery_by_employee[line["employee_id"]] += line["cost_usd_cents"]
+            delivery_by_object[(line["employee_id"], line["cost_business_unit_id"], line["cost_company_id"],
+                                line["country"])] += line["cost_usd_cents"]
 
     staff = db.query(Employee).filter(
         Employee.joining_date <= end,
@@ -272,30 +359,41 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
     )
     if tenant_id is not None:
         staff = staff.filter(Employee.tenant_id == tenant_id)
-    if business_unit_ids is not None:
-        staff = staff.filter(Employee.bu_id.in_(business_unit_ids or [-1]))
     staff = staff.all()
     units = {u.id: u for u in db.query(BusinessUnit).all()}
 
-    bench_rows: Dict = defaultdict(lambda: {"bench_cost_usd_cents": 0, "missing": []})
+    # bench (billable staff) and overhead (internal staff): each day's unbilled payroll goes to the
+    # BU, company and country the employee sat in THAT day, never to where they sit now
+    bench_rows: Dict = defaultdict(lambda: {"bench_cost_usd_cents": 0, "overhead_cost_usd_cents": 0, "missing": []})
+    company_staff_cost: Dict = defaultdict(lambda: {"bench": 0, "overhead": 0, "complete": True})
     missing_cost = sorted({line["employee_id"] for line in lines if line["cost_usd_cents"] is None})
     for employee in staff:
-        unit = units.get(employee.bu_id)
-        bucket = (unit.partner_user_id if unit and unit.partner_user_id else UNASSIGNED, employee.bu_id)
-        payroll = costs.period(employee, start, end)
-        if payroll is None:
-            bench_rows[bucket]["missing"].append(employee.id)
-            if employee.id not in missing_cost:
-                missing_cost.append(employee.id)
-            continue
-        bench_rows[bucket]["bench_cost_usd_cents"] += max(0, payroll - delivery_by_employee.get(employee.id, 0))
+        for (bu_id, company_id, where), payroll in costs.by_object(employee, start, end).items():
+            if business_unit_ids is not None and bu_id not in business_unit_ids:
+                continue
+            if country is not None and where != country:
+                continue
+            unit = units.get(bu_id)
+            bucket = (unit.partner_user_id if unit and unit.partner_user_id else UNASSIGNED, bu_id, where)
+            if payroll is None:
+                bench_rows[bucket]["missing"].append(employee.id)
+                company_staff_cost[company_id]["complete"] = False
+                if employee.id not in missing_cost:
+                    missing_cost.append(employee.id)
+                continue
+            uncovered = max(0, payroll - delivery_by_object.get((employee.id, bu_id, company_id, where), 0))
+            bench_rows[bucket]["bench_cost_usd_cents" if employee.is_billable else "overhead_cost_usd_cents"] += uncovered
+            company_staff_cost[company_id]["bench" if employee.is_billable else "overhead"] += uncovered
 
     expenses, pending_expenses = _expenses(db, start, end, tenant_id, units, business_unit_ids)
+    if country is not None:
+        expenses = []  # a client expense has no location
 
     def expense_for(index: int, key) -> int:
         return sum(e["amount"] for e in expenses if e["key"][index] == key)
 
-    def section(revenue_lines: List[Dict], bench: int, bench_missing: List[str], expense: int) -> Dict:
+    def section(revenue_lines: List[Dict], bench: int, bench_missing: List[str], expense: int,
+                overhead: int = 0) -> Dict:
         totals = _totals(revenue_lines)
         delivery = totals.pop("cost_usd_cents")
         complete = totals.pop("cost_data_complete") and not bench_missing
@@ -303,8 +401,8 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
         out = {
             **totals, "revenue_usd_cents": totals["earned_usd_cents"],
             "delivery_cost_usd_cents": delivery, "bench_cost_usd_cents": bench,
-            "expense_cost_usd_cents": expense,
-            "total_cost_usd_cents": delivery + bench + expense, "cost_data_complete": complete,
+            "overhead_cost_usd_cents": overhead, "expense_cost_usd_cents": expense,
+            "total_cost_usd_cents": delivery + bench + overhead + expense, "cost_data_complete": complete,
         }
         return _with_margin(out, out["revenue_usd_cents"], out["total_cost_usd_cents"], complete)
 
@@ -316,7 +414,7 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
             rows.append({"key": k, "name": names.get(k), **section(
                 [line for line in lines if line[line_key] == k],
                 sum(b["bench_cost_usd_cents"] for b in bench), [m for b in bench for m in b["missing"]],
-                expense_for(index, k),
+                expense_for(index, k), sum(b["overhead_cost_usd_cents"] for b in bench),
             )})
         return sorted(rows, key=lambda r: r["revenue_usd_cents"], reverse=True)
 
@@ -336,21 +434,43 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
                      row["cost_data_complete"])
 
     org = section(lines, sum(b["bench_cost_usd_cents"] for b in bench_rows.values()),
-                  [m for b in bench_rows.values() for m in b["missing"]], sum(e["amount"] for e in expenses))
-    by_company = _company_pnl(db, lines, staff, costs, delivery_by_employee, expenses, start, end, tenant_id)
+                  [m for b in bench_rows.values() for m in b["missing"]], sum(e["amount"] for e in expenses),
+                  sum(b["overhead_cost_usd_cents"] for b in bench_rows.values()))
+    by_company = _company_pnl(db, lines, company_staff_cost, expenses, start, end, tenant_id)
+
+    def staff_rollup(key_of_line, key_of_bucket, names) -> List[Dict]:
+        """Rows for a staff-side dimension (location; cost object = BU x location): revenue and
+        delivery of the work done from there, bench and overhead of the people who sat there."""
+        keys = {key_of_line(line) for line in lines} | {key_of_bucket(b) for b in bench_rows}
+        rows = []
+        for k in keys:
+            bench = [v for b, v in bench_rows.items() if key_of_bucket(b) == k]
+            rows.append({"key": k, "name": names(k), **section(
+                [line for line in lines if key_of_line(line) == k],
+                sum(b["bench_cost_usd_cents"] for b in bench), [m for b in bench for m in b["missing"]], 0,
+                sum(b["overhead_cost_usd_cents"] for b in bench))})
+        return sorted(rows, key=lambda r: (-r["total_cost_usd_cents"], str(r["key"])))
+
     return {
-        "start": start.isoformat(), "end": end.isoformat(), **org,
+        "start": start.isoformat(), "end": end.isoformat(), "country": country, **org,
         "pending_expenses_usd_cents": pending_expenses,
         "missing_cost_employee_ids": missing_cost,
         "by_partner": rollup("partner_user_id", 0, partner_names),
         "by_business_unit": rollup("business_unit_id", 1, bu_names),
+        "by_location": staff_rollup(lambda line: line["country"], lambda b: b[2], lambda k: k or "Unknown location"),
+        "by_cost_object": [
+            {**row, "business_unit_id": row["key"][0], "country": row["key"][1],
+             "key": f"{row['key'][0]}:{row['key'][1]}"}
+            for row in staff_rollup(lambda line: (line["cost_business_unit_id"], line["country"]),
+                                    lambda b: (b[1], b[2]),
+                                    lambda k: f"{bu_names.get(k[0]) or 'No BU'} x {k[1] or 'unknown location'}")],
         "by_client": sorted(by_client.values(), key=lambda r: r["earned_usd_cents"], reverse=True),
         "by_company": by_company,
     }
 
 
-def _company_pnl(db: Session, lines: List[Dict], staff, costs, delivery_by_employee: Dict[str, int],
-                 expenses: List[Dict], start: date, end: date, tenant_id: Optional[int]) -> List[Dict]:
+def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: List[Dict], start: date, end: date,
+                 tenant_id: Optional[int]) -> List[Dict]:
     """Each company's (legal entity's) own P&L; the parent company (tenant) owns the org-wide one.
 
       revenue          earned on the clients the company contracts (Client.contracting_company_id)
@@ -369,22 +489,20 @@ def _company_pnl(db: Session, lines: List[Dict], staff, costs, delivery_by_emplo
     by_name = {c.name.strip().lower(): c.id for c in companies}
     by_name.update({c.company_code.lower(): c.id for c in companies if c.company_code})
     client_company = dict(db.query(Client.id, Client.contracting_company_id))
-    employee_company = {e.id: e.company_id for e in staff}
-    rows: Dict = defaultdict(lambda: {"revenue": 0, "delivery": 0, "bench": 0, "expense": 0,
+    rows: Dict = defaultdict(lambda: {"revenue": 0, "delivery": 0, "bench": 0, "overhead": 0, "expense": 0,
                                       "ic_revenue": 0, "ic_cost": 0, "complete": True})
     for line in lines:
         rows[client_company.get(line["client_id"])]["revenue"] += line.get("earned_usd_cents") or 0
-        owner = rows[employee_company.get(line["employee_id"])]
+        owner = rows[line["cost_company_id"]]  # the company the employee worked for that week
         if line["cost_usd_cents"] is None:
             owner["complete"] = False
         else:
             owner["delivery"] += line["cost_usd_cents"]
-    for employee in staff:
-        payroll = costs.period(employee, start, end)
-        if payroll is None:
-            rows[employee.company_id]["complete"] = False
-            continue
-        rows[employee.company_id]["bench"] += max(0, payroll - delivery_by_employee.get(employee.id, 0))
+    for company_id, cost in staff_cost.items():  # bench and overhead by the company of each day
+        rows[company_id]["bench"] += cost["bench"]
+        rows[company_id]["overhead"] += cost["overhead"]
+        if not cost["complete"]:
+            rows[company_id]["complete"] = False
     for e in expenses:
         rows[client_company.get(e["key"][2]) if e["key"][2] else None]["expense"] += e["amount"]
     settlements = db.query(IntercompanySettlement).filter(
@@ -399,13 +517,14 @@ def _company_pnl(db: Session, lines: List[Dict], staff, costs, delivery_by_emplo
     out = []
     for key, r in rows.items():
         revenue = r["revenue"] + r["ic_revenue"]
-        cost = r["delivery"] + r["bench"] + r["expense"] + r["ic_cost"]
+        cost = r["delivery"] + r["bench"] + r["overhead"] + r["expense"] + r["ic_cost"]
         out.append(_with_margin({
             "key": key, "name": names.get(key, ("Group (parent company)", None))[0],
             "company_code": names.get(key, (None, None))[1],
             "revenue_usd_cents": revenue, "external_revenue_usd_cents": r["revenue"],
             "intercompany_revenue_usd_cents": r["ic_revenue"], "intercompany_cost_usd_cents": r["ic_cost"],
             "delivery_cost_usd_cents": r["delivery"], "bench_cost_usd_cents": r["bench"],
+            "overhead_cost_usd_cents": r["overhead"],
             "expense_cost_usd_cents": r["expense"], "total_cost_usd_cents": cost,
             "cost_data_complete": r["complete"],
         }, revenue, cost, r["complete"]))
@@ -453,7 +572,7 @@ def invoice_cost(db: Session, invoice: Invoice, costs: Optional[CostBook] = None
     employees = _by_id(db, Employee, Employee.id, (i.employee_id for i in items))
     total = 0
     for item in items:
-        hourly = costs.hourly(employees.get(item.employee_id))
+        hourly = costs.hourly(employees.get(item.employee_id), invoice.billing_period_start)
         if hourly is None:
             return None
         total += round(hourly * float(item.hours))
