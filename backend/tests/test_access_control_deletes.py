@@ -121,7 +121,14 @@ def test_refresh_finds_internal_users_by_id_and_refuses_deactivated_ones(db, api
 
 
 def test_a_function_add_on_records_its_function_and_a_role_set_cannot_take_one(db, api, world):
+    import uuid
+
+    from app.models.org_structure import Department
+
     admin = person(db, full_access_role(db), "Admin")
+    if not db.query(Department).filter(Department.tenant_id == 1, Department.name == "Recruitment",
+                                       Department.active.is_(True)).first():
+        db.add(Department(id=str(uuid.uuid4()), tenant_id=1, name="Recruitment", active=True))  # a standard function
     db.commit()
     created = api.post(admin, "/api/v1/admin/role-templates", json={
         "name": f"Recruitment access {uid()}", "display_name": "Recruitment access",

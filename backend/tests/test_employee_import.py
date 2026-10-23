@@ -60,6 +60,7 @@ def world(db):
                                     head_user_id=head.UserID))
     hr = _user(db, role, "HR Admin")
     manager = _user(db, role, "Manager")
+    manager.org_node_id = _seat_chain(db, 8).id  # managers are recorded in the org chart: the manager has a seat
     client = Client(tenant_id=1, company_name=f"Insurer {_uid()}", business_unit_id=unit.id, line_type="SPECIALITY")
     db.add(client)
     db.flush()
@@ -76,6 +77,25 @@ def world(db):
                                   client=client, project=project, job=job))
 
 
+def _seat_chain(db, level: int):
+    """A seat at `level` under a valid chain of seats up to the CEO (each one or two levels up)."""
+    from app.core.db_contract import _initialize_org_positions, _initialize_org_roles
+    from app.models.org_structure import OrgNode
+    from app.services.org_structure_service import create_org_node
+
+    _initialize_org_positions(db)  # what startup seeds; a fresh test database has none
+    _initialize_org_roles(db)
+    node = db.query(OrgNode).filter(OrgNode.tenant_id == 1, OrgNode.hierarchy_level == 17,
+                                    OrgNode.active.is_(True)).first() \
+        or create_org_node(db, tenant_id=1, name="CEO seat", hierarchy_level=17, specialization="General")
+    current = 17
+    while current > level:
+        current = max(level, current - 2)
+        node = create_org_node(db, tenant_id=1, name=f"Seat {current} {_uid()}", hierarchy_level=current,
+                               specialization="General", parent_id=node.id)
+    return node
+
+
 def _csv(*rows) -> bytes:
     return ("\n".join([COLUMNS, *rows]) + "\n").encode()
 
@@ -83,7 +103,7 @@ def _csv(*rows) -> bytes:
 def _row(w, email, *, joining=date(2024, 4, 1), billable="yes", existing="yes", core="no", salary="2000",
          currency="USD", bench_since="", job="", pct="", start="", manager=True):
     return ",".join([
-        "Asha", "Rao", email, w.unit.display_name, w.company.name, joining.isoformat(), "Engineer",
+        "Asha", "Rao", email, w.unit.display_name, w.company.name, joining.isoformat(), "Lead Consultant",
         w.manager.UserEmail if manager else "", billable, existing, core, salary, currency, bench_since,
         job, pct, start])
 
@@ -321,7 +341,8 @@ def test_http_dry_run_then_apply_and_template(api, db, world):
 def test_add_employee_form_is_a_one_row_import(api, db, world, mail):
     body = {"first_name": "Form", "last_name": "Hire", "email": f"form{_uid()}@bx.test",
             "joining_date": "2024-02-01", "business_unit_id": world.unit.id, "company_id": world.company.id,
-            "base_salary_usd_cents": 250_000, "billable": True, "reporting_manager_id": world.manager.UserID}
+            "base_salary_usd_cents": 250_000, "billable": True, "reporting_manager_id": world.manager.UserID,
+            "current_title": "Lead Consultant"}
     created = api.post("/api/v1/employees", headers=_h(world.hr), json=body)
     assert created.status_code == 200, created.text
     item = created.json()
@@ -342,3 +363,100 @@ def test_employee_list_reads_legacy_skills_and_reports_allocations(api, db, worl
     assert row["current_skills"] == ["Java", "Guidewire", "PolicyCenter"]
     assert row["active_allocations"] == [] and row["allocated_pct"] == 0
     json.dumps(row)  # serialisable as the screen receives it
+
+
+# --------------------------------------------------------------------------- manager = org chart seat
+
+def _row_for(w, email, manager_email, designation="Lead Consultant"):
+    return ",".join(["Ravi", "Iyer", email, w.unit.display_name, w.company.name, "2024-04-01", designation,
+                     manager_email, "yes", "yes", "no", "2000", "USD", "", "", "", ""])
+
+
+def test_import_seats_the_employee_under_the_managers_seat(db, world, mail):
+    from app.models.org_structure import OrgNode
+
+    email = f"seat{_uid()}@bx.test"
+    content = _csv(_row(world, email))
+    importer.apply(db, world.hr, importer.dry_run(db, world.hr, content)["token"], content)
+    user = db.query(Users).filter_by(UserEmail=email).one()
+    seat = db.get(OrgNode, user.org_node_id)
+    assert seat.parent_id == world.manager.org_node_id and seat.hierarchy_level == 6
+    employee = db.query(Employee).filter_by(email=email).one()
+    assert employee.org_node_id == seat.id and employee.reporting_manager_user_id == world.manager.UserID
+
+
+def test_a_manager_without_a_seat_or_a_non_role_designation_is_refused_in_the_dry_run(db, world, mail):
+    unseated = _user(db, world.role, "Unseated")
+    db.commit()
+    preview = importer.dry_run(db, world.hr, _csv(_row_for(world, f"u{_uid()}@bx.test", unseated.UserEmail),
+                                                  _row_for(world, f"d{_uid()}@bx.test", world.manager.UserEmail,
+                                                           designation="Ninja"),
+                                                  _row_for(world, f"g{_uid()}@bx.test", world.manager.UserEmail,
+                                                           designation="Associate")))
+    no_seat, no_role, too_far = preview["rows"]
+    assert any("has no seat in the org chart" in e for e in no_seat["errors"])
+    assert any("is not an org role" in e for e in no_role["errors"])
+    assert any("can't report to a level 8 manager" in e for e in too_far["errors"])  # Associate is level 2
+
+
+def test_a_manager_listed_later_in_the_same_file_is_seated_first(db, world, mail):
+    boss, report = f"boss{_uid()}@bx.test", f"rep{_uid()}@bx.test"
+    content = _csv(_row_for(world, report, boss), _row_for(world, boss, world.manager.UserEmail, designation="Associate Manager"))
+    preview = importer.dry_run(db, world.hr, content)
+    assert preview["counts"]["error"] == 0, preview["rows"]
+    outcome = importer.apply(db, world.hr, preview["token"], content)
+    assert outcome["counts"]["applied"] == 2 and [r["row"] for r in outcome["rows"]] == [2, 3]
+    boss_user = db.query(Users).filter_by(UserEmail=boss).one()
+    report_user = db.query(Users).filter_by(UserEmail=report).one()
+    from app.models.org_structure import OrgNode
+
+    assert db.get(OrgNode, report_user.org_node_id).parent_id == boss_user.org_node_id
+    assert db.get(OrgNode, boss_user.org_node_id).parent_id == world.manager.org_node_id
+
+
+def test_changing_the_manager_on_reimport_moves_the_seat(db, world, mail):
+    from app.models.org_structure import OrgNode
+
+    email = f"move{_uid()}@bx.test"
+    content = _csv(_row(world, email))
+    importer.apply(db, world.hr, importer.dry_run(db, world.hr, content)["token"], content)
+    other = _user(db, world.role, "Other Manager")
+    other.org_node_id = _seat_chain(db, 7).id
+    db.commit()
+    content = _csv(_row_for(world, email, other.UserEmail))
+    preview = importer.dry_run(db, world.hr, content)
+    assert preview["rows"][0]["action"] == "update"
+    assert any(c.startswith("manager:") for c in preview["rows"][0]["changes"])
+    importer.apply(db, world.hr, preview["token"], content)
+    user = db.query(Users).filter_by(UserEmail=email).one()
+    assert db.get(OrgNode, user.org_node_id).parent_id == other.org_node_id
+    assert db.query(Employee).filter_by(email=email).one().reporting_manager_user_id == other.UserID
+
+
+def test_timesheet_approver_is_read_from_the_org_chart(db, world, mail):
+    from app.services.timesheet_approval_service import resolve_approver
+
+    email = f"chart{_uid()}@bx.test"
+    content = _csv(_row(world, email))
+    importer.apply(db, world.hr, importer.dry_run(db, world.hr, content)["token"], content)
+    employee = db.query(Employee).filter_by(email=email).one()
+    assert resolve_approver(db, employee).UserID == world.manager.UserID
+    # a stale copy on the employee row does not win over the chart
+    employee.reporting_manager_user_id = world.hr.UserID
+    db.flush()
+    assert resolve_approver(db, employee).UserID == world.manager.UserID
+    # the manager leaves the seat: the next person seated above approves
+    from app.models.org_structure import OrgNode
+
+    above = db.get(OrgNode, db.get(OrgNode, world.manager.org_node_id).parent_id)
+    world.head.org_node_id = above.id
+    world.manager.org_node_id = None
+    db.flush()
+    assert resolve_approver(db, employee).UserID == world.head.UserID
+
+
+def test_add_employee_form_lists_org_roles_and_seated_managers(api, db, world):
+    template = api.get("/api/v1/employees/import/template", headers=_h(world.hr)).json()
+    assert {"name": "Lead Consultant", "level": 6} in template["org_roles"]
+    assert any(m["user_id"] == world.manager.UserID and m["level"] == 8 for m in template["managers"])
+    assert all(m["user_id"] != world.hr.UserID for m in template["managers"])  # not seated

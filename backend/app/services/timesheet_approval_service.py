@@ -63,14 +63,13 @@ def _name(employee: Employee) -> str:
 
 
 def resolve_approver(db: Session, employee: Employee) -> Users:
-    """Reporting manager -> manager employee's login -> BU head (their company) -> BU partner."""
+    """Their manager in the org chart -> BU head (their company) -> BU partner."""
     from app.models.business_unit import BusinessUnit
     from app.services.bu_leadership import head_user_id
+    from app.services.org_structure_service import manager_user_for
 
-    candidates = [employee.reporting_manager_user_id]
-    if employee.manager_id:
-        manager = db.get(Employee, employee.manager_id)
-        candidates.append(manager.wros_user_id if manager else None)
+    manager = manager_user_for(db, employee)
+    candidates = [manager.UserID if manager else None]
     candidates.append(head_user_id(db, employee.bu_id, employee.company_id))
     unit = db.get(BusinessUnit, employee.bu_id) if employee.bu_id else None
     candidates.append(unit.partner_user_id if unit else None)
@@ -80,8 +79,8 @@ def resolve_approver(db: Session, employee: Employee) -> Users:
             if user is not None:
                 return user
     raise NoTimesheetApprover(
-        f"Nobody can approve {_name(employee)}'s timesheet: set their reporting manager on the Employees screen, "
-        "or a BU head for their business unit.")
+        f"Nobody can approve {_name(employee)}'s timesheet: seat them under their reporting manager in the org chart "
+        "(Organizational Hierarchy, or the manager on the Employees screen), or seat a BU head for their business unit.")
 
 
 def snapshot(db: Session, timesheet: Timesheet) -> List[Dict]:

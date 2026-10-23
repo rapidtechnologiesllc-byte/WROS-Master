@@ -10,7 +10,6 @@ import cx from "../utils/cx";
 import {
   applyEmployeeImport, createEmployee, dryRunEmployeeImport, getEmployeeImportTemplate,
 } from "../services/api/employees";
-import { getAllUsers } from "../services/api/users";
 
 const STATUS_STYLES = {
   applied: "bg-emerald-50 text-emerald-800",
@@ -209,21 +208,21 @@ const EMPTY_FORM = {
 export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [template, setTemplate] = useState(null);
-  const [users, setUsers] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [usersNote, setUsersNote] = useState("");
 
   useEffect(() => {
     getEmployeeImportTemplate().then(setTemplate).catch((err) => setError(`Could not load the form options: ${err.message}`));
-    // the manager list needs Users & Access; without it the employee is added with no manager
-    getAllUsers().then(setUsers).catch((err) => setUsersNote(`Manager list unavailable (${err.message}); set the manager later.`));
   }, []);
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
   const country = (template?.countries || []).find((c) => c.code === form.country);
   const employmentTypes = country ? country.employment_types
     : ((template?.countries || [])[0]?.employment_types || []);
+  // The manager is recorded in the org chart: the new seat goes under the manager's seat, which the
+  // org rules allow one or two levels above the designation's level (same rule as the backend).
+  const roleLevel = (template?.org_roles || []).find((r) => r.name === form.current_title)?.level;
+  const managers = (template?.managers || []).filter((m) => !roleLevel || (m.level > roleLevel && m.level <= roleLevel + 2));
 
   const submit = async () => {
     if (!form.first_name || !form.last_name || !form.email || !form.joining_date || !form.business_unit_id
@@ -284,13 +283,18 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
             {employmentTypes.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
         </label>
-        <label><span className={label}>Designation</span><input className={field} value={form.current_title} onChange={set("current_title")} /></label>
-        <label><span className={label}>Reporting manager (approves timesheets)</span>
-          <select className={field} value={form.reporting_manager_id} onChange={set("reporting_manager_id")}>
-            <option value="">None</option>
-            {users.filter((u) => u.active).map((u) => <option key={u.user_id} value={u.user_id}>{u.user_name} ({u.user_email})</option>)}
+        <label><span className={label}>Designation (org role)</span>
+          <select className={field} value={form.current_title} onChange={set("current_title")}>
+            <option value="">Pick a role</option>
+            {(template?.org_roles || []).map((r) => <option key={r.name} value={r.name}>{r.name} (level {r.level})</option>)}
           </select>
-          {usersNote ? <span className="text-xs text-amber-700">{usersNote}</span> : null}
+        </label>
+        <label><span className={label}>Reporting manager (their seat in the org chart; approves timesheets)</span>
+          <select className={field} value={form.reporting_manager_id} onChange={set("reporting_manager_id")}>
+            <option value="">None: their BU head</option>
+            {managers.map((m) => <option key={m.user_id} value={m.user_id}>{m.name} ({m.title || `level ${m.level}`})</option>)}
+          </select>
+          {roleLevel && !managers.length ? <span className="text-xs text-amber-700">Nobody is seated one or two levels above {form.current_title}: seat their manager under Organizational Hierarchy first.</span> : null}
         </label>
         <label><span className={label}>Billable? *</span>
           <select className={field} value={form.billable} onChange={set("billable")}>

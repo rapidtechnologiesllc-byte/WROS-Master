@@ -350,11 +350,14 @@ def _parse_items(text: str) -> List[Dict]:
     return items
 
 
-def _owner_user_id(employee: Employee, owner: str, decider: Users) -> Tuple[str, Optional[str]]:
+def _owner_user_id(db: Session, employee: Employee, owner: str, decider: Users) -> Tuple[str, Optional[str]]:
     """(user id, note when falling back to the decider)."""
     if owner == "manager":
-        if employee.reporting_manager_user_id:
-            return employee.reporting_manager_user_id, None
+        from app.services.org_structure_service import manager_user_for
+
+        manager = manager_user_for(db, employee)
+        if manager is not None:
+            return manager.UserID, None
         return decider.UserID, "no reporting manager is set, so it is yours"
     if owner == "employee":
         if employee.wros_user_id:
@@ -367,10 +370,10 @@ def _next_missing(state: Dict) -> Optional[int]:
     return next((i for i, item in enumerate(state["items"]) if item["days"] is None), None)
 
 
-def _summary(state: Dict, employee: Employee, decider: Users) -> str:
+def _summary(db: Session, state: Dict, employee: Employee, decider: Users) -> str:
     lines = []
     for item in state["items"]:
-        _, note = _owner_user_id(employee, item["owner"] or "me", decider)
+        _, note = _owner_user_id(db, employee, item["owner"] or "me", decider)
         owner = {"me": "you", "manager": "the reporting manager", "employee": "the employee"}[item["owner"] or "me"]
         lines.append(f"- {item['criterion']}: re-check in {item['days']} days, owner {owner}"
                      + (f" ({note})" if note else ""))
@@ -434,7 +437,7 @@ def reject_chat(db: Session, request: CoreCertificationRequest, user: Users, mes
         return reply(f"In how many days should '{state['items'][index]['criterion']}' be re-checked, "
                      "and who owns it (me, manager or employee)?")
     state["step"] = "confirm"
-    return reply(_summary(state, employee, user))
+    return reply(_summary(db, state, employee, user))
 
 
 def _current_question(state: Dict, name: str) -> str:
@@ -459,7 +462,7 @@ def _finalize(db: Session, request: CoreCertificationRequest, employee: Employee
     _claim(db, request, "REJECTED", user, rejection_reason=state["reason"])
     plan = []
     for item in state["items"]:
-        owner_id, _ = _owner_user_id(employee, item["owner"] or "me", user)
+        owner_id, _ = _owner_user_id(db, employee, item["owner"] or "me", user)
         task = create_task(
             db, title=f"Core certification follow-up: {item['criterion']} ({_employee_name(employee)})",
             description=(f"BU Head did not approve {_employee_name(employee)}'s Core certification: {state['reason']}. "

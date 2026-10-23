@@ -72,7 +72,9 @@ IMPORT_COLUMNS: Tuple[Tuple[str, bool, str], ...] = (
     ("joining_date", True, "YYYY-MM-DD. A future date makes the employee pre-joining."),
     ("designation", False, "Job title. When it names an org role the login gets that role and an org-chart seat."),
     ("role_template", False, "Function add-on (role template name). Blank: the tenant's Employee role."),
-    ("manager_email", False, "Reporting manager's login email; they approve this employee's timesheets."),
+    ("manager_email", False, "Reporting manager's login email. The employee's org-chart seat goes under the manager's seat "
+                             "(the manager needs a seat, or a row earlier or later in this file); the manager approves "
+                             "their timesheets."),
     ("employment_type", False, "FULLTIME (default) or CONTRACT; must be accepted in the employee's country."),
     ("billable", False, "yes (default): client-facing, bench when not on a project. no: internal staff, cost is overhead."),
     ("existing_staff", False, "yes (default): already working here, recorded as Buddy Program graduated (audited)."),
@@ -169,6 +171,7 @@ class Spec:
     designation: Optional[str] = None
     role_template: Optional[RoleTemplate] = None
     manager: Optional[Users] = None
+    manager_in_file: Optional[str] = None  # manager is another row of this file, not yet a login (dry run)
     employment_type: str = "PERMANENT"
     billable: bool = True
     existing_staff: bool = True
@@ -232,6 +235,8 @@ class _Lookups:
         self.companies = db.query(Location).filter(Location.tenant_id == tid).all()
         self.templates = db.query(RoleTemplate).filter(RoleTemplate.tenant_id == tid).all()
         self.assignable = visible_bu_ids(db, uploader)  # None = every business unit
+        self.file_rows: Dict[str, Dict[str, str]] = {}  # email -> row, for managers listed in the same file
+        self.applying = False
 
     def unit(self, text: str) -> Optional[BusinessUnit]:
         key = text.strip().lower()
@@ -347,10 +352,15 @@ def _resolve(lk: _Lookups, row: Dict[str, str]) -> Spec:
     if row["manager_email"]:
         spec.manager = db.query(Users).filter(func.lower(Users.UserEmail) == row["manager_email"].lower(),
                                               Users.tenant_id == lk.tenant_id).first()
-        if spec.manager is None:
-            errors.append(f"Manager '{row['manager_email']}' has no login in this company.")
-        elif spec.manager.UserEmail.lower() == spec.email:
+        manager_email = row["manager_email"].strip().lower()
+        if manager_email == (row["email"] or "").strip().lower():
             errors.append("An employee cannot be their own manager.")
+        elif spec.manager is None and manager_email in lk.file_rows and not lk.applying:
+            spec.manager_in_file = manager_email
+        elif spec.manager is None and manager_email in lk.file_rows:
+            errors.append(f"Manager '{row['manager_email']}' is in this file but their row was not applied.")
+        elif spec.manager is None:
+            errors.append(f"Manager '{row['manager_email']}' has no login in this company.")
 
     spec.bench_since = _date(row["bench_since"], "bench_since", errors)
     if spec.bench_since and spec.joining_date and spec.bench_since < spec.joining_date:
@@ -442,7 +452,6 @@ def _employee_fields(spec: Spec) -> Dict[str, Any]:
         "first_name": spec.first_name, "last_name": spec.last_name, "tenant_employee_id": spec.employee_code,
         "bu_id": spec.unit.id if spec.unit else None, "company_id": spec.company.id if spec.company else None,
         "current_title": spec.designation, "employment_type": spec.employment_type,
-        "reporting_manager_user_id": spec.manager.UserID if spec.manager else None,
         "base_salary_usd_cents": spec.salary_cents, "billing_rate_usd_cents": spec.bill_rate_cents,
         "work_location": spec.work_location, "is_billable": spec.billable,
         "current_skills": json.dumps(spec.skills) if spec.skills is not None else None,
@@ -512,14 +521,101 @@ def _plan_one(lk: _Lookups, number: int, row: Dict[str, str], seen: Dict[str, in
         plan["action"] = ACTION_UPDATE if changes else ACTION_UNCHANGED
         plan["login"] = login
         plan["status_after"] = "ALLOCATED" if allocation_needed else employee.status
+    _check_reporting_line(lk, spec, user, employee, plan)
     plan["errors"] = list(spec.errors)
     return plan, spec
 
 
+def _seat_level(db: Session, tenant_id: int, user: Optional[Users], designation: Optional[str]) -> Optional[int]:
+    """The org level a person sits (or would sit) at: their seat's, else their designation's org role."""
+    from app.models.org_structure import OrgNode
+    from app.services.org_roles_service import role_for_title
+
+    if user is not None and user.org_node_id:
+        node = db.query(OrgNode).filter(OrgNode.id == user.org_node_id).first()
+        if node is not None:
+            return node.hierarchy_level
+    role = role_for_title(db, tenant_id, designation)
+    return role.hierarchy_level if role else None
+
+
+def _check_reporting_line(lk: _Lookups, spec: Spec, user: Optional[Users], employee: Optional[Employee],
+                          plan: Dict) -> None:
+    """A row naming a manager puts the employee's seat under the manager's seat, so before
+    anything is written: the employee needs a level (seat or org-role designation), the manager
+    needs a seat (or is placed by another row of this file), and the levels must be a reporting
+    line the org chart accepts (OrgHierarchyValidator: one or two levels up)."""
+    from app.models.org_structure import OrgNode
+    from app.services.org_hierarchy_validator import get_valid_parent_levels
+    from app.services.org_structure_service import manager_user_for
+
+    if spec.manager is None and spec.manager_in_file is None:
+        return
+    db = lk.db
+    level = _seat_level(db, lk.tenant_id, user, spec.designation)
+    if level is None:
+        spec.errors.append(f"Designation '{spec.designation or ''}' is not an org role (Manage Roles), so this employee "
+                           "can't be seated under their manager in the org chart.")
+        return
+    if spec.manager is not None:
+        if employee is not None:
+            current = manager_user_for(db, employee)
+            if current is None or current.UserID != spec.manager.UserID:
+                plan["changes"].append(f"manager: {current.UserEmail if current else None} -> {spec.manager.UserEmail}")
+                if plan.get("action") == ACTION_UNCHANGED:
+                    plan["action"] = ACTION_UPDATE
+        node = db.query(OrgNode).filter(OrgNode.id == spec.manager.org_node_id).first() \
+            if spec.manager.org_node_id else None
+        if node is None:
+            spec.errors.append(f"Manager {spec.manager.UserEmail} has no seat in the org chart: place them under "
+                               "Organizational Hierarchy first, or include them as a row in this file.")
+            return
+        manager_level = node.hierarchy_level
+    else:
+        manager_row = lk.file_rows[spec.manager_in_file]
+        manager_level = _seat_level(db, lk.tenant_id, None, manager_row.get("designation"))
+        if manager_level is None:
+            spec.errors.append(f"Manager {spec.manager_in_file}'s designation in this file is not an org role, so "
+                               "they can't be seated for this employee to report to.")
+            return
+    if manager_level not in get_valid_parent_levels(level):
+        spec.errors.append(f"A level {level} employee can't report to a level {manager_level} manager: the org chart "
+                           f"allows levels {get_valid_parent_levels(level)}.")
+
+
 def plan_rows(db: Session, uploader: Users, rows: List[Dict[str, str]]) -> List[Tuple[Dict, Spec]]:
     lk = _Lookups(db, uploader)
+    lk.file_rows = _file_rows(rows)
     seen: Dict[str, int] = {}
     return [_plan_one(lk, number, row, seen) for number, row in enumerate(rows, start=2)]  # row 1 is the header
+
+
+def _file_rows(rows: List[Dict[str, str]]) -> Dict[str, Dict[str, str]]:
+    return {(row.get("email") or "").strip().lower(): row for row in rows if (row.get("email") or "").strip()}
+
+
+def _manager_first_order(rows: List[Dict[str, str]]) -> List[int]:
+    """Row indexes with every manager listed in the file before the people who report to them
+    (otherwise file order). A reporting loop inside the file keeps file order; those rows then
+    fail on the missing manager seat."""
+    index = {(row.get("email") or "").strip().lower(): i for i, row in enumerate(rows)}
+    order, state = [], {}
+
+    def visit(i: int) -> None:
+        if state.get(i) == "done":
+            return
+        if state.get(i) == "visiting":
+            return  # loop: leave it to the row's own checks
+        state[i] = "visiting"
+        boss = index.get((rows[i].get("manager_email") or "").strip().lower())
+        if boss is not None and boss != i:
+            visit(boss)
+        state[i] = "done"
+        order.append(i)
+
+    for i in range(len(rows)):
+        visit(i)
+    return order
 
 
 def _counts(plans: List[Dict]) -> Dict[str, int]:
@@ -612,8 +708,25 @@ def _place_login(db: Session, user: Users, spec: Spec) -> None:
     from app.services.org_roles_service import role_for_title
 
     role = role_for_title(db, user.tenant_id, spec.designation)
-    parent = spec.manager.org_node_id if spec.manager is not None else None
-    place_new_hire(db, user, role, parent, spec.unit.id, spec.company.id if spec.company else None, False)
+    if spec.manager is not None:
+        _seat_under_manager(db, user, spec)
+        return
+    place_new_hire(db, user, role, None, spec.unit.id, spec.company.id if spec.company else None, False)
+
+
+def _seat_under_manager(db: Session, user: Users, spec: Spec) -> None:
+    """The row's manager is recorded in the org chart: the login's seat goes under the manager's
+    (the employee row follows, org_structure_service._sync_employee_reporting). A refusal fails the row."""
+    from app.services.org_roles_service import role_for_title
+    from app.services.org_structure_service import manager_user_for, place_under_manager
+
+    employee = db.query(Employee).filter(Employee.wros_user_id == user.UserID).first()
+    current = manager_user_for(db, employee) if employee is not None else None
+    if current is not None and current.UserID == spec.manager.UserID and user.org_node_id:
+        return
+    role = role_for_title(db, user.tenant_id, spec.designation)
+    place_under_manager(db, user, spec.manager, role_level=role.hierarchy_level if role else None,
+                        company_id=spec.company.id if spec.company else None)
 
 
 def _allocate(db: Session, employee: Employee, spec: Spec, uploader: Users) -> None:
@@ -631,15 +744,13 @@ def _apply_create(db: Session, spec: Spec, uploader: Users) -> Tuple[Employee, U
     user, created = _login_for(db, spec, uploader)
     fields = {k: v for k, v in _employee_fields(spec).items()
               if v is not None and k not in ("first_name", "last_name", "joining_date")}
-    manager_employee = db.query(Employee).filter(Employee.wros_user_id == spec.manager.UserID).first() \
-        if spec.manager is not None else None
-    if manager_employee is not None:
-        fields["manager_id"] = manager_employee.id
     employee = create_employee_profile(
         db, tenant_id=uploader.tenant_id, first_name=spec.first_name, last_name=spec.last_name, email=spec.email,
         joining_date=spec.joining_date, changed_by=uploader.UserID, wros_user_id=user.UserID, **fields)
     if created:
         _place_login(db, user, spec)
+    elif spec.manager is not None:
+        _seat_under_manager(db, user, spec)
     if spec.existing_staff:
         _graduate_existing(db, employee, uploader)
     if spec.core_certified:
@@ -664,15 +775,15 @@ def _apply_update(db: Session, employee: Employee, spec: Spec, uploader: Users) 
     for column, value in _employee_fields(spec).items():
         if value is not None and column != "is_billable":
             setattr(employee, column, value)
-    if spec.manager is not None:
-        manager_employee = db.query(Employee).filter(Employee.wros_user_id == spec.manager.UserID).first()
-        employee.manager_id = manager_employee.id if manager_employee else employee.manager_id
     user, created = None, False
     if not employee.wros_user_id:
         user, created = _login_for(db, spec, uploader)
         employee.wros_user_id = user.UserID
         if created:
             _place_login(db, user, spec)
+    if spec.manager is not None and not created:
+        db.flush()
+        _seat_under_manager(db, db.query(Users).filter(Users.UserID == employee.wros_user_id).first(), spec)
     if spec.existing_staff and employee.buddy_program_status != "GRADUATED":
         _graduate_existing(db, employee, uploader)
     if spec.core_certified and not employee.core_certified:
@@ -710,7 +821,12 @@ def apply_rows(db: Session, uploader: Users, rows: List[Dict[str, str]], *, only
     from app.services.account_activation_service import queue_account_email
 
     results, new_logins = [], []
-    for plan, spec in plan_rows(db, uploader, rows):
+    lk = _Lookups(db, uploader)
+    lk.file_rows, lk.applying = _file_rows(rows), True
+    seen: Dict[str, int] = {}
+    for position in _manager_first_order(rows):
+        # planned only now, after every earlier row committed: a manager added above is a login with a seat
+        plan, spec = _plan_one(lk, position + 2, rows[position], seen)
         result = {"row": plan["row"], "email": plan["email"], "name": plan["name"], "action": plan["action"],
                   "employee_id": plan.get("employee_id"), "user_id": None, "activation_email_queued": False}
         if only_create and plan["action"] in (ACTION_UPDATE, ACTION_UNCHANGED) and not plan["errors"]:
@@ -751,7 +867,7 @@ def apply_rows(db: Session, uploader: Users, rows: List[Dict[str, str]], *, only
     for r in results:
         counts[r["status"]] = counts.get(r["status"], 0) + 1
     logger.info(f"[EmployeeImport] applied by {uploader.UserID}: {counts}")
-    return {"counts": counts, "rows": results}
+    return {"counts": counts, "rows": sorted(results, key=lambda r: r["row"])}
 
 
 def apply(db: Session, uploader: Users, token: str, content: bytes) -> Dict:
