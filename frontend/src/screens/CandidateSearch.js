@@ -21,6 +21,14 @@ import CandidateActionMenu from "../components/ui/CandidateActionMenu";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
 import { updateCandidateThunderEnabled } from "../services/api/candidates";
 
+// Account status of an archived candidate (backend: candidate_contact_policy.ARCHIVED_STATUS)
+const ARCHIVED_STATUS = "Inactive";
+// Rows come from two shapes: the mapped list (id, accountStatus) and /candidates/all
+// (candidate_id, status = account status)
+const rowId = (c) => c.id || c.candidate_id || c.candidateID;
+const accountStatusOf = (c) => c.accountStatus || (["Active", "Inactive"].includes(c.status) ? c.status : "");
+const isArchived = (c) => accountStatusOf(c) === ARCHIVED_STATUS;
+
 export default function CandidateSearch({
   candidates,
   jobs,
@@ -51,6 +59,7 @@ export default function CandidateSearch({
   const [actionError, setActionError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
   const [linkedInOpen, setLinkedInOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const navigate = useNavigate();
   const isAntTableRole =
     hasPermission("candidates", "view") ||
@@ -136,10 +145,14 @@ export default function CandidateSearch({
     return candidateList.find((c) => c.id === editCandidateId) || null;
   }, [candidateList, editCandidateId, overrideEditingCandidate]);
 
+  const archivedCount = useMemo(() => candidateList.filter(isArchived).length, [candidateList]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    // Archived candidates stay out of the list unless "Show archived" is on
+    const visible = showArchived ? candidateList : candidateList.filter((c) => !isArchived(c));
 
-    if (!q) return candidateList;
+    if (!q) return visible;
     const getSearchableText = (candidate) =>
       [candidate?.name, candidate?.email, candidate?.phone, candidate?.jobTitle]
         .filter(Boolean)
@@ -150,7 +163,7 @@ export default function CandidateSearch({
       if (!cleanKeyword) return true;
       return getSearchableText(candidate).includes(cleanKeyword);
     };
-    return candidateList.filter((candidate) => {
+    return visible.filter((candidate) => {
       if (q.includes(" and ")) {
         return q
           .split(" and ")
@@ -170,7 +183,7 @@ export default function CandidateSearch({
       }
       return matchesKeyword(candidate, q);
     });
-  }, [candidateList, query]);
+  }, [candidateList, query, showArchived]);
 
   const handleCandidateStatus = async (candidateId) => {
     setActionError(null);
@@ -184,7 +197,7 @@ export default function CandidateSearch({
         const candidateStatus = await getCandidateStatus(candidateId).catch(e => { throw e; });
         setCandidateList((prev) =>
           prev.map((c) =>
-            c.id === candidateId
+            rowId(c) === candidateId
               ? {
                   ...c,
                   accountStatus: candidateStatus?.status,
@@ -200,51 +213,48 @@ export default function CandidateSearch({
     }
   };
 
+  // Archive (status Inactive) / Unarchive (Active) from the row menu
   const handleActiveStatus = async (status, candidateId) => {
     setActionError(null);
     setActionSuccess(null);
+    setOpenMenuId(null);
     try {
-      const result = await updateCandidateStatus(candidateId, {
-        status: status,
-      }).catch(e => { throw e; });
-      if (result?.status === "success") {
-        setActionSuccess(`Candidate ${result?.data?.candidate_name} is Archvied`);
-        const candidateStatus = await getCandidateStatus(candidateId).catch(e => { throw e; });
-        setCandidateList((prev) =>
-          prev.map((c) =>
-            c.id === candidateId
-              ? {
-                  ...c,
-                  accountStatus: candidateStatus?.status,
-                  pipelineStatus: candidateStatus?.pipeline_status,
-                }
-              : c,
-          ),
-        );
+      const result = await updateCandidateStatus(candidateId, { status });
+      if (result?.status !== "success") {
+        throw new Error(result?.message || "The server did not confirm the change");
       }
+      const name = result?.data?.candidate_name || "Candidate";
+      setActionSuccess(status === ARCHIVED_STATUS ? `${name} archived` : `${name} unarchived`);
+      setCandidateList((prev) =>
+        prev.map((c) =>
+          rowId(c) === candidateId ? { ...c, accountStatus: status } : c,
+        ),
+      );
     } catch (err) {
-      throw err;
+      setActionError(`Could not ${status === ARCHIVED_STATUS ? "archive" : "unarchive"} the candidate: ${err?.message || "unknown error"}`);
     }
   };
 
   const mapCandidate = (data, source) => {
     if (source === "common") {
       return {
-        id: data.id,
-        name: data.name,
-        email: data.email,
-        phone: data.phone,
-        status: data.pipelineStatus,
+        id: rowId(data),
+        name: data.name || data.candidate_name,
+        email: data.email || data.candidate_email,
+        phone: data.phone || data.candidate_mobile,
+        status: data.pipelineStatus || data.pipline_status,
+        archived: isArchived(data),
       };
     }
 
     if (source === "ant") {
       return {
-        id: data.candidate_id,
+        id: rowId(data),
         name: data.candidate_name,
         email: data.candidate_email,
         phone: data.candidate_mobile,
         status: data.pipline_status,
+        archived: isArchived(data),
       };
     }
 
@@ -277,6 +287,11 @@ export default function CandidateSearch({
                 className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700"
               >
                 Guidewire
+              </span>
+            ) : null}
+            {isArchived(record) ? (
+              <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-700">
+                Archived
               </span>
             ) : null}
           </span>
@@ -382,9 +397,9 @@ export default function CandidateSearch({
   // Determine which candidate data to show based on permissions
   let tableData = [];
   if (hasPermission("candidates", "view")) {
-    // Show all candidates from the unified list (includes all statuses)
-    // This ensures newly created candidates are visible immediately
-    tableData = candidateList || [];
+    // The unified list (newly created candidates show at once), minus archived ones
+    // unless "Show archived" is on
+    tableData = filtered;
   }
 
   return (
@@ -442,8 +457,19 @@ export default function CandidateSearch({
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-sm text-gray-500">
-                  Total Candidates: {candidateList.length}
+                  Total Candidates: {candidateList.length - archivedCount}
+                  {archivedCount > 0 ? ` (+${archivedCount} archived)` : ""}
                 </p>
+                {archivedCount > 0 && (
+                  <label className="mt-2 inline-flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={showArchived}
+                      onChange={(e) => setShowArchived(e.target.checked)}
+                    />
+                    Show archived
+                  </label>
+                )}
               </div>
 
               <div className="flex items-center gap-2">

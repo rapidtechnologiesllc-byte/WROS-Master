@@ -8,10 +8,10 @@ export const getMyReferrals = async () => {
   return data;
 };
 
-
-
-
-
-
-
-
+// Employees who can be named as the referrer on Add Candidate (+ the caller's own employee id)
+export const getReferrers = async () => {
+  const { data } = await apiRequest("/api/v1/referrals/referrers", {
+    method: "GET",
+  });
+  return data;
+};

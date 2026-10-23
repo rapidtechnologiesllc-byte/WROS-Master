@@ -1196,24 +1196,25 @@ ${formattedJD}
       const response = await updateCandidateStatus(candidate?.id, {
         status: nextStatus,
       });
-      if (response?.status === "success") {
-        setStatusData((prev) => ({
-          ...prev,
-          status: nextStatus,
-        }));
-        candidate.accountStatus = nextStatus;
-        await onRefreshCandidates?.();
-        setUpdatedStatus(Date.now());
-        showNotice(
-          nextStatus === "Inactive"
-            ? "Candidate archived successfully"
-            : "Candidate unarchived successfully",
-          "success",
-        );
+      if (response?.status !== "success") {
+        throw new Error(response?.message || "The server did not confirm the change");
       }
+      setStatusData((prev) => ({
+        ...prev,
+        status: nextStatus,
+      }));
+      candidate.accountStatus = nextStatus;
+      await onRefreshCandidates?.();
+      setUpdatedStatus(Date.now());
+      showNotice(
+        nextStatus === "Inactive"
+          ? "Candidate archived: hidden from the candidate list and no outreach"
+          : "Candidate unarchived",
+        "success",
+      );
     } catch (error) {
       console.error("Failed to update candidate status", error);
-      showNotice("Failed to update candidate status", "error");
+      showNotice(`Could not archive/unarchive: ${error?.message || "unknown error"}`, "error");
     }
   };
 

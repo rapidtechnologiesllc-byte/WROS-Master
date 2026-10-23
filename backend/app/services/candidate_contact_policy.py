@@ -40,10 +40,23 @@ def is_contactable(db: Session, candidate: Candidate) -> Tuple[bool, str]:
         return False, "no real contact email"
     if not candidate.thunder_enabled:
         return False, "thunder disabled for candidate"
+    if is_archived(db, candidate.candidateID):
+        return False, "candidate archived"
     until = rejection_cooldown_until(db, candidate.candidateID)
     if until is not None:
         return False, f"no-contact period until {until.isoformat()}"
     return True, "ok"
+
+
+# Account status that means "archived" (Archive / Unarchive on the candidate screens)
+ARCHIVED_STATUS = "Inactive"
+
+
+def is_archived(db: Session, candidate_id: str) -> bool:
+    """Archived candidates get no outreach; Unarchive brings them back."""
+    from app.models.candidate import CandidateStatus
+    status = db.query(CandidateStatus.status).filter(CandidateStatus.candidateID == str(candidate_id)).scalar()
+    return status == ARCHIVED_STATUS
 
 
 def can_receive_transactional(db: Session, candidate: Candidate) -> Tuple[bool, str]:

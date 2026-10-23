@@ -81,6 +81,13 @@ class CandidateStatusChangeHandler:
                 candidate.thunder_enabled = False
                 actions_taken.append("paused_thunder")
 
+            # PHASE 2b: a referred candidate's referral follows their pipeline (My Referrals,
+            # and the pending bonus for Finance on hire)
+            from app.services.employee_referral_service import EmployeeReferralService
+            referral_status = EmployeeReferralService.sync_with_pipeline_status(db, candidate, new_status)
+            if referral_status:
+                actions_taken.append(f"referral:{referral_status}")
+
             # PHASE 3: Update status tracking
             candidate.previous_status = old_status
             candidate.status_changed_at = datetime.utcnow()

@@ -237,7 +237,7 @@ def test_resources_that_gated_nothing_left_the_catalogue():
         assert not RETIRED_RESOURCES & {r for names in spec["permissions"].values() for r in names}
     checked = set()
     for path in (ENDPOINTS.parent.parent.parent).rglob("*.py"):
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         checked |= {r for r in RETIRED_RESOURCES if f'"{r}",' in text and "permission" in text and path.name != "db_contract.py"}
     assert not checked
 
@@ -379,7 +379,7 @@ SCREEN_APIS = {
 def _declared_gates(filename):
     """{(path, method): resource} for every route decorator with a require_resource_permission dependency."""
     gates = {}
-    for node in ast.walk(ast.parse((ENDPOINTS / filename).read_text())):
+    for node in ast.walk(ast.parse((ENDPOINTS / filename).read_text(encoding="utf-8"))):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         for deco in node.decorator_list:
