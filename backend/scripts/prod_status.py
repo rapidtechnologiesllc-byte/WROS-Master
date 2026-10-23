@@ -55,20 +55,30 @@ def sh(label: str, cmd: str, timeout: int = 15):
         print(mask(line))
 
 
-def web_status():
+def web_status(frontend_base_url: str):
     """Is the site reachable, and if not, where does it break: DNS, listener, certificate,
-    nginx, backend, disk, firewall. Read-only."""
-    host = "hrms.blitzenx.com"
+    nginx, backend, disk, firewall. Read-only. The site is settings.FRONTEND_BASE_URL."""
+    from urllib.parse import urlparse
+
+    host = urlparse(frontend_base_url).hostname
+    if not host:
+        raise ValueError(f"FRONTEND_BASE_URL has no host: {frontend_base_url!r}")
     section("Web / network")
+    print(f"FRONTEND_BASE_URL: {frontend_base_url}")
+    if host in ("localhost", "127.0.0.1"):
+        print("[FAIL] FRONTEND_BASE_URL is not set on this server: candidate portal links in Thunder "
+              "emails and WhatsApp point at localhost. Set FRONTEND_BASE_URL in backend/.env.")
+        return
+    domain = ".".join(host.split(".")[-2:])
     sh("DNS for the site (this server's resolver)", f"getent hosts {host}; echo exit=$?")
     sh("DNS via Google 8.8.8.8 / Cloudflare 1.1.1.1",
-       f"for r in 8.8.8.8 1.1.1.1; do for n in {host} blitzenx.com; do "
+       f"for r in 8.8.8.8 1.1.1.1; do for n in {host} {domain}; do "
        f"echo \"$r $n: $(dig +short +time=3 +tries=1 @$r $n A 2>&1 | tr '\\n' ' ')\"; done; done")
     sh("Domain nameservers and status",
-       "dig +short +time=3 +tries=1 @8.8.8.8 blitzenx.com NS; "
-       "dig +time=3 +tries=1 @8.8.8.8 hrms.blitzenx.com A | grep -E 'status:|AUTHORITY' ")
+       f"dig +short +time=3 +tries=1 @8.8.8.8 {domain} NS; "
+       f"dig +time=3 +tries=1 @8.8.8.8 {host} A | grep -E 'status:|AUTHORITY' ")
     sh("Domain registration (whois)",
-       "timeout 10 whois blitzenx.com 2>&1 | grep -iE 'expir|status:|name server|registrar:' | head -12")
+       f"timeout 10 whois {domain} 2>&1 | grep -iE 'expir|status:|name server|registrar:' | head -12")
     # Printed with "_" between the parts so the phone-number mask doesn't hide it: it is what
     # the site's DNS A record must point to.
     sh("This server's public IP (dots shown as _)", "curl -s --max-time 5 https://api.ipify.org | tr . _; echo")
@@ -93,8 +103,9 @@ def web_status():
 
 
 def main() -> int:
-    web_status()
     from app.core.config import settings  # also loads backend/.env
+
+    web_status(settings.FRONTEND_BASE_URL)
 
     section("Code")
     print("commit:", subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip())
