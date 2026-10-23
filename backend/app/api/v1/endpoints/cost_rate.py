@@ -20,7 +20,8 @@ from app.schemas.bank_reconciliation import (
 )
 from app.schemas.hiring_affordability import HiringAffordabilityResponse
 from app.schemas.intercompany_ledger import (
-    EntityNetPositionResponse, IntercompanySettlementResponse, RecordIntercompanySettlementRequest,
+    CompanyNetPositionResponse, IntercompanySettlementResponse, LinkSettlementCompaniesRequest,
+    RecordIntercompanySettlementRequest,
 )
 from app.schemas.pnl import BuPnlResponse, OrgPnlSummaryResponse
 from app.schemas.reserve_fund import (
@@ -37,7 +38,8 @@ from app.services.bank_reconciliation_service import (
 )
 from app.services.hiring_affordability_service import check_hiring_affordability
 from app.services.intercompany_ledger_service import (
-    IntercompanySettlementError, get_entity_net_position, list_settlements, record_intercompany_settlement,
+    IntercompanySettlementError, get_company_net_position, link_settlement_companies, list_settlements,
+    record_intercompany_settlement,
 )
 from app.services.pnl_service import get_bu_pnl, get_org_pnl_summary
 from app.services.reserve_fund_service import (
@@ -207,7 +209,8 @@ def create_intercompany_settlement(
 ):
     try:
         return record_intercompany_settlement(
-            db, from_entity=body.from_entity, to_entity=body.to_entity, amount_usd_cents=body.amount_usd_cents,
+            db, from_company_id=body.from_company_id, to_company_id=body.to_company_id,
+            amount_usd_cents=body.amount_usd_cents,
             settlement_date=body.settlement_date, reason=body.reason,
             created_by=current_user.UserID, tenant_id=current_user.tenant_id,
             business_unit_id=body.business_unit_id,
@@ -226,19 +229,48 @@ def list_intercompany_settlements(
 ):
     return list_settlements(db, tenant_id=current_user.tenant_id)
 
-@router.get(
-    "/intercompany-settlements/entity/{entity}/net-position",
-    response_model=EntityNetPositionResponse,
-    dependencies=[Depends(require_resource_permission("finance-operations", "view"))]
+@router.post(
+    "/intercompany-settlements/{settlement_id}/link-companies",
+    response_model=IntercompanySettlementResponse,
+    dependencies=[Depends(require_resource_permission("finance-operations", "edit"))]
 )
-def entity_net_position(
-    entity: str,
+def link_intercompany_settlement(
+    settlement_id: int,
+    body: LinkSettlementCompaniesRequest,
     db: Session = Depends(get_db),
     current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
 ):
-    return EntityNetPositionResponse(
-        entity=entity, net_position_usd_cents=get_entity_net_position(db, entity=entity, tenant_id=current_user.tenant_id),
-    )
+    """Link an old settlement whose free-text company name matched no company."""
+    from app.models.intercompany_ledger import IntercompanySettlement
+
+    settlement = db.query(IntercompanySettlement).filter(
+        IntercompanySettlement.id == settlement_id, IntercompanySettlement.tenant_id == current_user.tenant_id).first()
+    if settlement is None:
+        raise HTTPException(status_code=404, detail="Settlement not found.")
+    try:
+        return link_settlement_companies(db, settlement, from_company_id=body.from_company_id,
+                                         to_company_id=body.to_company_id)
+    except IntercompanySettlementError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+@router.get(
+    "/intercompany-settlements/company/{company_id}/net-position",
+    response_model=CompanyNetPositionResponse,
+    dependencies=[Depends(require_resource_permission("finance-operations", "view"))]
+)
+def company_net_position(
+    company_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
+):
+    from app.models.location import Location
+
+    try:
+        net = get_company_net_position(db, company_id=company_id, tenant_id=current_user.tenant_id)
+    except IntercompanySettlementError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    name = db.query(Location.name).filter(Location.id == company_id).scalar()
+    return CompanyNetPositionResponse(company_id=company_id, entity=name, net_position_usd_cents=net)
 
 @router.post(
     "/bank-transactions",

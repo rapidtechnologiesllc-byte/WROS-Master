@@ -490,8 +490,6 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
 
     companies = db.query(Location).all() if tenant_id is None else \
         db.query(Location).filter(Location.tenant_id == tenant_id).all()
-    by_name = {c.name.strip().lower(): c.id for c in companies}
-    by_name.update({c.company_code.lower(): c.id for c in companies if c.company_code})
     client_company = dict(db.query(Client.id, Client.contracting_company_id))
     rows: Dict = defaultdict(lambda: {"revenue": 0, "delivery": 0, "bench": 0, "overhead": 0, "expense": 0,
                                       "ic_revenue": 0, "ic_cost": 0, "complete": True})
@@ -514,8 +512,9 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
     if tenant_id is not None:
         settlements = settlements.filter(IntercompanySettlement.tenant_id == tenant_id)
     for s in settlements.all():
-        rows[by_name.get((s.to_entity or "").strip().lower())]["ic_revenue"] += s.amount_usd_cents
-        rows[by_name.get((s.from_entity or "").strip().lower())]["ic_cost"] += s.amount_usd_cents
+        # by company id; an old entry no company matched stays with the parent ("Group")
+        rows[s.to_company_id]["ic_revenue"] += s.amount_usd_cents
+        rows[s.from_company_id]["ic_cost"] += s.amount_usd_cents
 
     names = {c.id: (c.name, c.company_code) for c in companies}
     out = []

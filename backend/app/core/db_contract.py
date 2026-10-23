@@ -151,10 +151,96 @@ def _invoice_numbers_backfill(db: Session) -> int:
     return backfill(db)
 
 
+def _guidewire_current_level_to_certificates(db: Session) -> int:
+    """One truth for certificates (CEO 2026-10-23): the Guidewire level typed into
+    employees.guidewire_certification_current becomes a certificate record (EmployeeCertification)
+    of a catalog certificate carrying that guidewire_level -- the tenant's own if it has one, else
+    "Guidewire <level>" is added to its catalog. The earned date is unknown, so the date the level
+    was last saved on the employee is used and the record says so. The typed column is then
+    cleared: the current level is derived from certificates from now on. Returns records made."""
+    from datetime import datetime
+
+    from app.models.certification import GUIDEWIRE_CERT_LEVELS, Certification, EmployeeCertification
+    from app.models.employee import Employee
+
+    made = 0
+    rows = db.query(Employee).filter(Employee.guidewire_certification_current.in_(GUIDEWIRE_CERT_LEVELS)).all()
+    for employee in rows:
+        level = employee.guidewire_certification_current
+        cert = db.query(Certification).filter(
+            Certification.guidewire_level == level,
+            (Certification.tenant_id == employee.tenant_id) | Certification.tenant_id.is_(None),
+        ).order_by(Certification.created_at).first()
+        if cert is None:
+            code = f"GW-{level.upper()}"
+            if db.query(Certification.id).filter(Certification.cert_code == code).first() is not None:
+                code = f"{code}-T{employee.tenant_id}"
+            cert = Certification(tenant_id=employee.tenant_id, cert_name=f"Guidewire {level}", cert_code=code,
+                                 level="Foundation", validity_months=None, guidewire_level=level,
+                                 description="Created from levels typed on employee records before certificates were tracked")
+            db.add(cert)
+            db.flush()
+        held = db.query(EmployeeCertification.id).filter(
+            EmployeeCertification.employee_id == employee.id, EmployeeCertification.certification_id == cert.id,
+        ).first()
+        if held is None:
+            db.add(EmployeeCertification(
+                tenant_id=employee.tenant_id, employee_id=employee.id, certification_id=cert.id, status="Active",
+                earned_date=employee.updated_at or datetime.utcnow(),
+                issuer="Recorded before certificates were tracked (earned date unknown)",
+            ))
+            made += 1
+        employee.guidewire_certification_current = None
+    db.flush()
+    return made
+
+
+def _intercompany_company_links(db: Session) -> int:
+    """Intercompany entries were free-text entity names matched to companies by name at read time,
+    so a typo silently landed in "Group". Link each entry to its companies by EXACT name or company
+    code (case and surrounding spaces ignored -- the rule the P&L applied until now, so no figure
+    moves). Entries that match no company keep NULL and one Finance task lists them. Returns the
+    number of entries linked on both sides."""
+    from app.models.intercompany_ledger import IntercompanySettlement
+    from app.models.location import Location
+
+    companies: dict = {}
+    for company in db.query(Location).all():
+        names = companies.setdefault(company.tenant_id, {})
+        names.setdefault(company.name.strip().lower(), company.id)
+        if company.company_code:
+            names.setdefault(company.company_code.lower(), company.id)
+    linked, unmatched = 0, []
+    for entry in db.query(IntercompanySettlement).all():
+        names = companies.get(entry.tenant_id, {}) if entry.tenant_id is not None else \
+            {k: v for per_tenant in companies.values() for k, v in per_tenant.items()}
+        entry.from_company_id = entry.from_company_id or names.get((entry.from_entity or "").strip().lower())
+        entry.to_company_id = entry.to_company_id or names.get((entry.to_entity or "").strip().lower())
+        if entry.from_company_id and entry.to_company_id:
+            linked += 1
+        else:
+            unmatched.append(entry)
+    db.flush()
+    if unmatched:
+        from app.services.task_service import create_task
+
+        listing = "; ".join(f"#{e.id} {e.settlement_date} {e.from_entity} -> {e.to_entity} "
+                            f"{e.amount_usd_cents / 100:,.2f} USD" for e in unmatched)
+        create_task(db, title=f"Link {len(unmatched)} intercompany entr{'y' if len(unmatched) == 1 else 'ies'} to companies",
+                    priority="HIGH", category="FINANCE", tenant_id=unmatched[0].tenant_id or 1,
+                    visibility_scope="ORG_WIDE", link="/pnl?view=operations",
+                    description=("These intercompany settlements name a company that does not exist, so the "
+                                 "company P&L counts them in Group: " + listing + ". Link each to its companies "
+                                 "(Finance Operations > Intercompany Settlement > Link)."))
+    return linked
+
+
 DATA_MIGRATIONS = (
     ("interview_times_to_utc", _interview_times_to_utc),
     ("employee_org_history_backfill", _employee_org_history_backfill),
     ("invoice_numbers_backfill", _invoice_numbers_backfill),
+    ("guidewire_current_level_to_certificates", _guidewire_current_level_to_certificates),
+    ("intercompany_company_links", _intercompany_company_links),
 )
 
 
@@ -1695,6 +1781,13 @@ def _apply_schema_migrations(db: Session):
         ],
         "intercompany_settlements": [
             ("business_unit_id", "INTEGER NULL REFERENCES app_schema.business_units(id) ON DELETE SET NULL"),
+            # the companies by id, not free-text name (data migration intercompany_company_links)
+            ("from_company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE RESTRICT"),
+            ("to_company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE RESTRICT"),
+        ],
+        # The Guidewire level a catalog certificate gives (employee_certification_service)
+        "certifications": [
+            ("guidewire_level", "VARCHAR(20) NULL"),
         ],
         # The project manager who owns delivery (PATCH /projects/{id})
         "projects": [
@@ -1770,6 +1863,8 @@ def _apply_schema_migrations(db: Session):
     # Indexes on the foreign keys added above (create_all makes them on a fresh database)
     for index_name, table_column in (
         ("ix_projects_manager_user_id", "projects(manager_user_id)"),
+        ("ix_intercompany_settlements_from_company_id", "intercompany_settlements(from_company_id)"),
+        ("ix_intercompany_settlements_to_company_id", "intercompany_settlements(to_company_id)"),
     ):
         _migration_step(db, f"index {index_name}",
                         f"CREATE INDEX IF NOT EXISTS {index_name} ON app_schema.{table_column}")

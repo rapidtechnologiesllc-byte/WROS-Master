@@ -22,7 +22,8 @@ import {
   recordIntercompanySettlement,
   listIntercompanySettlements,
   getFullyLoadedCost,
-  getEntityNetPosition,
+  getCompanyNetPosition,
+  linkIntercompanySettlement,
 } from "../services/api/financeOperations";
 import {
   getPartnerIncentiveEvents,
@@ -225,7 +226,7 @@ export default function FinanceOperationsScreen() {
     setNetPositionError("");
     setNetPositionResult(null);
     try {
-      const res = await getEntityNetPosition(netPositionEntity.trim());
+      const res = await getCompanyNetPosition(netPositionEntity.trim());
       setNetPositionResult(res);
     } catch (err) {
       setNetPositionError(err.message || "Failed to look up entity net position.");
@@ -331,13 +332,31 @@ export default function FinanceOperationsScreen() {
 
   const companyOptions = [
     { label: companies.length ? "Select company" : "No companies yet (Users & Access Control > Companies)", value: "" },
-    ...companies.map((c) => ({ label: c.name, value: c.name })),
+    ...companies.map((c) => ({ label: c.name, value: c.id })),
   ];
 
+  // An old entry whose free-text name matched no company: link it (the From/To pickers above)
+  const handleLinkSettlement = async (settlementId) => {
+    if (!fromEntity || !toEntity) {
+      setError("Pick the From and To companies above, then Link.");
+      return;
+    }
+    try {
+      await linkIntercompanySettlement(settlementId, fromEntity, toEntity);
+      setSettlements((await listIntercompanySettlements()) || []);
+    } catch (err) {
+      setError(err.message || "Failed to link the settlement.");
+    }
+  };
+
   const handleRecordSettlement = async () => {
+    if (!fromEntity || !toEntity) {
+      setError("Pick both companies for the settlement.");
+      return;
+    }
     try {
       await recordIntercompanySettlement({
-        from_entity: fromEntity, to_entity: toEntity,
+        from_company_id: fromEntity, to_company_id: toEntity,
         amount_usd_cents: Math.round(parseFloat(settlementAmount || "0") * 100),
         settlement_date: new Date().toISOString().slice(0, 10),
         reason: settlementReason,
@@ -527,6 +546,14 @@ export default function FinanceOperationsScreen() {
                     {settlements.slice(0, 5).map((s) => (
                       <div key={s.id}>
                         {s.settlement_date}: {s.from_entity} → {s.to_entity} {formatUsdCents(s.amount_usd_cents)} ({s.reason})
+                        {!s.from_company_id || !s.to_company_id ? (
+                          <span className="ml-1 font-semibold text-amber-700">
+                            not linked to a company: counted in Group{" "}
+                            <button type="button" className="underline" onClick={() => handleLinkSettlement(s.id)}>
+                              Link to the From/To companies above
+                            </button>
+                          </span>
+                        ) : null}
                       </div>
                     ))}
                   </div>

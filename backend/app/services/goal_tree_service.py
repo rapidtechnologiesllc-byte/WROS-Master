@@ -61,11 +61,6 @@ REVENUE_STATUSES = ("APPROVED", "SENT", "PAID")
 CellKey = Tuple[str, Optional[int]]  # (company_id or UNASSIGNED, bu_id)
 
 
-def _code(name: str) -> str:
-    """'BX-IN', 'bxin', 'BX IN' -> 'BXIN' (Intercompany Ledger entities are free text)."""
-    return re.sub(r"[^A-Z0-9]", "", (name or "").upper())
-
-
 def _targets(db: Session, tenant_id: int, year: int) -> Dict[tuple, float]:
     rows = db.query(GoalTarget).filter(GoalTarget.tenant_id == tenant_id, GoalTarget.year == year).all()
     return {(r.level, r.entity_id, r.metric): r.target for r in rows}
@@ -76,7 +71,6 @@ def company_bu_actuals(db: Session, tenant_id: int, year: int) -> Tuple[Dict[Cel
     from app.services.fiscal_year_service import fy_window
     start, end = fy_window(db, year, tenant_id)
     companies = {l.id: l for l in db.query(Location).filter(Location.tenant_id == tenant_id).all()}
-    company_by_code = {_code(c.name): cid for cid, c in companies.items()}
     actuals: Dict[CellKey, Dict[str, float]] = defaultdict(lambda: {m: 0 for m in TREE_METRICS})
 
     def key(company_id, bu_id) -> CellKey:
@@ -91,15 +85,15 @@ def company_bu_actuals(db: Session, tenant_id: int, year: int) -> Tuple[Dict[Cel
         actuals[key(company_id, bu_id)]["revenue"] += (cents or 0) / 100
 
     intercompany = 0.0
-    for to_entity, bu_id, cents in (
-        db.query(IntercompanySettlement.to_entity, IntercompanySettlement.business_unit_id,
+    for to_company_id, bu_id, cents in (
+        db.query(IntercompanySettlement.to_company_id, IntercompanySettlement.business_unit_id,
                  func.sum(IntercompanySettlement.amount_usd_cents))
         .filter((IntercompanySettlement.tenant_id == tenant_id) | IntercompanySettlement.tenant_id.is_(None),
                 IntercompanySettlement.settlement_date >= start.date(), IntercompanySettlement.settlement_date < end.date())
-        .group_by(IntercompanySettlement.to_entity, IntercompanySettlement.business_unit_id).all()
+        .group_by(IntercompanySettlement.to_company_id, IntercompanySettlement.business_unit_id).all()
     ):
         amount = (cents or 0) / 100
-        actuals[key(company_by_code.get(_code(to_entity)), bu_id)]["revenue"] += amount
+        actuals[key(to_company_id, bu_id)]["revenue"] += amount
         intercompany += amount
 
     for company_id, bu_id, count in (
