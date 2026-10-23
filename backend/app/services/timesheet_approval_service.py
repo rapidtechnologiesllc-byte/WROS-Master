@@ -199,7 +199,6 @@ def approve(db: Session, timesheet: Timesheet, user: Users, *, comment: Optional
 
 def reject(db: Session, timesheet: Timesheet, user: Users, *, reason: str,
            flagged_dates: Optional[List[date]] = None) -> TimesheetReview:
-    from app.services.task_service import create_task
     from app.services.timesheet_service import reject_timesheet
 
     review = _pending_review(db, timesheet, user)
@@ -214,23 +213,62 @@ def reject(db: Session, timesheet: Timesheet, user: Users, *, reason: str,
     review.decision_note, review.flagged_dates = reason, [d.isoformat() for d in flagged]
     _comment(db, review.approval_task_id, user, f"Rejected: {reason}")
     _close_task(db, review.approval_task_id)
+    _send_back(db, timesheet, review, by=user.UserName or user.UserEmail, reason=reason, created_by=user.UserID)
+    return review
+
+
+def _send_back(db: Session, timesheet: Timesheet, review: TimesheetReview, *, by: str, reason: str,
+               created_by: Optional[str]) -> None:
+    """A rejected week goes back to the employee: a resubmit task with the reason and flagged days,
+    linked to My Timesheet for that week, and a Flash message (the email follows in send_notices)."""
+    from app.services.task_service import create_task
+
     employee = db.get(Employee, timesheet.employee_id)
-    flagged_text = f" Days to fix: {', '.join(review.flagged_dates)}." if flagged else ""
+    flagged_text = f" Days to fix: {', '.join(review.flagged_dates)}." if review.flagged_dates else ""
     if employee.wros_user_id:
         task = create_task(
             db, title=f"Resubmit timesheet week of {timesheet.week_starting_date}",
-            description=f"Rejected by {user.UserName or user.UserEmail}: {reason}.{flagged_text} Change the entries, "
+            description=f"Rejected by {by}: {reason}.{flagged_text} Change the entries, "
                         "or answer the reason in your response, then submit again.",
             priority="HIGH", tenant_id=timesheet.tenant_id, assigned_to_user_id=employee.wros_user_id,
-            created_by_user_id=user.UserID, category="TIMESHEET_RESUBMIT",
+            created_by_user_id=created_by, category="TIMESHEET_RESUBMIT",
             due_date=datetime.utcnow() + timedelta(days=2),
             link=MY_TIMESHEET_PATH.format(week=timesheet.week_starting_date, allocation=timesheet.allocation_id))
         review.resubmit_task_id = task.id
         _flash(db, db.get(Users, employee.wros_user_id),
-               f"Your timesheet for the week of {timesheet.week_starting_date} was rejected: {reason}.{flagged_text}",
-               task.link)
+               f"Your timesheet for the week of {timesheet.week_starting_date} was rejected by {by}: "
+               f"{reason}.{flagged_text}", task.link)
     else:
         logger.error(f"[TimesheetApproval] {timesheet.id} rejected but employee {employee.id} has no login to tell")
+
+
+def client_reject(db: Session, timesheet: Timesheet, *, client_email: Optional[str], reason: str) -> TimesheetReview:
+    """The client's approver rejected an internally approved week (client_timesheet_approval_service):
+    a new revision records the client's decision on the approved entries, and the week goes back to
+    the employee exactly like an internal rejection. The caller commits, then calls send_notices()."""
+    from app.services.timesheet_service import InvalidTimesheetTransition
+
+    if timesheet.status != "APPROVED":
+        raise InvalidTimesheetTransition(f"Cannot reject a timesheet in status '{timesheet.status}'.")
+    reason = (reason or "").strip()
+    if not reason:
+        raise ValueError("A rejection needs a reason.")
+    previous = latest_review(db, timesheet)
+    if previous is not None:
+        approver_id = previous.approver_user_id
+    else:
+        approver_id = resolve_approver(db, db.get(Employee, timesheet.employee_id)).UserID
+    who = f"the client ({client_email})" if client_email else "the client"
+    review = TimesheetReview(tenant_id=timesheet.tenant_id, timesheet_id=timesheet.id,
+                             revision=(previous.revision + 1) if previous else 1, approver_user_id=approver_id,
+                             entries_snapshot=snapshot(db, timesheet), decision="REJECTED",
+                             decided_at=datetime.utcnow(), decision_note=f"Rejected by {who}: {reason}",
+                             flagged_dates=[], client_decision_email=client_email)
+    db.add(review)
+    db.flush()
+    timesheet.status, timesheet.rejection_reason = "REJECTED", review.decision_note
+    timesheet.approved_by, timesheet.approved_at = None, None
+    _send_back(db, timesheet, review, by=who, reason=reason, created_by=None)
     return review
 
 
@@ -283,15 +321,25 @@ def send_notices(db: Session, review: TimesheetReview) -> None:
                           paragraphs=paragraphs, link_path=APPROVAL_PATH.format(timesheet_id=timesheet.id),
                           link_label="Review the timesheet")
         return
+    from app.services.client_timesheet_approval_service import CLIENT_PENDING, queue_email
+
+    client_pending = review.decision == "APPROVED" and timesheet.client_approval_status == CLIENT_PENDING
+    if client_pending:
+        queue_email(db, timesheet)  # the client's approver gets the approve / reject link
     login = db.get(Users, employee.wros_user_id) if employee.wros_user_id else None
     if login is None:
         return  # logged at the decision; there is nobody to email
-    decider = db.get(Users, review.decided_by_user_id)
-    by = decider.UserName or decider.UserEmail
+    if review.client_decision_email:
+        by = f"the client ({review.client_decision_email})"
+    else:
+        decider = db.get(Users, review.decided_by_user_id)
+        by = decider.UserName or decider.UserEmail
     if review.decision == "APPROVED":
+        client_note = ["The client approves its own timesheets: it has been asked to approve this week too."] \
+            if client_pending else []
         queue_staff_email(login, key=f"ts-review-{review.id}-approved", subject=f"Timesheet approved: week of {week}",
                           paragraphs=[f"Your timesheet for the week of {week} was approved by {by}."]
-                          + ([f"Comment: {review.decision_note}"] if review.decision_note else []),
+                          + ([f"Comment: {review.decision_note}"] if review.decision_note else []) + client_note,
                           link_path="/my-timesheet", link_label="Open My Timesheet")
     else:
         flagged = f"Days to fix: {', '.join(review.flagged_dates)}." if review.flagged_dates else ""
@@ -305,7 +353,10 @@ def send_notices(db: Session, review: TimesheetReview) -> None:
 
 def review_view(db: Session, timesheet: Timesheet, user: Users) -> Dict:
     """What the approver sees: the entries, this revision, the previous rejection, the employee's
-    response and the diff against the rejected version."""
+    response and the diff against the rejected version, and the client's approval when the client
+    approves its own timesheets."""
+    from app.services.client_timesheet_approval_service import status_view as client_status_view
+
     employee = db.get(Employee, timesheet.employee_id)
     reviews = db.query(TimesheetReview).filter(TimesheetReview.timesheet_id == timesheet.id) \
         .order_by(TimesheetReview.revision).all()
@@ -327,6 +378,7 @@ def review_view(db: Session, timesheet: Timesheet, user: Users) -> Dict:
                                if rejected else None),
         "employee_response": current.employee_response if current else None,
         "changes_since_rejection": diff(rejected.entries_snapshot, entries) if rejected else [],
+        "client_approval": client_status_view(db, timesheet),
         "history": [{"revision": r.revision, "decision": r.decision, "note": r.decision_note,
                      "flagged_dates": r.flagged_dates or [], "addressed_confirmed": r.addressed_confirmed,
                      "decided_at": r.decided_at.isoformat() if r.decided_at else None} for r in reviews],

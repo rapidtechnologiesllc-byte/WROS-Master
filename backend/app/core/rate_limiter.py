@@ -1,7 +1,10 @@
 """Rate limiting decorator for critical endpoints."""
+import threading
 import time
+from collections import deque
 from functools import wraps
-from fastapi import HTTPException
+
+from fastapi import HTTPException, Request
 
 # In-memory rate limit store: {key: (count, reset_time)}
 _rate_limits = {}
@@ -63,3 +66,37 @@ def rate_limit(requests_per_minute: int):
         return sync_wrapper
 
     return decorator
+
+
+# ---- per-IP limit for unauthenticated public endpoints ---------------------------------------
+# Public routes (no login: client timesheet approval links, the careers chat) are limited per
+# client IP and per endpoint group to settings.PUBLIC_ENDPOINT_RATE_LIMIT_PER_MINUTE requests in
+# a sliding minute. In-process: each worker counts its own requests, which bounds abuse per worker.
+_public_hits = {}
+_public_lock = threading.Lock()
+PUBLIC_WINDOW_SECONDS = 60
+
+
+def public_rate_limit(bucket: str):
+    """FastAPI dependency: 429 once this IP made more than the per-minute allowance on `bucket`."""
+
+    def dependency(request: Request) -> None:
+        from app.core.config import settings
+
+        limit = settings.PUBLIC_ENDPOINT_RATE_LIMIT_PER_MINUTE
+        ip = request.client.host if request.client else "unknown"
+        now = time.time()
+        with _public_lock:
+            hits = _public_hits.setdefault((bucket, ip), deque())
+            while hits and hits[0] <= now - PUBLIC_WINDOW_SECONDS:
+                hits.popleft()
+            if len(hits) >= limit:
+                raise HTTPException(status_code=429, detail="Too many requests. Please wait a minute and try again.")
+            hits.append(now)
+
+    return dependency
+
+
+def reset_public_rate_limits() -> None:
+    with _public_lock:
+        _public_hits.clear()

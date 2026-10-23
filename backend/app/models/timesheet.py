@@ -69,9 +69,13 @@ class Timesheet(Base):
     approved_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     approved_at = Column(DateTime, nullable=True)
     rejection_reason = Column(Text, nullable=True)
-    # EPIC-P7 client portal field -- schema-only, no client-side approval
-    # path exists in this codebase yet.
+    # Client approval (client_timesheet_approval_service), only for clients that require it:
+    # NULL = not asked; CLIENT_PENDING after the internal approval; CLIENT_APPROVED (by the emailed
+    # link or uploaded evidence); CLIENT_REJECTED (sent back to the employee). The internal status
+    # stays APPROVED while the client decides; invoicing waits for CLIENT_APPROVED.
+    client_approval_status = Column(String(20), nullable=True, index=True)
     client_approver_email = Column(String(300), nullable=True)
+    client_approved_at = Column(DateTime, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

@@ -5,6 +5,10 @@ client automatically the moment it is approved. No invoice leaves without that a
 Daily (scheduled job auto_invoicing), for each project with timesheets in last month:
   - waits while any of those timesheets is not yet approved or is disputed (the
     timesheet reminders chase that); nothing is recorded, it is re-checked tomorrow
+  - waits while a client that approves its own timesheets has not approved them yet, and gives
+    Finance one task saying which weeks wait for the client (re-checked tomorrow)
+  - hours dated after the end of the client PO they bill against: no invoice, a Finance task
+    to get the PO extended (HELD)
   - generates the DRAFT invoice (approved hours x the allocation's bill rate)
   - flags anything the reviewer must look at:
       * an employee with more than MAX_WEEKLY_HOURS billable hours in a week
@@ -101,6 +105,17 @@ def _open_task(db: Session, title: str) -> bool:
                                     Task.status.notin_(("COMPLETED", "CANCELLED"))).first() is not None
 
 
+def _close_waiting_task(db: Session, title: str) -> None:
+    """The client approved since: the 'waiting for the client' task is done."""
+    from datetime import datetime
+
+    from app.models.task import Task
+
+    for task in db.query(Task).filter(Task.title == title, Task.category == "FINANCE",
+                                      Task.status.notin_(("COMPLETED", "CANCELLED"))).all():
+        task.status, task.completed_at = "COMPLETED", datetime.utcnow()
+
+
 def anomalies(db: Session, invoice: Invoice) -> List[str]:
     from app.models.invoice import InvoiceLineItem
 
@@ -154,12 +169,20 @@ def invoice_project(db: Session, project: Project, start: date, end: date) -> st
     except (invoices.UnapprovedTimesheetBlocksInvoice, invoices.OpenDisputeBlocksInvoice) as exc:
         db.rollback()
         return f"waiting: {exc}"
+    except invoices.ClientApprovalMissing as exc:
+        db.rollback()
+        title = f"Waiting for client timesheet approval: {project.name} {start:%b %Y}"
+        if not _open_task(db, title):
+            _finance_task(db, project.tenant_id, title, [
+                str(exc), "", "The invoice is drafted automatically as soon as the client has approved every week."])
+            db.commit()
+        return f"waiting: {exc}"
     except invoices.AlreadyInvoiced as exc:
         db.rollback()
         _decide(db, project, start, end, "SKIPPED", [str(exc)])
         db.commit()
         return "skipped"
-    except invoices.MissingBillRate as exc:
+    except (invoices.MissingBillRate, invoices.PurchaseOrderExpired) as exc:
         db.rollback()
         _decide(db, project, start, end, "HELD", [str(exc)])
         _finance_task(db, project.tenant_id, f"Invoice held: {project.name} {start:%b %Y}", [str(exc)])
@@ -175,6 +198,7 @@ def invoice_project(db: Session, project: Project, start: date, end: date) -> st
     except invoices.MissingBillingContact as exc:
         flags.append(str(exc))
     _decide(db, project, start, end, "PENDING_REVIEW", flags, invoice)
+    _close_waiting_task(db, f"Waiting for client timesheet approval: {project.name} {start:%b %Y}")
     total = f"{(invoice.total_usd_cents or 0) / 100:,.2f} {invoice.currency or 'USD'}"
     lines = [f"Draft invoice {invoice.id} for {project.name}, {start:%d %b} - {end:%d %b %Y}: {total}.",
              "Review it in Invoices and approve it; it is emailed to the client as soon as you approve."]

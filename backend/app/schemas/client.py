@@ -125,6 +125,8 @@ class ClientDetailResponse(BaseModel):
     billing_address: Optional[str]
     billing_currency: str
     payment_terms_days: int
+    # the client approves its own timesheets before they are invoiced (emailed link / VMS evidence)
+    requires_client_timesheet_approval: bool = False
     tax_id_client: Optional[str]
     contract_start_date: Optional[date]
     contract_end_date: Optional[date]
@@ -158,6 +160,7 @@ class ClientUpdateRequest(BaseModel):
     billing_address: Optional[str] = None
     billing_currency: Optional[str] = None
     payment_terms_days: Optional[int] = None
+    requires_client_timesheet_approval: Optional[bool] = None
     tax_id_client: Optional[str] = None
     contract_start_date: Optional[date] = None
     contract_end_date: Optional[date] = None

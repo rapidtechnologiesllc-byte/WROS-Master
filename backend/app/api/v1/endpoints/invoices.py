@@ -30,6 +30,7 @@ Routes:
   POST   /invoices/{id}/mark-paid   SENT -> PAID, and the revenue is recognised.
   POST   /invoices/{id}/record-payment  Record the bank payment: matched transaction + PAID + revenue.
   GET    /invoices                  List (optional project_id/client_id/status filter).
+  GET    /invoices/ar/aging         Unpaid sent invoices by client, aged by due date (payment terms).
   GET    /invoices/{id}             One invoice with line items.
 """
 import logging
@@ -58,6 +59,8 @@ from app.schemas.invoice import (
 )
 from app.services.invoice_service import (
     AlreadyInvoiced,
+    ClientApprovalMissing,
+    PurchaseOrderExpired,
     MissingBillingContact,
     NothingToInvoice,
     MissingBillRate,
@@ -75,9 +78,22 @@ from app.services.invoice_service import (
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
 def _to_item(db: Session, invoice: Invoice) -> InvoiceItem:
+    from app.models.client import Client
+    from app.models.employee import Employee
+    from app.models.location import Location
+
     line_items = db.query(InvoiceLineItem).filter(InvoiceLineItem.invoice_id == invoice.id).all()
     delivery = db.query(InvoiceDelivery).filter(InvoiceDelivery.invoice_id == invoice.id).first()
+    names = {e.id: f"{e.first_name} {e.last_name or ''}".strip() for e in db.query(Employee).filter(
+        Employee.id.in_({li.employee_id for li in line_items}))} if line_items else {}
+    company = db.get(Location, invoice.issuing_company_id) if invoice.issuing_company_id else None
+    client = db.get(Client, invoice.client_id)
+    project = db.get(Project, invoice.project_id)
     return InvoiceItem(
+        invoice_number=invoice.invoice_number, issuing_company_id=invoice.issuing_company_id,
+        issuing_company_name=company.name if company else None, po_numbers=invoice.po_numbers,
+        due_date=invoice.due_date, client_name=client.company_name if client else None,
+        project_name=project.name if project else None,
         delivery_channel=delivery.channel if delivery else None,
         delivery_status=delivery.status if delivery else None,
         delivery_to=delivery.to_address if delivery else None,
@@ -90,6 +106,7 @@ def _to_item(db: Session, invoice: Invoice) -> InvoiceItem:
             InvoiceLineItemItem(
                 id=li.id, employee_id=li.employee_id, timesheet_id=li.timesheet_id,
                 hours=float(li.hours), rate_usd_cents=li.rate_usd_cents, amount_usd_cents=li.amount_usd_cents,
+                employee_name=names.get(li.employee_id), po_number=li.po_number,
             )
             for li in line_items
         ],
@@ -132,7 +149,8 @@ def generate_invoice_endpoint(
         raise HTTPException(status_code=409, detail=str(exc))
     except OpenDisputeBlocksInvoice as exc:
         raise HTTPException(status_code=409, detail=str(exc))
-    except (NothingToInvoice, MissingBillRate, AlreadyInvoiced) as exc:
+    except (NothingToInvoice, MissingBillRate, AlreadyInvoiced, ClientApprovalMissing, PurchaseOrderExpired) as exc:
+        db.rollback()
         raise HTTPException(status_code=409, detail=str(exc))
     except ValueError as exc:
         db.rollback()
@@ -319,6 +337,23 @@ def list_invoices(
         query = query.filter(Invoice.status == status)
     invoices = query.order_by(Invoice.created_at.desc()).all()
     return InvoiceListResponse(invoices=[_to_item(db, i) for i in invoices])
+
+@router.get(
+    "/ar/aging",
+    summary="AR aging: unpaid sent invoices by client, bucketed by days past due (client payment terms)",
+    dependencies=[Depends(require_resource_permission("invoices", "view"))]
+)
+def ar_aging_endpoint(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    from app.services.ar_followup_service import ar_aging
+
+    invoices = db.query(Invoice).filter(
+        Invoice.tenant_id == current_user.tenant_id, Invoice.status == "SENT",
+        client_filter(db, current_user, Invoice.client_id),
+    ).all()
+    return ar_aging(db, invoices)
 
 @router.get(
     "/{invoice_id}",

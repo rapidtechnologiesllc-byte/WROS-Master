@@ -34,6 +34,8 @@ Routes:
   GET    /allocations/margin-approvals  Placements / changes waiting for margin approval.
   POST   /allocations/changes/{id}/approve | /reject  The approver's decision, with a reason
                                      (authority: role level + business unit, margin_guard_service).
+  PUT    /allocations/{id}/client-billing  The placement's client timesheet approver and
+                                     client PO (work order) -- gap 3, CEO 2026-10-23.
 """
 from datetime import date
 from typing import Optional
@@ -52,6 +54,7 @@ from app.models.employee import Employee
 from app.models.employee_allocation import AllocationChange, EmployeeAllocation
 from app.models.project import Project
 from app.models.user import Users
+from app.models.work_order import WorkOrder
 from app.schemas.allocation import (
     AllocationChangeItem,
     AllocationEditResponse,
@@ -70,10 +73,12 @@ from app.schemas.allocation import (
     RenewalListResponse,
     RenewalUpdateRequest,
     UpdateAllocationRequest,
+    PlacementBillingRequest,
 )
 from app.services import allocation_renewal_service as renewals
 from app.services import margin_guard_service as margin_guard
 from app.services.deployment_readiness_service import EmployeeNotDeployable
+from app.services.work_order_service import WorkOrderValidationError, set_placement_billing
 from app.services.employee_allocation_service import (
     AllocationEditInvalid,
     AllocationNeedsClient,
@@ -159,6 +164,7 @@ def _to_item(db: Session, allocation: EmployeeAllocation,
     project = db.query(Project).filter(Project.id == allocation.project_id).first() if allocation.project_id else None
     pending = db.query(AllocationChange).filter(AllocationChange.allocation_id == allocation.id,
                                                 AllocationChange.status == "PENDING_APPROVAL").first()
+    work_order = db.get(WorkOrder, allocation.work_order_id) if allocation.work_order_id else None
     return AllocationItem(
         project_name=project.name if project else None,
         renewal_status=allocation.renewal_status, renewal_owner_user_id=allocation.renewal_owner_user_id,
@@ -166,6 +172,10 @@ def _to_item(db: Session, allocation: EmployeeAllocation,
         margin_pct=_num(allocation.margin_pct), margin_check=allocation.margin_check,
         pending_change=_change_item(db, pending) if pending is not None else None,
         margin=_margin_of(margin_change),
+        timesheet_approver_email=allocation.timesheet_approver_email,
+        work_order_id=allocation.work_order_id,
+        po_number=work_order.po_number if work_order else None,
+        po_end_date=work_order.end_date if work_order else None,
         id=allocation.id,
         employee_id=allocation.employee_id,
         employee_name=employee_name,
@@ -253,6 +263,12 @@ def create_allocation(
             allow_concurrent=body.allow_concurrent, changed_by=current_user.UserID,
             billing_rate_usd_cents=body.billing_rate_usd_cents, billable=body.billable,
         )
+        if body.timesheet_approver_email or body.work_order_id:
+            set_placement_billing(db, allocation, approver_email=body.timesheet_approver_email,
+                                  work_order_id=body.work_order_id)
+    except WorkOrderValidationError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
     except EmployeeAlreadyAllocated as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except EmployeeNotDeployable as exc:
@@ -296,7 +312,7 @@ def get_allocation_dropdowns(
     ]
     demand_items = [
         JobDropdownItem(
-            id=d.id, name=d.job_title or "(no title)", client_name=clients.get(d.client_id),
+            id=d.id, name=d.job_title or "(no title)", client_id=d.client_id, client_name=clients.get(d.client_id),
             project_id=d.project_id, project_name=projects.get(d.project_id),
             billing_rate_usd_cents=d.billing_rate_usd_cents, status=d.status,
         )
@@ -314,6 +330,7 @@ def get_allocation_dropdowns(
 def list_allocations(
     employee_id: Optional[str] = None,
     demand_id: Optional[str] = None,
+    client_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
@@ -324,6 +341,8 @@ def list_allocations(
         query = query.filter(EmployeeAllocation.employee_id == employee_id)
     if demand_id:
         query = query.filter(EmployeeAllocation.demand_id == demand_id)
+    if client_id:
+        query = query.filter(EmployeeAllocation.client_id == client_id)
     allocations = query.order_by(EmployeeAllocation.created_at.desc()).all()
     return AllocationListResponse(allocations=[_to_item(db, a) for a in allocations])
 
@@ -562,3 +581,32 @@ def allocation_history(
                .order_by(AllocationChange.changed_at.desc(), AllocationChange.id).all())
     names = _user_names(db, [c.changed_by_user_id for c in changes] + [c.approver_user_id for c in changes])
     return AllocationHistoryResponse(changes=[_change_item(db, c, names) for c in changes])
+@router.put(
+    "/{allocation_id}/client-billing",
+    response_model=AllocationItem,
+    summary="Set the placement's client timesheet approver and client PO (work order)",
+    dependencies=[Depends(require_resource_permission("allocations", "create"))]
+)
+def set_client_billing_endpoint(
+    allocation_id: str,
+    body: PlacementBillingRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """The approver must be one of the client's TIMESHEET_APPROVER contacts when the client has any;
+    the PO must be the same client's (app.services.work_order_service.set_placement_billing)."""
+    allocation = _get_allocation_or_404(db, allocation_id, current_user)
+    sent = body.dict(exclude_unset=True)
+    kwargs = {}
+    if "timesheet_approver_email" in sent:
+        kwargs["approver_email"] = sent["timesheet_approver_email"]
+    if "work_order_id" in sent:
+        kwargs["work_order_id"] = sent["work_order_id"]
+    try:
+        set_placement_billing(db, allocation, **kwargs)
+    except WorkOrderValidationError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
+    db.commit()
+    db.refresh(allocation)
+    return _to_item(db, allocation)

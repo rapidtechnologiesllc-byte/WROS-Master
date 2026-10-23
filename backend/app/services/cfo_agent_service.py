@@ -47,7 +47,7 @@ def get_org_financial_snapshot(db: Session, year_month: str = None, tenant_id: s
     # 2. Org-wide P&L (all BUs combined)
     pnl = get_org_pnl_summary(db, year=year, month=month)
 
-    # 3. AR Aging: bucket the real overdue list (SENT, past grace, unpaid)
+    # 3. AR Aging: bucket the real overdue list (SENT, past its due date, unpaid)
     overdue = scan_overdue_invoices(db)
     ar_aging = {
         "overdue_count": len(overdue),

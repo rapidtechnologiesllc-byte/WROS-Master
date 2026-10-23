@@ -362,6 +362,21 @@ class Settings:
     RENEWAL_LIST_DAYS: int = int(os.getenv("RENEWAL_LIST_DAYS", "90"))
     # Margin floor approvals (rate card, CEO 2026-10-23): how long the approver's task runs
     MARGIN_APPROVAL_TASK_DUE_DAYS: int = int(os.getenv("MARGIN_APPROVAL_TASK_DUE_DAYS", "2"))
+    # Client timesheet approval (client_timesheet_approval_service): how long the emailed approve /
+    # reject link works, the mailbox it is sent from, and the largest evidence file accepted
+    CLIENT_TIMESHEET_APPROVAL_LINK_TTL_HOURS: int = int(os.getenv("CLIENT_TIMESHEET_APPROVAL_LINK_TTL_HOURS", "168"))
+    CLIENT_TIMESHEET_APPROVAL_MAILBOX: str = os.getenv("CLIENT_TIMESHEET_APPROVAL_MAILBOX", "") or FINANCE_MAILBOX
+    CLIENT_TIMESHEET_EVIDENCE_MAX_BYTES: int = int(os.getenv("CLIENT_TIMESHEET_EVIDENCE_MAX_BYTES", str(10 * 1024 * 1024)))
+    # Requests per minute per client IP on each unauthenticated public endpoint group
+    # (app.core.rate_limiter.public_rate_limit)
+    PUBLIC_ENDPOINT_RATE_LIMIT_PER_MINUTE: int = int(os.getenv("PUBLIC_ENDPOINT_RATE_LIMIT_PER_MINUTE", "30"))
+    # Work orders: Finance gets a task when a client PO ends within this many days (po_expiry_alerts)
+    PO_EXPIRY_ALERT_DAYS: int = int(os.getenv("PO_EXPIRY_ALERT_DAYS", "30"))
+    # Invoice numbers: "<prefix>-<issuing company code>-<sequence>" per issuing company
+    INVOICE_NUMBER_PREFIX: str = os.getenv("INVOICE_NUMBER_PREFIX", "INV")
+    INVOICE_NUMBER_DIGITS: int = int(os.getenv("INVOICE_NUMBER_DIGITS", "6"))
+    # AR aging bucket edges in days past due: current, 1-30, 31-60, 61-90, 90+
+    AR_AGING_BUCKET_DAYS: str = os.getenv("AR_AGING_BUCKET_DAYS", "30,60,90")
 
     # Background jobs (app/core/scheduled_jobs.py): comma-separated names. Unset = every
     # registered job (all internal: drafts, staff reminders, AR tasks, metrics); set it to ""
@@ -370,7 +385,7 @@ class Settings:
         "SCHEDULED_JOBS_ENABLED",
         "timesheet_draft_creation,timesheet_reminders,ar_follow_up,expire_bu_ownerships,"
         "daily_revenue_scan,engagement_metrics,birthday_drafts,hiring_pipeline_sweep,client_start_date,auto_invoicing,"
-        "utilization_snapshot,renewal_alerts",
+        "utilization_snapshot,renewal_alerts,po_expiry_alerts",
     )
     SCHEDULED_JOB_LEASE_GRACE_SECONDS: int = int(os.getenv("SCHEDULED_JOB_LEASE_GRACE_SECONDS", "120"))
 

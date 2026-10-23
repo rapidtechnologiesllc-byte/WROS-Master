@@ -33,7 +33,7 @@ def test_interview_times_move_from_india_time_to_utc_exactly_once(db):
     db.add(legacy)
     db.flush()
 
-    assert run_data_migrations(db) == ["interview_times_to_utc", "employee_org_history_backfill"]
+    assert run_data_migrations(db) == [name for name, _ in DATA_MIGRATIONS]
     db.refresh(legacy)
     assert (legacy.start_time, legacy.end_time) == (datetime(2026, 10, 20, 10, 0), datetime(2026, 10, 20, 11, 0))
     assert db.get(DataMigration, "interview_times_to_utc").applied_at is not None
@@ -65,7 +65,9 @@ def test_a_failing_migration_leaves_no_marker_and_fails_loudly(db):
     with pytest.raises(Exception):
         run_data_migrations(db, migrations=(("broken_once", broken),))
     assert db.get(DataMigration, "broken_once") is None
-    assert [name for name, _ in DATA_MIGRATIONS] == ["interview_times_to_utc", "employee_org_history_backfill"]
+    # the broken one never joins the shipped list; shipped migrations only ever append, in order
+    names = [name for name, _ in DATA_MIGRATIONS]
+    assert "broken_once" not in names and names[:2] == ["interview_times_to_utc", "employee_org_history_backfill"]
 
 
 def test_every_employee_gets_a_cost_object_history_row_once(db):

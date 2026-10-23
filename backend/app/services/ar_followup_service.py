@@ -6,9 +6,9 @@ exact Task+notify pattern already proven live for expense approvals
 (Task.invoice_id, same polymorphic-lite posture as Task.expense_id) --
 not a new mechanism.
 """
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 import logging
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -22,29 +22,87 @@ from app.services.task_service import create_task
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_AR_GRACE_DAYS = 30
-
 def scan_overdue_invoices(
-    db: Session, *, grace_days: int = DEFAULT_AR_GRACE_DAYS, tenant_id: Optional[int] = None, now: Optional[datetime] = None,
+    db: Session, *, tenant_id: Optional[int] = None, now: Optional[datetime] = None,
 ) -> List[dict]:
-    """SENT invoices whose sent_at is older than grace_days and still
-    haven't moved to PAID -- the real aging list, sorted oldest first
-    (the ones most overdue need attention first)."""
-    now = now or datetime.utcnow()
-    cutoff = now - timedelta(days=grace_days)
-
-    query = db.query(Invoice).filter(Invoice.status == "SENT", Invoice.sent_at.isnot(None), Invoice.sent_at <= cutoff)
+    """SENT invoices past their due date (sent date + the client's payment terms, stored on the
+    invoice when it was sent) and still not PAID -- the real aging list, most overdue first. A net-60
+    client is not chased on day 31, a net-15 client is chased on day 16."""
+    today = (now or datetime.utcnow()).date()
+    query = db.query(Invoice).filter(Invoice.status == "SENT", Invoice.due_date.isnot(None), Invoice.due_date < today)
     if tenant_id is not None:
         query = query.filter(Invoice.tenant_id == tenant_id)
 
     rows = []
-    for invoice in query.order_by(Invoice.sent_at.asc()).all():
-        days_overdue = (now - invoice.sent_at).days
+    for invoice in query.order_by(Invoice.due_date.asc()).all():
         rows.append({
-            "invoice_id": invoice.id, "client_id": invoice.client_id,
-            "total_usd_cents": invoice.total_usd_cents, "sent_at": invoice.sent_at, "days_overdue": days_overdue,
+            "invoice_id": invoice.id, "invoice_number": invoice.invoice_number, "client_id": invoice.client_id,
+            "total_usd_cents": invoice.total_usd_cents, "sent_at": invoice.sent_at, "due_date": invoice.due_date,
+            "days_overdue": (today - invoice.due_date).days,
         })
     return rows
+
+
+def aging_buckets() -> List[Tuple[str, int, Optional[int]]]:
+    """[(label, from_days, to_days)] past due, from settings.AR_AGING_BUCKET_DAYS ("30,60,90" ->
+    current, 1-30, 31-60, 61-90, 90+)."""
+    from app.core.config import settings
+
+    edges = sorted({int(x) for x in settings.AR_AGING_BUCKET_DAYS.split(",") if x.strip()})
+    if not edges or edges[0] <= 0:
+        raise ValueError(f"AR_AGING_BUCKET_DAYS must be positive day counts, got {settings.AR_AGING_BUCKET_DAYS!r}")
+    buckets, low = [("current", None, 0)], 1
+    for edge in edges:
+        buckets.append((f"{low}-{edge}", low, edge))
+        low = edge + 1
+    buckets.append((f"{edges[-1]}+", low, None))
+    return buckets
+
+
+def _bucket_for(days_past_due: int, buckets) -> str:
+    for label, low, high in buckets:
+        if low is None:
+            if days_past_due <= high:
+                return label
+        elif days_past_due >= low and (high is None or days_past_due <= high):
+            return label
+    raise ValueError(f"No AR aging bucket for {days_past_due} days past due")
+
+
+def ar_aging(db: Session, invoices: List[Invoice], *, today: Optional[date] = None) -> Dict:
+    """Unpaid SENT invoices aged by due date, per client: bucket totals (USD cents) and the
+    invoices in each. `invoices` is the caller's already-scoped list of SENT invoices."""
+    today = today or datetime.utcnow().date()
+    buckets = aging_buckets()
+    labels = [b[0] for b in buckets]
+    clients = {c.id: c for c in db.query(Client).filter(Client.id.in_({i.client_id for i in invoices}))} if invoices else {}
+    by_client: Dict[str, Dict] = {}
+    totals = {label: 0 for label in labels}
+    for invoice in invoices:
+        if invoice.status != "SENT":
+            continue
+        if invoice.due_date is None:
+            raise ValueError(f"Sent invoice {invoice.id} has no due date")
+        days = (today - invoice.due_date).days
+        label = _bucket_for(days, buckets)
+        client = clients.get(invoice.client_id)
+        row = by_client.setdefault(invoice.client_id, {
+            "client_id": invoice.client_id, "client_name": client.company_name if client else invoice.client_id,
+            "payment_terms_days": client.payment_terms_days if client else None,
+            "buckets": {lb: 0 for lb in labels}, "total_usd_cents": 0, "invoices": []})
+        amount = invoice.total_usd_cents or 0
+        row["buckets"][label] += amount
+        row["total_usd_cents"] += amount
+        totals[label] += amount
+        row["invoices"].append({"invoice_id": invoice.id, "invoice_number": invoice.invoice_number,
+                                "project_id": invoice.project_id, "total_usd_cents": amount,
+                                "sent_at": invoice.sent_at.isoformat() if invoice.sent_at else None,
+                                "due_date": invoice.due_date.isoformat(), "days_past_due": max(days, 0),
+                                "bucket": label})
+    clients_out = sorted(by_client.values(), key=lambda r: (-r["total_usd_cents"], r["client_name"]))
+    return {"as_of": today.isoformat(), "buckets": labels, "totals": totals,
+            "total_usd_cents": sum(totals.values()), "clients": clients_out}
+
 
 def trigger_ar_follow_up(db: Session, invoice: Invoice) -> Task:
     """Idempotent -- one open (not COMPLETED/CANCELLED) Task per
@@ -73,11 +131,13 @@ def trigger_ar_follow_up(db: Session, invoice: Invoice) -> Task:
             user = db.query(Users).filter(Users.UserEmail == employee.email).first()
             assigned_to_user_id = user.UserID if user else None
 
-    days_overdue = (datetime.utcnow() - invoice.sent_at).days if invoice.sent_at else None
+    days_overdue = (datetime.utcnow().date() - invoice.due_date).days if invoice.due_date else None
     client_name = client.company_name if client else invoice.client_id
+    number = invoice.invoice_number or invoice.id
     task = create_task(
-        db, title=f"AR follow-up: {client_name} invoice overdue ({days_overdue}d)",
-        description=f"Invoice {invoice.id} for {client_name}, ${invoice.total_usd_cents / 100:,.2f}, sent {invoice.sent_at}, still unpaid.",
+        db, title=f"AR follow-up: {client_name} invoice {number} overdue ({days_overdue}d)",
+        description=f"Invoice {number} for {client_name}, ${invoice.total_usd_cents / 100:,.2f}, sent {invoice.sent_at}, "
+                    f"due {invoice.due_date} ({client.payment_terms_days if client else '?'}-day terms), still unpaid.",
         priority="HIGH" if days_overdue and days_overdue >= 60 else "MEDIUM",
         category="AR_FOLLOW_UP", assigned_to_user_id=assigned_to_user_id, invoice_id=invoice.id,
         tenant_id=invoice.tenant_id,
@@ -89,10 +149,11 @@ def trigger_ar_follow_up(db: Session, invoice: Invoice) -> Task:
             try:
                 send_notification(
                     db, calling_context_tenant_id=invoice.tenant_id, recipient=user, priority_tier="P2",
-                    message=f"Invoice for {client_name} (${invoice.total_usd_cents / 100:,.2f}) is {days_overdue} days overdue -- follow up.",
+                    message=f"Invoice {number} for {client_name} (${invoice.total_usd_cents / 100:,.2f}) is {days_overdue} days past its due date -- follow up.",
                 )
-            except ChannelNotConfigured:
-                pass
+            except ChannelNotConfigured as exc:
+                # the task is the follow-up; the extra notification is optional and its channel is off
+                logger.warning(f"[ARFollowUp] invoice {invoice.id}: no notification channel for {user.UserID}: {exc}")
 
     return task
 

@@ -40,12 +40,14 @@ def _money(cents: int, currency: str) -> str:
     return f"{currency} {cents / 100:,.2f}"
 
 
-def _issuer(db: Session, client: Client, invoice: Invoice) -> str:
-    """Our billing entity: the client's contracting company, else the tenant."""
-    if client.contracting_company_id:
-        company = db.query(Location).filter(Location.id == client.contracting_company_id).first()
-        if company:
-            return company.name
+def _issuer(db: Session, invoice: Invoice) -> str:
+    """Our billing entity, stored on the invoice at generation (the client's contracting company);
+    no company means the tenant itself issues it."""
+    if invoice.issuing_company_id:
+        company = db.query(Location).filter(Location.id == invoice.issuing_company_id).first()
+        if company is None:
+            raise ValueError(f"Invoice {invoice.id}'s issuing company {invoice.issuing_company_id} does not exist")
+        return company.name
     tenant = db.query(Tenant).filter(Tenant.id == invoice.tenant_id).first()
     if tenant is None:
         raise ValueError(f"Invoice {invoice.id} has no issuing company (no contracting company or tenant)")
@@ -56,18 +58,23 @@ def render_invoice_email(db: Session, invoice: Invoice) -> Dict[str, str]:
     client = db.query(Client).filter(Client.id == invoice.client_id).first()
     if client is None:
         raise ValueError(f"Invoice {invoice.id} has no client")
-    issuer = _issuer(db, client, invoice)
+    if not invoice.invoice_number:
+        raise ValueError(f"Invoice {invoice.id} has no invoice number")
+    issuer = _issuer(db, invoice)
     items = db.query(InvoiceLineItem).filter(InvoiceLineItem.invoice_id == invoice.id).all()
     names = {e.id: f"{e.first_name} {e.last_name or ''}".strip()
              for e in db.query(Employee).filter(Employee.id.in_({i.employee_id for i in items})).all()}
     currency = invoice.currency or "USD"
     period = f"{invoice.billing_period_start:%d %b %Y} – {invoice.billing_period_end:%d %b %Y}"
-    due = (invoice.approved_at or datetime.utcnow()).date() + timedelta(days=client.payment_terms_days or 0)
-    number = invoice.id.split("-")[0].upper()
+    # rendered right before sending: the due date is the one mark_invoice_sent stores (today + terms)
+    due = invoice.due_date or (datetime.utcnow().date() + timedelta(days=client.payment_terms_days or 0))
+    number = invoice.invoice_number
+    with_po = any(i.po_number for i in items)
 
     rows = "".join(
         f"<tr><td>{html.escape(names.get(i.employee_id, i.employee_id))}</td>"
-        f"<td style='text-align:right'>{float(i.hours):,.2f}</td>"
+        + (f"<td>{html.escape(i.po_number or '')}</td>" if with_po else "")
+        + f"<td style='text-align:right'>{float(i.hours):,.2f}</td>"
         f"<td style='text-align:right'>{_money(i.rate_usd_cents, currency)}</td>"
         f"<td style='text-align:right'>{_money(i.amount_usd_cents, currency)}</td></tr>"
         for i in items
@@ -75,19 +82,22 @@ def render_invoice_email(db: Session, invoice: Invoice) -> Dict[str, str]:
     bill_to = html.escape(client.company_name)
     if client.billing_address:
         bill_to += "<br>" + html.escape(client.billing_address).replace("\n", "<br>")
+    po_line = f"<p><b>PO number</b>: {html.escape(invoice.po_numbers)}</p>" if invoice.po_numbers else ""
     body = (
-        f"<p>Hello,</p><p>Please find invoice <b>{number}</b> from {html.escape(issuer)} for services in the "
-        f"period {period}.</p>"
-        f"<p><b>Bill to</b><br>{bill_to}</p>"
+        f"<p>Hello,</p><p>Please find invoice <b>{html.escape(number)}</b> from {html.escape(issuer)} for services "
+        f"in the period {period}.</p>"
+        f"<p><b>Bill to</b><br>{bill_to}</p>{po_line}"
         "<table cellpadding='6' style='border-collapse:collapse;border:1px solid #ccc'>"
-        "<tr><th align='left'>Consultant</th><th>Hours</th><th>Rate</th><th>Amount</th></tr>"
-        f"{rows}<tr><td colspan='3' align='right'><b>Total</b></td>"
+        "<tr><th align='left'>Consultant</th>" + ("<th align='left'>PO</th>" if with_po else "")
+        + "<th>Hours</th><th>Rate</th><th>Amount</th></tr>"
+        f"{rows}<tr><td colspan='{4 if with_po else 3}' align='right'><b>Total</b></td>"
         f"<td style='text-align:right'><b>{_money(invoice.total_usd_cents, currency)}</b></td></tr></table>"
         f"<p>Payment terms: {client.payment_terms_days} days. Due date: {due:%d %b %Y}.</p>"
         "<p>Reply to this email with any questions about this invoice.</p>"
         f"<p>Regards,<br>Accounts, {html.escape(issuer)}</p>"
     )
-    return {"subject": f"Invoice {number} from {issuer} – {period}", "html": body}
+    subject = f"Invoice {number} from {issuer} – {period}" + (f" – PO {invoice.po_numbers}" if invoice.po_numbers else "")
+    return {"subject": subject, "html": body}
 
 
 class SendInvoiceEmailHandler:

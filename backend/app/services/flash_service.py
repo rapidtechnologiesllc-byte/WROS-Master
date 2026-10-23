@@ -776,7 +776,7 @@ def _format_ar_aging_reply(result: Dict) -> str:
         return PERMISSION_DENIED_FINANCE_MESSAGE
     overdue = result["overdue"]
     if not overdue:
-        return "No overdue invoices right now -- everything sent is either paid or still within grace period."
+        return "No overdue invoices right now -- everything sent is either paid or not yet past its due date (payment terms)."
     lines = [
         f"- Invoice {row['invoice_id']} -- ${row['total_usd_cents'] / 100:,.2f}, {row['days_overdue']} days overdue"
         for row in overdue[:10]

@@ -46,3 +46,10 @@ export const getInvoices = async (filters = {}) => {
   const { data } = await apiRequest(`/invoices${qs ? `?${qs}` : ""}`, { method: "GET" });
   return data;
 };
+
+// AR aging: unpaid sent invoices by client, bucketed by days past due (client payment terms)
+export const getArAging = async () => {
+  const { data } = await apiRequest("/invoices/ar/aging", { method: "GET" });
+  if (!data || !Array.isArray(data.clients)) throw new Error("Unexpected response: no AR aging.");
+  return data;
+};

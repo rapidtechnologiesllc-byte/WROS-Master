@@ -142,9 +142,19 @@ def _employee_org_history_backfill(db: Session) -> int:
     return added
 
 
+def _invoice_numbers_backfill(db: Session) -> int:
+    """Invoice compliance (CEO 2026-10-23): every invoice created before numbering existed gets its
+    issuing company and the next number of that company's series, in creation order; invoices
+    already sent get their due date (sent date + the client's payment terms)."""
+    from app.services.invoice_numbering import backfill
+
+    return backfill(db)
+
+
 DATA_MIGRATIONS = (
     ("interview_times_to_utc", _interview_times_to_utc),
     ("employee_org_history_backfill", _employee_org_history_backfill),
+    ("invoice_numbers_backfill", _invoice_numbers_backfill),
 )
 
 
@@ -1581,6 +1591,8 @@ def _apply_schema_migrations(db: Session):
              'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
             ("margin_pct", "NUMERIC(7, 2) NULL"),
             ("margin_check", "VARCHAR(40) NULL"),
+            # Placement -> client PO / work order (its PO goes on the invoice)
+            ("work_order_id", "VARCHAR(512) NULL REFERENCES app_schema.work_orders(id) ON DELETE SET NULL"),
         ],
         # Task deep link: the in-app path My Tasks opens (task_service.create_task)
         "tasks": [
@@ -1654,6 +1666,26 @@ def _apply_schema_migrations(db: Session):
             ("account_manager_user_id", 'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
             # Contracting company (BX-US / BX-IN): revenue splits by company
             ("contracting_company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
+            # Client timesheet approval (CEO 2026-10-23): off for every existing client
+            ("requires_client_timesheet_approval", "BOOLEAN NOT NULL DEFAULT false"),
+        ],
+        "timesheets": [
+            ("client_approval_status", "VARCHAR(20) NULL"),
+            ("client_approved_at", "TIMESTAMP NULL"),
+        ],
+        "timesheet_reviews": [
+            ("client_decision_email", "VARCHAR(300) NULL"),
+        ],
+        # Invoice compliance (CEO 2026-10-23): issuer, gapless number per issuer, PO, due date
+        "invoices": [
+            ("issuing_company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
+            ("invoice_seq", "INTEGER NULL"),
+            ("invoice_number", "VARCHAR(64) NULL"),
+            ("po_numbers", "VARCHAR(512) NULL"),
+            ("due_date", "DATE NULL"),
+        ],
+        "invoice_line_items": [
+            ("po_number", "VARCHAR(512) NULL"),
         ],
         "locations": [
             ("state", "VARCHAR(512) NULL"),
@@ -1741,6 +1773,18 @@ def _apply_schema_migrations(db: Session):
     ):
         _migration_step(db, f"index {index_name}",
                         f"CREATE INDEX IF NOT EXISTS {index_name} ON app_schema.{table_column}")
+    # lookups by these new columns (AR by due date, client approvals pending, allocations by PO)
+    for index_name, table_name, column_name in (
+            ("ix_invoices_due_date", "invoices", "due_date"),
+            ("ix_invoices_issuing_company_id", "invoices", "issuing_company_id"),
+            ("ix_timesheets_client_approval_status", "timesheets", "client_approval_status"),
+            ("ix_employee_allocations_work_order_id", "employee_allocations", "work_order_id")):
+        _migration_step(db, f"index {index_name}",
+                        f"CREATE INDEX IF NOT EXISTS {index_name} ON app_schema.{table_name}({column_name})")
+    # one invoice number per tenant (NULLs allowed until the backfill numbers older invoices)
+    _migration_step(db, "index uq_invoice_number_per_tenant",
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_invoice_number_per_tenant "
+                    "ON app_schema.invoices(tenant_id, invoice_number)")
 
     # (org_level_access is set once by _initialize_role_authority.)
 

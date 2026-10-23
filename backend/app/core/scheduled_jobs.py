@@ -76,6 +76,10 @@ _JOBS = (
     # RENEWAL_ALERT_DAYS (60/30/15) days; never twice for the same allocation, term and threshold
     ScheduledJob("renewal_alerts", "app.services.allocation_renewal_service:run_renewal_alerts",
                  timedelta(days=1), timeout_s=300, daily_after_utc="06:00"),
+    # internal only: Finance gets one task per client PO (work order) ending within
+    # PO_EXPIRY_ALERT_DAYS, so it is renewed before hours stop being invoiceable
+    ScheduledJob("po_expiry_alerts", "app.services.work_order_service:run_po_expiry_alerts",
+                 timedelta(days=1), timeout_s=120, daily_after_utc="06:00"),
     ScheduledJob("birthday_drafts", "app.services.culture_agent_service:generate_birthday_drafts",
                  timedelta(days=1), timeout_s=120, daily_after_utc="03:00"),
 )

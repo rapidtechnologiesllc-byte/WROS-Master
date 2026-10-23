@@ -27,6 +27,16 @@ class CreateAllocationRequest(BaseModel):
     billing_rate_usd_cents: Optional[int] = None
     # None = the project's (client projects billable, internal projects not)
     billable: Optional[bool] = None
+    # the client's timesheet approver for this placement (one of the client's TIMESHEET_APPROVER
+    # contacts when it has any) and the client PO / work order it bills against
+    timesheet_approver_email: Optional[str] = None
+    work_order_id: Optional[str] = None
+
+
+class PlacementBillingRequest(BaseModel):
+    """PUT /allocations/{id}/client-billing: only the fields sent change; "" or null clears."""
+    timesheet_approver_email: Optional[str] = None
+    work_order_id: Optional[str] = None
 
 class AllocationItem(BaseModel):
     id: str
@@ -59,6 +69,10 @@ class AllocationItem(BaseModel):
     pending_change: Optional["AllocationChangeItem"] = None
     # the margin guard's verdict on create (flags NO_MARGIN_FLOOR_CONFIGURED etc.)
     margin: Optional["MarginCheck"] = None
+    timesheet_approver_email: Optional[str] = None
+    work_order_id: Optional[str] = None
+    po_number: Optional[str] = None
+    po_end_date: Optional[date] = None
 
 class AllocationListResponse(BaseModel):
     allocations: List[AllocationItem]
@@ -74,6 +88,7 @@ class JobDropdownItem(BaseModel):
     """A client job an employee can be allocated to (a job is the demand)."""
     id: str
     name: str
+    client_id: Optional[str] = None
     client_name: Optional[str] = None
     project_id: Optional[str] = None
     project_name: Optional[str] = None
