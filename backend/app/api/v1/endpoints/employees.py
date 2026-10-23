@@ -190,15 +190,30 @@ def create_employee(
     summary="Employee import: the CSV template and what each column means",
     dependencies=[Depends(require_resource_permission("employees", "create"))]
 )
-def import_template():
+def import_template(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    from app.models.org_structure import OrgNode, OrgRole
     from app.services import employment_type_policy
     from app.services.employee_import_service import EMPLOYMENT_TYPE_TO_MODEL, IMPORT_COLUMNS, template_csv
 
     countries = [{"code": c["code"], "name": c["name"],
                   "employment_types": [o for o in c["options"] if o["accepted"] and o["value"] in EMPLOYMENT_TYPE_TO_MODEL]}
                  for c in employment_type_policy.describe()["countries"]]
+    tid = current_user.tenant_id
+    # Designations are org roles (they set the seat level); managers are people seated in the org
+    # chart -- the new employee's seat goes under theirs (employee_import_service._seat_under_manager)
+    roles = db.query(OrgRole).filter(OrgRole.tenant_id == tid, OrgRole.active.is_(True)) \
+        .order_by(OrgRole.hierarchy_level.desc(), OrgRole.name).all()
+    seated = db.query(Users, OrgNode).join(OrgNode, OrgNode.id == Users.org_node_id) \
+        .filter(Users.tenant_id == tid, Users.terminated_at.is_(None), OrgNode.active.is_(True)) \
+        .order_by(Users.UserName).all()
     return {"csv": template_csv(), "countries": countries,
-            "columns": [{"name": n, "required": r, "description": d} for n, r, d in IMPORT_COLUMNS]}
+            "columns": [{"name": n, "required": r, "description": d} for n, r, d in IMPORT_COLUMNS],
+            "org_roles": [{"name": r.name, "level": r.hierarchy_level} for r in roles],
+            "managers": [{"user_id": u.UserID, "name": u.UserName or u.UserEmail, "email": u.UserEmail,
+                          "title": u.job_title, "level": node.hierarchy_level} for u, node in seated]}
 
 
 @router.post(

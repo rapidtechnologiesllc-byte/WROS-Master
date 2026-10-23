@@ -67,6 +67,11 @@ def test_sales_payroll_is_the_sales_function_not_a_title(db):
 
     from app.core.db_contract import _initialize_org_positions
 
+    from app.models.tenant import Tenant
+
+    if db.get(Tenant, 1) is None:  # startup's tenant; this file must not depend on another having run first
+        db.add(Tenant(id=1, name="Test tenant"))
+        db.flush()
     _initialize_org_positions(db)  # what startup seeds; a fresh test database has none
     unit = BusinessUnit(tenant_id=1, name=f"BU-{uid()}", display_name="BU")
     bizdev = Department(id=f"D-{uid()}", tenant_id=1, name=f"Business Development {uid()}")
