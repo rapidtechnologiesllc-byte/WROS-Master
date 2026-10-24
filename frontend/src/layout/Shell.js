@@ -314,12 +314,14 @@ export default function Shell({
       <div className="flex w-full gap-6 px-4 py-6">
         <aside className="hidden w-64 shrink-0 md:block">
           <div className="rounded-2xl bg-bx-navy dark:bg-gray-800 p-4 shadow-sm">
-            <div className="mb-3">
+            {/* The logo is Home ("/"): Home is not a menu item (CEO 2026-10-24) */}
+            <button type="button" onClick={() => navigate("/")} aria-label="Home"
+              className="mb-3 block rounded-lg text-left focus:outline-none focus:ring-2 focus:ring-white/40">
               <div className="text-xs font-semibold text-white/60">BlitzenX</div>
               <div className="text-lg font-extrabold tracking-tight text-white">
                 WROS
               </div>
-            </div>
+            </button>
 
             <nav className="space-y-1">
               {nav.standalone && nav.standalone.length > 0 && nav.standalone.map((n, idx) => (
