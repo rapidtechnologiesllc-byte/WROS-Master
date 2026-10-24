@@ -51,6 +51,7 @@ export default function TopBar({
   onLogout,
   candidates = [],
   jobs = [],
+  onSearchFocus,
   setSelectedCandidateData,
   setSelectedJobId,
 }) {
@@ -204,7 +205,10 @@ export default function TopBar({
                   setSearchTerm(e.target.value);
                   setShowSearchResults(true);
                 }}
-                onFocus={() => setShowSearchResults(true)}
+                onFocus={() => {
+                  setShowSearchResults(true);
+                  if (onSearchFocus) onSearchFocus();
+                }}
                 placeholder="Search candidates or jobs..."
                 style={{ border: '1.5px solid #4b5563' }}
                 className="
