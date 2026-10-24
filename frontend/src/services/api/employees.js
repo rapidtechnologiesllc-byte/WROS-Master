@@ -1,6 +1,6 @@
 // S-245 (Create Employee Profile) + S-246 (Mark Employee as Bench) +
 // S-247 (View Bench Pool) + S-248 (Bench Aging Report).
-import { apiRequest } from "./client";
+import { apiFetch, apiRequest } from "./client";
 
 // Employee import (one creation path: a CSV, or one row from the Add employee form)
 export const getEmployeeImportTemplate = async () => {
@@ -200,4 +200,25 @@ export const updateEmployeeManager = async (employeeId, managerUserId) => {
     body: JSON.stringify({ manager_user_id: managerUserId }),
   });
   return data;
+};
+
+// The signed-in person's employee id; null when their login has no employee record
+export const getMyEmployeeId = async () => {
+  const { data } = await apiRequest("/employees/me", { method: "GET", allowStatuses: [404] });
+  return data?.employee_id || null;
+};
+
+// Profile photo or cover: kind "photo" | "cover"
+export const uploadEmployeePhoto = async (employeeId, kind, file) => {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await apiRequest(`/employees/${employeeId}/photo/${kind}`, { method: "PUT", body: form });
+  return data;
+};
+
+// The stored photo as a blob URL (the request needs the auth header)
+export const employeePhotoUrl = async (employeeId, kind) => {
+  const response = await apiFetch(`/employees/${employeeId}/photo/${kind}`);
+  if (!response.ok) throw new Error(`Could not load the ${kind} (HTTP ${response.status})`);
+  return URL.createObjectURL(await response.blob());
 };

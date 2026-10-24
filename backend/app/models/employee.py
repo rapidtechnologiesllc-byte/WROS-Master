@@ -168,6 +168,10 @@ class Employee(Base):
     buddy_program_status = Column(Enum(*BUDDY_PROGRAM_STATUSES, name="buddy_program_status", native_enum=False, create_constraint=True), nullable=False, default="NOT_STARTED")
     buddy_program_start_date = Column(Date, nullable=True)
     buddy_program_graduation_date = Column(Date, nullable=True)
+    # Profile and cover photo: stored files (UPLOAD_DIR/employee-photos/<tenant>), served by
+    # GET /employees/{id}/photo/{kind}
+    photo_path = Column(Text, nullable=True)
+    cover_path = Column(Text, nullable=True)
     htd_track = Column(Boolean, nullable=False, default=False)
     htd_start_date = Column(Date, nullable=True)
     htd_phase = Column(Enum(*HTD_PHASES, name="htd_phase", native_enum=False, create_constraint=True), nullable=True)
