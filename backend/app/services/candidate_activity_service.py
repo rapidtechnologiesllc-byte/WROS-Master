@@ -701,10 +701,11 @@ def _write_timeline(
     description: Optional[str] = None,
     tenant_id: Optional[int] = None,
 ) -> ActivityTimeline:
-    """Write to ActivityTimeline for global activity feed."""
+    """Write to ActivityTimeline for global activity feed (entity types are stored lower-case,
+    the spelling the Activity panel reads)."""
     timeline = ActivityTimeline(
         tenant_id=tenant_id,
-        entity_type=entity_type,
+        entity_type=entity_type.lower(),
         entity_id=entity_id,
         # actor_id is a FK to users: only a USER actor has one ("THUNDER_AI" or a
         # candidate id there violated the FK and silently dropped the whole entry)

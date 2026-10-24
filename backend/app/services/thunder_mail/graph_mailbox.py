@@ -1,7 +1,7 @@
 """Microsoft Graph client for the single Thunder mailbox (app-only token).
 
 Needs application permissions Mail.ReadWrite + Mail.Send, scoped to the
-mailbox. Drafts are created then sent (instead of /sendMail, which returns no
+mailbox (reading the inbox and attachments of forwarded emails needs the read half). Drafts are created then sent (instead of /sendMail, which returns no
 id) so every outbound message has a conversationId to match replies against.
 """
 import logging
@@ -21,6 +21,8 @@ INBOX_PAGE_SIZE = 50
 INBOX_SELECT = (
     "id,conversationId,internetMessageId,from,subject,uniqueBody,receivedDateTime,internetMessageHeaders"
 )
+MESSAGE_SELECT = "id,subject,body,from,receivedDateTime,hasAttachments"
+TEXT_BODY = 'IdType="ImmutableId", outlook.body-content-type="text"'
 
 
 class GraphTransientError(RuntimeError):
@@ -99,7 +101,7 @@ class GraphMailbox:
             "$select": INBOX_SELECT,
             "$top": INBOX_PAGE_SIZE,
         }
-        headers = {"Prefer": 'IdType="ImmutableId", outlook.body-content-type="text"'}
+        headers = {"Prefer": TEXT_BODY}
         messages, data = [], self._call("GET", "/mailFolders/inbox/messages", params=params, headers=headers)
         for _ in range(page_cap):
             messages.extend(data.get("value", []))
@@ -108,3 +110,23 @@ class GraphMailbox:
                 break
             data = self._call("GET", "", url=next_link, headers=headers)
         return messages
+
+    def get_message(self, message_id: str) -> Dict:
+        """The whole message as text: a forward's original email is in body, not uniqueBody."""
+        return self._call("GET", f"/messages/{message_id}", params={"$select": MESSAGE_SELECT},
+                          headers={"Prefer": TEXT_BODY})
+
+    def list_attachments(self, message_id: str) -> List[Dict]:
+        """File attachments carry contentBytes (base64). An attached email (itemAttachment,
+        "forward as attachment") is expanded so its own subject, sender and body are readable."""
+        attachments = self._call("GET", f"/messages/{message_id}/attachments").get("value", [])
+        for attachment in attachments:
+            if attachment.get("@odata.type") == "#microsoft.graph.itemAttachment":
+                expanded = self._call(
+                    "GET", f"/messages/{message_id}/attachments/{attachment['id']}",
+                    params={"$expand": "microsoft.graph.itemattachment/item"}, headers={"Prefer": TEXT_BODY})
+                attachment["item"] = expanded.get("item") or {}
+        return attachments
+
+    def get_attachment(self, message_id: str, attachment_id: str) -> Dict:
+        return self._call("GET", f"/messages/{message_id}/attachments/{attachment_id}")

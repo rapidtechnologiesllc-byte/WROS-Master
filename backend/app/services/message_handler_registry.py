@@ -119,6 +119,8 @@ def _initialize_default_handlers():
         from app.services.message_handlers.thunder_inbound_email_handler import ThunderInboundEmailHandler
         MessageHandlerRegistry.register("thunder_send_email", ThunderSendEmailHandler.process)
         MessageHandlerRegistry.register("thunder_process_inbound_email", ThunderInboundEmailHandler.process)
+        from app.services.message_handlers.thunder_forwarded_email_handler import ThunderForwardedEmailHandler
+        MessageHandlerRegistry.register("thunder_process_forwarded_email", ThunderForwardedEmailHandler.process)
         logger.info("[Registry] Registered Thunder email cadence handlers")
     except Exception as e:
         logger.error(f"[Registry] CRITICAL: Failed to register Thunder email handlers: {e}", exc_info=True)
