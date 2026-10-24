@@ -113,7 +113,8 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
 
             for resource_name in resource_names:
                 route = None if resource_name in NAV_TAB_RESOURCES else RESOURCE_ROUTES.get(resource_name)
-                if not route or route in seen_routes or resource_name == home_resource:
+                # Home ("/") is the logo and the home icon in the top bar, not a menu item (CEO 2026-10-24)
+                if not route or route == "/" or route in seen_routes or resource_name == home_resource:
                     continue
 
                 # The role's permission matrix decides, for every role (no super-user bypass).

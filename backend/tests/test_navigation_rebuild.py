@@ -96,7 +96,7 @@ SEEDED_ROLES = {**{name: BEFORE_RESOURCES for name in SYSTEM_ROLES}, **BEFORE_LE
 # Dashboards module duplicated them, "Forecasts" duplicated Resource Forecast's /forecast, Allocations is
 # the Employees > Allocations tab, Ask Thunder is a QA simulator. "Forecasts" now opens Forecast vs Actual
 # (its API checks forecasts), so a role holding only forecasts swaps /forecast for /forecast-vs-actual.
-INTENDED_REMOVALS = {"/ceo-fy-progress", "/cfo-dashboard", "/bu-head-dashboard", "/allocations", "/thunder"}
+INTENDED_REMOVALS = {"/ceo-fy-progress", "/cfo-dashboard", "/bu-head-dashboard", "/allocations", "/thunder", "/"}
 INTENDED_ADDITIONS = {"/forecast-vs-actual": "forecasts", "/my-performance": "my-tasks"}  # route -> resource whose view grant adds it
 # Decision 3: merged screens. The old route redirects to the merged screen's tab; every role that
 # reached any of the parts reaches the merged screen (its tabs follow the same permissions).
@@ -202,7 +202,7 @@ def test_menu_is_grouped_into_the_approved_modules_in_order(db):
 
 def test_renamed_labels(db):
     labels = {item["route"]: item["label"] for g in _menu(db, _user_with(db, BEFORE_RESOURCES)) for item in g["items"]}
-    assert labels["/"] == "Home"
+    assert "/" not in labels  # Home is the logo / top-bar icon (CEO 2026-10-24)
     assert labels["/offers-listing"] == "Offers"
     assert labels["/admin/users-access-control/users"] == "Users & Access"
     assert labels["/revenue"] == "Revenue Health"
@@ -254,7 +254,7 @@ def _position(db, name, code, rank):
 def test_the_partner_dashboard_is_listed_once_for_a_partner_whose_home_it_is(db):
     _position(db, "Partner", "partner", 1)
     partner = _user_with(db, {"dashboard", "partner-dashboard"}, job_title="Partner")
-    assert "/partner-dashboard" not in _routes(db, partner) and "/" in _routes(db, partner)
+    assert "/partner-dashboard" not in _routes(db, partner) and "/" not in _routes(db, partner)
     # anyone else who may view it (e.g. leadership looking at a partner) keeps the menu item
     assert "/partner-dashboard" in _routes(db, _user_with(db, {"dashboard", "partner-dashboard"}))
 
