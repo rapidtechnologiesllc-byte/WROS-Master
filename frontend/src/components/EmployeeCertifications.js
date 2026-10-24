@@ -170,8 +170,8 @@ export default function EmployeeCertifications({ employee, onChanged }) {
   };
 
   return (
-    <div className="border-t pt-4">
-      <h3 className="mb-1 flex items-center gap-1 font-semibold">
+    <div>
+      <h3 className="mb-1 flex items-center gap-1 text-base font-semibold text-gray-900">
         <Award className="h-4 w-4" /> Certifications
       </h3>
       <p className="mb-3 text-xs text-gray-500">

@@ -6,6 +6,7 @@ import TemplatesAndChecklistsScreen from "../screens/TemplatesAndChecklistsScree
 import UsersAndAccessControl from "../screens/UsersAndAccessControl";
 import UserFormPage from "../screens/UserFormPage";
 import EmployeesConsolidatedScreen from "../screens/EmployeesConsolidatedScreen";
+import EmployeeProfileScreen from "../screens/EmployeeProfileScreen";
 import BusinessUnitFormPage from "../screens/BusinessUnitFormPage";
 import DeliveryCenterFormPage from "../screens/DeliveryCenterFormPage";
 import SystemHealth from "../screens/SystemHealth";
@@ -549,6 +550,7 @@ function AuthenticatedApp() {
           <Route path="client-management" element={<ClientManagementScreen />} />
           <Route path="demand-confirmation" element={<DemandConfirmationScreen />} />
           <Route path="employees" element={<EmployeesConsolidatedScreen />} />
+          <Route path="employees/:employeeId" element={<EmployeeProfileScreen />} />
           <Route path="employee-conversion" element={<EmployeeConversionScreen />} />
           <Route path="pipeline" element={<PipelineAndSubmissionsScreen />} />
           <Route path="hiring-pipeline" element={<Navigate to="/pipeline?view=pipeline" replace />} />

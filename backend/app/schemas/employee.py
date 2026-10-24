@@ -93,6 +93,8 @@ class EmployeeItem(BaseModel):
     htd_start_date: Optional[date] = None
     has_login: bool = False
     reporting_manager_user_id: Optional[str] = None
+    reporting_manager_name: Optional[str] = None
+    reporting_manager_employee_id: Optional[str] = None  # links to the manager's own profile
     # the employee's ACTIVE allocations (client, job, %): what "allocated" means everywhere
     active_allocations: List[dict] = []
     allocated_pct: float = 0
@@ -211,3 +213,4 @@ class EscalationItem(BaseModel):
 
 class EscalationListResponse(BaseModel):
     escalations: List[EscalationItem]
+    severities: List[str] = list(ESCALATION_SEVERITIES)  # the choices the raise form offers
