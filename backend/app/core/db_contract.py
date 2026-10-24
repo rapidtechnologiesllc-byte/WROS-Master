@@ -235,12 +235,22 @@ def _intercompany_company_links(db: Session) -> int:
     return linked
 
 
+def _activity_timeline_entity_types_lowercase(db: Session) -> int:
+    """Timeline entries are read by lower-case entity type (the screens ask for "candidate"), but the
+    candidate activity log wrote "Candidate", so its entries never showed on the candidate's Activity
+    panel. write_timeline_entry now lower-cases on write; this brings the existing rows in line."""
+    return db.execute(text(
+        "UPDATE app_schema.activity_timeline SET entity_type = lower(entity_type) "
+        "WHERE entity_type <> lower(entity_type)")).rowcount
+
+
 DATA_MIGRATIONS = (
     ("interview_times_to_utc", _interview_times_to_utc),
     ("employee_org_history_backfill", _employee_org_history_backfill),
     ("invoice_numbers_backfill", _invoice_numbers_backfill),
     ("guidewire_current_level_to_certificates", _guidewire_current_level_to_certificates),
     ("intercompany_company_links", _intercompany_company_links),
+    ("activity_timeline_entity_types_lowercase", _activity_timeline_entity_types_lowercase),
 )
 
 
