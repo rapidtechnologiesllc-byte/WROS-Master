@@ -174,6 +174,9 @@ class Employee(Base):
     cover_path = Column(Text, nullable=True)
     htd_track = Column(Boolean, nullable=False, default=False)
     htd_start_date = Column(Date, nullable=True)
+    # when the training ended (completed, exited or taken off); start/end are never cleared: the
+    # P&L reads them for the HTD training cost (app.services.htd_service)
+    htd_end_date = Column(Date, nullable=True)
     htd_phase = Column(Enum(*HTD_PHASES, name="htd_phase", native_enum=False, create_constraint=True), nullable=True)
     reporting_manager_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True)
 

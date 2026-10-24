@@ -182,5 +182,6 @@ def test_htd_track_shows_as_htd_until_completed(api, world):
     done = api.put(world.admin, url, json={"htd_track": True, "htd_phase": "COMPLETED"}).json()
     assert done["deployment_status"] == "BENCH"
     off = api.put(world.admin, url, json={"htd_track": False}).json()
-    assert (off["htd_track"], off["htd_phase"], off["htd_start_date"]) == (False, None, None)
+    # taken off: the start and end stay, they are the P&L's HTD cost window (htd_service)
+    assert off["htd_track"] is False and off["htd_start_date"] == date.today().isoformat()
     assert api.put(world.admin, url, json={"htd_track": True, "htd_phase": "NAPPING"}).status_code == 400

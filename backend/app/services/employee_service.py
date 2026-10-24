@@ -105,10 +105,11 @@ def place_unallocated_joiner(db: Session, employee: Employee, *, changed_by: Opt
     """An ACTIVE employee with no allocation: a billable one goes to the BENCH and into the bench
     pool from their first bench day (joining date unless given), so every bench view counts them
     from the same date; a non-billable (internal) one stays ACTIVE -- never bench."""
+    from app.services.employee_standing import in_htd
     from app.services.resource_management_service import mark_employee_on_bench
 
-    if not employee.is_billable:
-        return
+    if not employee.is_billable or in_htd(employee.htd_track, employee.htd_phase):
+        return  # internal staff are never bench; neither is anyone in Hire-Train-Deploy training
     transition_employee_status(db, employee, "BENCH", reason="Joined, not yet allocated", changed_by=changed_by)
     mark_employee_on_bench(db, employee, reason="NEWLY_JOINED", since=bench_since or employee.joining_date)
 

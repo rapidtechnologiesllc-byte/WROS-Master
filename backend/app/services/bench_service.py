@@ -31,9 +31,16 @@ def has_active_allocation(db: Session, employee: Employee) -> bool:
                                                   EmployeeAllocation.status == "ACTIVE").first() is not None
 
 
+def in_training(employee: Employee) -> bool:
+    """In Hire-Train-Deploy training: not deployable, so never bench (htd_service)."""
+    from app.services.employee_standing import in_htd
+
+    return in_htd(employee.htd_track, employee.htd_phase)
+
+
 def belongs_on_bench(db: Session, employee: Employee) -> bool:
     return (bool(employee.is_billable) and employee.status not in NOT_HEADCOUNT
-            and not has_active_allocation(db, employee))
+            and not has_active_allocation(db, employee) and not in_training(employee))
 
 
 def classification(db: Session, employee: Employee) -> str:
@@ -86,7 +93,8 @@ def reconcile_bench_pool(db: Session, today: Optional[date] = None) -> Dict[str,
     active = {row[0] for row in db.query(EmployeeAllocation.employee_id).filter(EmployeeAllocation.status == "ACTIVE")}
     added = removed = reclassified = 0
     for employee in db.query(Employee).all():
-        on_bench = bool(employee.is_billable) and employee.status not in NOT_HEADCOUNT and employee.id not in active
+        on_bench = (bool(employee.is_billable) and employee.status not in NOT_HEADCOUNT and employee.id not in active
+                    and not in_training(employee))
         expected = "NON_BILLABLE" if not employee.is_billable else ("ALLOCATED" if employee.id in active else "BENCH")
         if employee.billing_classification != expected:
             employee.billing_classification = expected

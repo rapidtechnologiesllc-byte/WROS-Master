@@ -23,6 +23,7 @@ const MONEY_COLUMNS = [
   { key: "delivery", header: "Delivery cost", cell: (r) => usd(r.delivery_cost_usd_cents ?? r.cost_usd_cents) },
   { key: "bench", header: "Bench cost", cell: (r) => usd(r.bench_cost_usd_cents) },
   { key: "overhead", header: "Internal staff (overhead)", cell: (r) => usd(r.overhead_cost_usd_cents) },
+  { key: "htd", header: "HTD training", cell: (r) => usd(r.htd_cost_usd_cents) },
   { key: "expense", header: "Expenses", cell: (r) => usd(r.expense_cost_usd_cents ?? r.expense_usd_cents) },
   { key: "margin", header: "Margin", cell: (r) => usd(r.margin_usd_cents) },
   { key: "margin_pct", header: "Margin %", cell: (r) => pct(r.margin_pct) },
@@ -123,7 +124,7 @@ export default function PnlScreen() {
               <Tile
                 label="Total cost"
                 value={usd(report.total_cost_usd_cents)}
-                hint={`delivery ${usd(report.delivery_cost_usd_cents)} · bench ${usd(report.bench_cost_usd_cents)} · internal staff ${usd(report.overhead_cost_usd_cents)} · expenses ${usd(report.expense_cost_usd_cents)}`}
+                hint={`delivery ${usd(report.delivery_cost_usd_cents)} · bench ${usd(report.bench_cost_usd_cents)} · internal staff ${usd(report.overhead_cost_usd_cents)} · HTD training ${usd(report.htd_cost_usd_cents)} · expenses ${usd(report.expense_cost_usd_cents)}`}
               />
               <Tile label="Margin" value={usd(report.margin_usd_cents)} hint={pct(report.margin_pct)} />
               <Tile
