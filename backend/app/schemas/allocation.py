@@ -52,6 +52,8 @@ class AllocationItem(BaseModel):
     utilization_pct: Optional[float] = None
     start_date: date
     end_date: Optional[date] = None
+    days_left: Optional[int] = None  # to end_date, from today
+    ending_soon: bool = False  # active and inside the renewal-alert window, or rolling off
     role: Optional[str] = None
     billing_rate_usd_cents: Optional[int] = None
     work_location: Optional[str] = None

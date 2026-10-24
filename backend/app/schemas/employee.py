@@ -70,16 +70,27 @@ class EmployeeItem(BaseModel):
     core_certified: bool
     core_certified_date: Optional[date] = None
     joining_date: date
+    exit_date: Optional[date] = None
     base_salary_usd_cents: Optional[int] = None
     billing_rate_usd_cents: Optional[int] = None
     is_on_bench: bool = False
     bench_days: Optional[int] = None
+    # where the employee stands (app.services.employee_standing): employment, and for people on
+    # the payroll the deployment (BUDDY / BENCH / PROJECT / PROJECT_ENDING) with its date and days
+    employment_status: str = "EMPLOYED"
+    employment_actions: List[str] = []  # the employment changes this status allows now
+    deployment_status: Optional[str] = None
+    deployment_until: Optional[date] = None
+    deployment_days: Optional[int] = None
     guidewire_certification_current: Optional[str] = None
     guidewire_certification_expected: Optional[str] = None
     bu_id: Optional[int] = None
     company_id: Optional[str] = None
     is_billable: bool = True
     buddy_program_status: Optional[str] = None
+    htd_track: bool = False
+    htd_phase: Optional[str] = None
+    htd_start_date: Optional[date] = None
     has_login: bool = False
     reporting_manager_user_id: Optional[str] = None
     # the employee's ACTIVE allocations (client, job, %): what "allocated" means everywhere

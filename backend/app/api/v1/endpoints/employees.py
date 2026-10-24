@@ -73,6 +73,8 @@ from app.services.resource_management_service import (
     utilization_population,
 )
 
+from app.services.employee_standing import deployment_status, employment_actions, employment_status, in_htd
+
 router = APIRouter(prefix="/employees", tags=["employees"])
 
 def _skills_list(raw, employee_id: str = None):
@@ -101,6 +103,7 @@ def _allocation_summaries(db: Session, employee_ids) -> dict:
             "utilization_pct": float(r.utilization_pct) if r.utilization_pct is not None else 100.0,
             "start_date": r.start_date.isoformat() if r.start_date else None,
             "end_date": r.end_date.isoformat() if r.end_date else None,
+            "renewal_status": r.renewal_status,
         })
     return out
 
@@ -115,6 +118,9 @@ def _to_item(db: Session, employee: Employee, *, bench_entry=..., allocations=No
         bench_entry = db.query(BenchPoolEntry).filter(BenchPoolEntry.employee_id == employee.id).first()
     if allocations is None:
         allocations = _allocation_summaries(db, [employee.id]).get(employee.id, [])
+    bench_days = get_bench_duration_days(bench_entry) if bench_entry else None
+    deployment = deployment_status(employee.status, employee.buddy_program_status, allocations, bench_days,
+                                   date.today(), htd_active=in_htd(employee.htd_track, employee.htd_phase))
     return EmployeeItem(
         id=employee.id,
         employee_number=employee.employee_number,
@@ -131,10 +137,16 @@ def _to_item(db: Session, employee: Employee, *, bench_entry=..., allocations=No
         core_certified=employee.core_certified,
         core_certified_date=employee.core_certified_date,
         joining_date=employee.joining_date,
+        exit_date=employee.exit_date,
         base_salary_usd_cents=employee.base_salary_usd_cents,
         billing_rate_usd_cents=employee.billing_rate_usd_cents,
         is_on_bench=bench_entry is not None,
-        bench_days=get_bench_duration_days(bench_entry) if bench_entry else None,
+        bench_days=bench_days,
+        employment_status=employment_status(employee.status),
+        employment_actions=employment_actions(employee.status),
+        deployment_status=deployment["status"],
+        deployment_until=deployment["until"],
+        deployment_days=deployment["days"],
         # derived from the certificates held (employee_certification_service), never typed
         guidewire_certification_current=guidewire_level,
         guidewire_certification_expected=employee.guidewire_certification_expected,
@@ -142,6 +154,9 @@ def _to_item(db: Session, employee: Employee, *, bench_entry=..., allocations=No
         company_id=employee.company_id,
         is_billable=bool(employee.is_billable),
         buddy_program_status=employee.buddy_program_status,
+        htd_track=bool(employee.htd_track),
+        htd_phase=employee.htd_phase,
+        htd_start_date=employee.htd_start_date,
         has_login=employee.wros_user_id is not None,
         reporting_manager_user_id=employee.reporting_manager_user_id,
         active_allocations=allocations,
@@ -364,6 +379,132 @@ def update_employee_organization(
         employee.bu_id = bu_id
     db.commit()
     return {"employee_id": employee.id, "company_id": employee.company_id, "business_unit_id": employee.bu_id}
+
+
+class EmployeeDetailsUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    current_title: Optional[str] = None
+    work_location: Optional[str] = None
+
+
+@router.get("/edit-options", dependencies=[Depends(require_resource_permission("employees", "view"))])
+def employee_edit_options():
+    """Choices the employee edit form offers (the model's own lists)."""
+    from app.models.employee import HTD_PHASES, WORK_LOCATIONS
+
+    return {"work_locations": list(WORK_LOCATIONS), "htd_phases": list(HTD_PHASES)}
+
+
+@router.patch("/{employee_id}", dependencies=[Depends(require_resource_permission("employees", "edit"))])
+def update_employee_details(
+    employee_id: str,
+    body: EmployeeDetailsUpdate,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Name, email, title and work location. The email is the person's identity once they have a
+    WROS login (they sign in with it), so it changes in Users & Access, not here."""
+    from app.models.employee import WORK_LOCATIONS
+
+    employee = _get_employee_or_404(db, employee_id, current_user)
+    updates = body.dict(exclude_unset=True)
+    for field in ("first_name", "last_name"):
+        if field in updates:
+            value = (updates[field] or "").strip()
+            if not value:
+                raise HTTPException(status_code=400, detail=f"{field.replace('_', ' ').capitalize()} is required")
+            setattr(employee, field, value)
+    if "current_title" in updates:
+        employee.current_title = (updates["current_title"] or "").strip() or None
+    if "work_location" in updates:
+        if updates["work_location"] not in WORK_LOCATIONS:
+            raise HTTPException(status_code=400, detail=f"Work location must be one of {list(WORK_LOCATIONS)}")
+        employee.work_location = updates["work_location"]
+    if "email" in updates and (updates["email"] or "").strip().lower() != (employee.email or "").lower():
+        email = (updates["email"] or "").strip().lower()
+        if employee.wros_user_id:
+            raise HTTPException(status_code=409, detail="This employee signs in with this email: change it in "
+                                                        "Users & Access so the login and the record stay one person.")
+        if "@" not in email:
+            raise HTTPException(status_code=400, detail="A valid email is required")
+        clash = db.query(Employee.id).filter(Employee.tenant_id == employee.tenant_id, Employee.email == email,
+                                             Employee.id != employee.id).first()
+        if clash is not None:
+            raise HTTPException(status_code=409, detail=f"Another employee already has {email}")
+        employee.email = email
+    db.commit()
+    db.refresh(employee)
+    return _to_item(db, employee)
+
+
+class EmployeeHtdUpdate(BaseModel):
+    htd_track: bool
+    htd_phase: Optional[str] = None
+    htd_start_date: Optional[date] = None
+
+
+@router.put("/{employee_id}/htd", dependencies=[Depends(require_resource_permission("employees", "edit"))])
+def update_employee_htd(
+    employee_id: str,
+    body: EmployeeHtdUpdate,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Hire-Train-Deploy: put the employee on the track (from a start date, first phase INDUCTION
+    unless given), move their phase, or take them off it. Dashboards and the HTD intake metrics
+    read these fields; until now nothing wrote them."""
+    from app.models.employee import HTD_PHASES
+
+    employee = _get_employee_or_404(db, employee_id, current_user)
+    if body.htd_track:
+        phase = body.htd_phase or employee.htd_phase or HTD_PHASES[0]
+        if phase not in HTD_PHASES:
+            raise HTTPException(status_code=400, detail=f"HTD phase must be one of {list(HTD_PHASES)}")
+        employee.htd_track = True
+        employee.htd_phase = phase
+        employee.htd_start_date = body.htd_start_date or employee.htd_start_date or date.today()
+    else:
+        employee.htd_track = False
+        employee.htd_phase = None
+        employee.htd_start_date = None
+    db.commit()
+    db.refresh(employee)
+    logger.info(f"[Employees] {employee.id} HTD track={employee.htd_track} phase={employee.htd_phase} "
+                f"by {current_user.UserID}")
+    return _to_item(db, employee)
+
+
+class EmploymentChangeRequest(BaseModel):
+    action: str  # START_NOTICE | RECORD_EXIT | START_LEAVE | END_LEAVE
+    effective_date: Optional[date] = None  # last working day (notice) or exit date
+    reason: str
+
+
+@router.post("/{employee_id}/employment", dependencies=[Depends(require_resource_permission("employees", "edit"))])
+def change_employee_employment(
+    employee_id: str,
+    body: EmploymentChangeRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Serving notice, exit (terminated) or leave, with their consequences (app.services.employment_change_service)."""
+    from app.services.employee_service import InvalidStatusTransition
+    from app.services.employment_change_service import EmploymentChangeRefused, change_employment
+
+    employee = _get_employee_or_404(db, employee_id, current_user)
+    try:
+        change_employment(db, employee, body.action, effective_date=body.effective_date, reason=body.reason,
+                          changed_by=current_user.UserID)
+    except EmploymentChangeRefused as exc:  # nothing is committed: the request's session is discarded
+        raise HTTPException(status_code=400, detail=str(exc))
+    except InvalidStatusTransition as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    db.commit()
+    db.refresh(employee)
+    logger.info(f"[Employees] {employee.id} employment change {body.action} by {current_user.UserID}")
+    return _to_item(db, employee)
 
 
 class EmployeeBillableUpdate(BaseModel):

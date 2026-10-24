@@ -76,6 +76,7 @@ from app.schemas.allocation import (
     PlacementBillingRequest,
 )
 from app.services import allocation_renewal_service as renewals
+from app.services import employee_standing as standing
 from app.services import margin_guard_service as margin_guard
 from app.services.deployment_readiness_service import EmployeeNotDeployable
 from app.services.work_order_service import WorkOrderValidationError, set_placement_billing
@@ -148,6 +149,9 @@ def _to_item(db: Session, allocation: EmployeeAllocation,
         f"{employee.first_name} {employee.last_name}".strip() if employee else "(unknown employee)"
     )
     client_name = client.company_name if client else "(unknown client)"
+    today = date.today()
+    days_left = (allocation.end_date - today).days if allocation.end_date else None
+    ending = allocation.status == "ACTIVE" and standing.ending_soon(allocation.end_date, allocation.renewal_status, today)
 
     recruiter_name = None
     if demand and demand.assigned_recruiter_employee_id:
@@ -190,6 +194,8 @@ def _to_item(db: Session, allocation: EmployeeAllocation,
         utilization_pct=float(allocation.utilization_pct) if allocation.utilization_pct is not None else 100.0,
         start_date=allocation.start_date,
         end_date=allocation.end_date,
+        days_left=days_left,
+        ending_soon=ending,
         role=allocation.role,
         billing_rate_usd_cents=allocation.billing_rate_usd_cents,
         billable=bool(allocation.billable),

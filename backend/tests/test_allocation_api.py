@@ -139,3 +139,11 @@ def test_an_allocation_without_a_percentage_is_listed_as_full_time(api, world, d
     assert created.json()["utilization_pct"] == 100.0
     listed = api.get(world.admin, f"/api/v1/allocations?employee_id={world.employee.id}").json()["allocations"]
     assert [a["utilization_pct"] for a in listed] == [100.0]
+
+
+def test_the_employee_shows_employed_and_on_project_once_allocated(api, world):
+    """Employment and deployment come from the server (employee_standing), not the raw status."""
+    assert _allocate(api, world, end_date=None).status_code == 200
+    employee = api.get(world.admin, f"/api/v1/employees/{world.employee.id}").json()
+    assert employee["employment_status"] == "EMPLOYED"
+    assert employee["deployment_status"] == "PROJECT"

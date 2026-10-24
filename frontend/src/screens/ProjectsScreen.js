@@ -2,7 +2,8 @@
 // (Unfilled Roles) + HRMS-0806 (Revenue Estimate, "not a finance
 // figure") + S-358/HRMS-0519 (SI Partner Engagement Tagging -- required
 import AllocationForm from "../components/AllocationForm";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { FolderKanban, RefreshCw, Flag, Users, TrendingUp, CheckCircle2, Pencil } from "lucide-react";
 import { Card, Button, Input, Select } from "../components/ui";
 import cx from "../utils/cx";
@@ -486,8 +487,16 @@ function EditProjectForm({ project, options, onSaved, onCancel }) {
   );
 }
 
-function ProjectCard({ project, options, onChanged }) {
-  const [expanded, setExpanded] = useState(false);
+function ProjectCard({ project, options, onChanged, focused = false }) {
+  const [expanded, setExpanded] = useState(focused);
+  const cardRef = useRef(null);
+  // /projects?project=<id> (links from allocations) opens that project and scrolls to it
+  useEffect(() => {
+    if (focused) {
+      setExpanded(true);
+      cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [focused]);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -508,7 +517,7 @@ function ProjectCard({ project, options, onChanged }) {
   };
 
   return (
-    <div className="rounded-2xl border p-4">
+    <div ref={cardRef} className={cx("rounded-2xl border p-4", focused && "ring-2 ring-bx-orange")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="font-semibold text-gray-900">{project.name}</div>
@@ -581,6 +590,8 @@ function ProjectCard({ project, options, onChanged }) {
 }
 
 export default function ProjectsScreen() {
+  const [searchParams] = useSearchParams();
+  const focusedProjectId = searchParams.get("project");
   const [projects, setProjects] = useState([]);
   const [options, setOptions] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -630,7 +641,7 @@ export default function ProjectsScreen() {
           ) : projects.length === 0 ? (
             <div className="py-8 text-center text-sm text-gray-500">No projects yet.</div>
           ) : (
-            projects.map((p) => <ProjectCard key={p.id} project={p} options={options} onChanged={load} />)
+            projects.map((p) => <ProjectCard key={p.id} project={p} options={options} onChanged={load} focused={p.id === focusedProjectId} />)
           )}
         </div>
       </Card>
