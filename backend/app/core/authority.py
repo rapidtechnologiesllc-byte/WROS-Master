@@ -28,8 +28,43 @@ logger = logging.getLogger(__name__)
 
 ACTIONS = ("view", "create", "edit", "delete")
 
+# One request asks the same questions about the same person many times (every permission check,
+# scope filter and authority flag re-read their role, Manage Role and templates: 20-30 queries per
+# call). The answers are kept on the request's session, keyed by everything they depend on, and
+# dropped whenever the session flushes, commits or rolls back -- a change made in the request is
+# never answered from before it.
+_CACHE_KEY = "authority_cache"
+
+
+def _cached(db: Session, name: str, user: Optional[Users], compute):
+    if user is None:
+        return compute()
+    info = getattr(db, "info", None)
+    if info is None:
+        return compute()
+    key = (name, user.UserID, user.tenant_id, user.role_template_id, user.job_title)
+    cache = info.setdefault(_CACHE_KEY, {})
+    if key not in cache:
+        cache[key] = compute()
+    return cache[key]
+
+
+def _drop_cache(session, *args) -> None:
+    session.info.pop(_CACHE_KEY, None)
+
+
+from sqlalchemy import event as _event  # noqa: E402
+from sqlalchemy.orm import Session as _Session  # noqa: E402
+
+for _name in ("after_flush", "after_commit", "after_rollback", "after_soft_rollback"):
+    _event.listen(_Session, _name, _drop_cache)
+
 
 def role_of(db: Session, user: Optional[Users]) -> Optional[RoleTemplate]:
+    return _cached(db, "role_of", user, lambda: _role_of(db, user))
+
+
+def _role_of(db: Session, user: Optional[Users]) -> Optional[RoleTemplate]:
     if user is None or not user.role_template_id:
         return None
     role = db.query(RoleTemplate).filter(RoleTemplate.id == user.role_template_id,
@@ -45,7 +80,7 @@ def manage_role(db: Session, user: Optional[Users]):
 
     if user is None or user.tenant_id is None:
         return None
-    return role_for_title(db, user.tenant_id, user.job_title)
+    return _cached(db, "manage_role", user, lambda: role_for_title(db, user.tenant_id, user.job_title))
 
 
 def templates_of(db: Session, user: Optional[Users]) -> list:
@@ -54,6 +89,12 @@ def templates_of(db: Session, user: Optional[Users]) -> list:
 
     if user is None:
         return []
+    return list(_cached(db, "templates_of", user, lambda: _templates_of(db, user)))
+
+
+def _templates_of(db: Session, user: Users) -> list:
+    from app.services.role_template_permission_service import RoleTemplatePermissionService
+
     out = []
     if user.tenant_id is not None:
         role_set = RoleTemplatePermissionService.get_manage_role_template(db, user, user.tenant_id)

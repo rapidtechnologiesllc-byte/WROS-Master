@@ -1,11 +1,14 @@
+import { lazy } from "react";
 import { Route } from "react-router-dom";
-import MessageQueueMonitorEnhanced from "../screens/MessageQueueMonitorEnhanced";
 import { Navigate } from "react-router-dom";
-import SlmLearningScreen from "../screens/SlmLearningScreen";
-import WorkforceScreen from "../screens/WorkforceScreen";
-import WorkforceSegmentScreen from "../screens/WorkforceSegmentScreen";
-import BenchScreen from "../screens/BenchScreen";
-import CoreCertificationScreen from "../screens/CoreCertificationScreen";
+
+// Screens load when first opened (one chunk each), not all in the bundle every page downloads
+const MessageQueueMonitorEnhanced = lazy(() => import("../screens/MessageQueueMonitorEnhanced"));
+const SlmLearningScreen = lazy(() => import("../screens/SlmLearningScreen"));
+const WorkforceScreen = lazy(() => import("../screens/WorkforceScreen"));
+const WorkforceSegmentScreen = lazy(() => import("../screens/WorkforceSegmentScreen"));
+const BenchScreen = lazy(() => import("../screens/BenchScreen"));
+const CoreCertificationScreen = lazy(() => import("../screens/CoreCertificationScreen"));
 
 export const adminRoutes = [
   <Route key="admin-messagequeue" path="admin/messagequeue" element={<MessageQueueMonitorEnhanced />} />,
