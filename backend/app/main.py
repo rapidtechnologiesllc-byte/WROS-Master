@@ -37,6 +37,11 @@ from app.middleware.auth_middleware import AuthenticationMiddleware
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(AuthenticationMiddleware)
 setup_cors(app)  # Add CORS LAST so it runs FIRST
+# Compress JSON / text responses over GZIP_MIN_BYTES: list endpoints shrink ~5-10x on the wire.
+# Outermost, so it sees the final body (CORS and logging headers included).
+from starlette.middleware.gzip import GZipMiddleware
+
+app.add_middleware(GZipMiddleware, minimum_size=settings.GZIP_MIN_BYTES)
 
 # Register complete API router (all production endpoints)
 app.include_router(api_router)
