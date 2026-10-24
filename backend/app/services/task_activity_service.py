@@ -133,8 +133,11 @@ def log_task_update(
         activity.follow_up_task_id = follow_up.id
 
     if complete_task:
+        from app.services.task_service import open_next_occurrence
+
         task.status = "COMPLETED"
         task.completed_at = datetime.utcnow()
+        open_next_occurrence(db, task)
     elif task.status == "NEW":
         task.status = "IN_PROGRESS"
     db.add(task)
