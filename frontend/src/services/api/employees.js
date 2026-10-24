@@ -153,3 +153,36 @@ export const updateEmployeeBillable = async (employeeId, billable) => {
   });
   return data;
 };
+
+// Choices for the employee edit form (the model's own lists)
+export const getEmployeeEditOptions = async () => {
+  const { data } = await apiRequest("/employees/edit-options", { method: "GET" });
+  return data;
+};
+
+// Name, email (only without a login), title, work location
+export const updateEmployeeDetails = async (employeeId, details) => {
+  const { data } = await apiRequest(`/employees/${employeeId}`, {
+    method: "PATCH",
+    body: JSON.stringify(details),
+  });
+  return data;
+};
+
+// Serving notice, exit (terminated), leave: { action, effective_date, reason }
+export const changeEmployeeEmployment = async (employeeId, change) => {
+  const { data } = await apiRequest(`/employees/${employeeId}/employment`, {
+    method: "POST",
+    body: JSON.stringify(change),
+  });
+  return data;
+};
+
+// Hire-Train-Deploy track: { htd_track, htd_phase?, htd_start_date? }
+export const updateEmployeeHtd = async (employeeId, htd) => {
+  const { data } = await apiRequest(`/employees/${employeeId}/htd`, {
+    method: "PUT",
+    body: JSON.stringify(htd),
+  });
+  return data;
+};
