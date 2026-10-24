@@ -22,6 +22,7 @@ from app.models.resource_management import BenchPoolEntry
 from app.models.role_template import RoleTemplate
 from app.models.timesheet import Timesheet
 from app.models.user import Jobs, Users
+from app.core.config import settings
 from app.services import employee_import_service as importer
 from tests.test_core_certification import _h, _uid, _user, db  # noqa: F401 -- db is a fixture
 from tests.hiring_fixtures import full_access_role
@@ -460,3 +461,86 @@ def test_add_employee_form_lists_org_roles_and_seated_managers(api, db, world):
     assert {"name": "Lead Consultant", "level": 6} in template["org_roles"]
     assert any(m["user_id"] == world.manager.UserID and m["level"] == 8 for m in template["managers"])
     assert all(m["user_id"] != world.hr.UserID for m in template["managers"])  # not seated
+
+
+# ---- pay as agreed (CEO 2026-10-24) ------------------------------------------------------------
+
+def test_add_employee_takes_annual_pay_in_the_countrys_currency(api, db, world, mail):
+    body = {"first_name": "Annual", "last_name": "Pay", "email": f"pay{_uid()}@bx.test",
+            "joining_date": "2024-02-01", "business_unit_id": world.unit.id, "company_id": world.company.id,
+            "pay_amount_cents": 102_000_000, "pay_basis": "ANNUAL", "billable": True,
+            "reporting_manager_id": world.manager.UserID, "current_title": "Lead Consultant"}
+    created = api.post("/api/v1/employees", headers=_h(world.hr), json=body)
+    assert created.status_code == 200, created.text
+    row = db.query(Employee).filter_by(email=body["email"]).one()
+    # the company is in India, so INR; the P&L cost is the monthly USD equivalent
+    assert (row.pay_amount_cents, row.pay_currency, row.pay_basis) == (102_000_000, "INR", "ANNUAL")
+    assert row.base_salary_usd_cents == round(102_000_000 / 12 / settings.FX_INR_PER_USD)
+
+
+def test_add_employee_with_hourly_usd_pay(api, db, world, mail):
+    body = {"first_name": "Hourly", "last_name": "Pay", "email": f"hr{_uid()}@bx.test",
+            "joining_date": "2024-02-01", "business_unit_id": world.unit.id, "company_id": world.company.id,
+            "pay_amount_cents": 4_500, "pay_basis": "HOURLY", "pay_currency": "USD", "billable": True,
+            "reporting_manager_id": world.manager.UserID, "current_title": "Lead Consultant"}
+    assert api.post("/api/v1/employees", headers=_h(world.hr), json=body).status_code == 200
+    row = db.query(Employee).filter_by(email=body["email"]).one()
+    assert row.base_salary_usd_cents == round(4_500 * settings.STANDARD_MONTHLY_HOURS)
+
+
+def test_add_employee_without_pay_is_refused(api, db, world, mail):
+    body = {"first_name": "No", "last_name": "Pay", "email": f"np{_uid()}@bx.test", "joining_date": "2024-02-01",
+            "business_unit_id": world.unit.id, "company_id": world.company.id, "billable": True,
+            "reporting_manager_id": world.manager.UserID, "current_title": "Lead Consultant"}
+    response = api.post("/api/v1/employees", headers=_h(world.hr), json=body)
+    assert response.status_code in (400, 422)
+    assert "pay is required" in response.text
+
+
+def test_older_clients_monthly_usd_salary_is_recorded_as_monthly_usd_pay(api, db, world, mail):
+    body = {"first_name": "Old", "last_name": "Client", "email": f"old{_uid()}@bx.test",
+            "joining_date": "2024-02-01", "business_unit_id": world.unit.id, "company_id": world.company.id,
+            "base_salary_usd_cents": 250_000, "billable": True, "reporting_manager_id": world.manager.UserID,
+            "current_title": "Lead Consultant"}
+    assert api.post("/api/v1/employees", headers=_h(world.hr), json=body).status_code == 200
+    row = db.query(Employee).filter_by(email=body["email"]).one()
+    assert (row.pay_amount_cents, row.pay_currency, row.pay_basis, row.base_salary_usd_cents) == \
+        (250_000, "USD", "MONTHLY", 250_000)
+
+
+def test_profile_pay_edit_recomputes_the_cost(api, db, world, mail):
+    body = {"first_name": "Edit", "last_name": "Pay", "email": f"ed{_uid()}@bx.test", "joining_date": "2024-02-01",
+            "business_unit_id": world.unit.id, "company_id": world.company.id, "base_salary_usd_cents": 250_000,
+            "billable": True, "reporting_manager_id": world.manager.UserID, "current_title": "Lead Consultant"}
+    employee_id = api.post("/api/v1/employees", headers=_h(world.hr), json=body).json()["id"]
+    changed = api.patch(f"/api/v1/employees/{employee_id}", headers=_h(world.hr),
+                        json={"pay_amount_cents": 12_000_000, "pay_basis": "ANNUAL", "pay_currency": "USD"})
+    assert changed.status_code == 200, changed.text
+    row = db.get(Employee, employee_id)
+    db.refresh(row)
+    assert row.base_salary_usd_cents == 1_000_000
+    assert api.patch(f"/api/v1/employees/{employee_id}", headers=_h(world.hr),
+                     json={"pay_basis": "WEEKLY"}).status_code == 400
+
+
+def test_import_row_with_annual_pay_columns(db, world, mail):
+    header = COLUMNS + ",pay,pay_basis"
+    email = f"imp{_uid()}@bx.test"
+    row = _row(world, email, salary="", currency="INR") + ",1200000,ANNUAL"
+    content = ("\n".join([header, row]) + "\n").encode()
+    importer.apply(db, world.hr, importer.dry_run(db, world.hr, content)["token"], content)
+    employee = db.query(Employee).filter_by(email=email).one()
+    assert (employee.pay_amount_cents, employee.pay_currency, employee.pay_basis) == (120_000_000, "INR", "ANNUAL")
+    assert employee.base_salary_usd_cents == round(120_000_000 / 12 / settings.FX_INR_PER_USD)
+
+
+def test_existing_salaries_become_monthly_usd_pay(db, world):
+    from app.core.db_contract import _pay_from_monthly_usd
+
+    legacy = Employee(tenant_id=1, first_name="Was", last_name="Monthly", email=f"lg{_uid()}@bx.test",
+                      joining_date=date(2023, 1, 1), status="BENCH", bu_id=world.unit.id, base_salary_usd_cents=300_000)
+    db.add(legacy)
+    db.flush()
+    assert _pay_from_monthly_usd(db) >= 1
+    assert (legacy.pay_amount_cents, legacy.pay_currency, legacy.pay_basis, legacy.base_salary_usd_cents) == \
+        (300_000, "USD", "MONTHLY", 300_000)

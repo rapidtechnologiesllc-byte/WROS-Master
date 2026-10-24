@@ -79,8 +79,11 @@ IMPORT_COLUMNS: Tuple[Tuple[str, bool, str], ...] = (
     ("billable", False, "yes (default): client-facing, bench when not on a project. no: internal staff, cost is overhead."),
     ("existing_staff", False, "yes (default): already working here, recorded as Buddy Program graduated (audited)."),
     ("core_certified", False, "no (default). yes only if you lead this business unit (recorded as your approval)."),
-    ("monthly_salary", True, "Monthly base salary: the cost behind the P&L and bench cost."),
-    ("salary_currency", False, "USD (default) or INR (converted at FX_INR_PER_USD)."),
+    ("pay", False, "What they are paid per pay_basis, in salary_currency: the cost behind the P&L and bench cost. "
+                   "Required (or monthly_salary in older files)."),
+    ("pay_basis", False, "ANNUAL (default), MONTHLY or HOURLY."),
+    ("salary_currency", False, "Currency of pay (USD, INR, ...). Blank: the employee's country's currency."),
+    ("monthly_salary", False, "Older files: monthly pay, used only when pay is blank."),
     ("bill_rate_usd_hour", False, "Hourly bill rate in USD. Blank: the job's rate."),
     ("work_location", False, "REMOTE (default), ONSITE or HYBRID."),
     ("skills", False, "Skills separated by ';' or ','."),
@@ -176,7 +179,10 @@ class Spec:
     billable: bool = True
     existing_staff: bool = True
     core_certified: bool = False
-    salary_cents: Optional[int] = None
+    salary_cents: Optional[int] = None  # monthly USD, derived from the pay below
+    pay_amount_cents: Optional[int] = None
+    pay_currency: Optional[str] = None
+    pay_basis: Optional[str] = None
     bill_rate_cents: Optional[int] = None
     work_location: Optional[str] = None
     skills: Optional[List[str]] = None
@@ -317,17 +323,26 @@ def _resolve(lk: _Lookups, row: Dict[str, str]) -> Spec:
             errors.append("Only a leader of this business unit (its Partner or a BU Head) can import someone "
                           "as Core-certified; leave core_certified=no and approve it on Core certification.")
 
-    salary = _money_cents(row["monthly_salary"], "monthly_salary", errors)
-    currency = (row["salary_currency"] or "USD").upper()
-    if currency == "USD":
-        spec.salary_cents = salary
-    elif currency == "INR":
-        if not settings.FX_INR_PER_USD:
-            errors.append("salary_currency INR needs FX_INR_PER_USD to be configured.")
-        elif salary is not None:
-            spec.salary_cents = round(salary / settings.FX_INR_PER_USD)
+    from app.services import compensation
+
+    if row.get("pay"):
+        amount = _money_cents(row["pay"], "pay", errors)
+        basis = (row.get("pay_basis") or settings.PAY_BASIS_DEFAULT).upper()
     else:
-        errors.append(f"salary_currency must be USD or INR, got '{row['salary_currency']}'.")
+        amount = _money_cents(row.get("monthly_salary", ""), "monthly_salary", errors)
+        basis = "MONTHLY"
+        if not row.get("monthly_salary"):
+            errors.append("pay is required.")
+    currency = (row.get("salary_currency") or policy.currency_of(spec.country) or "USD").upper()
+    if amount is not None:
+        try:
+            spec.salary_cents = compensation.monthly_usd_cents(amount, currency, basis)
+        except compensation.PayError as exc:
+            errors.append(str(exc))
+        else:
+            spec.pay_amount_cents, spec.pay_currency, spec.pay_basis = amount, currency, basis
+            if spec.salary_cents is None:
+                errors.append(f"No exchange rate for {currency} (FX_RATES_PER_USD_JSON): the cost would be unknown.")
     spec.bill_rate_cents = _money_cents(row["bill_rate_usd_hour"], "bill_rate_usd_hour", errors)
 
     if row["work_location"]:
@@ -453,6 +468,7 @@ def _employee_fields(spec: Spec) -> Dict[str, Any]:
         "bu_id": spec.unit.id if spec.unit else None, "company_id": spec.company.id if spec.company else None,
         "current_title": spec.designation, "employment_type": spec.employment_type,
         "base_salary_usd_cents": spec.salary_cents, "billing_rate_usd_cents": spec.bill_rate_cents,
+        "pay_amount_cents": spec.pay_amount_cents, "pay_currency": spec.pay_currency, "pay_basis": spec.pay_basis,
         "work_location": spec.work_location, "is_billable": spec.billable,
         "current_skills": json.dumps(spec.skills) if spec.skills is not None else None,
         "joining_date": spec.joining_date,
@@ -911,7 +927,10 @@ def row_from_request(db: Session, body) -> Dict[str, str]:
         "manager_email": manager_email, "employment_type": employment_type,
         "billable": yes_no(body.billable), "existing_staff": yes_no(body.existing_staff),
         "core_certified": yes_no(body.core_certified),
-        "monthly_salary": f"{body.base_salary_usd_cents / 100:.2f}", "salary_currency": "USD",
+        **({"pay": f"{body.pay_amount_cents / 100:.2f}", "pay_basis": body.pay_basis or "",
+            "salary_currency": body.pay_currency or ""} if body.pay_amount_cents is not None else
+           {"monthly_salary": f"{body.base_salary_usd_cents / 100:.2f}", "salary_currency": "USD"}
+           if body.base_salary_usd_cents is not None else {}),
         "bill_rate_usd_hour": f"{body.billing_rate_usd_cents / 100:.2f}" if body.billing_rate_usd_cents else "",
         "work_location": body.work_location or "", "skills": ", ".join(body.current_skills or []),
         "bench_since": body.bench_since.isoformat() if body.bench_since else "",

@@ -25,7 +25,7 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import (
-    Boolean, CheckConstraint, Column, Date, DateTime, Enum, ForeignKey, Integer,
+    BigInteger, Boolean, CheckConstraint, Column, Date, DateTime, Enum, ForeignKey, Integer,
     String, Text, UniqueConstraint, func,
 )
 from sqlalchemy.orm import relationship
@@ -130,7 +130,12 @@ class Employee(Base):
     total_experience_months = Column(Integer, nullable=True)
     blitzenx_experience_months = Column(Integer, nullable=False, default=0)
 
-    base_salary_usd_cents = Column(Integer, nullable=True)  # monthly
+    # monthly pay in USD: the cost every P&L figure reads; derived from the pay below (compensation.set_pay)
+    base_salary_usd_cents = Column(Integer, nullable=True)
+    # what they are paid, as agreed: amount (minor units) in pay_currency per pay_basis (ANNUAL/MONTHLY/HOURLY)
+    pay_amount_cents = Column(BigInteger, nullable=True)
+    pay_currency = Column(String(3), nullable=True)
+    pay_basis = Column(String(10), nullable=True)
     billing_rate_usd_cents = Column(Integer, nullable=True)  # hourly
     # Billable (client-facing) or non-billable (internal: HR, finance, recruiters, delivery leads).
     # Chosen when the employee is added. Non-billable people are never bench; their cost is

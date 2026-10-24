@@ -235,12 +235,27 @@ def _intercompany_company_links(db: Session) -> int:
     return linked
 
 
+def _pay_from_monthly_usd(db: Session) -> int:
+    """Pay as agreed (CEO 2026-10-24): every employee with a salary and no pay on record gets their
+    existing salary recorded as monthly USD pay, so no cost changes. Returns rows filled."""
+    from app.models.employee import Employee
+
+    rows = db.query(Employee).filter(Employee.base_salary_usd_cents.isnot(None),
+                                     Employee.pay_amount_cents.is_(None)).all()
+    for employee in rows:
+        employee.pay_amount_cents = employee.base_salary_usd_cents
+        employee.pay_currency, employee.pay_basis = "USD", "MONTHLY"
+    db.flush()
+    return len(rows)
+
+
 DATA_MIGRATIONS = (
     ("interview_times_to_utc", _interview_times_to_utc),
     ("employee_org_history_backfill", _employee_org_history_backfill),
     ("invoice_numbers_backfill", _invoice_numbers_backfill),
     ("guidewire_current_level_to_certificates", _guidewire_current_level_to_certificates),
     ("intercompany_company_links", _intercompany_company_links),
+    ("pay_from_monthly_usd", _pay_from_monthly_usd),
 )
 
 
@@ -1835,6 +1850,10 @@ def _apply_schema_migrations(db: Session):
             ("company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
             ("guidewire_certification_current", "VARCHAR(50) NULL"),
             ("guidewire_certification_expected", "VARCHAR(50) NULL"),
+            # Pay as agreed (CEO 2026-10-24): amount, currency, basis; base_salary_usd_cents derives from it
+            ("pay_amount_cents", "BIGINT NULL"),
+            ("pay_currency", "VARCHAR(3) NULL"),
+            ("pay_basis", "VARCHAR(10) NULL"),
         ],
         "candidate_education_forms": [
             ("education_level", "VARCHAR(100) NULL"),

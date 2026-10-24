@@ -485,11 +485,21 @@ function FinanceTab({ profile, save, reload }) {
       {finance.compensation_visible ? (
         <EditableSection title="Compensation & tax" subtitle="Visible to Finance only. Government ids show the last 4 characters."
           canEdit={profile.can_edit_compensation} onSave={save}
-          values={{ base_salary: finance.base_salary_usd_cents == null ? "" : finance.base_salary_usd_cents / 100,
+          values={{ pay: finance.pay_amount_cents == null ? "" : finance.pay_amount_cents / 100,
+            pay_basis: finance.pay_basis || "", pay_currency: finance.pay_currency || "",
+            monthly_cost: finance.base_salary_usd_cents,
             billing_rate: finance.billing_rate_usd_cents == null ? "" : finance.billing_rate_usd_cents / 100,
             pan_number: finance.pan_number, tax_id: finance.tax_id }}
           fields={[
-            { key: "base_salary", label: "Base salary (USD / month)", type: "number", display: (v) => (v === "" ? "—" : money(v * 100)) },
+            { key: "pay", label: "Pay (amount)", type: "number",
+              display: (v) => (v === "" ? "—" : `${Number(v).toLocaleString()} ${finance.pay_currency || ""}`) },
+            { key: "pay_basis", label: "Paid", type: "select",
+              options: profile.options.pay_bases.map((b) => ({ value: b, label: statusLabel(b) })) },
+            { key: "pay_currency", label: "Pay currency", type: "select",
+              options: profile.options.currencies.map((c) => ({ value: c, label: c })) },
+            { key: "monthly_cost", label: "Monthly cost (USD, before statutory and overhead)", readOnly: true,
+              display: (v) => (v == null ? "Unknown: no exchange rate for this currency" : money(v)),
+              help: "Worked out from the pay; this is what the P&L and bench cost use." },
             { key: "billing_rate", label: "Default bill rate (USD / hour)", type: "number", display: (v) => (v === "" ? "—" : money(v * 100)) },
             { key: "pan_number", label: "PAN", help: "Type the full number to replace it." },
             { key: "tax_id", label: "Tax id (SSN / other)", help: "Type the full number to replace it." },
@@ -574,9 +584,9 @@ export default function EmployeeProfileScreen() {
   // Personal / job / finance edits share one endpoint; finance amounts are typed in dollars
   const save = async (changes) => {
     const body = { ...changes };
-    if ("base_salary" in body) {
-      body.base_salary_usd_cents = body.base_salary == null ? null : Math.round(body.base_salary * 100);
-      delete body.base_salary;
+    if ("pay" in body) {
+      body.pay_amount_cents = body.pay == null ? null : Math.round(body.pay * 100);
+      delete body.pay;
     }
     if ("billing_rate" in body) {
       body.billing_rate_usd_cents = body.billing_rate == null ? null : Math.round(body.billing_rate * 100);

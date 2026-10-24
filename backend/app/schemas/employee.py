@@ -22,7 +22,12 @@ class EmployeeCreateRequest(BaseModel):
     email: str = Field(..., min_length=1)
     joining_date: date
     business_unit_id: int = Field(..., description="Maps to Employee.bu_id")
-    base_salary_usd_cents: int = Field(..., ge=0, description="Monthly base salary: the P&L and bench cost source")
+    # What they are paid (CEO 2026-10-24): amount in pay_currency (blank: the country's) per pay_basis
+    pay_amount_cents: Optional[int] = Field(None, ge=0)
+    pay_currency: Optional[str] = None
+    pay_basis: Optional[str] = None
+    # Older clients: monthly USD salary, used when no pay is given
+    base_salary_usd_cents: Optional[int] = Field(None, ge=0, description="Monthly USD salary (older clients)")
     billable: bool = Field(..., description="Client-facing (bench when not on a project) or internal (overhead)")
     company_id: Optional[str] = Field(None, description="Delivery center / employer company (locations.id)")
     country: Optional[str] = Field(None, description="ISO code; blank = the delivery center's country")

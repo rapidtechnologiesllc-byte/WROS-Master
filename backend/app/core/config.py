@@ -261,9 +261,9 @@ class Settings:
                  "1099": "1099 contractor", "UNKNOWN": "Not confirmed"},
       "countries": {
         "US": {"name": "United States", "names": ["united states", "united states of america", "usa", "us", "u.s.", "u.s.a."],
-               "accepts": {"FULLTIME": "W2 full-time", "CONTRACT": "W2 contract"}},
+               "currency": "USD", "accepts": {"FULLTIME": "W2 full-time", "CONTRACT": "W2 contract"}},
         "IN": {"name": "India", "names": ["india", "in", "bharat"],
-               "accepts": {"FULLTIME": "Full-time", "CONTRACT": "Contract"}}
+               "currency": "INR", "accepts": {"FULLTIME": "Full-time", "CONTRACT": "Contract"}}
       }
     }"""
     # Every interview invites the candidate (CEO 2026-10-15). The automatic invite waits this long
@@ -332,6 +332,11 @@ class Settings:
     AUTO_INVOICE_LOOKBACK_MONTHS: int = int(os.getenv("AUTO_INVOICE_LOOKBACK_MONTHS", "3"))
     # INR per 1 USD (CEO 2026-10-11: $1 = 85 INR); the FX_INR_PER_USD env var overrides it
     FX_INR_PER_USD: float = float(os.getenv("FX_INR_PER_USD") or 85)
+    # Units of each other pay currency per 1 USD, as JSON (e.g. {"GBP": 0.79}); INR is FX_INR_PER_USD.
+    # A currency with no rate leaves that pay's USD cost unknown (reported as missing, never zero).
+    FX_RATES_PER_USD_JSON: str = os.getenv("FX_RATES_PER_USD_JSON", "{}")
+    # How an employee is paid (Add employee, import, profile); ANNUAL unless said otherwise
+    PAY_BASIS_DEFAULT: str = os.getenv("PAY_BASIS_DEFAULT", "ANNUAL")
     # Paid hours in a month (40h x 52 weeks / 12); turns monthly loaded cost into an hourly cost
     STANDARD_MONTHLY_HOURS: float = float(os.getenv("STANDARD_MONTHLY_HOURS", "173.33"))
     # My Timesheet: how many weeks before the current one an employee may open and fill. Never more

@@ -202,8 +202,10 @@ export function ImportEmployeesModal({ onClose, onImported }) {
 const EMPTY_FORM = {
   first_name: "", last_name: "", email: "", joining_date: "", business_unit_id: "", company_id: "", country: "",
   current_title: "", reporting_manager_id: "", employment_type: "", billable: "", existing_staff: true,
-  monthly_salary_usd: "", bill_rate_usd: "",
+  pay: "", pay_basis: "", pay_currency: "", bill_rate_usd: "",
 };
+
+const PAY_BASIS_LABEL = { ANNUAL: "Annual", MONTHLY: "Monthly", HOURLY: "Hourly" };
 
 export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
   const [form, setForm] = useState(EMPTY_FORM);
@@ -217,6 +219,14 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
   const country = (template?.countries || []).find((c) => c.code === form.country);
+  // Pay is in the employee's country's currency unless changed: the picked country, else the
+  // delivery center's country
+  const company = orgOptions.companies.find((c) => c.id === form.company_id);
+  const companyCountry = company ? (template?.countries || []).find(
+    (c) => c.code === company.country || c.name.toLowerCase() === String(company.country || "").toLowerCase()) : null;
+  const countryCurrency = (country || companyCountry)?.currency || "USD";
+  const payCurrency = form.pay_currency || countryCurrency;
+  const payBasis = form.pay_basis || template?.pay_basis_default || "ANNUAL";
   const employmentTypes = country ? country.employment_types
     : ((template?.countries || [])[0]?.employment_types || []);
   // The manager is recorded in the org chart: the new seat goes under the manager's seat, which the
@@ -226,8 +236,8 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
 
   const submit = async () => {
     if (!form.first_name || !form.last_name || !form.email || !form.joining_date || !form.business_unit_id
-      || form.billable === "" || form.monthly_salary_usd === "") {
-      setError("Name, email, joining date, business unit, billable and monthly salary are required.");
+      || form.billable === "" || form.pay === "") {
+      setError("Name, email, joining date, business unit, billable and pay are required.");
       return;
     }
     setBusy(true);
@@ -239,7 +249,7 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
         country: form.country || null, current_title: form.current_title || null,
         reporting_manager_id: form.reporting_manager_id || null, employment_type: form.employment_type || null,
         billable: form.billable === "yes", existing_staff: form.existing_staff,
-        base_salary_usd_cents: Math.round(Number(form.monthly_salary_usd) * 100),
+        pay_amount_cents: Math.round(Number(form.pay) * 100), pay_currency: payCurrency, pay_basis: payBasis,
         billing_rate_usd_cents: form.bill_rate_usd ? Math.round(Number(form.bill_rate_usd) * 100) : null,
       });
       onCreated(created);
@@ -303,7 +313,22 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
             <option value="no">Non-billable: internal staff, cost is overhead</option>
           </select>
         </label>
-        <label><span className={label}>Monthly salary (USD) *</span><input className={field} type="number" min="0" value={form.monthly_salary_usd} onChange={set("monthly_salary_usd")} /></label>
+        <div className="grid grid-cols-[1fr_auto_auto] items-end gap-2 sm:col-span-2">
+          <label><span className={label}>{PAY_BASIS_LABEL[payBasis] || payBasis} pay ({payCurrency}) *</span>
+            <input className={field} type="number" min="0" value={form.pay} onChange={set("pay")} />
+          </label>
+          <label><span className={label}>Paid</span>
+            <select className={field} value={payBasis} onChange={set("pay_basis")}>
+              {(template?.pay_bases || []).map((b) => (
+                <option key={b} value={b}>{PAY_BASIS_LABEL[b] || b}</option>))}
+            </select>
+          </label>
+          <label><span className={label}>Currency</span>
+            <select className={field} value={payCurrency} onChange={set("pay_currency")}>
+              {(template?.currencies || [payCurrency]).map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+        </div>
         <label><span className={label}>Bill rate (USD / hour)</span><input className={field} type="number" min="0" value={form.bill_rate_usd} onChange={set("bill_rate_usd")} /></label>
         <label className="flex items-center gap-2 text-sm sm:col-span-2">
           <input type="checkbox" checked={form.existing_staff} onChange={set("existing_staff")} />
