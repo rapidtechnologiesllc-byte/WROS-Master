@@ -80,6 +80,11 @@ _JOBS = (
     # PO_EXPIRY_ALERT_DAYS, so it is renewed before hours stop being invoiceable
     ScheduledJob("po_expiry_alerts", "app.services.work_order_service:run_po_expiry_alerts",
                  timedelta(days=1), timeout_s=120, daily_after_utc="06:00"),
+    # internal only: performance reviews by the reporting chain (manager bi-weekly, BU head monthly,
+    # partner quarterly) -- a task for the reviewer, a Teams meeting with the employee, the
+    # recording pulled from Teams afterwards, missed reviews marked (performance_service)
+    ScheduledJob("performance_reviews", "app.services.performance_service:run_performance_reviews",
+                 timedelta(hours=6), timeout_s=600),
     ScheduledJob("birthday_drafts", "app.services.culture_agent_service:generate_birthday_drafts",
                  timedelta(days=1), timeout_s=120, daily_after_utc="03:00"),
 )

@@ -63,6 +63,7 @@ const ICON_MAP_BY_RESOURCE = {
   "my_tasks": UserCheck,
   "my_timesheet": Clock,
   "my_expenses": BadgeDollarSign,
+  "my_performance": Target,
   "profile": UserPlus,
   "users_access_control": Shield,
   "certifications": Award,
