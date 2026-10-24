@@ -154,6 +154,8 @@ class Settings:
     
     # File Upload Settings
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
+    # Responses at least this big are gzip-compressed (app.main)
+    GZIP_MIN_BYTES: int = int(os.getenv("GZIP_MIN_BYTES", "1000"))
     # Panel vs Flash calibration: Flash "advances" a candidate whose job match score is at least this
     FLASH_ADVANCE_SCORE: int = int(os.getenv("FLASH_ADVANCE_SCORE", "60"))
     # Employee referral bonus (US cents) when the job has no referral settings of its own
