@@ -19,6 +19,11 @@ class TaskCreateRequest(BaseModel):
     category: Optional[str] = None
     subcategory: Optional[str] = None
     parent_task_id: Optional[int] = None
+    # Who does it (default: the creator, so a task never belongs to nobody) and the candidate it is
+    # about (Tasks tab on the candidate); repeat is one of TASK_RECURRENCES
+    assigned_to_user_id: Optional[str] = None
+    candidate_id: Optional[str] = None
+    recurrence: Optional[str] = None
 
 class TaskResponse(BaseModel):
     id: int
@@ -45,11 +50,15 @@ class TaskResponse(BaseModel):
     # Lets My Tasks open the record a task is about (candidate profile, its interview tab)
     candidate_id: Optional[str] = None
     interview_id: Optional[int] = None
+    recurrence: Optional[str] = None
     # In-app path the task opens; My Tasks follows it first
     link: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+class CandidateTaskResponse(TaskResponse):
+    assigned_to_name: Optional[str] = None
 
 class ReassignmentApproveRequest(BaseModel):
     final_to_user_id: str

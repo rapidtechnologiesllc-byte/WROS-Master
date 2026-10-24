@@ -20,12 +20,15 @@ Real product decisions from Avinash, captured 2026-08-04 session:
     2. Ordering within that list: Priority, highest first.
   get_daily_task_list() implements exactly this.
 """
+import logging
 from datetime import datetime, timedelta
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.models.task import PRIORITY_ORDER, TASK_PRIORITIES, Task
+from app.models.task import PRIORITY_ORDER, TASK_PRIORITIES, TASK_RECURRENCES, Task
+
+logger = logging.getLogger(__name__)
 
 TASK_URGENCY_VALIDATION_SYSTEM_PROMPT = (
     "You are Thunder, BlitzenX's operations assistant. A team member is "
@@ -106,9 +109,15 @@ def create_task(
     invoice_id: Optional[str] = None,
     urgency_llm_call=None,
     link: Optional[str] = None,
+    candidate_id: Optional[str] = None,
+    recurrence: Optional[str] = None,
 ) -> Task:
     if priority not in TASK_PRIORITIES:
         raise ValueError(f"Unknown priority {priority!r}")
+    if recurrence is not None and recurrence not in TASK_RECURRENCES:
+        raise ValueError(f"Repeat must be one of {TASK_RECURRENCES}, got {recurrence!r}")
+    if recurrence and due_date is None:
+        raise ValueError("A repeating task needs a due date")
     validate_task_link(link)
 
     task = Task(
@@ -118,6 +127,7 @@ def create_task(
         task_type=task_type, category=category, subcategory=subcategory,
         parent_task_id=parent_task_id, tenant_id=tenant_id,
         assigned_to_user_id=assigned_to_user_id, expense_id=expense_id, invoice_id=invoice_id, link=link,
+        candidate_id=candidate_id, recurrence=recurrence,
     )
 
     if priority == "URGENT":
@@ -214,6 +224,91 @@ def complete_task(db: Session, task: Task) -> Task:
     task.status = "COMPLETED"
     task.completed_at = datetime.utcnow()
     db.add(task)
+    open_next_occurrence(db, task)
     db.commit()
     db.refresh(task)
     return task
+
+
+def _add_months(moment: datetime, months: int) -> datetime:
+    month = moment.month - 1 + months
+    year, month = moment.year + month // 12, month % 12 + 1
+    days_in_month = (datetime(year + month // 12, month % 12 + 1, 1) - timedelta(days=1)).day
+    return moment.replace(year=year, month=month, day=min(moment.day, days_in_month))
+
+
+def next_due(due: datetime, recurrence: str) -> datetime:
+    if recurrence == "WEEKLY":
+        return due + timedelta(days=7)
+    if recurrence == "BIWEEKLY":
+        return due + timedelta(days=14)
+    if recurrence == "MONTHLY":
+        return _add_months(due, 1)
+    if recurrence == "QUARTERLY":
+        return _add_months(due, 3)
+    raise ValueError(f"Unknown repeat {recurrence!r}")
+
+
+def candidate_series_end(db: Session, candidate_id: str) -> Optional[str]:
+    """Why a repeating task about this candidate stops, or None while it should go on: the
+    candidate joined (is an employee), was archived, or is in a post-rejection no-contact period."""
+    from app.models.candidate import Candidate
+    from app.models.employee import Employee
+    from app.services.candidate_contact_policy import is_archived, rejection_cooldown_until
+
+    if db.query(Candidate.candidateID).filter(Candidate.candidateID == candidate_id).first() is None:
+        return "the candidate no longer exists"
+    if db.query(Employee.id).filter(Employee.candidate_id == candidate_id).first() is not None:
+        return "the candidate joined"
+    if is_archived(db, candidate_id):
+        return "the candidate is archived"
+    if rejection_cooldown_until(db, candidate_id) is not None:
+        return "the candidate was rejected"
+    return None
+
+
+def open_next_occurrence(db: Session, task: Task, now: Optional[datetime] = None) -> Optional[Task]:
+    """A completed repeating task opens the next one (same person, text and repeat), due one
+    interval after this one and never in the past. Caller commits."""
+    if not task.recurrence:
+        return None
+    if task.candidate_id:
+        reason = candidate_series_end(db, task.candidate_id)
+        if reason:
+            logger.info(f"[Tasks] Task #{task.id} stops repeating: {reason}")
+            return None
+    now = now or datetime.utcnow()
+    due = next_due(task.due_date or now, task.recurrence)
+    while due <= now:
+        due = next_due(due, task.recurrence)
+    following = Task(
+        title=task.title, description=task.description, priority=task.priority, status="NEW",
+        task_type=task.task_type, category=task.category, subcategory=task.subcategory,
+        tenant_id=task.tenant_id, assigned_to_user_id=task.assigned_to_user_id,
+        created_by_user_id=task.created_by_user_id, department_id=task.department_id,
+        candidate_id=task.candidate_id, parent_task_id=task.id, due_date=due, is_external=task.is_external,
+        visibility_scope=task.visibility_scope, link=task.link, recurrence=task.recurrence,
+    )
+    db.add(following)
+    db.flush()
+    logger.info(f"[Tasks] Task #{task.id} repeats {task.recurrence.lower()}: next is #{following.id} due {due:%Y-%m-%d}")
+    return following
+
+
+def stop_repeating(db: Session, task: Task) -> Task:
+    task.recurrence = None
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    return task
+
+
+def list_candidate_tasks(db: Session, candidate_id: str, tenant_id: Optional[int]) -> List[Task]:
+    """Open tasks first (soonest due first), then the finished ones, newest first."""
+    from sqlalchemy import case, or_
+
+    finished = Task.status.in_(("COMPLETED", "CANCELLED"))
+    return (db.query(Task)
+            .filter(Task.candidate_id == candidate_id, or_(Task.tenant_id.is_(None), Task.tenant_id == tenant_id))
+            .order_by(case((finished, 1), else_=0), Task.due_date.asc().nullslast(), Task.completed_at.desc())
+            .all())

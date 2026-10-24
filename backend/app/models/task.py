@@ -45,6 +45,9 @@ TASK_VISIBILITY_SCOPES = ("ASSIGNEE_MANAGER_DEPARTMENT", "ORG_WIDE")
 # Department list) instead of a hardcoded type list. See
 # app.services.ticket_service.
 TASK_TYPES = ("GENERAL", "TICKET")
+# A repeating task (e.g. keep in touch with a candidate monthly): completing it opens the next one
+# (task_service.complete_task), until a person stops it or the candidate it is about is closed
+TASK_RECURRENCES = ("WEEKLY", "BIWEEKLY", "MONTHLY", "QUARTERLY")
 
 # BR: automatic overdue priority bump never reaches URGENT -- Urgent
 # stays a deliberate, human-declared (and Thunder-challenged) choice.
@@ -132,6 +135,7 @@ class Task(Base):
     # In-app path the task opens (e.g. "/workforce/core-certification"); My Tasks follows it
     # before any title-based guess. Always a same-site path (task_service.create_task checks).
     link = Column(String(512), nullable=True)
+    recurrence = Column(String(20), nullable=True)  # one of TASK_RECURRENCES; NULL = one-off
 
     due_date = Column(DateTime, nullable=True, index=True)
     is_external = Column(Boolean, nullable=False, default=False)

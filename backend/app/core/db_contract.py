@@ -1683,6 +1683,8 @@ def _apply_schema_migrations(db: Session):
         # Task deep link: the in-app path My Tasks opens (task_service.create_task)
         "tasks": [
             ("link", "VARCHAR(512) NULL"),
+            # Repeating tasks (task_service.complete_task opens the next one)
+            ("recurrence", "VARCHAR(20) NULL"),
         ],
         # Expense receipts: attached file + automatic check (expense_receipt_service)
         "expense_records": [

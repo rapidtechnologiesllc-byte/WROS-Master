@@ -123,11 +123,27 @@ class ThunderEngagementHandler:
 
             conversation_id = conversation.id if hasattr(conversation, 'id') else str(candidate_id)
 
-            # ===== STEP 3: WhatsApp first touch (only when it can actually be sent) =====
-            # The email cadence started above IS the engagement. WhatsApp is added when the
-            # candidate consented, has a mobile number and a sending number is configured
-            # (THUNDER_WHATSAPP_NUMBER or the owning recruiter's number); otherwise it is skipped,
-            # never failed, so a missing WhatsApp setup can't roll back the email cadence.
+            # ===== STEP 3: Commit the email cadence before anything else can fail =====
+            # The email cadence IS the engagement: it is committed and step 1 queued first, so a
+            # WhatsApp failure below (retried) can never roll it back. A retry finds the cadence
+            # (start_cadence is idempotent) and only redoes what is still missing.
+            try:
+                db.commit()
+                logger.info(f"[Thunder] ✅ Transaction committed for {candidate_id}")
+            except Exception as commit_err:
+                db.rollback()
+                logger.error(f"[Thunder] Commit failed for {candidate_id}: {commit_err}", exc_info=True)
+                raise RuntimeError(f"Database commit failed: {str(commit_err)}") from commit_err
+
+            email_queued = False
+            if cadence_state.touches_sent == 0 and cadence_state.next_step == "1":
+                from app.services.thunder_mail.cadence_service import enqueue_send
+                email_queued = enqueue_send(cadence_state)  # deterministic task id: never queued twice
+                logger.info(f"[Thunder] Email cadence step 1 queued for {candidate_id}: {email_queued}")
+
+            # ===== STEP 4: WhatsApp first touch (only when it can actually be sent) =====
+            # Added when the candidate consented, has a mobile number and a sending number is
+            # configured (THUNDER_WHATSAPP_NUMBER or the owning recruiter's number); otherwise skipped.
             from app.services.whatsapp_routing_service import resolve_outbound_whatsapp_number
             message_sent = False
             delivery_confirmed = False
@@ -147,28 +163,16 @@ class ThunderEngagementHandler:
                         channel="whatsapp",
                         auto_generated=True,
                     )
+                    db.commit()
                     message_sent = delivery_confirmed = True
                     logger.info(f"[Thunder] WhatsApp first touch sent to {candidate_id}")
                 except Exception as send_err:
+                    db.rollback()
                     logger.error(f"[Thunder] WhatsApp first touch failed for {candidate_id}: {send_err}", exc_info=True)
-                    raise RuntimeError(f"Failed to send Thunder message: {str(send_err)}") from send_err
+                    raise RuntimeError(f"Failed to send Thunder WhatsApp message (email cadence already "
+                                       f"started): {str(send_err)}") from send_err
             else:
                 logger.info(f"[Thunder] {candidate_id}: email cadence only (no WhatsApp consent, number or sender)")
-
-            # ===== STEP 4: Commit transaction =====
-            try:
-                db.commit()
-                logger.info(f"[Thunder] ✅ Transaction committed for {candidate_id}")
-            except Exception as commit_err:
-                db.rollback()
-                logger.error(f"[Thunder] Commit failed for {candidate_id}: {commit_err}", exc_info=True)
-                raise RuntimeError(f"Database commit failed: {str(commit_err)}") from commit_err
-
-            email_queued = False
-            if new_cadence:
-                from app.services.thunder_mail.cadence_service import enqueue_send
-                email_queued = enqueue_send(cadence_state)
-                logger.info(f"[Thunder] Email cadence step 1 queued for {candidate_id}: {email_queued}")
 
             return {
                 "status": "success",
