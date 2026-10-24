@@ -7,8 +7,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Users, Briefcase, Grid3x3, UserPlus, RefreshCw, AlertCircle, Upload } from "lucide-react";
-import { Card, Button, StatusBadge } from "../components/ui";
+import { Card, Button } from "../components/ui";
 import cx from "../utils/cx";
+import { pill } from "../utils/pill";
 import useTabParam from "../utils/useTabParam";
 import {
   getAllEmployees,
@@ -37,6 +38,21 @@ const loadOrgOptions = () => Promise.all([apiRequest(COMPANIES_PATH), apiRequest
 const NOT_WORKING = new Set(["PRE_JOINING", "EXITED"]);
 const isWorking = (emp) => !NOT_WORKING.has(emp.status);
 const statusLabel = (status) => (status || "").replace(/_/g, " ").toLowerCase();
+
+// Where the employee stands (Employee.status, kept by the bench pool and allocations): on bench
+// shows how long; statuses that are not headcount are grey.
+const STATUS_TONE = {
+  BENCH: "border-amber-200 bg-amber-50 text-amber-800",
+  ALLOCATED: "border-green-200 bg-green-50 text-green-800",
+};
+function EmployeeStatus({ employee }) {
+  const tone = STATUS_TONE[employee.status]
+    || (isWorking(employee) ? "border-blue-200 bg-blue-50 text-blue-800" : "border-gray-200 bg-gray-100 text-gray-600");
+  const label = employee.status === "BENCH"
+    ? `on bench${employee.bench_days != null ? ` · ${employee.bench_days}d` : ""}`
+    : statusLabel(employee.status);
+  return <span className={cx(pill, "whitespace-nowrap", tone)}>{label}</span>;
+}
 
 function EmployeeListTab() {
   const [employees, setEmployees] = useState([]);
@@ -145,7 +161,7 @@ function EmployeeListTab() {
                 <td className="px-4 py-2">{orgOptions.companies.find((c) => c.id === emp.company_id)?.name || <span className="text-amber-700">Not set</span>}</td>
                 <td className="px-4 py-2">{orgOptions.businessUnits.find((b) => b.id === emp.bu_id)?.name || "—"}</td>
                 <td className="px-4 py-2">
-                  <StatusBadge status={isWorking(emp) ? "active" : "inactive"}>{statusLabel(emp.status)}</StatusBadge>
+                  <EmployeeStatus employee={emp} />
                   {!emp.has_login ? <div className="text-xs text-amber-700">no login</div> : null}
                 </td>
                 <td className="px-4 py-2">{emp.is_billable ? "Billable" : "Internal"}</td>
@@ -351,7 +367,7 @@ function EmployeeDetailModal({ employee, orgOptions, onClose, onRefresh }) {
             </div>
             <div>
               <div className="font-semibold text-gray-700">Status</div>
-              <StatusBadge status={isWorking(employee) ? "active" : "inactive"}>{statusLabel(employee.status)}</StatusBadge>
+              <EmployeeStatus employee={employee} />
             </div>
             <div>
               <div className="font-semibold text-gray-700">Allocated</div>
