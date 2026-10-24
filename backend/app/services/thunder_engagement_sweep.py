@@ -5,7 +5,10 @@ Runs as the thunder_engagement_sweep scheduled job. Each run queues
 engage_candidate_with_thunder (ThunderEngagementHandler: email cadence first, WhatsApp when
 configured) for candidates who are contactable (candidate_contact_policy.is_contactable: real
 email, Thunder on, outside a post-rejection no-contact period), were created in the look-back
-window, and have no cadence yet. Idempotent: the queue task id is deterministic per candidate.
+window, and have no cadence yet. Idempotent: the queue task id is deterministic per candidate and
+attempt. A candidate whose engagement message ended FAILED (before 2026-10-24 a failed learning
+lookup aborted it before the cadence was saved) is queued again with the next attempt number,
+never while an engagement for them is still in flight.
 Kill switches: THUNDER_ENGAGEMENT_ENABLED and the global queue pause.
 """
 import logging
@@ -19,10 +22,28 @@ from app.models.candidate import Candidate
 logger = logging.getLogger(__name__)
 
 ENGAGE_TASK = "engage_candidate_with_thunder"
+MAX_ENGAGE_ATTEMPTS = 3  # each attempt already retries inside the queue; past this a person looks
 
 
-def engage_task_id(candidate_id: str) -> str:
-    return f"thunder-engage-{candidate_id}"
+def engage_task_id(candidate_id: str, attempt: int = 1) -> str:
+    return f"thunder-engage-{candidate_id}" + (f"-{attempt}" if attempt > 1 else "")
+
+
+def _next_attempt(db: Session, candidate_id: str):
+    """The attempt number to queue, or None while an engagement for the candidate is in flight or
+    MAX_ENGAGE_ATTEMPTS have failed (each is FAILED on the Message Queue screen with its error)."""
+    from app.models.channel_queue import ChannelQueueItem
+    from app.services.message_queue_service import IN_FLIGHT_STATUSES
+
+    earlier = db.query(ChannelQueueItem.id, ChannelQueueItem.status).filter(
+        ChannelQueueItem.type == ENGAGE_TASK,
+        ChannelQueueItem.payload["candidate_id"].as_string() == candidate_id).all()
+    if any(status in IN_FLIGHT_STATUSES + ("RETRY",) for _, status in earlier):
+        return None
+    if len(earlier) >= MAX_ENGAGE_ATTEMPTS:
+        logger.error(f"[ThunderSweep] {candidate_id}: {len(earlier)} engagement attempts failed; not queued again")
+        return None
+    return len(earlier) + 1
 
 
 def backlog_guard(db: Session, now: datetime) -> None:
@@ -58,7 +79,10 @@ def run_sweep(db: Session, now: datetime = None) -> Dict:
         if not ok:
             skipped += 1
             continue
-        if enqueue_once(ENGAGE_TASK, engage_task_id(candidate.candidateID),
+        attempt = _next_attempt(db, candidate.candidateID)
+        if attempt is None:
+            continue
+        if enqueue_once(ENGAGE_TASK, engage_task_id(candidate.candidateID, attempt),
                         {"candidate_id": candidate.candidateID, "trigger": "engagement_sweep",
                          "tenant_id": candidate.tenant_id}, candidate.tenant_id):
             queued += 1
