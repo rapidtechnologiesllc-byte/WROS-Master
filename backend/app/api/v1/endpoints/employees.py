@@ -73,6 +73,7 @@ from app.services.resource_management_service import (
     utilization_population,
 )
 
+from app.services.employee_profile_service import can_edit_compensation, can_see_compensation
 from app.services.employee_standing import deployment_status, employment_actions, employment_status, in_htd
 
 router = APIRouter(prefix="/employees", tags=["employees"])
@@ -108,8 +109,22 @@ def _allocation_summaries(db: Session, employee_ids) -> dict:
     return out
 
 
+def _managers(db: Session, employees) -> dict:
+    """{reporting_manager_user_id: (name, that manager's employee id)} for these employees, in two
+    queries. The row mirrors the org chart (org_structure_service._sync_employee_reporting)."""
+    ids = {e.reporting_manager_user_id for e in employees if e.reporting_manager_user_id}
+    if not ids:
+        return {}
+    names = {u.UserID: u.UserName or u.UserEmail for u in db.query(Users).filter(Users.UserID.in_(ids))}
+    rows = {e.wros_user_id: e.id for e in db.query(Employee.wros_user_id, Employee.id).filter(Employee.wros_user_id.in_(ids))}
+    return {uid: (names.get(uid), rows.get(uid)) for uid in ids}
+
+
 def _to_item(db: Session, employee: Employee, *, bench_entry=..., allocations=None,
-             guidewire_level=...) -> EmployeeItem:
+             guidewire_level=..., viewer: Optional[Users] = None, sees_money: Optional[bool] = None,
+             managers: Optional[dict] = None) -> EmployeeItem:
+    """viewer decides what money shows: salary only with finance-operations.view (the
+    fully-loaded-cost rule); without a viewer it is never sent."""
     from app.services.employee_certification_service import current_guidewire_levels
 
     if guidewire_level is ...:
@@ -118,6 +133,11 @@ def _to_item(db: Session, employee: Employee, *, bench_entry=..., allocations=No
         bench_entry = db.query(BenchPoolEntry).filter(BenchPoolEntry.employee_id == employee.id).first()
     if allocations is None:
         allocations = _allocation_summaries(db, [employee.id]).get(employee.id, [])
+    if sees_money is None:
+        sees_money = viewer is not None and can_see_compensation(db, viewer)
+    if managers is None:
+        managers = _managers(db, [employee])
+    manager_name, manager_employee_id = managers.get(employee.reporting_manager_user_id, (None, None))
     bench_days = get_bench_duration_days(bench_entry) if bench_entry else None
     deployment = deployment_status(employee.status, employee.buddy_program_status, allocations, bench_days,
                                    date.today(), htd_active=in_htd(employee.htd_track, employee.htd_phase))
@@ -138,7 +158,7 @@ def _to_item(db: Session, employee: Employee, *, bench_entry=..., allocations=No
         core_certified_date=employee.core_certified_date,
         joining_date=employee.joining_date,
         exit_date=employee.exit_date,
-        base_salary_usd_cents=employee.base_salary_usd_cents,
+        base_salary_usd_cents=employee.base_salary_usd_cents if sees_money else None,
         billing_rate_usd_cents=employee.billing_rate_usd_cents,
         is_on_bench=bench_entry is not None,
         bench_days=bench_days,
@@ -159,6 +179,8 @@ def _to_item(db: Session, employee: Employee, *, bench_entry=..., allocations=No
         htd_start_date=employee.htd_start_date,
         has_login=employee.wros_user_id is not None,
         reporting_manager_user_id=employee.reporting_manager_user_id,
+        reporting_manager_name=manager_name,
+        reporting_manager_employee_id=manager_employee_id,
         active_allocations=allocations,
         allocated_pct=sum(a["utilization_pct"] for a in allocations),
     )
@@ -202,7 +224,7 @@ def create_employee(
         errors = result["errors"]
         status = 409 if any("already exists" in e for e in errors) else 422
         raise HTTPException(status_code=status, detail="; ".join(errors))
-    return _to_item(db, db.get(Employee, result["employee_id"]))
+    return _to_item(db, db.get(Employee, result["employee_id"]), viewer=current_user)
 
 
 @router.get(
@@ -294,9 +316,11 @@ def list_employees(
     from app.services.employee_certification_service import current_guidewire_levels
 
     levels = current_guidewire_levels(db, ids)
+    sees_money = can_see_compensation(db, current_user)
+    managers = _managers(db, employees)
     return EmployeeListResponse(employees=[
         _to_item(db, e, bench_entry=bench.get(e.id), allocations=allocations.get(e.id, []),
-                 guidewire_level=levels.get(e.id)) for e in employees])
+                 guidewire_level=levels.get(e.id), sees_money=sees_money, managers=managers) for e in employees])
 
 class GuidewireCertificationUpdate(BaseModel):
     # derived from certificates held; accepted only when it matches (old clients send it back)
@@ -381,12 +405,92 @@ def update_employee_organization(
     return {"employee_id": employee.id, "company_id": employee.company_id, "business_unit_id": employee.bu_id}
 
 
+@router.get("/{employee_id}/profile", dependencies=[Depends(require_resource_permission("employees", "view"))])
+def get_employee_profile(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Everything about one employee for the profile page (app.services.employee_profile_service)."""
+    from app.services.employee_profile_service import build_profile
+
+    employee = _get_employee_or_404(db, employee_id, current_user)
+    return build_profile(db, employee, current_user, _to_item(db, employee, viewer=current_user).dict())
+
+
+class ManagerUpdate(BaseModel):
+    manager_user_id: str
+
+
+@router.put("/{employee_id}/manager", dependencies=[Depends(require_resource_permission("employees", "edit"))])
+def update_employee_manager(
+    employee_id: str,
+    body: ManagerUpdate,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Who they report to. Someone with a WROS login is seated under the manager in the org chart
+    (the one reporting line timesheet and expense approvals follow; the org rules decide); someone
+    without a login has the manager recorded on their employee row."""
+    from app.services.org_structure_service import place_under_manager
+
+    employee = _get_employee_or_404(db, employee_id, current_user)
+    manager = db.query(Users).filter(Users.UserID == body.manager_user_id, Users.tenant_id == current_user.tenant_id,
+                                     Users.terminated_at.is_(None)).first()
+    if manager is None:
+        raise HTTPException(status_code=404, detail="Manager not found")
+    if manager.UserID == employee.wros_user_id:
+        raise HTTPException(status_code=400, detail="An employee cannot report to themselves")
+    if employee.wros_user_id:
+        login = db.query(Users).filter(Users.UserID == employee.wros_user_id).first()
+        try:
+            place_under_manager(db, login, manager)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+    else:
+        employee.reporting_manager_user_id = manager.UserID
+        manager_row = db.query(Employee).filter(Employee.wros_user_id == manager.UserID).first()
+        employee.manager_id = manager_row.id if manager_row else None
+    db.commit()
+    db.refresh(employee)
+    logger.info(f"[Employees] {employee.id} now reports to {manager.UserID} (set by {current_user.UserID})")
+    return _to_item(db, employee, viewer=current_user)
+
+
 class EmployeeDetailsUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     email: Optional[str] = None
     current_title: Optional[str] = None
     work_location: Optional[str] = None
+    # personal
+    legal_name: Optional[str] = None
+    personal_email: Optional[str] = None
+    phone: Optional[str] = None
+    date_of_birth: Optional[date] = None
+    gender: Optional[str] = None
+    nationality: Optional[str] = None
+    current_address: Optional[str] = None
+    permanent_address: Optional[str] = None
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
+    # job
+    employment_type: Optional[str] = None
+    joining_date: Optional[date] = None  # only before they join
+    confirmation_date: Optional[date] = None
+    visa_status: Optional[str] = None
+    total_experience_months: Optional[int] = None
+    # money and ids (finance-operations.edit)
+    base_salary_usd_cents: Optional[int] = None
+    billing_rate_usd_cents: Optional[int] = None
+    pan_number: Optional[str] = None
+    tax_id: Optional[str] = None
+
+
+# Free-text fields the PATCH takes as written (blank clears them)
+_TEXT_FIELDS = ("legal_name", "phone", "gender", "nationality", "current_address", "permanent_address",
+                "emergency_contact_name", "emergency_contact_phone", "visa_status")
+_MONEY_FIELDS = ("base_salary_usd_cents", "billing_rate_usd_cents", "pan_number", "tax_id")
 
 
 @router.get("/edit-options", dependencies=[Depends(require_resource_permission("employees", "view"))])
@@ -404,12 +508,55 @@ def update_employee_details(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    """Name, email, title and work location. The email is the person's identity once they have a
-    WROS login (they sign in with it), so it changes in Users & Access, not here."""
-    from app.models.employee import WORK_LOCATIONS
+    """Any field of the profile page's Personal, Job and Finance sections. The work email is the
+    person's identity once they have a WROS login (they sign in with it), so it changes in Users &
+    Access, not here. Salary, bill rate and government ids need finance-operations.edit."""
+    from app.models.employee import EMPLOYMENT_TYPES, WORK_LOCATIONS
 
     employee = _get_employee_or_404(db, employee_id, current_user)
     updates = body.dict(exclude_unset=True)
+    if any(field in updates for field in _MONEY_FIELDS) and not can_edit_compensation(db, current_user):
+        raise HTTPException(status_code=403, detail="Salary, bill rate and tax ids need Finance Operations edit access")
+    for field in _TEXT_FIELDS:
+        if field in updates:
+            setattr(employee, field, (updates[field] or "").strip() or None)
+    if "personal_email" in updates:
+        personal = (updates["personal_email"] or "").strip().lower() or None
+        if personal and "@" not in personal:
+            raise HTTPException(status_code=400, detail="Personal email is not a valid email")
+        employee.personal_email = personal
+    if "date_of_birth" in updates:
+        dob = updates["date_of_birth"]
+        if dob is not None and dob >= date.today():
+            raise HTTPException(status_code=400, detail="Date of birth must be in the past")
+        employee.date_of_birth = dob
+    if "employment_type" in updates:
+        if updates["employment_type"] not in EMPLOYMENT_TYPES:
+            raise HTTPException(status_code=400, detail=f"Employment type must be one of {list(EMPLOYMENT_TYPES)}")
+        employee.employment_type = updates["employment_type"]
+    if "joining_date" in updates and updates["joining_date"] != employee.joining_date:
+        if employee.status != "PRE_JOINING" or updates["joining_date"] is None:
+            raise HTTPException(status_code=409, detail="The joining date changes only before the employee joins")
+        employee.joining_date = updates["joining_date"]
+    if "confirmation_date" in updates:
+        confirmed = updates["confirmation_date"]
+        if confirmed is not None and confirmed < employee.joining_date:
+            raise HTTPException(status_code=400, detail="Confirmation cannot be before the joining date")
+        employee.confirmation_date = confirmed
+    if "total_experience_months" in updates:
+        months = updates["total_experience_months"]
+        if months is not None and months < 0:
+            raise HTTPException(status_code=400, detail="Experience cannot be negative")
+        employee.total_experience_months = months
+    for field in ("base_salary_usd_cents", "billing_rate_usd_cents"):
+        if field in updates:
+            amount = updates[field]
+            if amount is not None and amount < 0:
+                raise HTTPException(status_code=400, detail="Amounts cannot be negative")
+            setattr(employee, field, amount)
+    for field in ("pan_number", "tax_id"):
+        if field in updates:
+            setattr(employee, field, (updates[field] or "").strip().upper() or None)
     for field in ("first_name", "last_name"):
         if field in updates:
             value = (updates[field] or "").strip()
@@ -436,7 +583,7 @@ def update_employee_details(
         employee.email = email
     db.commit()
     db.refresh(employee)
-    return _to_item(db, employee)
+    return _to_item(db, employee, viewer=current_user)
 
 
 class EmployeeHtdUpdate(BaseModel):
@@ -473,7 +620,7 @@ def update_employee_htd(
     db.refresh(employee)
     logger.info(f"[Employees] {employee.id} HTD track={employee.htd_track} phase={employee.htd_phase} "
                 f"by {current_user.UserID}")
-    return _to_item(db, employee)
+    return _to_item(db, employee, viewer=current_user)
 
 
 class EmploymentChangeRequest(BaseModel):
@@ -504,7 +651,7 @@ def change_employee_employment(
     db.commit()
     db.refresh(employee)
     logger.info(f"[Employees] {employee.id} employment change {body.action} by {current_user.UserID}")
-    return _to_item(db, employee)
+    return _to_item(db, employee, viewer=current_user)
 
 
 class EmployeeBillableUpdate(BaseModel):
@@ -526,7 +673,7 @@ def update_employee_billable(
     set_billable(db, employee, body.billable, changed_by=current_user.UserID)
     db.commit()
     db.refresh(employee)
-    return _to_item(db, employee)
+    return _to_item(db, employee, viewer=current_user)
 
 
 @router.put("/{employee_id}/certifications", dependencies=[Depends(require_resource_permission("employees", "edit"))])
@@ -741,7 +888,7 @@ def get_employee(
     current_user: Users = Depends(get_current_internal_user),
 ):
     employee = _get_employee_or_404(db, employee_id, current_user)
-    return _to_item(db, employee)
+    return _to_item(db, employee, viewer=current_user)
 
 
 @router.post(
@@ -789,7 +936,7 @@ def mark_bench(
     sync_billing_classification(db, employee)
     db.commit()
     db.refresh(employee)
-    return _to_item(db, employee)
+    return _to_item(db, employee, viewer=current_user)
 
 @router.post(
     "/{employee_id}/remove-from-bench", response_model=EmployeeItem,
@@ -811,7 +958,7 @@ def remove_from_bench(
     remove_employee_from_bench(db, employee)  # clears a stale row
     db.commit()
     db.refresh(employee)
-    return _to_item(db, employee)
+    return _to_item(db, employee, viewer=current_user)
 
 
 

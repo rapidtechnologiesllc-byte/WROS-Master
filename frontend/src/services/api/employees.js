@@ -186,3 +186,18 @@ export const updateEmployeeHtd = async (employeeId, htd) => {
   });
   return data;
 };
+
+// Everything about one employee for the profile page
+export const getEmployeeProfile = async (employeeId) => {
+  const { data } = await apiRequest(`/employees/${employeeId}/profile`, { method: "GET" });
+  return data;
+};
+
+// Who they report to (seated under the manager in the org chart when they have a login)
+export const updateEmployeeManager = async (employeeId, managerUserId) => {
+  const { data } = await apiRequest(`/employees/${employeeId}/manager`, {
+    method: "PUT",
+    body: JSON.stringify({ manager_user_id: managerUserId }),
+  });
+  return data;
+};
