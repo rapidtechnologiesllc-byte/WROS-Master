@@ -29,6 +29,7 @@ import uuid
 from datetime import date as date_type, datetime
 
 from sqlalchemy import (
+    CheckConstraint,
     JSON, Boolean, Column, Date, DateTime, Enum, ForeignKey, Index, Integer, Numeric,
     String, Text, UniqueConstraint, func, text,
 )
@@ -64,12 +65,16 @@ logger = logging.getLogger(__name__)
 
 class EmployeeAllocation(Base):
     __tablename__ = "employee_allocations"
+    __table_args__ = (CheckConstraint("demand_id IS NOT NULL OR project_id IS NOT NULL",
+                                      name="ck_allocation_job_or_project"),)
 
     id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
-    demand_id = Column(String(512), ForeignKey("jobs.jobID"), nullable=False, index=True)
+    # The client job (Staff Aug) -- empty for project work, where the project names the client and
+    # the allocation its own role and bill rate (CEO 2026-10-24); one of the two is always set
+    demand_id = Column(String(512), ForeignKey("jobs.jobID"), nullable=True, index=True)
     client_id = Column(String(512), ForeignKey("clients.id"), nullable=False, index=True)
     # HRMS-0803 -- nullable: not every allocation is tied to a tracked project.
     project_id = Column(String(512), ForeignKey("projects.id"), nullable=True, index=True)

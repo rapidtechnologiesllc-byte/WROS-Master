@@ -101,7 +101,8 @@ def _allocation_summaries(db: Session, employee_ids) -> dict:
     out = {}
     for r in rows:
         out.setdefault(r.employee_id, []).append({
-            "allocation_id": r.id, "client_name": clients.get(r.client_id), "job_title": jobs.get(r.demand_id),
+            "allocation_id": r.id, "client_name": clients.get(r.client_id),
+            "job_title": jobs.get(r.demand_id) or r.role,
             "utilization_pct": float(r.utilization_pct) if r.utilization_pct is not None else 100.0,
             "start_date": r.start_date.isoformat() if r.start_date else None,
             "end_date": r.end_date.isoformat() if r.end_date else None,

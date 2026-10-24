@@ -249,12 +249,36 @@ def apply_margin_guard(db: Session, allocation: EmployeeAllocation, employee: Em
     return held
 
 
+class ProjectPlacement:
+    """A project placement read like a client job by the placement rules and the margin guard:
+    the project's client and delivery line, no job id, no job bill rate (the allocation carries its
+    own). Used for project work, which is allocated to the project, not a client job (CEO 2026-10-24)."""
+
+    def __init__(self, project):
+        self.id = None
+        self.client_id = project.client_id
+        self.project_id = project.id
+        self.billing_rate_usd_cents = None
+        self.assigned_bu_id = None
+        self.job_title = None
+        self.name = project.name
+
+
+def placement_target(db: Session, allocation: EmployeeAllocation):
+    """What an allocation was placed on: its client job, or its project for project work."""
+    if allocation.demand_id:
+        return db.query(Demand).filter(Demand.id == allocation.demand_id).one()
+    from app.models.project import Project
+
+    return ProjectPlacement(db.query(Project).filter(Project.id == allocation.project_id).one())
+
+
 def allocate_employee_to_project(
     db: Session,
     *,
     tenant_id: Optional[int],
     employee: Employee,
-    demand: Demand,
+    demand: Optional[Demand],
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     utilization_pct: Optional[float] = None,
@@ -286,6 +310,18 @@ def allocate_employee_to_project(
     margin is checked and recorded, never held -- existing placements are not blocked
     retroactively.
     """
+    if demand is None:
+        # project work: the project names the client; the allocation names the role and bill rate
+        if project is None:
+            raise AllocationNeedsClient("Choose the client job (Staff Aug) or the project to allocate to.")
+        if not project.client_id:
+            raise AllocationNeedsClient(f"Project {project.name} has no client. Set its client before allocating anyone.")
+        if not (role or "").strip():
+            raise AllocationEditInvalid("Enter the role on the project.")
+        demand = ProjectPlacement(project)
+        is_project_work = True
+    else:
+        is_project_work = False
     if not demand.client_id:
         raise AllocationNeedsClient(
             f"Job {demand.id} has no client. Set the client on the job before allocating anyone to it."
@@ -312,8 +348,11 @@ def allocate_employee_to_project(
 
     rate = billing_rate_usd_cents or demand.billing_rate_usd_cents
     is_billable = billable if billable is not None else (bool(project.is_billable) if project is not None else True)
+    if is_project_work and is_billable and not rate:
+        raise AllocationEditInvalid("Enter the bill rate: project work has no job to take it from.")
     allocation = EmployeeAllocation(
-        tenant_id=tenant_id, employee_id=employee.id, demand_id=demand.id, client_id=demand.client_id,
+        tenant_id=tenant_id, employee_id=employee.id, demand_id=None if is_project_work else demand.id,
+        client_id=demand.client_id,
         project_id=project.id if project else None, role=role,
         start_date=start, end_date=end_date, utilization_pct=utilization_pct,
         client_reporting_manager_contact_id=client_reporting_manager_contact_id,
@@ -330,7 +369,7 @@ def allocate_employee_to_project(
         db, allocation, employee, demand, changed_by=changed_by, existing_placement=existing_placement,
         reason=reason or ("Existing placement recorded by import" if existing_placement else "Placement"))
     if not held:
-        _place_employee(db, employee, demand.id, changed_by)
+        _place_employee(db, employee, f"project {project.name}" if is_project_work else demand.id, changed_by)
     db.flush()
     from app.services.bench_service import sync_billing_classification
 
@@ -529,7 +568,7 @@ def edit_allocation(
     old = {key: current[key] for key in new}
 
     employee = db.query(Employee).filter(Employee.id == allocation.employee_id).one()
-    demand = db.query(Demand).filter(Demand.id == allocation.demand_id).one()
+    demand = placement_target(db, allocation)
     result = None
     if not _is_reduction_only(old, new):
         result = _run_edit_rules(db, allocation, employee, demand, {**current, **new}, effective_from)
@@ -566,7 +605,7 @@ def decision_guard(db: Session, change: AllocationChange, user) -> EmployeeAlloc
         raise AllocationNotEditable("This change has already been decided.")
     allocation = db.query(EmployeeAllocation).filter(EmployeeAllocation.id == change.allocation_id).one()
     employee = db.query(Employee).filter(Employee.id == allocation.employee_id).one()
-    demand = db.query(Demand).filter(Demand.id == allocation.demand_id).first()
+    demand = placement_target(db, allocation)
     bu_id = margin_guard.revenue_business_unit(db, client_id=allocation.client_id, demand=demand, employee=employee)
     why_not = margin_guard.may_decide(db, user, approval_level=change.approval_level or margin_guard.BU_HEAD,
                                       bu_id=bu_id, requested_by=change.changed_by_user_id)
@@ -600,7 +639,7 @@ def decide_margin_change(db: Session, change: AllocationChange, user, *, approve
         raise AllocationEditInvalid("Give the reason for the decision (a sentence: it is kept in the history).")
     allocation = decision_guard(db, change, user)
     employee = db.query(Employee).filter(Employee.id == allocation.employee_id).one()
-    demand = db.query(Demand).filter(Demand.id == allocation.demand_id).one()
+    demand = placement_target(db, allocation)
     if approve and change.change_type == "CREATE":
         _assert_placement_rules(db, employee, demand)
         _assert_capacity(db, employee, start=allocation.start_date, end=allocation.end_date,

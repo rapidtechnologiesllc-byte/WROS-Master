@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 
 class CreateAllocationRequest(BaseModel):
     employee_id: str
-    demand_id: str
+    # The client job for Staff Aug; empty for project work (project_id + role + bill rate)
+    demand_id: Optional[str] = None
     # HRMS-0803 -- no REST caller ever passed this through before S-358's
     # Project API existed; nullable, since not every allocation traces
     # to a tracked project.
@@ -42,7 +43,7 @@ class AllocationItem(BaseModel):
     id: str
     employee_id: str
     employee_name: str
-    demand_id: str
+    demand_id: Optional[str] = None  # empty for project work (CEO 2026-10-24)
     demand_job_title: str
     client_id: str
     client_name: Optional[str] = None
@@ -97,9 +98,20 @@ class JobDropdownItem(BaseModel):
     billing_rate_usd_cents: Optional[int] = None
     status: Optional[str] = None
 
+class ProjectDropdownItem(BaseModel):
+    """A live project an employee can be allocated to directly (project work, no client job)."""
+    id: str
+    name: str
+    client_id: Optional[str] = None
+    client_name: Optional[str] = None
+    delivery_engine: Optional[str] = None
+    is_billable: bool = True
+
+
 class AllocationDropdownsResponse(BaseModel):
     employees: List[DropdownItem]
     demands: List[JobDropdownItem]
+    projects: List[ProjectDropdownItem] = []
 
 
 class MarginCheck(BaseModel):

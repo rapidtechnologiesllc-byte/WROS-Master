@@ -116,7 +116,7 @@ def renewal_rows(db: Session, allocations: List[EmployeeAllocation], today: Opti
             "allocation_id": allocation.id, "employee_id": allocation.employee_id,
             "employee_name": f"{employee.first_name} {employee.last_name}".strip() if employee else None,
             "client_id": allocation.client_id, "client_name": client.company_name if client else None,
-            "job_title": job.job_title if job else None, "role": allocation.role,
+            "job_title": job.job_title if job else allocation.role, "role": allocation.role,
             "start_date": allocation.start_date, "end_date": allocation.end_date,
             "days_left": (allocation.end_date - today).days if allocation.end_date else None,
             "billing_rate_usd_cents": allocation.billing_rate_usd_cents,
