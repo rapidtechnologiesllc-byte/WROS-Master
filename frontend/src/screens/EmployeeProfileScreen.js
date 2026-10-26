@@ -2,7 +2,7 @@
 // for About, Profile, Job, Documents, Finances and Timeline. Every section edits in place (its own
 // Edit button); the server decides what each viewer may see and change (GET /employees/{id}/profile).
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Briefcase, IdCard, Mail, MapPin, Pencil, Phone } from "lucide-react";
 import { Button, Input, Select, TextArea } from "../components/ui";
 import cx from "../utils/cx";
@@ -21,11 +21,13 @@ import { EmploymentActions, HtdControl } from "../components/EmployeeEditPanels"
 import EmployeeAllocations from "../components/EmployeeAllocations";
 import EmployeeCertifications from "../components/EmployeeCertifications";
 import EscalationsPanel from "../components/EmployeeEscalations";
+import { FeedbackSection, ReviewList } from "../components/PerformancePanel";
+import { getEmployeePerformance } from "../services/api/performance";
 import ActivityTimeline from "../components/timeline/ActivityTimeline";
 
 const TABS = [
   ["about", "About"], ["profile", "Profile"], ["job", "Job"], ["documents", "Documents"],
-  ["finance", "Finances"], ["timeline", "Timeline"],
+  ["finance", "Finances"], ["performance", "Performance"], ["timeline", "Timeline"],
 ];
 const COMPANIES_PATH = "/api/v1/api/admin/users-access-control/delivery-centers";
 
@@ -512,6 +514,38 @@ function FinanceTab({ profile, save, reload }) {
   );
 }
 
+// Performance: reviews by the reporting chain, then praise / feedback / internal notes. A task link
+// (?review=<id>) opens that review.
+function PerformanceTab({ profile }) {
+  const [searchParams] = useSearchParams();
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+  const load = useCallback(async () => {
+    setError("");
+    try {
+      setData(await getEmployeePerformance(profile.id));
+    } catch (err) {
+      console.error("[EmployeeProfile] Failed to load performance:", err);
+      setError(err.message);
+    }
+  }, [profile.id]);
+  useEffect(() => {
+    load();
+  }, [load]);
+  if (error) return <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>;
+  if (!data) return <div className="py-6 text-center text-gray-500">Loading performance...</div>;
+  return (
+    <div className="space-y-4">
+      <Section title="Reviews" subtitle="Reporting manager every two weeks, BU head monthly, partner quarterly. Only the reporting chain and HR see them; the employee sees a review once it is completed and shared with them.">
+        <ReviewList data={data} openReviewId={searchParams.get("review")} onSaved={load} />
+      </Section>
+      <Section title="Feedback" subtitle="Praise is visible to everyone; feedback to the employee, their reporting chain and HR.">
+        <FeedbackSection data={data} employeeId={profile.id} onSaved={load} />
+      </Section>
+    </div>
+  );
+}
+
 const HISTORY_LABEL = { STATUS: "Status", ENGINE: "Delivery engine" };
 function describe(value) {
   if (value == null) return "—";
@@ -624,6 +658,7 @@ export default function EmployeeProfileScreen() {
       {tab === "job" && <JobTab profile={profile} save={save} reload={reload} orgOptions={orgOptions} managers={managers} />}
       {tab === "documents" && <DocumentsTab profile={profile} />}
       {tab === "finance" && <FinanceTab profile={profile} save={save} reload={reload} />}
+      {tab === "performance" && <PerformanceTab profile={profile} />}
       {tab === "timeline" && <TimelineTab profile={profile} />}
     </div>
   );

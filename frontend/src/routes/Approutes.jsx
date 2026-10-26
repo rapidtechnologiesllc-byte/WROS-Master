@@ -35,6 +35,7 @@ const UsersAndAccessControl = lazy(() => import("../screens/UsersAndAccessContro
 const UserFormPage = lazy(() => import("../screens/UserFormPage"));
 const EmployeesConsolidatedScreen = lazy(() => import("../screens/EmployeesConsolidatedScreen"));
 const EmployeeProfileScreen = lazy(() => import("../screens/EmployeeProfileScreen"));
+const MyPerformanceScreen = lazy(() => import("../screens/MyPerformanceScreen"));
 const BusinessUnitFormPage = lazy(() => import("../screens/BusinessUnitFormPage"));
 const DeliveryCenterFormPage = lazy(() => import("../screens/DeliveryCenterFormPage"));
 const SystemHealth = lazy(() => import("../screens/SystemHealth"));
@@ -577,6 +578,7 @@ function AuthenticatedApp() {
           <Route path="demand-confirmation" element={<DemandConfirmationScreen />} />
           <Route path="employees" element={<EmployeesConsolidatedScreen />} />
           <Route path="employees/:employeeId" element={<EmployeeProfileScreen />} />
+          <Route path="my-performance" element={<MyPerformanceScreen />} />
           <Route path="employee-conversion" element={<EmployeeConversionScreen />} />
           <Route path="pipeline" element={<PipelineAndSubmissionsScreen />} />
           <Route path="hiring-pipeline" element={<Navigate to="/pipeline?view=pipeline" replace />} />

@@ -97,7 +97,7 @@ SEEDED_ROLES = {**{name: BEFORE_RESOURCES for name in SYSTEM_ROLES}, **BEFORE_LE
 # the Employees > Allocations tab, Ask Thunder is a QA simulator. "Forecasts" now opens Forecast vs Actual
 # (its API checks forecasts), so a role holding only forecasts swaps /forecast for /forecast-vs-actual.
 INTENDED_REMOVALS = {"/ceo-fy-progress", "/cfo-dashboard", "/bu-head-dashboard", "/allocations", "/thunder"}
-INTENDED_ADDITIONS = {"/forecast-vs-actual": "forecasts"}  # route -> resource whose view grant adds it
+INTENDED_ADDITIONS = {"/forecast-vs-actual": "forecasts", "/my-performance": "my-tasks"}  # route -> resource whose view grant adds it
 # Decision 3: merged screens. The old route redirects to the merged screen's tab; every role that
 # reached any of the parts reaches the merged screen (its tabs follow the same permissions).
 ROUTE_MOVES = {
@@ -361,6 +361,12 @@ SCREEN_APIS = {
     ("email_templates.py", "", "get"): "checklists",
     ("email_templates.py", "/{stage}", "put"): "checklists",
     ("email_templates.py", "/{stage}/preview", "get"): "checklists",
+    # My Performance follows My Tasks (CEO 2026-10-24)
+    ("performance.py", "/me", "get"): "my-tasks",
+    ("performance.py", "/colleagues", "get"): "my-tasks",
+    ("performance.py", "/reviews/{review_id}", "put"): "my-tasks",
+    ("performance.py", "/employees/{employee_id}/feedback", "post"): "my-tasks",
+    ("performance.py", "/employees/{employee_id}", "get"): "employees",
     ("hiring_pipeline.py", "", "get"): "convert-to-employee",
     ("hiring_pipeline.py", "/candidate/{candidate_id}/evaluate", "post"): "convert-to-employee",
     ("employees.py", "/utilization-summary", "get"): "utilization-dashboard",
