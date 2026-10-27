@@ -37,6 +37,7 @@ email-validator>=2.0.0,<3.0.0    # Email validation
 python-dateutil>=2.8.0,<3.0.0    # Extensions to the standard datetime module
 openpyxl>=3.1.0,<4.0.0           # .xlsx read/write (bulk employee import)
 python-docx>=1.1.0,<2.0.0        # Read/write .docx files (offer letter and salary structure generation)
+pypdf>=5.0.0,<6.0.0              # Read resume PDFs forwarded to the HRMS mailbox (forward_classifier)
 
 # Configuration & Environment
 # ----------------------------------------------------------------------------

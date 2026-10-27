@@ -57,7 +57,8 @@ class Classification:
     erasure_requested: bool = False
 
 
-def _is_auto(subject: str, headers: Dict[str, str]) -> bool:
+def is_auto_message(subject: str, headers: Dict[str, str]) -> bool:
+    """An automatic reply, bounce or bulk mail (headers keyed lower-case)."""
     auto_submitted = (headers.get("auto-submitted") or "").lower()
     if auto_submitted and auto_submitted != "no":
         return True
@@ -100,7 +101,7 @@ def classify_reply(
 
     if OPT_OUT_PATTERN.search(text) or REMOVE_ONLY_PATTERN.match((body or "").strip()):
         return Classification("UNSUBSCRIBE", 1.0, "rule", bool(ERASURE_PATTERN.search(text)))
-    if _is_auto(subject, headers):
+    if is_auto_message(subject, headers):
         return Classification("AUTO", 1.0, "rule")
 
     from app.services.prompt_framework_service import call_llm

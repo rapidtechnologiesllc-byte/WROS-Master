@@ -251,12 +251,16 @@ def get_all_candidates(db: Session = Depends(get_db), user=Depends(get_current_u
             db, db.query(Candidate).filter(Candidate.tenant_id == user.tenant_id), user,
         ).all()
         candidates_data = []
+        # Every candidate's status in one query (was one query per candidate); the first row
+        # per candidate, as .first() returned
+        statuses = {}
+        ids = [c.candidateID for c in candidates]
+        for start in range(0, len(ids), 1000):
+            for row in db.query(CandidateStatus).filter(CandidateStatus.candidateID.in_(ids[start:start + 1000]))                     .order_by(CandidateStatus.id):
+                statuses.setdefault(row.candidateID, row)
 
         for c in candidates:
-            # Get candidate status
-            candidate_status = db.query(CandidateStatus).filter(
-                CandidateStatus.candidateID == c.candidateID
-            ).first()
+            candidate_status = statuses.get(c.candidateID)
 
             # Build name
             name_parts = [c.candidateFirstName or "", c.candidateLastName or ""]

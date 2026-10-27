@@ -154,6 +154,8 @@ class Settings:
     
     # File Upload Settings
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
+    # Responses at least this big are gzip-compressed (app.main)
+    GZIP_MIN_BYTES: int = int(os.getenv("GZIP_MIN_BYTES", "1000"))
     # Panel vs Flash calibration: Flash "advances" a candidate whose job match score is at least this
     FLASH_ADVANCE_SCORE: int = int(os.getenv("FLASH_ADVANCE_SCORE", "60"))
     # Employee referral bonus (US cents) when the job has no referral settings of its own
@@ -308,6 +310,10 @@ class Settings:
     THUNDER_ENGAGEMENT_ENABLED: bool = os.getenv("THUNDER_ENGAGEMENT_ENABLED", "true").lower() == "true"
     THUNDER_ENGAGEMENT_LOOKBACK_DAYS: int = int(os.getenv("THUNDER_ENGAGEMENT_LOOKBACK_DAYS", "30"))
     THUNDER_ENGAGEMENT_BATCH: int = int(os.getenv("THUNDER_ENGAGEMENT_BATCH", "50"))
+    # Mailbox intake: an email a staff member forwards to THUNDER_MAILBOX becomes a candidate (with
+    # its resume), a note on the candidate / job / employee it is about, or a task for the forwarder
+    # (app.services.thunder_mail.forward_intake_service). Read by the mail_sync_worker poll.
+    MAILBOX_INTAKE_ENABLED: bool = os.getenv("MAILBOX_INTAKE_ENABLED", "true").lower() == "true"
 
     # Finance: invoices are emailed from this mailbox (same Graph app permissions as Thunder)
     FINANCE_MAILBOX: str = os.getenv("FINANCE_MAILBOX", "") or THUNDER_MAILBOX

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { apiRequest } from "../../services/api/client";
 import { hrCompleteChecklistItem } from "../../services/api/checklists";
 import { getCandidateDocuments } from "../../services/api/documents";
+import CandidateTasks from "../../components/CandidateTasks";
 
 const DOCUMENT_TASK_MAPPINGS = [
   { type: "pan", keywords: ["pan"] },
@@ -23,6 +24,16 @@ const DOCUMENT_TASK_MAPPINGS = [
 ];
 
 export default function TasksTab({ candidateId }) {
+  return (
+    <div className="grid gap-6">
+      <CandidateTasks candidateId={candidateId} />
+      <OnboardingChecklists candidateId={candidateId} />
+    </div>
+  );
+}
+
+// Onboarding checklist items (document collection), completed once the document is verified
+function OnboardingChecklists({ candidateId }) {
   const [data, setData] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -125,12 +136,8 @@ export default function TasksTab({ candidateId }) {
     );
   }
 
-  if (!data || data.checklists?.length === 0) {
-    return (
-      <div className="p-6 text-center text-gray-400">
-        No tasks available
-      </div>
-    );
+  if (!data || !data.checklists?.length) {
+    return null; // no onboarding checklist yet: the Tasks section above is the tab
   }
 
   return (

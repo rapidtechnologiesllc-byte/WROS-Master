@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import {
   BadgeDollarSign,
   Briefcase,
@@ -149,75 +149,12 @@ export default function Shell({
   onLogout,
   candidates = [],
   jobs = [],
+  onSearchFocus,
   setSelectedCandidateData,
   setSelectedJobId,
 }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [, setPermissionsLoaded] = useState(false);
-
-  // Root cause fix: Refresh permissions from /hr/me on app load with retries
-  useEffect(() => {
-    let retryCount = 0;
-    const maxRetries = 12; // Retry every 5s for up to 60 seconds (0s, 5s, 10s, ..., 55s)
-    const retryInterval = 5000; // 5 seconds
-    let timeoutId = null;
-
-    const refreshPermissions = async () => {
-      try {
-        const { getHrMe } = await import("../services/api/users");
-        const user = await getHrMe();
-        if (user) {
-          // Update localStorage with fresh permissions (even if empty array)
-          if (user.roles && Array.isArray(user.roles)) {
-            localStorage.setItem("hrms_roles", JSON.stringify(user.roles));
-          }
-          if (user.authority) {
-            // home dashboard and leadership flags follow role changes without a re-login
-            localStorage.setItem("hrms_authority", JSON.stringify(user.authority));
-          }
-          if (user.permissions !== undefined) {
-            // Store permissions even if empty - means we got a response
-            localStorage.setItem("hrms_permissions", JSON.stringify(user.permissions || []));
-            setPermissionsLoaded(true); // Trigger re-render with new permissions
-            return true; // Success, stop retrying
-          }
-        }
-      } catch (error) {
-        if (retryCount >= maxRetries - 1) {
-          throw new Error(`Failed to refresh permissions after ${maxRetries} attempts: ${error.message}`);
-        }
-      }
-      return false; // Failed, continue retrying
-    };
-
-    const attemptRefresh = async () => {
-      if (!localStorage.getItem("hrms_token")) {
-        return; // No token, stop
-      }
-
-      const success = await refreshPermissions();
-      if (success) {
-        return; // Permissions loaded successfully
-      }
-
-      retryCount++;
-      if (retryCount < maxRetries) {
-        // Schedule next retry
-        timeoutId = setTimeout(attemptRefresh, retryInterval);
-      }
-    };
-
-    // Start the first attempt immediately
-    attemptRefresh();
-
-    // Cleanup timeouts on unmount
-    return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, []); // Run once on mount
 
 
   // Fetch navigation structure from backend based on role template permissions (all 175 resources)
@@ -417,11 +354,14 @@ export default function Shell({
             onLogout={onLogout}
             candidates={candidates}
             jobs={jobs}
+            onSearchFocus={onSearchFocus}
             setSelectedCandidateData={setSelectedCandidateData}
             setSelectedJobId={setSelectedJobId}
           />
           <div className="mt-4">
-            <Outlet />
+            <Suspense fallback={<div className="py-10 text-center text-sm text-gray-500">Loading...</div>}>
+              <Outlet />
+            </Suspense>
           </div>
         </main>
       </div>

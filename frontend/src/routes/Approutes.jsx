@@ -1,16 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
-import Dashboard from "../screens/Dashboard";
-import JobCreate from "../screens/JobCreate";
-import JobsOverview from "../screens/JobsOverview";
-import TemplatesAndChecklistsScreen from "../screens/TemplatesAndChecklistsScreen";
-import UsersAndAccessControl from "../screens/UsersAndAccessControl";
-import UserFormPage from "../screens/UserFormPage";
-import EmployeesConsolidatedScreen from "../screens/EmployeesConsolidatedScreen";
-import EmployeeProfileScreen from "../screens/EmployeeProfileScreen";
-import MyPerformanceScreen from "../screens/MyPerformanceScreen";
-import BusinessUnitFormPage from "../screens/BusinessUnitFormPage";
-import DeliveryCenterFormPage from "../screens/DeliveryCenterFormPage";
-import SystemHealth from "../screens/SystemHealth";
+import { lazy, useCallback, useEffect, useState } from "react";
 import { getAllInterviews } from "../services/api/interviews";
 import {
   getAllCandidates,
@@ -28,68 +16,82 @@ import { getAllUsers } from "../services/api/users";
 import { getAllCandidateStatuses } from "../services/api/candidateStatus";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import OfferListing from "../screens/OfferListing";
-import { Navigate, Route, Routes } from "react-router-dom";
-import AuthPage from "../pages/AuthPage";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import Shell from "../layout/Shell";
 import { adminRoutes } from "./AdminRoutes";
-import CandidateCreate from "../screens/CandidateCreate";
-import CandidateSearch from "../screens/CandidateSearch";
-import CandidateSelfService from "../screens/CandidateSelfService";
 import { hasPermission, homeDashboard, isCandidateUser } from "../utils/permissionsRoleTemplate";
 import { useNavigate } from "react-router-dom";
-import CandidateDetailsWrapper from "./wrappers/CandidateDetailsWrapper";
-import JobWorkspaceWrapper from "./wrappers/JobWorkspaceWrapper";
 import { ROUTES } from "../utils/Routes";
-import ThunderChatScreen from "../screens/ThunderChatScreen";
-import DemandVsBenchScreen from "../screens/DemandVsBenchScreen";
-import CorePullScreen from "../screens/CorePullScreen";
-import ClientManagementScreen from "../screens/ClientManagementScreen";
-import OpportunityPipelineScreen from "../screens/OpportunityPipelineScreen";
-import MyExpensesScreen from "../screens/MyExpensesScreen";
-import ExecutiveRevenueDashboardScreen from "../screens/ExecutiveRevenueDashboardScreen";
-import PnlFinanceScreen from "../screens/PnlFinanceScreen";
-import ActivateAccount from "../pages/ActivateAccount";
-import ClientTimesheetApproval from "../pages/ClientTimesheetApproval";
-import DemandConfirmationScreen from "../screens/DemandConfirmationScreen";
-import PipelineAndSubmissionsScreen from "../screens/PipelineAndSubmissionsScreen";
-import ProjectsScreen from "../screens/ProjectsScreen";
-import HtdIntakeScreen from "../screens/HtdIntakeScreen";
-import HmReviewScreen from "../screens/HmReviewScreen";
-import TimesheetsScreen from "../screens/TimesheetsScreen";
-import ForecastVsActualScreen from "../screens/ForecastVsActualScreen";
-import InvoicesScreen from "../screens/InvoicesScreen";
-import RevenueScreen from "../screens/RevenueScreen";
-import TenantLocaleScreen from "../screens/TenantLocaleScreen";
-import PublicThunderChatScreen from "../screens/PublicThunderChatScreen";
-import CandidatePortalScreen from "../screens/CandidatePortalScreen";
-import APIKeysSettings from "../screens/APIKeysSettings";
-import RecruiterWatchScreen from "../screens/RecruiterWatchScreen";
-import BulkLaunchScreen from "../screens/BulkLaunchScreen";
-import TenantAIConfigScreen from "../screens/TenantAIConfigScreen";
-import MyTasksScreen from "../screens/MyTasksScreen";
-import TimesheetApprovalScreen from "../screens/TimesheetApprovalScreen";
-import MyTimesheetScreen from "../screens/MyTimesheetScreen";
-import TicketRoutingAdminScreen from "../screens/TicketRoutingAdminScreen";
-import BuddyProgramListScreen from "../screens/BuddyProgramListScreen";
-import BuddyProgramScreen from "../screens/BuddyProgramScreen";
-import ExecutiveSignalScreen from "../screens/ExecutiveSignalScreen";
-import ErrorLogScreen from "../screens/ErrorLogScreen";
-import PartnerHomeScreen from "../screens/PartnerHomeScreen";
-import CEOUnifiedDashboard from "../screens/CEOUnifiedDashboard";
-import CFOAgentScreen from "../screens/CFOAgentScreen";
 import ConversationSearchBar from "../components/ConversationSearchBar";
 import SLABreachBanner from "../components/SLABreachBanner";
-import AgentHealthScreen from "../screens/AgentHealthScreen";
-import EmployeeConversionScreen from "../screens/EmployeeConversionScreen";
-import ForcePasswordReset from "../pages/ForcePasswordReset";
-import CertificationManagementScreen from "../screens/CertificationManagementScreen";
-import BIExplorerScreen from "../screens/BIExplorerScreen";
-import BuHeadDashboardScreen from "../screens/BuHeadDashboardScreen";
-import MyReferralsScreen from "../screens/MyReferralsScreen";
-import LinkedInPipelineScreen from "../screens/LinkedInPipelineScreen";
-import DocumentUploadScreen from "../screens/DocumentUploadScreen";
 import { confirmDialog, alertDialog } from "../utils/dialogs";
+
+// Screens load when first opened (one chunk each), not all in the bundle every page downloads
+const Dashboard = lazy(() => import("../screens/Dashboard"));
+const JobCreate = lazy(() => import("../screens/JobCreate"));
+const JobsOverview = lazy(() => import("../screens/JobsOverview"));
+const TemplatesAndChecklistsScreen = lazy(() => import("../screens/TemplatesAndChecklistsScreen"));
+const UsersAndAccessControl = lazy(() => import("../screens/UsersAndAccessControl"));
+const UserFormPage = lazy(() => import("../screens/UserFormPage"));
+const EmployeesConsolidatedScreen = lazy(() => import("../screens/EmployeesConsolidatedScreen"));
+const EmployeeProfileScreen = lazy(() => import("../screens/EmployeeProfileScreen"));
+const MyPerformanceScreen = lazy(() => import("../screens/MyPerformanceScreen"));
+const BusinessUnitFormPage = lazy(() => import("../screens/BusinessUnitFormPage"));
+const DeliveryCenterFormPage = lazy(() => import("../screens/DeliveryCenterFormPage"));
+const SystemHealth = lazy(() => import("../screens/SystemHealth"));
+const OfferListing = lazy(() => import("../screens/OfferListing"));
+const AuthPage = lazy(() => import("../pages/AuthPage"));
+const CandidateCreate = lazy(() => import("../screens/CandidateCreate"));
+const CandidateSearch = lazy(() => import("../screens/CandidateSearch"));
+const CandidateSelfService = lazy(() => import("../screens/CandidateSelfService"));
+const CandidateDetailsWrapper = lazy(() => import("./wrappers/CandidateDetailsWrapper"));
+const JobWorkspaceWrapper = lazy(() => import("./wrappers/JobWorkspaceWrapper"));
+const ThunderChatScreen = lazy(() => import("../screens/ThunderChatScreen"));
+const DemandVsBenchScreen = lazy(() => import("../screens/DemandVsBenchScreen"));
+const CorePullScreen = lazy(() => import("../screens/CorePullScreen"));
+const ClientManagementScreen = lazy(() => import("../screens/ClientManagementScreen"));
+const OpportunityPipelineScreen = lazy(() => import("../screens/OpportunityPipelineScreen"));
+const MyExpensesScreen = lazy(() => import("../screens/MyExpensesScreen"));
+const ExecutiveRevenueDashboardScreen = lazy(() => import("../screens/ExecutiveRevenueDashboardScreen"));
+const PnlFinanceScreen = lazy(() => import("../screens/PnlFinanceScreen"));
+const ActivateAccount = lazy(() => import("../pages/ActivateAccount"));
+const ClientTimesheetApproval = lazy(() => import("../pages/ClientTimesheetApproval"));
+const DemandConfirmationScreen = lazy(() => import("../screens/DemandConfirmationScreen"));
+const PipelineAndSubmissionsScreen = lazy(() => import("../screens/PipelineAndSubmissionsScreen"));
+const ProjectsScreen = lazy(() => import("../screens/ProjectsScreen"));
+const HtdIntakeScreen = lazy(() => import("../screens/HtdIntakeScreen"));
+const HmReviewScreen = lazy(() => import("../screens/HmReviewScreen"));
+const TimesheetsScreen = lazy(() => import("../screens/TimesheetsScreen"));
+const ForecastVsActualScreen = lazy(() => import("../screens/ForecastVsActualScreen"));
+const InvoicesScreen = lazy(() => import("../screens/InvoicesScreen"));
+const RevenueScreen = lazy(() => import("../screens/RevenueScreen"));
+const TenantLocaleScreen = lazy(() => import("../screens/TenantLocaleScreen"));
+const PublicThunderChatScreen = lazy(() => import("../screens/PublicThunderChatScreen"));
+const CandidatePortalScreen = lazy(() => import("../screens/CandidatePortalScreen"));
+const APIKeysSettings = lazy(() => import("../screens/APIKeysSettings"));
+const RecruiterWatchScreen = lazy(() => import("../screens/RecruiterWatchScreen"));
+const BulkLaunchScreen = lazy(() => import("../screens/BulkLaunchScreen"));
+const TenantAIConfigScreen = lazy(() => import("../screens/TenantAIConfigScreen"));
+const MyTasksScreen = lazy(() => import("../screens/MyTasksScreen"));
+const TimesheetApprovalScreen = lazy(() => import("../screens/TimesheetApprovalScreen"));
+const MyTimesheetScreen = lazy(() => import("../screens/MyTimesheetScreen"));
+const TicketRoutingAdminScreen = lazy(() => import("../screens/TicketRoutingAdminScreen"));
+const BuddyProgramListScreen = lazy(() => import("../screens/BuddyProgramListScreen"));
+const BuddyProgramScreen = lazy(() => import("../screens/BuddyProgramScreen"));
+const ExecutiveSignalScreen = lazy(() => import("../screens/ExecutiveSignalScreen"));
+const ErrorLogScreen = lazy(() => import("../screens/ErrorLogScreen"));
+const PartnerHomeScreen = lazy(() => import("../screens/PartnerHomeScreen"));
+const CEOUnifiedDashboard = lazy(() => import("../screens/CEOUnifiedDashboard"));
+const CFOAgentScreen = lazy(() => import("../screens/CFOAgentScreen"));
+const AgentHealthScreen = lazy(() => import("../screens/AgentHealthScreen"));
+const EmployeeConversionScreen = lazy(() => import("../screens/EmployeeConversionScreen"));
+const ForcePasswordReset = lazy(() => import("../pages/ForcePasswordReset"));
+const CertificationManagementScreen = lazy(() => import("../screens/CertificationManagementScreen"));
+const BIExplorerScreen = lazy(() => import("../screens/BIExplorerScreen"));
+const BuHeadDashboardScreen = lazy(() => import("../screens/BuHeadDashboardScreen"));
+const MyReferralsScreen = lazy(() => import("../screens/MyReferralsScreen"));
+const LinkedInPipelineScreen = lazy(() => import("../screens/LinkedInPipelineScreen"));
+const DocumentUploadScreen = lazy(() => import("../screens/DocumentUploadScreen"));
 
 
 // Wrapper component that renders the appropriate dashboard based on user permissions
@@ -327,7 +329,10 @@ export default function AppRoutes() {
 function AuthenticatedApp() {
   const [storedRole, setStoredRole] = useState(localStorage.getItem("permission_role"));
   const [storedJobTitle, setStoredJobTitle] = useState(localStorage.getItem("job_title"));
-  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  // Permissions cached at login render the app at once; the refresh below updates them in the
+  // background. Only a session with nothing cached waits for it.
+  const [permissionsLoading, setPermissionsLoading] = useState(!localStorage.getItem("hrms_permissions"));
+  const [, setPermissionsVersion] = useState(0);
 
   // Deleting a job needs the jobs delete permission on the role template
   const canDeleteJobs = hasPermission("jobs", "delete");
@@ -361,8 +366,14 @@ function AuthenticatedApp() {
           if (user.roles && Array.isArray(user.roles)) {
             localStorage.setItem("hrms_roles", JSON.stringify(user.roles));
           }
-          if (user.permissions && Array.isArray(user.permissions)) {
-            localStorage.setItem("hrms_permissions", JSON.stringify(user.permissions));
+          if (user.authority) {
+            // home dashboard and leadership flags follow role changes without a re-login
+            localStorage.setItem("hrms_authority", JSON.stringify(user.authority));
+          }
+          if (user.permissions !== undefined) {
+            // the role template's matrix (an object by resource); stored even when empty
+            localStorage.setItem("hrms_permissions", JSON.stringify(user.permissions || {}));
+            setPermissionsVersion((v) => v + 1); // re-render the menu and screens with them
           }
         }
       } catch (error) {
@@ -384,6 +395,19 @@ function AuthenticatedApp() {
       setPermissionsLoading(false);
     }
   }, []);
+
+  // Candidates, jobs, interviews, offers and users are loaded on demand: by the screens that use
+  // them (Home's generic dashboard, Candidates, Jobs, Offers) or the top bar search -- never on
+  // every page. Once loaded they stay for the session.
+  const location = useLocation();
+  const [dataWanted, setDataWanted] = useState(false);
+  const wantData = useCallback(() => setDataWanted(true), []);
+  useEffect(() => {
+    const path = location.pathname;
+    const needs = ["/candidates", "/jobs", "/offers-listing"].some((prefix) => path.startsWith(prefix))
+      || (path === "/" && homeDashboard() === "default");
+    if (needs) setDataWanted(true);
+  }, [location.pathname]);
 
   const [candidates, setCandidates] = useState([]);
 
@@ -436,6 +460,7 @@ function AuthenticatedApp() {
   }, [notify]);
 
   useEffect(() => {
+    if (!dataWanted) return undefined;
     let isMounted = true;
     const loadData = async () => {
       try {
@@ -492,7 +517,7 @@ function AuthenticatedApp() {
     return () => {
       isMounted = false;
     };
-  }, [notify, mapInterviews]);
+  }, [notify, mapInterviews, dataWanted]);
 
   const fetchCandidateById = async (id) => {
     const res = await getCandidateById(id);
@@ -526,6 +551,7 @@ function AuthenticatedApp() {
               onLogout={handleLogout}
               candidates={candidates}
               jobs={jobs}
+              onSearchFocus={wantData}
             />
           }
         >

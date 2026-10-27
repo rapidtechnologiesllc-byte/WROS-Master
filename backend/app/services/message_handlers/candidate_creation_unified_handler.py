@@ -256,6 +256,11 @@ class CandidateCreationUnifiedHandler:
                 db, candidate, payload['referring_employee_id'], payload.get('referral_job_id'),
                 recorded_by_user_id=payload.get('created_by_user_id'))
 
+        # Queued from an email forwarded to the HRMS mailbox: its resume and note attach next
+        if payload.get('mailbox_intake_id'):
+            from app.services.thunder_mail.forward_intake_service import link_created_candidate
+            link_created_candidate(db, payload['mailbox_intake_id'], candidate_id)
+
         # Queued from the LinkedIn pipeline: link the item and its open task
         if payload.get('linkedin_pipeline_id'):
             from app.services.linkedin_pipeline_task_service import link_candidate_to_pipeline
