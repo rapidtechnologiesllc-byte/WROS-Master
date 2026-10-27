@@ -19,6 +19,7 @@ import {
 } from "../services/api/rbac";
 import { Steps } from "antd";
 import { ROUTES } from "../utils/Routes";
+import { Country } from "../utils/geo";
 
 export default function JobCreate({
   onSave,
@@ -143,7 +144,7 @@ export default function JobCreate({
         let locationLabel = "";
         if (isJobLocationRemote) {
           const countryName = locationValue?.countryCode ?
-            (require("country-state-city").Country.getCountryByCode(locationValue.countryCode)?.name || locationValue.countryCode)
+            (Country.getCountryByCode(locationValue.countryCode)?.name || locationValue.countryCode)
             : "Global";
           locationLabel = `Remote - ${countryName}`;
         } else {
@@ -476,7 +477,7 @@ export default function JobCreate({
   const pickedLocationLabel = () => {
     if (isJobLocationRemote) {
       const countryName = locationValue?.countryCode
-        ? (require("country-state-city").Country.getCountryByCode(locationValue.countryCode)?.name || locationValue.countryCode)
+        ? (Country.getCountryByCode(locationValue.countryCode)?.name || locationValue.countryCode)
         : "Global";
       return `Remote - ${countryName}`;
     }
@@ -631,7 +632,7 @@ export default function JobCreate({
                       className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-gray-900"
                     >
                       <option value="">Select country</option>
-                      {require("country-state-city").Country.getAllCountries().map((c) => (
+                      {Country.getAllCountries().map((c) => (
                         <option key={c.isoCode} value={c.isoCode}>
                           {c.name}
                         </option>

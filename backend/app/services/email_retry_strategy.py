@@ -69,6 +69,13 @@ class EmailRetryStrategy:
             'honor_retry_after': True,
             'jitter': 0.15
         },
+        # Forwarded-email intake: Graph / LLM / SharePoint outages last minutes, not seconds
+        'thunder_process_forwarded_email': {
+            'delays': [60, 300, 900, 1800, 3600],
+            'max_attempts': 5,
+            'honor_retry_after': True,
+            'jitter': 0.15
+        },
         # Database operations can retry quickly
         'create_candidate': {
             'delays': [1, 2, 4, 8, 16],

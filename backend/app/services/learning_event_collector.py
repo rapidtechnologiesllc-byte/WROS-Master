@@ -19,6 +19,15 @@ from app.models.learning_events import (
 logger = logging.getLogger(__name__)
 
 
+def _tenant_key(tenant_id) -> str:
+    """Every learning table keys the tenant as text. Comparing that column with the integer
+    tenant id is a PostgreSQL error, and it aborted the caller's whole transaction: the Thunder
+    first engagement of every new candidate failed on it (2026-10-24)."""
+    if tenant_id is None:
+        raise ValueError("Learning events need a tenant")
+    return str(tenant_id)
+
+
 class LearningEventCollector:
     """Unified event collection for all learning modules"""
 
@@ -61,6 +70,7 @@ class LearningEventCollector:
         Returns:
             Event record with ID and confidence_gap measurement
         """
+        tenant_id = _tenant_key(tenant_id)
         try:
             # Calculate confidence gap if both predicted and actual available
             confidence_gap = None
@@ -100,7 +110,8 @@ class LearningEventCollector:
                 cascade_source=cascade_source,
             )
 
-            db.add(event)
+            with db.begin_nested():  # a failed insert undoes only itself, not the caller's work
+                db.add(event)
             db.commit()
 
             logger.info(
@@ -121,8 +132,7 @@ class LearningEventCollector:
             }
 
         except Exception as e:
-            logger.error(f"[EventCollector] Failed to record event: {e}")
-            db.rollback()
+            logger.error(f"[EventCollector] Failed to record event: {e}", exc_info=True)
             raise
 
     @staticmethod
@@ -136,6 +146,7 @@ class LearningEventCollector:
         Get events that have predicted outcome but no actual outcome yet.
         Used to identify where we're waiting for feedback.
         """
+        tenant_id = _tenant_key(tenant_id)
         try:
             query = db.query(LearningEvent).filter(
                 LearningEvent.tenant_id == tenant_id,
@@ -185,6 +196,7 @@ class LearningEventCollector:
         """Get recent events for a module for learning analysis"""
         from sqlalchemy import desc
 
+        tenant_id = _tenant_key(tenant_id)
         try:
             events = (
                 db.query(LearningEvent)
@@ -205,10 +217,8 @@ class LearningEventCollector:
             return events
 
         except Exception as e:
-            logger.error(
-                f"[EventCollector] Failed to get recent events for {module}: {e}"
-            )
-            return []
+            logger.error(f"[EventCollector] Failed to get recent events for {module}: {e}", exc_info=True)
+            raise
 
     @staticmethod
     def create_event_batch(
@@ -222,6 +232,7 @@ class LearningEventCollector:
         Create a batch record when weight updates are triggered.
         Used for audit trail and learning history.
         """
+        tenant_id = _tenant_key(tenant_id)
         try:
             event_count = len(events) if events else 0
 
@@ -255,7 +266,8 @@ class LearningEventCollector:
                 recorded_timestamp=datetime.utcnow(),
             )
 
-            db.add(batch)
+            with db.begin_nested():
+                db.add(batch)
             db.commit()
 
             logger.info(
@@ -276,8 +288,7 @@ class LearningEventCollector:
             }
 
         except Exception as e:
-            logger.error(f"[EventCollector] Failed to create batch: {e}")
-            db.rollback()
+            logger.error(f"[EventCollector] Failed to create batch: {e}", exc_info=True)
             raise
 
     @staticmethod
@@ -287,29 +298,32 @@ class LearningEventCollector:
         module: str,
         segment_id: str,
     ) -> Optional[Dict[str, Any]]:
-        """Get or create segment learning profile"""
+        """Get or create segment learning profile. Runs in a savepoint: a failure undoes only
+        itself and is raised (callers that can do without learning fall back explicitly)."""
+        tenant_id = _tenant_key(tenant_id)
         try:
-            profile = (
-                db.query(SegmentLearningProfile)
-                .filter(
-                    SegmentLearningProfile.tenant_id == tenant_id,
-                    SegmentLearningProfile.module == module,
-                    SegmentLearningProfile.segment_id == segment_id,
+            with db.begin_nested():
+                profile = (
+                    db.query(SegmentLearningProfile)
+                    .filter(
+                        SegmentLearningProfile.tenant_id == tenant_id,
+                        SegmentLearningProfile.module == module,
+                        SegmentLearningProfile.segment_id == segment_id,
+                    )
+                    .first()
                 )
-                .first()
-            )
-
-            if not profile:
-                # Create new profile
-                profile = SegmentLearningProfile(
-                    id=uuid.uuid4(),
-                    tenant_id=tenant_id,
-                    module=module,
-                    segment_id=segment_id,
-                    confidence=0.0,  # Start at zero confidence
-                    sample_size=0,
-                )
-                db.add(profile)
+                created = profile is None
+                if created:
+                    profile = SegmentLearningProfile(
+                        id=uuid.uuid4(),
+                        tenant_id=tenant_id,
+                        module=module,
+                        segment_id=segment_id,
+                        confidence=0.0,  # Start at zero confidence
+                        sample_size=0,
+                    )
+                    db.add(profile)
+            if created:
                 db.commit()
 
             return {
@@ -322,10 +336,8 @@ class LearningEventCollector:
             }
 
         except Exception as e:
-            logger.error(
-                f"[EventCollector] Failed to get segment profile: {e}"
-            )
-            return None
+            logger.error(f"[EventCollector] Failed to get segment profile: {e}", exc_info=True)
+            raise
 
     @staticmethod
     def update_segment_patterns(
@@ -338,6 +350,7 @@ class LearningEventCollector:
         recommendation: str,
     ):
         """Update learned patterns for a segment"""
+        tenant_id = _tenant_key(tenant_id)
         try:
             profile = (
                 db.query(SegmentLearningProfile)
@@ -363,5 +376,6 @@ class LearningEventCollector:
                 )
 
         except Exception as e:
-            logger.error(f"[EventCollector] Failed to update patterns: {e}")
+            logger.error(f"[EventCollector] Failed to update patterns: {e}", exc_info=True)
             db.rollback()
+            raise

@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Edit2, Users, CheckCircle, Clock, BarChart3, Send } from "lucide-react";
+import { Edit2, Users, CheckCircle, Clock, Send } from "lucide-react";
 import { Button, Input, Select, StatusBadge, TextArea } from "../components/ui";
 import cx from "../utils/cx";
 import { pill } from "../utils/pill";
@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { ROUTES } from "../utils/Routes";
 import { listClients } from "../services/api/clients";
 import { searchUsers } from "../services/api/users";
+import ActivityTimeline from "../components/timeline/ActivityTimeline";
 
 const getContactPersonName = (job) => {
   if (!job) return "-";
@@ -601,6 +602,11 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
                   <div className="text-sm font-medium text-gray-900 mt-1">-</div>
                 </div>
               </div>
+            </div>
+
+            {/* Notes, including emails forwarded to the HRMS mailbox about this job */}
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <ActivityTimeline entityType="job" entityId={job.id} />
             </div>
           </div>
         </div>
