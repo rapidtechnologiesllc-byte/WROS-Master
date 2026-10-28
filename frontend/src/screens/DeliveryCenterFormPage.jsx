@@ -5,7 +5,7 @@ import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
 import LocationCascadeSelect, { parseLocation } from '../components/ui/LocationCascadeSelect';
-import { Country, State } from 'country-state-city';
+import { Country, State } from "../utils/geo";
 import { apiRequest } from '../services/api/client';
 import { hasPermission } from '../utils/permissionsRoleTemplate';
 

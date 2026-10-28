@@ -57,3 +57,18 @@ export const addTaskComment = async (taskId, body) => {
   const { data } = await apiRequest(`/tasks/${taskId}/comments`, { method: "POST", body: JSON.stringify({ body }) });
   return data;
 };
+
+export const getTaskOptions = async () => {
+  const { data } = await apiRequest("/tasks/options", { method: "GET" });
+  return data;
+};
+
+export const getCandidateTasks = async (candidateId) => {
+  const { data } = await apiRequest(`/tasks/candidate/${encodeURIComponent(candidateId)}`, { method: "GET" });
+  return data;
+};
+
+export const stopRepeatingTask = async (taskId) => {
+  const { data } = await apiRequest(`/tasks/${taskId}/stop-repeating`, { method: "POST" });
+  return data;
+};

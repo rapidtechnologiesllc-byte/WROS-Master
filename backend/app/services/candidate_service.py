@@ -26,6 +26,7 @@ import logging
 import re
 from typing import Optional, Tuple
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.security import get_password_hash
@@ -93,6 +94,9 @@ class DuplicateCandidateError(Exception):
             logger.error(f"Failed to initialize DuplicateCandidateError: {e}", exc_info=True)
             raise
 
+MIN_PHONE_DIGITS = 7  # shorter digit strings are not phone numbers worth matching on
+
+
 def find_duplicate_candidate(
     db: Session, *, email: Optional[str] = None, mobile: Optional[str] = None,
     linkedin_url: Optional[str] = None,
@@ -101,11 +105,12 @@ def find_duplicate_candidate(
     R-07: each identifying field is checked independently -- a match on
     ANY of the three is a duplicate, checked in this order (email,
     phone, LinkedIn) so the reported `matched_on` is deterministic when
-    more than one would match.
+    more than one would match. Emails match whatever their case; phone numbers
+    match on their digits, so "+91 98765 43210" and "+919876543210" are one person.
     """
     if email:
         try:
-            hit = db.query(Candidate).filter(Candidate.candidateEmail == email).first()
+            hit = db.query(Candidate).filter(func.lower(Candidate.candidateEmail) == email.strip().lower()).first()
             if hit:
                 return hit, "email"
         except Exception as e:
@@ -114,7 +119,11 @@ def find_duplicate_candidate(
 
     if mobile:
         try:
+            digits = re.sub(r"\D", "", mobile)
             hit = db.query(Candidate).filter(Candidate.candidateMobile == mobile).first()
+            if hit is None and len(digits) >= MIN_PHONE_DIGITS:
+                hit = db.query(Candidate).filter(
+                    func.regexp_replace(Candidate.candidateMobile, r"\D", "", "g") == digits).first()
             if hit:
                 return hit, "phone"
         except Exception as e:

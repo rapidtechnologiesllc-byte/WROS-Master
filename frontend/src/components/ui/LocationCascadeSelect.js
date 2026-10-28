@@ -1,10 +1,11 @@
 // Country -> State -> City cascading select, backed by the offline
-// `country-state-city` dataset (250 countries, no network calls).
+// `country-state-city` dataset (250 countries, no network calls). Cities load on first use
+// (utils/geo: 7.7 MB, kept out of the main bundle).
 // Added 2026-07-23: Avinash's instruction to turn Current Location and
 // Permanent Address from free text into structured, cascading dropdowns
 // rather than typed text a candidate could enter inconsistently.
-import { useMemo } from "react";
-import { Country, State, City } from "country-state-city";
+import { useEffect, useMemo, useState } from "react";
+import { Country, State, loadCities } from "../../utils/geo";
 
 // value: { countryCode, stateCode, city } -- city is a plain name (city-level
 // ISO codes don't exist in this dataset the way country/state ones do).
@@ -19,13 +20,22 @@ export default function LocationCascadeSelect({ value, onChange, disabled }) {
     () => (countryCode ? State.getStatesOfCountry(countryCode) : []),
     [countryCode],
   );
-  const cities = useMemo(
-    () =>
-      countryCode && stateCode
-        ? City.getCitiesOfState(countryCode, stateCode)
-        : [],
-    [countryCode, stateCode],
-  );
+  const [cities, setCities] = useState([]);
+  const [citiesError, setCitiesError] = useState("");
+  useEffect(() => {
+    let current = true;
+    setCities([]);
+    if (!countryCode || !stateCode) return undefined;
+    loadCities()
+      .then((City) => current && setCities(City.getCitiesOfState(countryCode, stateCode)))
+      .catch((err) => {
+        console.error("[LocationCascadeSelect] Failed to load cities:", err);
+        if (current) setCitiesError("Could not load the city list");
+      });
+    return () => {
+      current = false;
+    };
+  }, [countryCode, stateCode]);
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -80,7 +90,7 @@ export default function LocationCascadeSelect({ value, onChange, disabled }) {
           className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-gray-900 disabled:bg-gray-50 disabled:text-gray-400"
         >
           <option value="">
-            {stateCode ? "Select city" : "Select state first"}
+            {citiesError || (stateCode ? "Select city" : "Select state first")}
           </option>
           {city && !cities.some((c) => c.name === city) && (
             // A stored city the dataset doesn't list (renamed, e.g. Gurugram/Gurgaon) stays selectable

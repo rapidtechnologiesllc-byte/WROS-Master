@@ -138,7 +138,21 @@ class RoleTemplatePermissionService:
 
         A personal override on the resource decides outright; otherwise any of the user's
         templates granting it is enough. Fails closed: any error (missing role, missing
-        resource, bad input) denies."""
+        resource, bad input) denies. Answered once per request (the session's authority cache,
+        dropped on every flush, commit and rollback: app.core.authority)."""
+        info = getattr(db, "info", None)
+        if info is None:
+            return RoleTemplatePermissionService._has_permission(db, user_id, resource_name, action, tenant_id)
+        from app.core.authority import _CACHE_KEY
+
+        key = ("has_permission", user_id, tenant_id, (resource_name or "").lower(), action)
+        cache = info.setdefault(_CACHE_KEY, {})
+        if key not in cache:
+            cache[key] = RoleTemplatePermissionService._has_permission(db, user_id, resource_name, action, tenant_id)
+        return cache[key]
+
+    @staticmethod
+    def _has_permission(db: Session, user_id: str, resource_name: str, action: str, tenant_id: Optional[int] = None) -> bool:
         try:
             field = ACTION_FIELDS.get(action)
             if not user_id or not resource_name or field is None:

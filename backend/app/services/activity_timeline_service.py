@@ -25,9 +25,10 @@ def write_timeline_entry(
     description: Optional[str] = None,
 ) -> ActivityTimeline:
     """Caller commits, same 'function mutates state, caller owns the
-    transaction' convention as app.core.audit.write_audit_log()."""
+    transaction' convention as app.core.audit.write_audit_log(). Entity types
+    are stored lower-case ("candidate"), the spelling every reader asks for."""
     entry = ActivityTimeline(
-        tenant_id=tenant_id, entity_type=entity_type, entity_id=entity_id,
+        tenant_id=tenant_id, entity_type=entity_type.lower(), entity_id=entity_id,
         actor_id=actor_id, actor_type=actor_type, action=action, description=description,
     )
     db.add(entry)
@@ -40,7 +41,7 @@ def get_timeline_for_entity(
     """AC-1: works for any entity_type without a schema change. Paginated,
     newest first, per the spec's own UI Fields row."""
     query = db.query(ActivityTimeline).filter(
-        ActivityTimeline.entity_type == entity_type, ActivityTimeline.entity_id == entity_id,
+        ActivityTimeline.entity_type == entity_type.lower(), ActivityTimeline.entity_id == entity_id,
     )
     if tenant_id is not None:
         query = query.filter(ActivityTimeline.tenant_id == tenant_id)
