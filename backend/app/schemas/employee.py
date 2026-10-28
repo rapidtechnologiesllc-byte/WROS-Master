@@ -92,6 +92,8 @@ class EmployeeItem(BaseModel):
     htd_phase: Optional[str] = None
     htd_start_date: Optional[date] = None
     has_login: bool = False
+    has_photo: bool = False
+    has_cover: bool = False
     reporting_manager_user_id: Optional[str] = None
     reporting_manager_name: Optional[str] = None
     reporting_manager_employee_id: Optional[str] = None  # links to the manager's own profile

@@ -1847,6 +1847,9 @@ def _apply_schema_migrations(db: Session):
             ("company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
             ("guidewire_certification_current", "VARCHAR(50) NULL"),
             ("guidewire_certification_expected", "VARCHAR(50) NULL"),
+            # Profile and cover photo (CEO 2026-10-24): stored files under UPLOAD_DIR/employee-photos
+            ("photo_path", "TEXT NULL"),
+            ("cover_path", "TEXT NULL"),
         ],
         "candidate_education_forms": [
             ("education_level", "VARCHAR(100) NULL"),

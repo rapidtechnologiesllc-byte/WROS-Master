@@ -48,7 +48,7 @@ def _role_with(db, grants):
 @pytest.fixture
 def world(db):
     admin = factories.user(db, role_template_id=full_access_role(db).id, UserRole="admin")
-    hr = factories.user(db, role_template_id=_role_with(db, {"employees": (True, True)}).id)
+    hr = factories.user(db, role_template_id=_role_with(db, {"employees": (True, True), "my-tasks": (True, False)}).id)
     unit = factories.business_unit(db)
     employee = factories.employee(db, first_name="Asha", last_name="Rao", status="BENCH", bu_id=unit.id,
                                   base_salary_usd_cents=900000, pan_number="ABCDE1234F",
@@ -155,3 +155,44 @@ def test_history_lists_status_changes_newest_first(api, world):
     history = _profile(api, world.hr, world)["history"]
     assert history[0]["kind"] == "STATUS"
     assert history[0]["to"] == {"status": "NOTICE_PERIOD"} and history[0]["reason"] == "Resigned"
+
+
+# --- self service and photos (CEO 2026-10-24) -------------------------------------------------
+
+@pytest.fixture
+def me(db, world):
+    """Asha's own login: My Tasks only, no employees permission."""
+    login = factories.user(db, role_template_id=_role_with(db, {"my-tasks": (True, False)}).id)
+    db.query(Employee).filter(Employee.id == world.employee.id).update({Employee.wros_user_id: login.UserID})
+    other = factories.employee(db, first_name="Other", last_name="Person")
+    db.commit()
+    return SimpleNamespace(login=login, other=other)
+
+
+def test_an_employee_opens_their_own_profile_only(api, world, me):
+    assert api.get(me.login, "/api/v1/employees/me").json() == {"employee_id": world.employee.id}
+    own = api.get(me.login, f"/api/v1/employees/{world.employee.id}/profile")
+    assert own.status_code == 200 and own.json()["is_self"] is True
+    assert own.json()["finance"]["base_salary_usd_cents"] is None
+    assert api.get(me.login, f"/api/v1/employees/{me.other.id}/profile").status_code == 404
+    assert api.get(world.hr, f"/api/v1/employees/{world.employee.id}/profile").json()["is_self"] is False
+
+
+def test_photo_upload_by_the_employee_or_an_editor(api, world, me, db, monkeypatch, tmp_path):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
+    url = f"/api/v1/employees/{world.employee.id}/photo/photo"
+    png = ("me.png", b"\x89PNG-bytes", "image/png")
+    assert api.put(me.login, url, files={"file": png}).status_code == 200
+    assert api.get(world.hr, url).content == b"\x89PNG-bytes"
+    assert _profile(api, world.hr, world)["has_photo"] is True
+    cover = f"/api/v1/employees/{world.employee.id}/photo/cover"
+    assert api.put(world.hr, cover, files={"file": ("c.jpg", b"jpg", "image/jpeg")}).status_code == 200
+    other_url = f"/api/v1/employees/{me.other.id}/photo/photo"
+    assert api.put(me.login, other_url, files={"file": png}).status_code == 404  # not their profile
+    assert api.put(me.login, url, files={"file": ("x.gif", b"gif", "image/gif")}).status_code == 400
+    monkeypatch.setattr(settings, "EMPLOYEE_PHOTO_MAX_BYTES", 2)
+    assert api.put(me.login, url, files={"file": png}).status_code == 400
+    assert api.get(me.login, f"/api/v1/employees/{world.employee.id}/photo/banner").status_code == 404
+    assert api.get(me.login, other_url).status_code == 404  # none uploaded
