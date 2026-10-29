@@ -44,6 +44,10 @@ def _parse(raw: str) -> Dict:
         if len(code) != 2 or code != code.upper():
             raise EmploymentTypePolicyError(f"Country code {code!r} must be ISO 3166-1 alpha-2 (e.g. US)")
         accepts = country.get("accepts") or {}
+        from app.models.client import BILLING_CURRENCIES
+
+        if country.get("currency") and country["currency"] not in BILLING_CURRENCIES:
+            raise EmploymentTypePolicyError(f"Country {code} currency must be one of {BILLING_CURRENCIES}")
         unknown = [t for t in accepts if t not in CANDIDATE_EMPLOYMENT_TYPES]
         forbidden = [t for t in accepts if t in NEVER_ACCEPTED]
         if unknown or forbidden:
@@ -76,6 +80,11 @@ def country_code(value: Optional[str]) -> Optional[str]:
     return None
 
 
+def currency_of(country: Optional[str]) -> Optional[str]:
+    """The currency people in this country are paid in (the policy's "currency"), or None."""
+    return (policy()["countries"].get(country or "") or {}).get("currency")
+
+
 def accepted_types(country: Optional[str]) -> List[str]:
     return list((policy()["countries"].get(country or "") or {}).get("accepts") or {})
 
@@ -99,8 +108,8 @@ def describe() -> Dict:
     return {
         "types": list(CANDIDATE_EMPLOYMENT_TYPES),
         "default_options": options(None),
-        "countries": [{"code": code, "name": c.get("name") or code, "options": options(code)}
-                      for code, c in countries.items()],
+        "countries": [{"code": code, "name": c.get("name") or code, "currency": c.get("currency"),
+                       "options": options(code)} for code, c in countries.items()],
     }
 
 

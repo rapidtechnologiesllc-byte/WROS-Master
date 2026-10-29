@@ -251,7 +251,7 @@ def import_template(
     from app.services import employment_type_policy
     from app.services.employee_import_service import EMPLOYMENT_TYPE_TO_MODEL, IMPORT_COLUMNS, template_csv
 
-    countries = [{"code": c["code"], "name": c["name"],
+    countries = [{"code": c["code"], "name": c["name"], "currency": c.get("currency"),
                   "employment_types": [o for o in c["options"] if o["accepted"] and o["value"] in EMPLOYMENT_TYPE_TO_MODEL]}
                  for c in employment_type_policy.describe()["countries"]]
     tid = current_user.tenant_id
@@ -262,7 +262,13 @@ def import_template(
     seated = db.query(Users, OrgNode).join(OrgNode, OrgNode.id == Users.org_node_id) \
         .filter(Users.tenant_id == tid, Users.terminated_at.is_(None), OrgNode.active.is_(True)) \
         .order_by(Users.UserName).all()
+    from app.core.config import settings
+    from app.models.client import BILLING_CURRENCIES
+    from app.services.compensation import PAY_BASES
+
     return {"csv": template_csv(), "countries": countries,
+            "pay_bases": list(PAY_BASES), "pay_basis_default": settings.PAY_BASIS_DEFAULT,
+            "currencies": list(BILLING_CURRENCIES),
             "columns": [{"name": n, "required": r, "description": d} for n, r, d in IMPORT_COLUMNS],
             "org_roles": [{"name": r.name, "level": r.hierarchy_level} for r in roles],
             "managers": [{"user_id": u.UserID, "name": u.UserName or u.UserEmail, "email": u.UserEmail,
@@ -593,7 +599,10 @@ class EmployeeDetailsUpdate(BaseModel):
     visa_status: Optional[str] = None
     total_experience_months: Optional[int] = None
     # money and ids (finance-operations.edit)
-    base_salary_usd_cents: Optional[int] = None
+    base_salary_usd_cents: Optional[int] = None  # older clients: monthly USD pay
+    pay_amount_cents: Optional[int] = None
+    pay_currency: Optional[str] = None
+    pay_basis: Optional[str] = None
     billing_rate_usd_cents: Optional[int] = None
     pan_number: Optional[str] = None
     tax_id: Optional[str] = None
@@ -602,7 +611,8 @@ class EmployeeDetailsUpdate(BaseModel):
 # Free-text fields the PATCH takes as written (blank clears them)
 _TEXT_FIELDS = ("legal_name", "phone", "gender", "nationality", "current_address", "permanent_address",
                 "emergency_contact_name", "emergency_contact_phone", "visa_status")
-_MONEY_FIELDS = ("base_salary_usd_cents", "billing_rate_usd_cents", "pan_number", "tax_id")
+_MONEY_FIELDS = ("base_salary_usd_cents", "pay_amount_cents", "pay_currency", "pay_basis", "billing_rate_usd_cents",
+                 "pan_number", "tax_id")
 
 
 @router.get("/edit-options", dependencies=[Depends(require_resource_permission("employees", "view"))])
@@ -660,12 +670,28 @@ def update_employee_details(
         if months is not None and months < 0:
             raise HTTPException(status_code=400, detail="Experience cannot be negative")
         employee.total_experience_months = months
-    for field in ("base_salary_usd_cents", "billing_rate_usd_cents"):
-        if field in updates:
-            amount = updates[field]
-            if amount is not None and amount < 0:
-                raise HTTPException(status_code=400, detail="Amounts cannot be negative")
-            setattr(employee, field, amount)
+    if any(field in updates for field in ("pay_amount_cents", "pay_currency", "pay_basis", "base_salary_usd_cents")):
+        from app.services import compensation
+        from app.services.employment_type_policy import currency_of
+        from app.core.config import settings
+        from app.models.employee_org_history import country_of_company
+
+        if "pay_amount_cents" in updates or "pay_currency" in updates or "pay_basis" in updates:
+            amount = updates.get("pay_amount_cents", employee.pay_amount_cents)
+            currency = updates.get("pay_currency") or employee.pay_currency \
+                or currency_of(country_of_company(db, employee.company_id)) or "USD"
+            basis = updates.get("pay_basis") or employee.pay_basis or settings.PAY_BASIS_DEFAULT
+        else:  # older clients send the monthly USD salary
+            amount, currency, basis = updates["base_salary_usd_cents"], "USD", "MONTHLY"
+        try:
+            compensation.set_pay(employee, amount, currency, basis)
+        except compensation.PayError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+    if "billing_rate_usd_cents" in updates:
+        amount = updates["billing_rate_usd_cents"]
+        if amount is not None and amount < 0:
+            raise HTTPException(status_code=400, detail="Amounts cannot be negative")
+        employee.billing_rate_usd_cents = amount
     for field in ("pan_number", "tax_id"):
         if field in updates:
             setattr(employee, field, (updates[field] or "").strip().upper() or None)

@@ -244,6 +244,20 @@ def _activity_timeline_entity_types_lowercase(db: Session) -> int:
         "WHERE entity_type <> lower(entity_type)")).rowcount
 
 
+def _pay_from_monthly_usd(db: Session) -> int:
+    """Pay as agreed (CEO 2026-10-24): every employee with a salary and no pay on record gets their
+    existing salary recorded as monthly USD pay, so no cost changes. Returns rows filled."""
+    from app.models.employee import Employee
+
+    rows = db.query(Employee).filter(Employee.base_salary_usd_cents.isnot(None),
+                                     Employee.pay_amount_cents.is_(None)).all()
+    for employee in rows:
+        employee.pay_amount_cents = employee.base_salary_usd_cents
+        employee.pay_currency, employee.pay_basis = "USD", "MONTHLY"
+    db.flush()
+    return len(rows)
+
+
 DATA_MIGRATIONS = (
     ("interview_times_to_utc", _interview_times_to_utc),
     ("employee_org_history_backfill", _employee_org_history_backfill),
@@ -251,6 +265,7 @@ DATA_MIGRATIONS = (
     ("guidewire_current_level_to_certificates", _guidewire_current_level_to_certificates),
     ("intercompany_company_links", _intercompany_company_links),
     ("activity_timeline_entity_types_lowercase", _activity_timeline_entity_types_lowercase),
+    ("pay_from_monthly_usd", _pay_from_monthly_usd),
 )
 
 
@@ -1852,6 +1867,10 @@ def _apply_schema_migrations(db: Session):
             ("cover_path", "TEXT NULL"),
             # Hire-Train-Deploy end (completed / exited / taken off): the P&L's HTD training cost window
             ("htd_end_date", "DATE NULL"),
+            # Pay as agreed (CEO 2026-10-24): amount, currency, basis; base_salary_usd_cents derives from it
+            ("pay_amount_cents", "BIGINT NULL"),
+            ("pay_currency", "VARCHAR(3) NULL"),
+            ("pay_basis", "VARCHAR(10) NULL"),
         ],
         "candidate_education_forms": [
             ("education_level", "VARCHAR(100) NULL"),

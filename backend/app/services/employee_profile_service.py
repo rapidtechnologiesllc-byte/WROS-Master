@@ -15,7 +15,9 @@ from sqlalchemy.orm import Session
 from app.core import authority
 from app.models.employee import (EMPLOYMENT_TYPES, WORK_LOCATIONS, Employee, EmployeeEmploymentHistory,
                                  EmployeeEngineHistory)
+from app.models.client import BILLING_CURRENCIES
 from app.models.user import Users
+from app.services.compensation import PAY_BASES
 
 
 def mask(value: Optional[str]) -> Optional[str]:
@@ -114,7 +116,8 @@ def build_profile(db: Session, employee: Employee, viewer: Users, item: dict) ->
         **item,
         "can_edit": authority.has_permission(db, viewer, "employees.edit"),
         "can_edit_compensation": can_edit_compensation(db, viewer),
-        "options": {"work_locations": list(WORK_LOCATIONS), "employment_types": list(EMPLOYMENT_TYPES)},
+        "options": {"work_locations": list(WORK_LOCATIONS), "employment_types": list(EMPLOYMENT_TYPES),
+                    "pay_bases": list(PAY_BASES), "currencies": list(BILLING_CURRENCIES)},
         "personal": {
             "legal_name": employee.legal_name, "personal_email": employee.personal_email, "phone": employee.phone,
             "date_of_birth": employee.date_of_birth.isoformat() if employee.date_of_birth else None,
@@ -145,6 +148,9 @@ def build_profile(db: Session, employee: Employee, viewer: Users, item: dict) ->
         },
         "finance": {
             "base_salary_usd_cents": employee.base_salary_usd_cents if sees_money else None,
+            "pay_amount_cents": employee.pay_amount_cents if sees_money else None,
+            "pay_currency": employee.pay_currency if sees_money else None,
+            "pay_basis": employee.pay_basis if sees_money else None,
             "compensation_visible": sees_money,
             "billing_rate_usd_cents": employee.billing_rate_usd_cents,
             "billing_classification": employee.billing_classification,

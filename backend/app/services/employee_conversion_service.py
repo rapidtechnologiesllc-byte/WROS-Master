@@ -36,9 +36,17 @@ def hired_for_job(db, candidate):
 
 
 def monthly_salary_from_offer(db, candidate, job):
-    """Monthly base salary (USD cents) from the candidate's accepted offer, for this job
-    when there is one: an Offer (annual USD), else an accepted OfferLetter (annual CTC in
-    INR, converted with FX_INR_PER_USD). None when neither gives a reliable figure."""
+    """Monthly base salary (USD cents) from the candidate's accepted offer (see pay_from_offer)."""
+    from app.services import compensation
+
+    pay = pay_from_offer(db, candidate, job)
+    return compensation.monthly_usd_cents(*pay) if pay else None
+
+
+def pay_from_offer(db, candidate, job):
+    """(amount cents, currency, basis) the candidate's accepted offer agreed, for this job when
+    there is one: an Offer (annual USD), else an accepted OfferLetter (annual CTC in INR). None
+    when neither gives a reliable figure."""
     from app.models.offer import Offer
 
     query = db.query(Offer).filter(Offer.candidate_id == candidate.candidateID,
@@ -47,14 +55,13 @@ def monthly_salary_from_offer(db, candidate, job):
         query = query.filter(Offer.job_id == job.jobID)
     offer = query.order_by(Offer.accepted_at.desc().nullslast(), Offer.created_at.desc()).first()
     if offer and offer.base_salary_usd_cents:
-        return round(offer.base_salary_usd_cents / 12)
-    return _monthly_usd_from_offer_letter(db, candidate, job)
+        return offer.base_salary_usd_cents, "USD", "ANNUAL"
+    return _pay_from_offer_letter(db, candidate, job)
 
 
-def _monthly_usd_from_offer_letter(db, candidate, job):
+def _pay_from_offer_letter(db, candidate, job):
     import re
 
-    from app.core.config import settings
     from app.models.offer_letter import OfferLetter
 
     query = db.query(OfferLetter).filter(OfferLetter.candidate_id == candidate.candidateID,
@@ -65,12 +72,10 @@ def _monthly_usd_from_offer_letter(db, candidate, job):
     if letter is None:
         return None
     digits = re.sub(r"[^0-9.]", "", letter.salary or "")
-    if not digits or not settings.FX_INR_PER_USD:
-        logger.warning(f"[Conversion] offer letter {letter.id}: salary {letter.salary!r} not converted "
-                       f"(FX_INR_PER_USD {'set' if settings.FX_INR_PER_USD else 'not set'}); cost stays unknown")
+    if not digits:
+        logger.warning(f"[Conversion] offer letter {letter.id}: salary {letter.salary!r} has no amount; cost stays unknown")
         return None
-    annual_inr = float(digits)
-    return round(annual_inr / settings.FX_INR_PER_USD * 100 / 12)
+    return round(float(digits) * 100), "INR", "ANNUAL"
 
 
 def employer_company_for(db, job, bu_id):
@@ -179,8 +184,18 @@ class EmployeeConversionService:
             user.location_id = final_company_id
         fields.pop("delivery_engine", None)
         if fields.get("base_salary_usd_cents") is None:
-            # without it the employee's cost is unknown and every P&L they touch is incomplete
-            fields["base_salary_usd_cents"] = monthly_salary_from_offer(db, candidate, job)
+            # without it the employee's cost is unknown and every P&L they touch is incomplete;
+            # the pay is recorded as the offer agreed it (compensation)
+            from app.services import compensation
+
+            pay = pay_from_offer(db, candidate, job)
+            if pay is not None:
+                fields["pay_amount_cents"], fields["pay_currency"], fields["pay_basis"] = pay
+                fields["base_salary_usd_cents"] = compensation.monthly_usd_cents(*pay)
+        else:
+            fields.setdefault("pay_amount_cents", fields["base_salary_usd_cents"])
+            fields.setdefault("pay_currency", "USD")
+            fields.setdefault("pay_basis", "MONTHLY")
         emp = Employee(tenant_id=tid, candidate_id=candidate.candidateID, first_name=fn, last_name=ln, email=email, phone=ph,
                        joining_date=joining_date, employment_type=employment_type, delivery_engine="SPECIALITY",
                        engine_entry_date=joining_date, wros_user_id=user.UserID, bu_id=final_bu_id,
