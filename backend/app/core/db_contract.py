@@ -1958,6 +1958,16 @@ def _migrate_company_partner_structure(db: Session):
         # A referral recorded on Add Candidate need not name a job
         ("employee_referrals.job_id nullable",
          "ALTER TABLE app_schema.employee_referrals ALTER COLUMN job_id DROP NOT NULL"),
+        # Project work is allocated to the project, not a client job (CEO 2026-10-24): job or project
+        ("employee_allocations.demand_id nullable",
+         "ALTER TABLE app_schema.employee_allocations ALTER COLUMN demand_id DROP NOT NULL"),
+        ("employee_allocations job or project", """
+            DO $$ BEGIN
+              IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_allocation_job_or_project') THEN
+                ALTER TABLE app_schema.employee_allocations ADD CONSTRAINT ck_allocation_job_or_project
+                  CHECK (demand_id IS NOT NULL OR project_id IS NOT NULL);
+              END IF;
+            END $$"""),
         ("business_unit_companies from business_units.location_id", """
             INSERT INTO app_schema.business_unit_companies (tenant_id, business_unit_id, company_id, created_at)
             SELECT bu.tenant_id, bu.id, bu.location_id, now()

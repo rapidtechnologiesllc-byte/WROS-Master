@@ -61,7 +61,7 @@ from app.schemas.allocation import (
     AllocationHistoryResponse,
     AllocationItem,
     AllocationListResponse,
-    AllocationDropdownsResponse, JobDropdownItem,
+    AllocationDropdownsResponse, JobDropdownItem, ProjectDropdownItem,
     CreateAllocationRequest,
     DropdownItem,
     EndAllocationRequest,
@@ -205,7 +205,7 @@ def _to_item(db: Session, allocation: EmployeeAllocation,
         employee_id=allocation.employee_id,
         employee_name=employee_name,
         demand_id=allocation.demand_id,
-        demand_job_title=demand.job_title if demand else "(unknown demand)",
+        demand_job_title=demand.job_title if demand else (allocation.role or "Project work"),
         client_id=allocation.client_id,
         client_name=client_name,
         project_id=allocation.project_id,
@@ -268,12 +268,16 @@ def create_allocation(
     current_user: Users = Depends(get_current_internal_user),
 ):
     employee = _visible_employee_or_404(db, body.employee_id, current_user)
-    demand = db.query(Demand).filter(
-        Demand.id == body.demand_id, Demand.tenant_id == current_user.tenant_id,
-        job_filter(db, current_user, Demand.jobID), client_filter(db, current_user, Demand.client_id),
-    ).first()
-    if demand is None:
-        raise HTTPException(status_code=404, detail="Demand not found.")
+    if not body.demand_id and not body.project_id:
+        raise HTTPException(status_code=422, detail="Choose the client job (Staff Aug) or the project.")
+    demand = None
+    if body.demand_id:
+        demand = db.query(Demand).filter(
+            Demand.id == body.demand_id, Demand.tenant_id == current_user.tenant_id,
+            job_filter(db, current_user, Demand.jobID), client_filter(db, current_user, Demand.client_id),
+        ).first()
+        if demand is None:
+            raise HTTPException(status_code=404, detail="Demand not found.")
     project = None
     if body.project_id:
         project = db.query(Project).filter(
@@ -347,7 +351,19 @@ def get_allocation_dropdowns(
         for d in demands
     ]
 
-    return AllocationDropdownsResponse(employees=employee_items, demands=demand_items)
+    # Project work is allocated to the project itself (CEO 2026-10-24): live projects of the caller's clients
+    live_projects = db.query(Project).filter(
+        Project.tenant_id == current_user.tenant_id, Project.status.in_(("PLANNING", "ACTIVE", "ON_HOLD")),
+        Project.client_id.isnot(None), client_filter(db, current_user, Project.client_id),
+    ).order_by(Project.name).all()
+    project_clients = {c.id: c.company_name for c in db.query(Client).filter(
+        Client.id.in_({p.client_id for p in live_projects}))} if live_projects else {}
+    project_items = [ProjectDropdownItem(id=p.id, name=p.name, client_id=p.client_id,
+                                         client_name=project_clients.get(p.client_id),
+                                         delivery_engine=p.delivery_engine, is_billable=bool(p.is_billable))
+                     for p in live_projects]
+
+    return AllocationDropdownsResponse(employees=employee_items, demands=demand_items, projects=project_items)
 
 @router.get(
     "",
@@ -477,9 +493,17 @@ def margin_preview(
         rate = body.billing_rate_usd_cents or allocation.billing_rate_usd_cents
         billable = allocation.billable if body.billable is None else body.billable
         on = body.start_date or max(date.today(), allocation.start_date)
+    elif body.employee_id and body.project_id and not body.demand_id:
+        # project work: the project names the client, the form the role and bill rate
+        employee = _visible_employee_or_404(db, body.employee_id, current_user)
+        project = _visible_project_or_404(db, body.project_id, current_user)
+        project_id, client_id, role = project.id, project.client_id, body.role
+        rate = body.billing_rate_usd_cents
+        billable = body.billable if body.billable is not None else bool(project.is_billable)
+        on = body.start_date or date.today()
     else:
         if not body.employee_id or not body.demand_id:
-            raise HTTPException(status_code=422, detail="Pick the employee and the client job first.")
+            raise HTTPException(status_code=422, detail="Pick the employee and the client job or project first.")
         employee = _visible_employee_or_404(db, body.employee_id, current_user)
         demand = _visible_demands(db, current_user).filter(Demand.id == body.demand_id).first()
         if demand is None:

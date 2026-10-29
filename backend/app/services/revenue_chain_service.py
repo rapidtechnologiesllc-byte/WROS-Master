@@ -262,7 +262,7 @@ def chain_lines(
             "timesheet_status": ts.status, "billable_hours": hours,
             "employee_id": ts.employee_id, "employee_name": _name(employee),
             "candidate_id": employee.candidate_id if employee else None,
-            "job_id": allocation.demand_id, "job_title": job.jobTitle if job else None,
+            "job_id": allocation.demand_id, "job_title": job.jobTitle if job else allocation.role,
             "project_id": allocation.project_id, "project_name": project.name if project else None,
             "client_id": allocation.client_id, "client_name": client.company_name if client else None,
             "business_unit_id": unit.id if unit else None, "business_unit_name": unit.name if unit else None,
