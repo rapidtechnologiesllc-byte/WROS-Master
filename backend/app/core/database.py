@@ -71,8 +71,9 @@ if DATABASE_URL.startswith("postgresql://"):
 _engine_kwargs = {
     "pool_pre_ping": True,      # Check connection health before use
     "echo": False,              # Set to True for SQL debugging
-    "pool_size": 40,            # Keep 40 connections in pool (PRODUCTION) - increased from 20
-    "max_overflow": 20,         # Allow 20 extra connections if pool full (PRODUCTION) - increased from 10
+    # Per worker process: workers x (pool_size + max_overflow) must stay under Postgres max_connections
+    "pool_size": int(os.getenv("DB_POOL_SIZE", "40")),
+    "max_overflow": int(os.getenv("DB_MAX_OVERFLOW", "20")),
     "pool_recycle": 1800,       # Recycle connections after 30 minutes - changed from 3600 to detect stale faster
 }
 

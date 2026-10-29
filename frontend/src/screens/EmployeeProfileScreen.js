@@ -26,6 +26,7 @@ import EmployeeCertifications from "../components/EmployeeCertifications";
 import EscalationsPanel from "../components/EmployeeEscalations";
 import { FeedbackSection, ReviewList } from "../components/PerformancePanel";
 import { getEmployeePerformance, getMyPerformance } from "../services/api/performance";
+import ActivityTimeline from "../components/timeline/ActivityTimeline";
 
 const TABS = [
   ["about", "About"], ["profile", "Profile"], ["job", "Job"], ["documents", "Documents"],
@@ -370,6 +371,9 @@ function AboutTab({ profile }) {
         </Section>
         <Section title="Current allocations">
           <EmployeeAllocations employee={profile} onChanged={() => {}} canAdd={false} />
+        </Section>
+        <Section title="Notes & history" subtitle="Notes, including emails forwarded to the HRMS mailbox about this employee.">
+          <ActivityTimeline entityType="employee" entityId={profile.id} />
         </Section>
       </div>
       <Section title={`Reporting team (${profile.reporting_team.length})`}>

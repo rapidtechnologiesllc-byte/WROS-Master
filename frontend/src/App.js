@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { BrowserRouter } from "react-router-dom";
 import { ConfigProvider } from "antd";
 import AppRoutes from "./routes/Approutes";
@@ -33,7 +34,9 @@ export default function App() {
       <ThemeProvider>
         <ConfigProvider theme={BLITZENX_ANTD_THEME}>
           <BrowserRouter>
-            <AppRoutes />
+            <Suspense fallback={<div className="p-8 text-center text-sm text-gray-500">Loading...</div>}>
+              <AppRoutes />
+            </Suspense>
             <ConfirmHost />
           </BrowserRouter>
         </ConfigProvider>

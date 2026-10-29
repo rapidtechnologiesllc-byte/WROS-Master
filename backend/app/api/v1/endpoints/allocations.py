@@ -139,11 +139,41 @@ def _margin_of(change: Optional[AllocationChange]) -> Optional[MarginCheck]:
     )
 
 
+def _by_id(db: Session, model, column, ids) -> dict:
+    ids = {i for i in ids if i is not None}
+    return {getattr(row, column.key): row for row in db.query(model).filter(column.in_(ids))} if ids else {}
+
+
+def _lookups(db: Session, allocations) -> dict:
+    """Everything the list rows show, one query per table for any number of allocations (it was
+    up to eight queries per row)."""
+    demands = _by_id(db, Demand, Demand.id, [a.demand_id for a in allocations])
+    pending = {}
+    ids = [a.id for a in allocations]
+    if ids:
+        for change in db.query(AllocationChange).filter(AllocationChange.allocation_id.in_(ids),
+                                                        AllocationChange.status == "PENDING_APPROVAL"):
+            pending.setdefault(change.allocation_id, change)
+    return {
+        "employees": _by_id(db, Employee, Employee.id,
+                            [a.employee_id for a in allocations]
+                            + [d.assigned_recruiter_employee_id for d in demands.values()]),
+        "demands": demands,
+        "clients": _by_id(db, Client, Client.id, [a.client_id for a in allocations]),
+        "units": _by_id(db, BusinessUnit, BusinessUnit.id, [d.assigned_bu_id for d in demands.values()]),
+        "projects": _by_id(db, Project, Project.id, [a.project_id for a in allocations]),
+        "work_orders": _by_id(db, WorkOrder, WorkOrder.id, [a.work_order_id for a in allocations]),
+        "pending": pending,
+    }
+
+
 def _to_item(db: Session, allocation: EmployeeAllocation,
-             margin_change: Optional[AllocationChange] = None) -> AllocationItem:
-    employee = db.query(Employee).filter(Employee.id == allocation.employee_id).first()
-    demand = db.query(Demand).filter(Demand.id == allocation.demand_id).first() if allocation.demand_id else None
-    client = db.query(Client).filter(Client.id == allocation.client_id).first()
+             margin_change: Optional[AllocationChange] = None, lookups: Optional[dict] = None) -> AllocationItem:
+    if lookups is None:
+        lookups = _lookups(db, [allocation])
+    employee = lookups["employees"].get(allocation.employee_id)
+    demand = lookups["demands"].get(allocation.demand_id)
+    client = lookups["clients"].get(allocation.client_id)
 
     employee_name = (
         f"{employee.first_name} {employee.last_name}".strip() if employee else "(unknown employee)"
@@ -153,22 +183,13 @@ def _to_item(db: Session, allocation: EmployeeAllocation,
     days_left = (allocation.end_date - today).days if allocation.end_date else None
     ending = allocation.status == "ACTIVE" and standing.ending_soon(allocation.end_date, allocation.renewal_status, today)
 
-    recruiter_name = None
-    if demand and demand.assigned_recruiter_employee_id:
-        recruiter = db.query(Employee).filter(Employee.id == demand.assigned_recruiter_employee_id).first()
-        if recruiter:
-            recruiter_name = f"{recruiter.first_name} {recruiter.last_name}".strip()
-
-    business_unit_name = None
-    if demand and demand.assigned_bu_id:
-        bu = db.query(BusinessUnit).filter(BusinessUnit.id == demand.assigned_bu_id).first()
-        if bu:
-            business_unit_name = bu.name
-
-    project = db.query(Project).filter(Project.id == allocation.project_id).first() if allocation.project_id else None
-    pending = db.query(AllocationChange).filter(AllocationChange.allocation_id == allocation.id,
-                                                AllocationChange.status == "PENDING_APPROVAL").first()
-    work_order = db.get(WorkOrder, allocation.work_order_id) if allocation.work_order_id else None
+    recruiter = lookups["employees"].get(demand.assigned_recruiter_employee_id) if demand else None
+    recruiter_name = f"{recruiter.first_name} {recruiter.last_name}".strip() if recruiter else None
+    bu = lookups["units"].get(demand.assigned_bu_id) if demand else None
+    business_unit_name = bu.name if bu else None
+    project = lookups["projects"].get(allocation.project_id)
+    pending = lookups["pending"].get(allocation.id)
+    work_order = lookups["work_orders"].get(allocation.work_order_id)
     return AllocationItem(
         project_name=project.name if project else None,
         renewal_status=allocation.renewal_status, renewal_owner_user_id=allocation.renewal_owner_user_id,
@@ -367,7 +388,8 @@ def list_allocations(
     if client_id:
         query = query.filter(EmployeeAllocation.client_id == client_id)
     allocations = query.order_by(EmployeeAllocation.created_at.desc()).all()
-    return AllocationListResponse(allocations=[_to_item(db, a) for a in allocations])
+    lookups = _lookups(db, allocations)
+    return AllocationListResponse(allocations=[_to_item(db, a, lookups=lookups) for a in allocations])
 
 @router.post(
     "/{allocation_id}/end",
