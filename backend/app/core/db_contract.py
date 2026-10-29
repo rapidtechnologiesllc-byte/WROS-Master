@@ -1865,6 +1865,8 @@ def _apply_schema_migrations(db: Session):
             # Profile and cover photo (CEO 2026-10-24): stored files under UPLOAD_DIR/employee-photos
             ("photo_path", "TEXT NULL"),
             ("cover_path", "TEXT NULL"),
+            # Hire-Train-Deploy end (completed / exited / taken off): the P&L's HTD training cost window
+            ("htd_end_date", "DATE NULL"),
             # Pay as agreed (CEO 2026-10-24): amount, currency, basis; base_salary_usd_cents derives from it
             ("pay_amount_cents", "BIGINT NULL"),
             ("pay_currency", "VARCHAR(3) NULL"),

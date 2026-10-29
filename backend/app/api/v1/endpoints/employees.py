@@ -178,6 +178,7 @@ def _to_item(db: Session, employee: Employee, *, bench_entry=..., allocations=No
         htd_track=bool(employee.htd_track),
         htd_phase=employee.htd_phase,
         htd_start_date=employee.htd_start_date,
+        htd_end_date=employee.htd_end_date,
         has_login=employee.wros_user_id is not None,
         has_photo=bool(employee.photo_path),
         has_cover=bool(employee.cover_path),
@@ -227,7 +228,13 @@ def create_employee(
         errors = result["errors"]
         status = 409 if any("already exists" in e for e in errors) else 422
         raise HTTPException(status_code=status, detail="; ".join(errors))
-    return _to_item(db, db.get(Employee, result["employee_id"]), viewer=current_user)
+    employee = db.get(Employee, result["employee_id"])
+    if body.hired_for_htd:
+        from app.services.htd_service import update_htd
+
+        update_htd(db, employee, on_track=True, start=employee.joining_date, changed_by=current_user.UserID)
+        db.commit()
+    return _to_item(db, employee, viewer=current_user)
 
 
 @router.get(
@@ -730,22 +737,16 @@ def update_employee_htd(
     current_user: Users = Depends(get_current_internal_user),
 ):
     """Hire-Train-Deploy: put the employee on the track (from a start date, first phase INDUCTION
-    unless given), move their phase, or take them off it. Dashboards and the HTD intake metrics
-    read these fields; until now nothing wrote them."""
-    from app.models.employee import HTD_PHASES
+    unless given), move their phase, or take them off it. Training is not bench and is a cost line
+    of its own in the P&L (app.services.htd_service)."""
+    from app.services.htd_service import HtdRefused, update_htd
 
     employee = _get_employee_or_404(db, employee_id, current_user)
-    if body.htd_track:
-        phase = body.htd_phase or employee.htd_phase or HTD_PHASES[0]
-        if phase not in HTD_PHASES:
-            raise HTTPException(status_code=400, detail=f"HTD phase must be one of {list(HTD_PHASES)}")
-        employee.htd_track = True
-        employee.htd_phase = phase
-        employee.htd_start_date = body.htd_start_date or employee.htd_start_date or date.today()
-    else:
-        employee.htd_track = False
-        employee.htd_phase = None
-        employee.htd_start_date = None
+    try:
+        update_htd(db, employee, on_track=body.htd_track, phase=body.htd_phase, start=body.htd_start_date,
+                   changed_by=current_user.UserID)
+    except HtdRefused as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     db.commit()
     db.refresh(employee)
     logger.info(f"[Employees] {employee.id} HTD track={employee.htd_track} phase={employee.htd_phase} "

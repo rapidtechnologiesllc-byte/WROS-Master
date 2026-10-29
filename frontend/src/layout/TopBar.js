@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getMyEmployeeId } from "../services/api/employees";
-import { Bell, Eye, EyeOff, Search, User, KeyRound, LogOut, Sun, Moon } from "lucide-react";
+import { Bell, Eye, EyeOff, Home, Search, User, KeyRound, LogOut, Sun, Moon } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { Button, Input } from "../components/ui";
 import { getHrMe, changeHrMePassword, updateWhatsAppNumber } from "../services/api/users";
@@ -315,6 +315,15 @@ export default function TopBar({
             </div>
 
             <div className="ml-auto flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => navigate("/")}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                aria-label="Home"
+                title="Home"
+              >
+                <Home className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+              </button>
               <button
                 onClick={toggleTheme}
                 className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"

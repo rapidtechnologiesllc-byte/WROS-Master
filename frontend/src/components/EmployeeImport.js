@@ -201,7 +201,7 @@ export function ImportEmployeesModal({ onClose, onImported }) {
 
 const EMPTY_FORM = {
   first_name: "", last_name: "", email: "", joining_date: "", business_unit_id: "", company_id: "", country: "",
-  current_title: "", reporting_manager_id: "", employment_type: "", billable: "", existing_staff: true,
+  current_title: "", reporting_manager_id: "", employment_type: "", billable: "", existing_staff: true, hired_for_htd: false,
   pay: "", pay_basis: "", pay_currency: "", bill_rate_usd: "",
 };
 
@@ -248,7 +248,7 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
         business_unit_id: Number(form.business_unit_id), company_id: form.company_id || null,
         country: form.country || null, current_title: form.current_title || null,
         reporting_manager_id: form.reporting_manager_id || null, employment_type: form.employment_type || null,
-        billable: form.billable === "yes", existing_staff: form.existing_staff,
+        billable: form.billable === "yes", existing_staff: form.existing_staff, hired_for_htd: form.hired_for_htd,
         pay_amount_cents: Math.round(Number(form.pay) * 100), pay_currency: payCurrency, pay_basis: payBasis,
         billing_rate_usd_cents: form.bill_rate_usd ? Math.round(Number(form.bill_rate_usd) * 100) : null,
       });
@@ -333,6 +333,10 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
         <label className="flex items-center gap-2 text-sm sm:col-span-2">
           <input type="checkbox" checked={form.existing_staff} onChange={set("existing_staff")} />
           Already working here (recorded as Buddy Program graduated, audited under your name)
+        </label>
+        <label className="flex items-center gap-2 text-sm sm:col-span-2">
+          <input type="checkbox" checked={form.hired_for_htd} onChange={set("hired_for_htd")} />
+          Hired for HTD (Hire-Train-Deploy: trained before deployment; a training cost, not bench)
         </label>
       </div>
       {error ? <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}

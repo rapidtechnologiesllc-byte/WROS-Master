@@ -42,6 +42,8 @@ class EmployeeCreateRequest(BaseModel):
     existing_staff: bool = True
     core_certified: bool = False
     bench_since: Optional[date] = None
+    # A non-Guidewire hire trained before deployment: on the HTD track from the joining date
+    hired_for_htd: bool = False
 
 class ConvertCandidateRequest(BaseModel):
     joining_date: date
@@ -96,6 +98,7 @@ class EmployeeItem(BaseModel):
     htd_track: bool = False
     htd_phase: Optional[str] = None
     htd_start_date: Optional[date] = None
+    htd_end_date: Optional[date] = None
     has_login: bool = False
     has_photo: bool = False
     has_cover: bool = False
