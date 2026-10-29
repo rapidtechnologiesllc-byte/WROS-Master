@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { getMyEmployeeId } from "../services/api/employees";
 import { Bell, Eye, EyeOff, Search, User, KeyRound, LogOut, Sun, Moon } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { Button, Input } from "../components/ui";
@@ -155,6 +156,12 @@ export default function TopBar({
 
   const handleViewProfile = async () => {
     try {
+      const employeeId = await getMyEmployeeId();
+      if (employeeId) {
+        navigate(`/employees/${employeeId}`);
+        return;
+      }
+      // a login without an employee record: the account details only
       const data = await getHrMe();
       setProfileData(data);
       setWhatsappNumber(data?.whatsapp_number || "");

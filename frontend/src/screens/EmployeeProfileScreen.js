@@ -2,13 +2,16 @@
 // for About, Profile, Job, Documents, Finances and Timeline. Every section edits in place (its own
 // Edit button); the server decides what each viewer may see and change (GET /employees/{id}/profile).
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Briefcase, IdCard, Mail, MapPin, Pencil, Phone } from "lucide-react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
+import { ArrowLeft, Briefcase, Camera, IdCard, Mail, MapPin, Pencil, Phone } from "lucide-react";
 import { Button, Input, Select, TextArea } from "../components/ui";
 import cx from "../utils/cx";
+import { alertDialog } from "../utils/dialogs";
 import useTabParam from "../utils/useTabParam";
 import { apiRequest } from "../services/api/client";
 import {
+  employeePhotoUrl,
+  uploadEmployeePhoto,
   getEmployeeImportTemplate,
   getEmployeeProfile,
   updateEmployeeBillable,
@@ -21,11 +24,13 @@ import { EmploymentActions, HtdControl } from "../components/EmployeeEditPanels"
 import EmployeeAllocations from "../components/EmployeeAllocations";
 import EmployeeCertifications from "../components/EmployeeCertifications";
 import EscalationsPanel from "../components/EmployeeEscalations";
+import { FeedbackSection, ReviewList } from "../components/PerformancePanel";
+import { getEmployeePerformance, getMyPerformance } from "../services/api/performance";
 import ActivityTimeline from "../components/timeline/ActivityTimeline";
 
 const TABS = [
   ["about", "About"], ["profile", "Profile"], ["job", "Job"], ["documents", "Documents"],
-  ["finance", "Finances"], ["timeline", "Timeline"],
+  ["finance", "Finances"], ["performance", "Performance"], ["timeline", "Timeline"],
 ];
 const COMPANIES_PATH = "/api/v1/api/admin/users-access-control/delivery-centers";
 
@@ -234,7 +239,61 @@ function ManagerLink({ manager }) {
     : manager.name;
 }
 
+// A stored photo as a blob URL; null while loading or when there is none
+function usePhoto(profile, kind, present) {
+  const [url, setUrl] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    let made = null;
+    if (!present) {
+      setUrl(null);
+      return undefined;
+    }
+    employeePhotoUrl(profile.id, kind)
+      .then((value) => {
+        made = value;
+        if (!cancelled) setUrl(value);
+      })
+      .catch((err) => console.error(`[EmployeeProfile] Failed to load ${kind}:`, err));
+    return () => {
+      cancelled = true;
+      if (made) URL.revokeObjectURL(made);
+    };
+  }, [profile.id, kind, present, profile.photo_version]);
+  return url;
+}
+
+function PhotoButton({ profile, kind, onChanged, className, label }) {
+  const [busy, setBusy] = useState(false);
+  const pick = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setBusy(true);
+    try {
+      await uploadEmployeePhoto(profile.id, kind, file);
+      onChanged();
+    } catch (err) {
+      console.error(`[EmployeeProfile] Failed to upload ${kind}:`, err);
+      alertDialog(`Could not change the ${kind === "cover" ? "cover photo" : "photo"}: ${err.message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <label title={label} aria-label={label}
+      className={cx("inline-flex cursor-pointer items-center gap-1 rounded-full bg-white/90 text-gray-700 shadow hover:bg-white", className,
+        busy && "opacity-60")}>
+      <Camera className="h-4 w-4" />
+      <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={pick} disabled={busy} />
+    </label>
+  );
+}
+
 function Header({ profile, onChanged }) {
+  const photo = usePhoto(profile, "photo", profile.has_photo);
+  const cover = usePhoto(profile, "cover", profile.has_cover);
+  const canChange = profile.is_self || profile.can_edit;
   const contact = [
     [Mail, profile.email, `mailto:${profile.email}`],
     [Phone, profile.personal.phone, profile.personal.phone ? `tel:${profile.personal.phone}` : null],
@@ -243,12 +302,24 @@ function Header({ profile, onChanged }) {
   ].filter(([, text]) => text);
   return (
     <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-      <div className="h-24 bg-gradient-to-r from-bx-navy via-[#1d3a63] to-bx-orange/70" />
+      <div className="relative h-32 bg-gradient-to-r from-bx-navy via-[#1d3a63] to-bx-orange/70 bg-cover bg-center"
+        style={cover ? { backgroundImage: `url(${cover})` } : undefined}>
+        {canChange && <PhotoButton profile={profile} kind="cover" onChanged={onChanged} label="Change cover photo"
+          className="absolute right-3 top-3 px-2.5 py-1.5" />}
+      </div>
       <div className="px-6 pb-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-4">
-            <div className="-mt-10 flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-4 border-white bg-bx-orange text-2xl font-bold text-white shadow">
-              {initials(profile)}
+            <div className="relative -mt-10 shrink-0">
+              {photo ? (
+                <img src={photo} alt={fullName(profile)} className="h-20 w-20 rounded-full border-4 border-white object-cover shadow" />
+              ) : (
+                <div className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-white bg-bx-orange text-2xl font-bold text-white shadow">
+                  {initials(profile)}
+                </div>
+              )}
+              {canChange && <PhotoButton profile={profile} kind="photo" onChanged={onChanged} label="Change photo"
+                className="absolute -bottom-1 -right-1 p-1.5" />}
             </div>
             <div className="pt-3">
               <h1 className="text-2xl font-bold text-gray-900">{fullName(profile)}</h1>
@@ -522,6 +593,38 @@ function FinanceTab({ profile, save, reload }) {
   );
 }
 
+// Performance: reviews by the reporting chain, then praise / feedback / internal notes. A task link
+// (?review=<id>) opens that review.
+function PerformanceTab({ profile }) {
+  const [searchParams] = useSearchParams();
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+  const load = useCallback(async () => {
+    setError("");
+    try {
+      setData(await (profile.is_self ? getMyPerformance() : getEmployeePerformance(profile.id)));
+    } catch (err) {
+      console.error("[EmployeeProfile] Failed to load performance:", err);
+      setError(err.message);
+    }
+  }, [profile.id, profile.is_self]);
+  useEffect(() => {
+    load();
+  }, [load]);
+  if (error) return <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>;
+  if (!data) return <div className="py-6 text-center text-gray-500">Loading performance...</div>;
+  return (
+    <div className="space-y-4">
+      <Section title="Reviews" subtitle="Reporting manager every two weeks, BU head monthly, partner quarterly. Only the reporting chain and HR see them; the employee sees a review once it is completed and shared with them.">
+        <ReviewList data={data} openReviewId={searchParams.get("review")} onSaved={load} />
+      </Section>
+      <Section title="Feedback" subtitle="Praise is visible to everyone; feedback to the employee, their reporting chain and HR.">
+        <FeedbackSection data={data} employeeId={profile.id} onSaved={load} allowGive={!profile.is_self} />
+      </Section>
+    </div>
+  );
+}
+
 const HISTORY_LABEL = { STATUS: "Status", ENGINE: "Delivery engine" };
 function describe(value) {
   if (value == null) return "—";
@@ -565,7 +668,8 @@ export default function EmployeeProfileScreen() {
   const reload = useCallback(async () => {
     setError("");
     try {
-      setProfile(await getEmployeeProfile(employeeId));
+      const loaded = await getEmployeeProfile(employeeId);
+      setProfile({ ...loaded, photo_version: Date.now() });
     } catch (err) {
       console.error("[EmployeeProfile] Failed to load:", err);
       setError(err.message);
@@ -634,6 +738,7 @@ export default function EmployeeProfileScreen() {
       {tab === "job" && <JobTab profile={profile} save={save} reload={reload} orgOptions={orgOptions} managers={managers} />}
       {tab === "documents" && <DocumentsTab profile={profile} />}
       {tab === "finance" && <FinanceTab profile={profile} save={save} reload={reload} />}
+      {tab === "performance" && <PerformanceTab profile={profile} />}
       {tab === "timeline" && <TimelineTab profile={profile} />}
     </div>
   );

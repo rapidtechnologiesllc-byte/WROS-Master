@@ -170,6 +170,8 @@ class Settings:
     # Expense receipts: a receipt whose amount and date match the entry approves the manager step
     # automatically; anything else goes to the manager with the reasons
     EXPENSE_RECEIPT_MAX_BYTES: int = int(os.getenv("EXPENSE_RECEIPT_MAX_BYTES", str(10 * 1024 * 1024)))
+    # Employee profile / cover photo upload limit
+    EMPLOYEE_PHOTO_MAX_BYTES: int = int(os.getenv("EMPLOYEE_PHOTO_MAX_BYTES", str(5 * 1024 * 1024)))
     EXPENSE_RECEIPT_AMOUNT_TOLERANCE_PCT: float = float(os.getenv("EXPENSE_RECEIPT_AMOUNT_TOLERANCE_PCT", "2"))
     EXPENSE_RECEIPT_DATE_TOLERANCE_DAYS: int = int(os.getenv("EXPENSE_RECEIPT_DATE_TOLERANCE_DAYS", "7"))
     MAX_UPLOAD_SIZE: int = int(os.getenv("MAX_UPLOAD_SIZE", "10485760"))  # 10MB default
@@ -383,6 +385,23 @@ class Settings:
     PUBLIC_ENDPOINT_RATE_LIMIT_PER_MINUTE: int = int(os.getenv("PUBLIC_ENDPOINT_RATE_LIMIT_PER_MINUTE", "30"))
     # Work orders: Finance gets a task when a client PO ends within this many days (po_expiry_alerts)
     PO_EXPIRY_ALERT_DAYS: int = int(os.getenv("PO_EXPIRY_ALERT_DAYS", "30"))
+
+    # Performance reviews (CEO 2026-10-24, app.services.performance_service): the reporting manager
+    # reviews every PERF_REVIEW_MANAGER_DAYS, the BU head every calendar month, the partner every
+    # calendar quarter. The reviewer's task is due at the period end; the meeting is booked in the
+    # last PERF_REVIEW_BOOK_WITHIN_DAYS working days, at PERF_REVIEW_MEETING_HOUR (tenant time).
+    PERF_REVIEW_MANAGER_DAYS: int = int(os.getenv("PERF_REVIEW_MANAGER_DAYS", "14"))
+    PERF_REVIEW_RATING_MAX: int = int(os.getenv("PERF_REVIEW_RATING_MAX", "5"))
+    PERF_REVIEW_MEETING_MINUTES: int = int(os.getenv("PERF_REVIEW_MEETING_MINUTES", "30"))
+    PERF_REVIEW_MEETING_HOUR: int = int(os.getenv("PERF_REVIEW_MEETING_HOUR", "11"))
+    PERF_REVIEW_BOOK_WITHIN_DAYS: int = int(os.getenv("PERF_REVIEW_BOOK_WITHIN_DAYS", "3"))
+    # Book the Teams meeting through Microsoft Graph (the Graph app needs Calendars.ReadWrite and
+    # OnlineMeetings.ReadWrite.All); off -> the reviewer's task says to set the meeting themselves
+    PERF_REVIEW_TEAMS_ENABLED: bool = os.getenv("PERF_REVIEW_TEAMS_ENABLED", "false").lower() == "true"
+    # Pull the meeting recording from Teams onto the review (needs OnlineMeetingRecording.Read.All and
+    # a Teams application access policy for the Graph app); off -> the reviewer uploads or links it
+    PERF_REVIEW_FETCH_RECORDINGS: bool = os.getenv("PERF_REVIEW_FETCH_RECORDINGS", "false").lower() == "true"
+    PERF_REVIEW_RECORDING_MAX_BYTES: int = int(os.getenv("PERF_REVIEW_RECORDING_MAX_BYTES", str(500 * 1024 * 1024)))
     # Invoice numbers: "<prefix>-<issuing company code>-<sequence>" per issuing company
     INVOICE_NUMBER_PREFIX: str = os.getenv("INVOICE_NUMBER_PREFIX", "INV")
     INVOICE_NUMBER_DIGITS: int = int(os.getenv("INVOICE_NUMBER_DIGITS", "6"))
@@ -396,7 +415,7 @@ class Settings:
         "SCHEDULED_JOBS_ENABLED",
         "timesheet_draft_creation,timesheet_reminders,ar_follow_up,expire_bu_ownerships,"
         "daily_revenue_scan,engagement_metrics,birthday_drafts,hiring_pipeline_sweep,client_start_date,auto_invoicing,"
-        "utilization_snapshot,renewal_alerts,po_expiry_alerts",
+        "utilization_snapshot,renewal_alerts,po_expiry_alerts,performance_reviews",
     )
     SCHEDULED_JOB_LEASE_GRACE_SECONDS: int = int(os.getenv("SCHEDULED_JOB_LEASE_GRACE_SECONDS", "120"))
 

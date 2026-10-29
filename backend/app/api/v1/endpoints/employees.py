@@ -38,6 +38,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from app.core.config import settings
 from sqlalchemy.orm import Session
 
 from app.core.data_scope import bu_filter, ensure_assignable
@@ -178,6 +179,8 @@ def _to_item(db: Session, employee: Employee, *, bench_entry=..., allocations=No
         htd_phase=employee.htd_phase,
         htd_start_date=employee.htd_start_date,
         has_login=employee.wros_user_id is not None,
+        has_photo=bool(employee.photo_path),
+        has_cover=bool(employee.cover_path),
         reporting_manager_user_id=employee.reporting_manager_user_id,
         reporting_manager_name=manager_name,
         reporting_manager_employee_id=manager_employee_id,
@@ -411,17 +414,118 @@ def update_employee_organization(
     return {"employee_id": employee.id, "company_id": employee.company_id, "business_unit_id": employee.bu_id}
 
 
-@router.get("/{employee_id}/profile", dependencies=[Depends(require_resource_permission("employees", "view"))])
+def _is_self(employee: Employee, user: Users) -> bool:
+    return bool(employee.wros_user_id) and employee.wros_user_id == user.UserID
+
+
+def _profile_employee_or_404(db: Session, employee_id: str, user: Users) -> Employee:
+    """The employee whose profile this viewer may open: anyone in scope with employees.view, and
+    everyone their own (same 404 as an unknown id otherwise)."""
+    from app.core import authority
+
+    if authority.has_permission(db, user, "employees.view"):
+        return _get_employee_or_404(db, employee_id, user)
+    employee = db.query(Employee).filter(Employee.id == employee_id, Employee.tenant_id == user.tenant_id).first()
+    if employee is None or not _is_self(employee, user):
+        raise HTTPException(status_code=404, detail="Employee not found")
+    return employee
+
+
+@router.get("/me", dependencies=[Depends(require_resource_permission("my-tasks", "view"))])
+def my_employee_record(db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)):
+    """The signed-in person's employee id (for "My profile"); 404 when the login has none."""
+    employee = db.query(Employee).filter(Employee.wros_user_id == current_user.UserID,
+                                         Employee.tenant_id == current_user.tenant_id).first()
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Your login has no employee record")
+    return {"employee_id": employee.id}
+
+
+@router.get("/{employee_id}/profile", dependencies=[Depends(require_resource_permission("my-tasks", "view"))])
 def get_employee_profile(
     employee_id: str,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    """Everything about one employee for the profile page (app.services.employee_profile_service)."""
+    """Everything about one employee for the profile page (app.services.employee_profile_service).
+    Open to staff with employees.view (in their scope) and to each employee for their own."""
     from app.services.employee_profile_service import build_profile
 
-    employee = _get_employee_or_404(db, employee_id, current_user)
-    return build_profile(db, employee, current_user, _to_item(db, employee, viewer=current_user).dict())
+    employee = _profile_employee_or_404(db, employee_id, current_user)
+    profile = build_profile(db, employee, current_user, _to_item(db, employee, viewer=current_user).dict())
+    profile["is_self"] = _is_self(employee, current_user)
+    return profile
+
+
+PHOTO_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+PHOTO_KINDS = {"photo": "photo_path", "cover": "cover_path"}
+
+
+def _photo_kind(kind: str) -> str:
+    if kind not in PHOTO_KINDS:
+        raise HTTPException(status_code=404, detail="Unknown photo kind; photo or cover")
+    return PHOTO_KINDS[kind]
+
+
+@router.put("/{employee_id}/photo/{kind}", dependencies=[Depends(require_resource_permission("my-tasks", "view"))])
+async def upload_employee_photo(
+    employee_id: str,
+    kind: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Profile photo or cover photo: the employee for their own, anyone with employees.edit for anyone
+    in their scope. JPG, PNG or WEBP up to EMPLOYEE_PHOTO_MAX_BYTES; replaces the previous one."""
+    import os
+
+    from app.core import authority
+
+    column = _photo_kind(kind)
+    employee = _profile_employee_or_404(db, employee_id, current_user)
+    if not (_is_self(employee, current_user) or authority.has_permission(db, current_user, "employees.edit")):
+        raise HTTPException(status_code=403, detail="Only the employee or someone who edits employees can change this photo")
+    extension = PHOTO_TYPES.get(file.content_type or "")
+    if extension is None:
+        raise HTTPException(status_code=400, detail="Upload a JPG, PNG or WEBP image")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="The image is empty")
+    if len(data) > settings.EMPLOYEE_PHOTO_MAX_BYTES:
+        raise HTTPException(status_code=400,
+                            detail=f"The image is larger than {settings.EMPLOYEE_PHOTO_MAX_BYTES // (1024 * 1024)} MB")
+    folder = os.path.join(settings.UPLOAD_DIR, "employee-photos", str(employee.tenant_id))
+    os.makedirs(folder, exist_ok=True)
+    old = getattr(employee, column)
+    path = os.path.join(folder, f"{employee.id}-{kind}{extension}")
+    with open(path, "wb") as handle:
+        handle.write(data)
+    if old and old != path and os.path.exists(old):
+        os.remove(old)  # a different extension than before: the old file is no longer referenced
+    setattr(employee, column, path)
+    db.commit()
+    logger.info(f"[Employees] {employee.id} {kind} changed by {current_user.UserID}")
+    return {"employee_id": employee.id, "kind": kind}
+
+
+@router.get("/{employee_id}/photo/{kind}", dependencies=[Depends(require_resource_permission("my-tasks", "view"))])
+def get_employee_photo(
+    employee_id: str,
+    kind: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """A colleague's photo, like a staff directory: any internal user of the same tenant."""
+    import os
+
+    from fastapi.responses import FileResponse
+
+    column = _photo_kind(kind)
+    employee = db.query(Employee).filter(Employee.id == employee_id, Employee.tenant_id == current_user.tenant_id).first()
+    path = getattr(employee, column) if employee else None
+    if not path or not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="No photo")
+    return FileResponse(path, headers={"Cache-Control": "private, max-age=300"})
 
 
 class ManagerUpdate(BaseModel):
