@@ -123,9 +123,12 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         // Load resume data
         try {
           const docs = await getCandidateDocuments(candidateId);
-          if (docs && docs.resume) {
-            setResumeData(docs.resume);
-          }
+          const resumeDoc = (Array.isArray(docs?.documents) ? docs.documents : []).find(
+            (doc) => String(doc?.document_type ?? "").toLowerCase() === "resume" && !doc?.is_deleted,
+          );
+          setResumeData(resumeDoc
+            ? { file_name: resumeDoc.original_filename, file_url: resumeDoc.sharepoint_url }
+            : null);
         } catch (docErr) {
           console.error("[ProfileTabEditable] Failed to load the resume", docErr);
           setActionError(`Could not load the resume: ${docErr.message}`);

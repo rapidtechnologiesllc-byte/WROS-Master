@@ -391,6 +391,11 @@ def get_candidate_by_id(
          "last_used_date": s.last_used_date.isoformat() if s.last_used_date else None, "is_primary": s.is_primary}
         for s in db.query(CandidateProfileSkill).filter(CandidateProfileSkill.candidate_id == candidate_id)
         .order_by(CandidateProfileSkill.id).all()
+    ] or [
+        # Skills saved only as the comma list (imports, forwarded resumes): shown until a recruiter
+        # saves the Skills section, which then marks the primary skill
+        {"name": name, "years_of_experience": None, "last_used_date": None, "is_primary": False}
+        for name in dict.fromkeys(s.strip() for s in (candidate.candidateSkills or "").split(",") if s.strip())
     ]
     response.certifications = [
         {"name": c.name, "organization": c.organization,

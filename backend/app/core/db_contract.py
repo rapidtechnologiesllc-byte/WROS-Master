@@ -258,6 +258,22 @@ def _pay_from_monthly_usd(db: Session) -> int:
     return len(rows)
 
 
+def _candidate_timezones_from_location(db: Session) -> int:
+    """Candidates kept the Asia/Kolkata backfill whatever their location (US candidates were
+    emailed at night): every candidate whose location names a timezone gets it. Returns rows changed."""
+    from app.models.candidate import Candidate
+    from app.services.candidate_timezone import timezone_for_location
+
+    changed = 0
+    for candidate in db.query(Candidate).filter(Candidate.candidateCurrentLocation.isnot(None)).all():
+        zone = timezone_for_location(candidate.candidateCurrentLocation)
+        if zone and zone != candidate.timezone:
+            candidate.timezone = zone
+            changed += 1
+    db.flush()
+    return changed
+
+
 DATA_MIGRATIONS = (
     ("interview_times_to_utc", _interview_times_to_utc),
     ("employee_org_history_backfill", _employee_org_history_backfill),
@@ -266,6 +282,7 @@ DATA_MIGRATIONS = (
     ("intercompany_company_links", _intercompany_company_links),
     ("activity_timeline_entity_types_lowercase", _activity_timeline_entity_types_lowercase),
     ("pay_from_monthly_usd", _pay_from_monthly_usd),
+    ("candidate_timezones_from_location", _candidate_timezones_from_location),
 )
 
 

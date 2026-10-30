@@ -328,9 +328,33 @@ def _sync_experience_months(mapper, connection, candidate):
             candidate.total_experience_months = months
 
 
+# The timezone follows the location (app.services.candidate_timezone) unless it was set in the
+# same change; a location that names no timezone keeps the current one
+def _timezone_from_location(candidate):
+    from app.services.candidate_timezone import timezone_for_location
+
+    zone = timezone_for_location(candidate.candidateCurrentLocation)
+    if zone:
+        candidate.timezone = zone
+
+
+def _timezone_on_insert(mapper, connection, candidate):
+    _timezone_from_location(candidate)
+
+
+def _timezone_on_update(mapper, connection, candidate):
+    from sqlalchemy import inspect as sa_inspect
+
+    attrs = sa_inspect(candidate).attrs
+    if attrs.candidateCurrentLocation.history.has_changes() and not attrs.timezone.history.has_changes():
+        _timezone_from_location(candidate)
+
+
 from sqlalchemy import event as _event  # noqa: E402
 _event.listen(Candidate, "before_insert", _sync_experience_months)
 _event.listen(Candidate, "before_update", _sync_experience_months)
+_event.listen(Candidate, "before_insert", _timezone_on_insert)
+_event.listen(Candidate, "before_update", _timezone_on_update)
 
 
 # Every pipeline-status change notifies the candidate once the transaction commits
