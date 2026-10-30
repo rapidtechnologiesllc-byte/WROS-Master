@@ -11,7 +11,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -140,7 +140,28 @@ def attached_emails_text(raw: List[Dict]) -> str:
     return "\n\n".join(parts)
 
 
-def _pick_resume(attachments: List[Attachment]) -> Optional[Attachment]:
+def read_attachments(raw: List[Dict]) -> Tuple[List[Attachment], List[str]]:
+    """The file attachments with the text of each readable one, and why any could not be read."""
+    attachments = file_attachments(raw)
+    unreadable = []
+    for attachment in attachments:
+        if attachment.content is None:
+            unreadable.append(f"{attachment.name}: larger than {RESUME_MAX_BYTES // (1024 * 1024)} MB")
+            continue
+        if _extension(attachment.name) not in READABLE_EXTENSIONS + RESUME_EXTENSIONS:
+            continue
+        try:
+            attachment.text = extract_text(attachment.name, attachment.content)
+        except ValueError as exc:
+            unreadable.append(str(exc))
+    return attachments, unreadable
+
+
+def looks_like_resume(name: str) -> bool:
+    return bool(RESUME_NAME_PATTERN.search(name or ""))
+
+
+def pick_resume(attachments: List[Attachment]) -> Optional[Attachment]:
     candidates = [a for a in attachments if _extension(a.name) in RESUME_EXTENSIONS and a.content is not None]
     if not candidates:
         return None
@@ -232,19 +253,8 @@ def _rule_kind(text: str, resume: Optional[Attachment]) -> str:
 def read_forward(db: Session, tenant_id: int, subject: str, body: str, raw_attachments: List[Dict],
                  internal_emails: List[str], *, llm_call: Optional[Callable] = None) -> ForwardReading:
     """internal_emails: addresses that are never the candidate (the forwarder, the mailbox)."""
-    attachments = file_attachments(raw_attachments)
-    unreadable = []
-    for attachment in attachments:
-        if attachment.content is None:
-            unreadable.append(f"{attachment.name}: larger than {RESUME_MAX_BYTES // (1024 * 1024)} MB")
-            continue
-        if _extension(attachment.name) not in READABLE_EXTENSIONS + RESUME_EXTENSIONS:
-            continue
-        try:
-            attachment.text = extract_text(attachment.name, attachment.content)
-        except ValueError as exc:
-            unreadable.append(str(exc))
-    resume = _pick_resume(attachments)
+    attachments, unreadable = read_attachments(raw_attachments)
+    resume = pick_resume(attachments)
 
     body = f"{body or ''}\n\n{attached_emails_text(raw_attachments)}".strip()
     resume_text = resume.text if resume else ""

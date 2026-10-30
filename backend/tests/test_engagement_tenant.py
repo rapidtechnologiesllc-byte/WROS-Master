@@ -35,7 +35,9 @@ def _complete_except(db, *, missing=("candidateGender", "marital_status")):
     values = dict(candidateFirstName="Ria", candidateLastName="Das", candidateMobile="+91 98765 43210",
                   candidateGender="Female", candidateDateOfBirth=date(1995, 5, 1),
                   candidateCurrentLocation="Pune", candidateJoiningDate=date(2026, 12, 1),
-                  candidateExperience="6 years", candidateJobTitle="Guidewire Developer")
+                  candidateExperience="6 years", candidateJobTitle="Guidewire Developer",
+                  candidateSkills="Guidewire", employment_type="FULLTIME", candidate_notice_period=30,
+                  candidateCurrentSalary="1500000", candidateExpectedSalary="1800000")
     for field in missing:
         values.pop(field, None)
     candidate = factories.candidate(db, **values)
@@ -52,6 +54,34 @@ def _complete_except(db, *, missing=("candidateGender", "marital_status")):
 def test_missing_fields_are_the_empty_profile_fields(db):
     candidate = _complete_except(db)
     assert [m["field"] for m in svc.get_missing_fields(candidate, db)] == ["candidateGender", "marital_status"]
+
+
+def test_merge_saves_professional_details_and_rejects_bad_values(db):
+    from app.models.candidate_profile_extras import CandidateProfileSkill
+
+    candidate = factories.candidate(db)
+    result = svc.merge_fields_to_db(candidate.candidateID, {
+        "employment_type": "contract", "candidate_notice_period": "60 days",
+        "candidateExpectedSalary": "65", "candidateExpectedSalaryType": "$/Hour",
+        "candidateCurrentSalary": "120000", "candidateCurrentSalaryType": "per annum",
+        "candidateSkills": [{"name": "Guidewire", "years": 6}, {"name": "Java", "years": None}],
+    }, db)
+    assert set(result["skipped"]) == {"candidateCurrentSalaryType"}
+    assert (candidate.employment_type, candidate.candidate_notice_period) == ("CONTRACT", 60)
+    assert (candidate.candidateExpectedSalary, candidate.candidateExpectedSalaryType) == ("65", "$/Hour")
+    assert candidate.candidateSkills == "Guidewire, Java"
+    skills = db.query(CandidateProfileSkill).filter_by(candidate_id=candidate.candidateID).order_by(CandidateProfileSkill.id).all()
+    assert [(s.name, s.years_of_experience, s.is_primary) for s in skills] == [("Guidewire", "6", True), ("Java", None, False)]
+    assert svc.merge_fields_to_db(candidate.candidateID, {"employment_type": "C2C"}, db)["skipped"] == ["employment_type"]
+
+
+def test_unknown_employment_type_and_a_missing_resume_count_as_missing(db):
+    candidate = _complete_except(db, missing=())
+    candidate.employment_type = "UNKNOWN"
+    db.flush()
+    assert [m["field"] for m in svc.get_missing_fields(candidate, db)] == ["employment_type"]
+    assert [m["field"] for m in svc.get_missing_fields(candidate, db, include_documents=True)] == [
+        "employment_type", "resume"]
 
 
 def test_merge_saves_core_and_form_fields_and_rejects_bad_values(db):

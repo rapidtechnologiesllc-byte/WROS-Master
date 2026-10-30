@@ -118,13 +118,15 @@ def poll_thunder_mailbox(db: Session, mailbox: Optional[GraphMailbox] = None,
             savepoint.rollback()  # already stored by an earlier, overlapping run
             continue
         matched += 1
-        queued.append((row.id, state.tenant_id, {k: headers[k] for k in CLASSIFIER_HEADERS if k in headers}))
+        queued.append((row.id, state.tenant_id, {k: headers[k] for k in CLASSIFIER_HEADERS if k in headers},
+                       bool(message.get("hasAttachments"))))
 
     cursor.last_received_at, cursor.last_error = newest, None
     db.commit()
-    for row_id, tenant_id, classifier_headers in queued:
+    for row_id, tenant_id, classifier_headers, has_attachments in queued:
         enqueue_once(INBOUND_TASK, f"thunder_inbound:{row_id}",
-                     {"thunder_message_id": row_id, "headers": classifier_headers}, tenant_id)
+                     {"thunder_message_id": row_id, "headers": classifier_headers,
+                      "has_attachments": has_attachments}, tenant_id)
     for intake_id, tenant_id in forwards:
         queue_forward(intake_id, tenant_id)
     logger.info(f"[ThunderPoll] {mailbox_address}: read {len(messages)}, matched {matched}, forwarded {len(forwards)}")

@@ -99,7 +99,8 @@ def _send(db, world, step, mailbox, seq=1):
     return result, enqueue
 
 
-def _inbound(db, world, body, subject="Re: a quick question", received=None, headers=None, llm=None, fields_llm=None):
+def _inbound(db, world, body, subject="Re: a quick question", received=None, headers=None, llm=None, fields_llm=None,
+             attachments=None):
     row = ThunderEmailMessage(
         id=str(uuid.uuid4()), tenant_id=1, candidate_id=world.candidate.candidateID, direction="IN",
         status="RECEIVED", cadence_seq=1, mailbox=MAILBOX, graph_message_id=f"in-{uuid.uuid4().hex[:6]}",
@@ -108,10 +109,13 @@ def _inbound(db, world, body, subject="Re: a quick question", received=None, hea
     )
     db.add(row)
     db.commit()
-    message = SimpleNamespace(id="m2", payload={"thunder_message_id": row.id, "headers": headers or {}})
+    message = SimpleNamespace(id="m2", payload={"thunder_message_id": row.id, "headers": headers or {},
+                                                "has_attachments": bool(attachments)})
+    mailbox = SimpleNamespace(list_attachments=lambda message_id: attachments or [])
     with patch(ENQUEUE, return_value={"message_id": "x", "task_id": "x"}) as enqueue:
         result = ThunderInboundEmailHandler.process(message, db, llm_call=llm or (lambda *a: "garbage"),
-                                                    field_llm_call=fields_llm or (lambda prompt: "{}"))
+                                                    field_llm_call=fields_llm or (lambda prompt: "{}"),
+                                                    mailbox=mailbox)
     db.refresh(world.state)
     return result, enqueue, row
 
@@ -353,6 +357,69 @@ def test_an_opt_out_reads_and_asks_for_nothing(db, world):
     calls = []
     result, _, _ = _inbound(db, world, "Please remove me", fields_llm=lambda p: calls.append(p) or "{}")
     assert result["intent"] == "UNSUBSCRIBE" and calls == [] and result["fields_missing"] == []
+
+
+def _resume_attachment(name="Ankurjit_Singh_Resume.docx"):
+    import base64
+    import io
+
+    from docx import Document
+
+    document = Document()
+    for line in ("Ankurjit Singh", "Experience", "Acme Insurance Inc", "Kafka Engineer 2019-01 to 2026-09",
+                 "Education", "Pune University", "Bachelor of Engineering 2018", "Skills: Java, Kafka, SQL"):
+        document.add_paragraph(line)
+    out = io.BytesIO()
+    document.save(out)
+    content = out.getvalue()
+    return {"@odata.type": "#microsoft.graph.fileAttachment", "id": "att-1", "name": name, "size": len(content),
+            "isInline": False, "contentBytes": base64.b64encode(content).decode()}
+
+
+def test_the_resume_is_asked_for_when_none_is_on_file(db, world):
+    result, _, _ = _inbound(db, world, "Sounds good, what next?",
+                            llm=lambda *a: '{"intent": "INTERESTED", "confidence": 0.9}')
+    assert "resume" in result["fields_missing"] and "employment_type" in result["fields_missing"]
+    mailbox = FakeMailbox()
+    _send(db, world, result["ack_step"], mailbox)
+    out = db.query(ThunderEmailMessage).filter_by(candidate_id=world.candidate.candidateID,
+                                                  step=result["ack_step"], direction="OUT").one()
+    html = mailbox.drafts[out.graph_message_id]["html"]
+    assert "attach it to your reply" in html and "Expected Salary" in html and "Notice Period" in html
+
+
+def test_a_resume_attached_to_a_reply_fills_the_profile_and_is_stored(db, world):
+    from app.models.candidate import CandidateEducationForm, CandidateExperienceForm
+    from app.models.candidate_profile_extras import CandidateProfileSkill
+
+    with patch("app.services.candidate_resume_intake.store_resume_document",
+               return_value=SimpleNamespace(id=1)) as store:
+        result, _, _ = _inbound(db, world, "Interested, resume attached.", attachments=[_resume_attachment()],
+                                llm=lambda *a: '{"intent": "INTERESTED", "confidence": 0.9}')
+    cid = world.candidate.candidateID
+    assert store.call_args.args[2] == "Ankurjit_Singh_Resume.docx"
+    assert "resume" not in result["fields_missing"]
+    assert db.query(CandidateExperienceForm).filter_by(candidateID=cid).count() >= 1
+    assert db.query(CandidateEducationForm).filter_by(candidateID=cid).count() >= 1
+    assert "Java" in {s.name for s in db.query(CandidateProfileSkill).filter_by(candidate_id=cid)}
+    task = db.query(Task).filter_by(candidate_id=cid).one()
+    assert "Resume attached: Ankurjit_Singh_Resume.docx (filled" in task.description
+
+
+def test_a_resume_that_cannot_be_stored_is_flagged_on_the_task(db, world):
+    with patch("app.services.candidate_resume_intake.store_resume_document", return_value=None):
+        result, _, _ = _inbound(db, world, "Interested, CV attached.", attachments=[_resume_attachment("cv.docx")],
+                                llm=lambda *a: '{"intent": "INTERESTED", "confidence": 0.9}')
+    assert result["status"] == "processed"
+    task = db.query(Task).filter_by(candidate_id=world.candidate.candidateID).one()
+    assert task.description.startswith("The resume cv.docx could not be saved")
+
+
+def test_an_attachment_is_not_taken_as_a_resume_when_one_is_on_file(db, world):
+    with patch("app.services.candidate_resume_intake.has_resume", return_value=True),          patch("app.services.candidate_resume_intake.store_resume_document") as store:
+        _inbound(db, world, "Interested, payslip attached.", attachments=[_resume_attachment("payslip.docx")],
+                 llm=lambda *a: '{"intent": "INTERESTED", "confidence": 0.9}')
+    store.assert_not_called()
 
 
 def test_salary_ack_quotes_job_record_verbatim(db, world):
