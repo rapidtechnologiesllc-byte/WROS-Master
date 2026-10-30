@@ -85,6 +85,11 @@ _JOBS = (
     # recording pulled from Teams afterwards, missed reviews marked (performance_service)
     ScheduledJob("performance_reviews", "app.services.performance_service:run_performance_reviews",
                  timedelta(hours=6), timeout_s=600),
+    # internal only: an email to the assignee when an open task falls due (task_notification_service);
+    # assignment and next-step emails go out when the task is created, not from this job
+    ScheduledJob("task_due_reminders", "app.services.task_notification_service:run_due_reminders",
+                 timedelta(minutes=5), timeout_s=120,
+                 backlog_guard="app.services.task_notification_service:backlog_guard"),
     ScheduledJob("birthday_drafts", "app.services.culture_agent_service:generate_birthday_drafts",
                  timedelta(days=1), timeout_s=120, daily_after_utc="03:00"),
 )

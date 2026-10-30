@@ -278,6 +278,8 @@ class Settings:
     INTERVIEW_FEEDBACK_NUDGE_MINUTES_AFTER: tuple = tuple(
         int(m) for m in os.getenv("INTERVIEW_FEEDBACK_NUDGE_MINUTES_AFTER", "60,1440").split(",") if m.strip())
     INTERVIEW_REMINDER_GRACE_MINUTES: int = int(os.getenv("INTERVIEW_REMINDER_GRACE_MINUTES", "30"))
+    # task_due_reminders job: a task's due email is sent only this many minutes after its due time
+    TASK_DUE_REMINDER_GRACE_MINUTES: int = int(os.getenv("TASK_DUE_REMINDER_GRACE_MINUTES", "60"))
     
     # Email Settings (if needed in future)
     SMTP_HOST: Optional[str] = os.getenv("SMTP_HOST")
@@ -415,7 +417,7 @@ class Settings:
         "SCHEDULED_JOBS_ENABLED",
         "timesheet_draft_creation,timesheet_reminders,ar_follow_up,expire_bu_ownerships,"
         "daily_revenue_scan,engagement_metrics,birthday_drafts,hiring_pipeline_sweep,client_start_date,auto_invoicing,"
-        "utilization_snapshot,renewal_alerts,po_expiry_alerts,performance_reviews",
+        "utilization_snapshot,renewal_alerts,po_expiry_alerts,performance_reviews,task_due_reminders",
     )
     SCHEDULED_JOB_LEASE_GRACE_SECONDS: int = int(os.getenv("SCHEDULED_JOB_LEASE_GRACE_SECONDS", "120"))
 

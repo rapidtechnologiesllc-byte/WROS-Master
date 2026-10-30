@@ -156,6 +156,9 @@ def log_task_update(
 
     db.commit()
     db.refresh(activity)
+    if activity.follow_up_task_id:
+        from app.services.task_notification_service import notify_task_assigned
+        notify_task_assigned(db, db.get(Task, activity.follow_up_task_id), kind="next_step")
     logger.info(f"[TaskActivity] Task #{task.id} update {activity.id} by {user.UserID} "
                 f"(follow-up task {activity.follow_up_task_id})")
     return activity

@@ -153,6 +153,8 @@ def create_task(
 
     db.commit()
     db.refresh(task)
+    from app.services.task_notification_service import notify_task_assigned
+    notify_task_assigned(db, task)
     return task
 
 def confirm_urgent_task(db: Session, task: Task) -> Task:

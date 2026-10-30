@@ -178,6 +178,9 @@ def approve_reassignment(db: Session, req: TaskReassignmentRequest, *, approved_
     db.add(req)
     db.commit()
     db.refresh(req)
+    if task:
+        from app.services.task_notification_service import notify_task_assigned
+        notify_task_assigned(db, task, kind="reassigned")
     return req
 
 def reject_reassignment(db: Session, req: TaskReassignmentRequest, *, approved_by_user_id: str) -> TaskReassignmentRequest:

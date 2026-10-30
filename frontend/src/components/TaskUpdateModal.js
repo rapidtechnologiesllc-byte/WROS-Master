@@ -85,6 +85,13 @@ export default function TaskUpdateModal({ task, onClose, onSaved }) {
           </button>
         </div>
 
+        {task.description && (
+          <div className="border-b border-bx-border px-5 py-4">
+            <div className="mb-1 text-sm font-semibold text-gray-800">Details</div>
+            <div className="max-h-64 overflow-y-auto whitespace-pre-wrap text-sm text-gray-700">{task.description}</div>
+          </div>
+        )}
+
         <form onSubmit={handleSave} className="space-y-4 px-5 py-4">
           {error && <div className="rounded-bx border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
