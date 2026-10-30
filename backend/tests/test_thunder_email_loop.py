@@ -99,7 +99,7 @@ def _send(db, world, step, mailbox, seq=1):
     return result, enqueue
 
 
-def _inbound(db, world, body, subject="Re: a quick question", received=None, headers=None, llm=None):
+def _inbound(db, world, body, subject="Re: a quick question", received=None, headers=None, llm=None, fields_llm=None):
     row = ThunderEmailMessage(
         id=str(uuid.uuid4()), tenant_id=1, candidate_id=world.candidate.candidateID, direction="IN",
         status="RECEIVED", cadence_seq=1, mailbox=MAILBOX, graph_message_id=f"in-{uuid.uuid4().hex[:6]}",
@@ -110,7 +110,8 @@ def _inbound(db, world, body, subject="Re: a quick question", received=None, hea
     db.commit()
     message = SimpleNamespace(id="m2", payload={"thunder_message_id": row.id, "headers": headers or {}})
     with patch(ENQUEUE, return_value={"message_id": "x", "task_id": "x"}) as enqueue:
-        result = ThunderInboundEmailHandler.process(message, db, llm_call=llm or (lambda *a: "garbage"))
+        result = ThunderInboundEmailHandler.process(message, db, llm_call=llm or (lambda *a: "garbage"),
+                                                    field_llm_call=fields_llm or (lambda prompt: "{}"))
     db.refresh(world.state)
     return result, enqueue, row
 
@@ -292,10 +293,66 @@ def test_interested_reply_hands_off_acks_and_credits_variant(db, world):
     assert db.query(Task).filter_by(candidate_id=world.candidate.candidateID, category="THUNDER_REPLY").count() == 1
 
 
-def test_salary_question_without_salary_on_record_goes_to_human_not_ack(db, world):
+def test_salary_question_without_salary_on_record_gets_a_holding_reply_and_a_human(db, world):
     result, enqueue, _ = _inbound(db, world, "What's the CTC for this?")
-    assert result["intent"] == "QUESTION_COMP" and result["ack_step"] is None
-    assert db.query(Task).filter_by(candidate_id=world.candidate.candidateID).count() == 1
+    assert result["intent"] == "QUESTION_COMP" and result["ack_step"] == "ACK_HOLD"
+    task = db.query(Task).filter_by(candidate_id=world.candidate.candidateID).one()
+    assert "answer personally" in task.title
+    variant = db.query(ThunderOutreachVariant).filter_by(key="ack_hold").one()
+    _, body = cadence.render(variant, world.candidate, None, {})
+    assert "come back to you personally" in body and "{" not in body
+
+
+def test_details_in_a_reply_are_saved_and_the_rest_is_asked_for(db, world):
+    details = '{"candidateMobile": "+91 98765 43210", "candidateExperience": "6"}'
+    result, enqueue, _ = _inbound(db, world, "Interested. My number is +91 98765 43210, 6 years in Kafka.",
+                                  llm=lambda *a: '{"intent": "INTERESTED", "confidence": 0.9}',
+                                  fields_llm=lambda prompt: details)
+    db.refresh(world.candidate)
+    assert world.candidate.candidateMobile == "+91 98765 43210"
+    assert set(result["fields_saved"]) == {"candidateMobile", "candidateExperience"}
+    assert "candidateMobile" not in result["fields_missing"] and "candidateGender" in result["fields_missing"]
+    task = db.query(Task).filter_by(candidate_id=world.candidate.candidateID).one()
+    assert "Saved from this reply: " in task.description and "Thunder asked for them" in task.description
+
+
+def test_every_further_reply_is_answered_until_the_cap(db, world):
+    steps = [_inbound(db, world, f"Here you go, reply {n}")[0]["ack_step"] for n in range(cadence.MAX_ACKS_PER_KIND)]
+    assert steps == ["ACK_FIELDS"] + [f"ACK_FIELDS#{n}" for n in range(2, cadence.MAX_ACKS_PER_KIND + 1)]
+    mailbox = FakeMailbox()
+    for step in steps:
+        _send(db, world, step, mailbox)
+    assert _inbound(db, world, "And one more")[0]["ack_step"] is None
+
+
+def test_an_acknowledgement_asks_for_the_missing_details_before_the_signature(db, world):
+    mailbox = FakeMailbox()
+    result, _ = _send(db, world, "ACK_FIELDS#2", mailbox)
+    out = db.query(ThunderEmailMessage).filter_by(candidate_id=world.candidate.candidateID, step="ACK_FIELDS#2").one()
+    assert result["status"] == "sent" and out.variant_id == db.query(ThunderOutreachVariant).filter_by(key="ack_fields").one().id
+    sent = mailbox.drafts[out.graph_message_id]["html"]
+    assert "<li>Gender</li>" in sent and sent.index("To move things forward") < sent.index("<p>Regards,")
+    # copy approved before the slot existed gets the request placed before its signature too
+    variant = db.query(ThunderOutreachVariant).filter_by(key="ack_interested").one()
+    _, body = cadence.render(variant, world.candidate, None, {"fields_request": cadence.fields_request_html(
+        [{"field": "candidateGender", "label": "Gender"}])})
+    assert body.index("<li>Gender</li>") < body.index("<p>Regards,")
+
+
+def test_unreadable_details_never_block_the_reply(db, world):
+    def broken(prompt):
+        raise RuntimeError("GEMINI_API_KEY is not configured")
+    result, _, _ = _inbound(db, world, "Interested, call me", llm=lambda *a: '{"intent": "INTERESTED", "confidence": 0.9}',
+                            fields_llm=broken)
+    assert result["status"] == "processed" and result["ack_step"] == "ACK_INTERESTED"
+    task = db.query(Task).filter_by(candidate_id=world.candidate.candidateID).one()
+    assert "could not be read automatically" in task.description
+
+
+def test_an_opt_out_reads_and_asks_for_nothing(db, world):
+    calls = []
+    result, _, _ = _inbound(db, world, "Please remove me", fields_llm=lambda p: calls.append(p) or "{}")
+    assert result["intent"] == "UNSUBSCRIBE" and calls == [] and result["fields_missing"] == []
 
 
 def test_salary_ack_quotes_job_record_verbatim(db, world):

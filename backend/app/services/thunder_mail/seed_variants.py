@@ -3,7 +3,9 @@
 Seeded once by db_contract; rows already in the database are never
 overwritten, so copy edited or retired in the database stays as is.
 Merge fields: {first_name} {sender_name} {hook} {job_title} {job_location}
-{salary_range} {jobs_list} {highlight} {source_note}. Every email carries the footer.
+{salary_range} {jobs_list} {highlight} {source_note} {fields_request} (acknowledgements: the
+profile details still missing, placed before the signature when the copy has no slot for it).
+Every email carries the footer.
 """
 from sqlalchemy.orm import Session
 
@@ -56,6 +58,12 @@ SEED_VARIANTS = [
     ("ack_role", "ACK_ROLE", "Re: details on the role",
      "<p>Hi {first_name},</p><p>Thanks for asking. A member of our team will send you the details shortly "
      "and answer your questions directly.</p>"),
+    ("ack_hold", "ACK_HOLD", "Re: compensation for the role",
+     "<p>Hi {first_name},</p><p>Thanks for asking about compensation. A member of our team will come back "
+     "to you personally on the numbers for this role shortly.</p>"),
+    ("ack_fields", "ACK_FIELDS", "Re: thanks for getting back to me",
+     "<p>Hi {first_name},</p><p>Thanks for your reply. A member of our team will follow up with you "
+     "shortly.</p>"),
 ]
 REQUIRES_JOB = {"ack_comp"}
 

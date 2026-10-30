@@ -99,6 +99,9 @@ class ThunderSendEmailHandler:
         extra = {"source_note": cadence.source_note(db, candidate)}
         if step == "1":
             extra["hook"] = cadence.personal_hook(db, candidate)
+        if is_ack:
+            from app.services.ai_conversation_service import get_missing_fields
+            extra["fields_request"] = cadence.fields_request_html(get_missing_fields(candidate, db))
         if step.startswith("NURTURE"):
             content = cadence.nurture_content(db, candidate, now)
             if content is None:
