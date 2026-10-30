@@ -109,6 +109,5 @@ class ThunderInboundEmailHandler:
             ),
             priority="HIGH", category="THUNDER_REPLY", tenant_id=candidate.tenant_id,
             assigned_to_user_id=candidate.assigned_recruiter_id, due_date=datetime.utcnow(),
+            candidate_id=candidate.candidateID, link=f"/candidates/{candidate.candidateID}",
         )
-        task.candidate_id = candidate.candidateID
-        db.add(task)

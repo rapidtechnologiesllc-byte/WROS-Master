@@ -442,9 +442,10 @@ def _needs_review(db: Session, row, forwarder: Users, reason: str, candidate_id:
     task = create_task(db, title=f"Forwarded email needs you: {row.subject or '(no subject)'}"[:300],
                        description=description, priority="MEDIUM", tenant_id=row.tenant_id,
                        assigned_to_user_id=forwarder.UserID, created_by_user_id=forwarder.UserID,
-                       due_date=datetime.utcnow(), category="MAILBOX_INTAKE")
+                       due_date=datetime.utcnow(), category="MAILBOX_INTAKE", candidate_id=candidate_id,
+                       link=f"/candidates/{candidate_id}" if candidate_id else None)
     if candidate_id:
-        task.candidate_id = row.candidate_id = candidate_id
+        row.candidate_id = candidate_id
     row.task_id, row.review_reason = task.id, reason
     row.status, row.processed_at = "NEEDS_REVIEW", datetime.utcnow()
     db.commit()

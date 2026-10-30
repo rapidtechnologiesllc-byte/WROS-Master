@@ -188,6 +188,16 @@ export default function MyTasksScreen() {
     if (outlook) setSearchParams({}, { replace: true });
   }, [searchParams, setSearchParams]);
 
+  // Task emails link here with ?task=<id> when the task has no record of its own: open that task
+  useEffect(() => {
+    const taskId = Number(searchParams.get("task"));
+    if (!taskId || loading) return;
+    const found = [...tasks, ...upcoming, ...scheduled].find((t) => t.id === taskId);
+    if (found) setUpdatingTask(found);
+    else setActionError(`Task #${taskId} is not open on your list (it may be completed or assigned to someone else).`);
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams, loading, tasks, upcoming, scheduled]);
+
   useEffect(() => {
     load();
     getTicketCategories().then(setCategories).catch(() => setCategories([]));
@@ -249,7 +259,8 @@ export default function MyTasksScreen() {
       // Candidate record not created yet: work the item in the pipeline
       navigate("/linkedin-pipeline");
     } else {
-      setActionError("No action configured for this task type.");
+      // No record behind it (e.g. a forwarded email): the task itself is the work -- open it
+      setUpdatingTask(task);
     }
   };
 
