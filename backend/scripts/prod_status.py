@@ -182,9 +182,9 @@ def main() -> int:
         table("Held as NOT SENT (count / reason)",
               "SELECT left(error, 160), count(*) FROM channel_queue_item WHERE status = 'PENDING' "
               "AND error LIKE 'NOT_SENT:%' GROUP BY 1 ORDER BY 2 DESC LIMIT 10", lambda r: f"{r[1]} {mask(r[0])}")
-        table("Recent failures (count / type / error)",
+        table("Failures, last 14 days (count / type / error)",
               "SELECT type, left(error, 160), count(*), max(created_at) FROM channel_queue_item WHERE status = 'FAILED' "
-              "AND created_at > now() - interval '3 days' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 12",
+              "AND created_at > now() - interval '14 days' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 12",
               lambda r: f"{r[2]} {r[0]} (last {r[3]:%Y-%m-%d %H:%M}) {mask(r[1])}")
 
         section("Thunder email")
