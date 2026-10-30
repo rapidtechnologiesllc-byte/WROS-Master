@@ -245,6 +245,38 @@ def _candidate_status(ctx: ToolContext, args: Dict) -> Dict:
     return {"text": flash_service._format_status_reply(name, found["matches"]), "matches": found["matches"]}
 
 
+def _candidate_profile(ctx: ToolContext, args: Dict) -> Dict:
+    """Which profile details a named candidate is missing, and Thunder's last and next email."""
+    from app.models.candidate import Candidate
+    from app.services import flash_service
+    from app.services.thunder_mail.status_service import thunder_status
+
+    name = (args.get("name") or "").strip()
+    if not name:
+        raise ToolError("Say whose profile you want.")
+    matches = flash_service.get_candidate_status_summary(ctx.db, name, tenant_id=ctx.user.tenant_id,
+                                                         user_bu_id=ctx.user.business_unit_id)["matches"]
+    if len(matches) != 1:
+        return {"text": flash_service._format_status_reply(name, matches), "matches": matches}
+    match = matches[0]
+    candidate = ctx.db.query(Candidate).filter(Candidate.candidateID == match["candidate_id"]).one()
+    status = thunder_status(ctx.db, candidate)
+    missing = [label.split("(")[0].strip() for label in status["missing_fields"]]
+    lines = [f"{match['name']}: " + (f"{len(missing)} profile detail(s) missing: {', '.join(missing)}."
+                                     if missing else "the profile is complete.")]
+    if not status["enrolled"]:
+        lines.append("Thunder has not emailed them yet.")
+    else:
+        lines.append(f"Thunder: {status['stage_label'].lower()}, {status['emails_sent']} email(s) sent, last on "
+                     f"{(status['last_email_at'] or 'never')[:10]}; candidate last replied "
+                     f"{(status['last_reply_at'] or 'never')[:10]}.")
+        if status["next_action_at"]:
+            lines.append(f"Next: {status['next_step_label'].lower()} on {status['next_action_at'][:10]}.")
+    return {"text": " ".join(lines), "candidate_id": match["candidate_id"], "missing": missing,
+            "thunder": {k: status[k] for k in ("stage_label", "emails_sent", "last_email_at", "last_reply_at",
+                                               "next_step_label", "next_action_at")}}
+
+
 def _bench(ctx: ToolContext, args: Dict) -> Dict:
     from app.services import flash_service
 
@@ -403,6 +435,12 @@ register(FlashTool(
     "candidate_status", "Where a named candidate is in hiring.",
     schema({"name": {"type": "string"}}), "candidates.view", _candidate_status, "see candidates",
     summary=said(lambda a, o: f"Looked up {a['name'].strip()}'s hiring status.")))  # the handler needs a name
+register(FlashTool(
+    "candidate_profile",
+    "A named candidate's profile: which details are missing (what Thunder is asking them for) and "
+    "when Thunder last emailed them, their last reply and Thunder's next email.",
+    schema({"name": {"type": "string"}}), "candidates.view", _candidate_profile, "see candidates",
+    summary=said(lambda a, o: f"Looked up {a['name'].strip()}'s profile.")))
 register(FlashTool(
     "bench_availability", "Employees on the bench, optionally with given skills.",
     schema({"skills": {"type": "string", "description": "Skills, may be empty"}}),
