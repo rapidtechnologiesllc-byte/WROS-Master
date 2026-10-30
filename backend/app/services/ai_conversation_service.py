@@ -49,6 +49,7 @@ DEFAULT_THUNDER_PERSONA_TEXT = (
 )
 
 # (candidate column, label the candidate sees). Aadhar / PAN are documents, not asked here.
+# Everything the HR profile's Basic and Professional sections show, except the optional middle name.
 CANDIDATE_CORE_FIELDS: List[Tuple[str, str]] = [
     ("candidateFirstName", "First Name"),
     ("candidateLastName", "Last Name"),
@@ -57,11 +58,24 @@ CANDIDATE_CORE_FIELDS: List[Tuple[str, str]] = [
     ("candidateGender", "Gender"),
     ("candidateDateOfBirth", "Date of Birth (YYYY-MM-DD)"),
     ("candidateCurrentLocation", "Current Location"),
-    ("candidateJoiningDate", "Expected Joining Date (YYYY-MM-DD)"),
-    ("candidateExperience", "Years of Experience"),
     ("candidateJobTitle", "Job Title / Role Applied For"),
+    ("candidateExperience", "Years of Experience"),
+    ("candidateSkills", "Top Skills (with years of experience in each)"),
+    ("employment_type", "Employment Type you are looking for (full-time or contract)"),
+    ("candidate_notice_period", "Notice Period (in days)"),
+    ("candidateJoiningDate", "Earliest Available Start Date (YYYY-MM-DD)"),
+    ("candidateCurrentSalary", "Current Salary (amount, and per hour or per year)"),
+    ("candidateExpectedSalary", "Expected Salary (amount, and per hour or per year)"),
 ]
 DATE_FIELDS = ("candidateDateOfBirth", "candidateJoiningDate")
+# Asked as their amount; the reply may also give the rate, saved alongside
+SALARY_TYPE_FIELDS = {"candidateCurrentSalary": "candidateCurrentSalaryType",
+                      "candidateExpectedSalary": "candidateExpectedSalaryType"}
+SALARY_RATE_TYPES = ("$/Hour", "$/Day", "$/Week", "$/Month", "$/Year")  # the profile's RateField options
+# Types a candidate can say they want; C2C / 1099 / UNKNOWN are never accepted (employment_type_policy)
+ASKABLE_EMPLOYMENT_TYPES = ("FULLTIME", "CONTRACT")
+# Not a typed value: Thunder asks the candidate to attach it to their email reply
+RESUME_FIELD = {"field": "resume", "label": "Your latest resume (please attach it to your reply)", "source": "document"}
 
 # Personal-details form (candidate_forms). The AI only needs city/state/country of the address.
 INFO_FORM_FIELDS: List[Tuple[str, str]] = [
@@ -103,14 +117,81 @@ def resolve_thunder_config(db: Session, tenant_id: Optional[str] = None) -> Dict
 # 1. Missing-field detection and merge
 # ===========================================================================
 
-def get_missing_fields(candidate: Candidate, db: Session) -> List[Dict[str, str]]:
-    """Every empty field as {field, label, source}; source = 'candidate' | 'info_form'."""
+def _core_value_missing(candidate: Candidate, field: str, db: Session) -> bool:
+    if field == "employment_type":
+        return candidate.employment_type in (None, "", "UNKNOWN")
+    if field == "candidateSkills":
+        from app.models.candidate_profile_extras import CandidateProfileSkill
+
+        return not candidate.candidateSkills and not db.query(CandidateProfileSkill.id).filter(
+            CandidateProfileSkill.candidate_id == candidate.candidateID).first()
+    return getattr(candidate, field, None) in (None, "")
+
+
+def get_missing_fields(candidate: Candidate, db: Session, include_documents: bool = False) -> List[Dict[str, str]]:
+    """Every empty field as {field, label, source}; source = 'candidate' | 'info_form' | 'document'.
+    include_documents adds the resume when none is on file: only an email channel (Thunder) can
+    receive it, as an attachment."""
     missing = [{"field": field, "label": label, "source": "candidate"}
-               for field, label in CANDIDATE_CORE_FIELDS if not getattr(candidate, field, None)]
+               for field, label in CANDIDATE_CORE_FIELDS if _core_value_missing(candidate, field, db)]
     info = db.query(CandidateInfoForm).filter(CandidateInfoForm.candidateID == candidate.candidateID).first()
     missing += [{"field": field, "label": label, "source": "info_form"}
                 for field, label in INFO_FORM_FIELDS if not (getattr(info, field, None) if info else None)]
+    if include_documents:
+        from app.services.candidate_resume_intake import has_resume
+
+        if not has_resume(db, candidate.candidateID):
+            missing.append(dict(RESUME_FIELD))
     return missing
+
+
+def _skill_names(value: Any) -> List[Tuple[str, Optional[str]]]:
+    """[(skill, years)] from a list ("Java", {"name": "Java", "years": 5}) or "Java (5 years), SQL"."""
+    items = value if isinstance(value, list) else re.split(r"[,;\n]", str(value))
+    skills: List[Tuple[str, Optional[str]]] = []
+    for item in items:
+        if isinstance(item, dict):
+            name, years = str(item.get("name") or "").strip(), item.get("years")
+        else:
+            match = re.match(r"\s*(.+?)\s*(?:\((\d+(?:\.\d+)?)\s*(?:\+\s*)?y(?:ea)?rs?\)?)?\s*$", str(item))
+            name, years = (match.group(1).strip(), match.group(2)) if match else (str(item).strip(), None)
+        if name:
+            skills.append((name[:255], str(years) if years not in (None, "") else None))
+    return skills
+
+
+def _save_skills(db: Session, candidate: Candidate, value: Any) -> bool:
+    """The profile's Skills section (when empty) and the comma list used for matching."""
+    from app.models.candidate_profile_extras import CandidateProfileSkill
+
+    skills = _skill_names(value)
+    if not skills:
+        return False
+    if not db.query(CandidateProfileSkill.id).filter(CandidateProfileSkill.candidate_id == candidate.candidateID).first():
+        for index, (name, years) in enumerate(skills):
+            db.add(CandidateProfileSkill(candidate_id=candidate.candidateID, name=name,
+                                         years_of_experience=years, is_primary=index == 0))
+    candidate.candidateSkills = ", ".join(name for name, _ in skills)
+    return True
+
+
+def _core_value(field: str, value: str) -> Any:
+    """The value to store for a core field, or None when it is not valid for that field."""
+    if field in DATE_FIELDS:
+        try:
+            return _date.fromisoformat(value)
+        except ValueError:
+            return None
+    if field == "candidateMobile":
+        return value if value.startswith("+") else None
+    if field == "candidate_notice_period":
+        match = re.search(r"\d+", value)
+        return int(match.group(0)) if match and int(match.group(0)) <= 365 else None
+    if field == "employment_type":
+        return value.upper() if value.upper() in ASKABLE_EMPLOYMENT_TYPES else None
+    if field in SALARY_TYPE_FIELDS.values():
+        return value if value in SALARY_RATE_TYPES else None
+    return value
 
 
 def merge_fields_to_db(candidate_id: str, extracted: Dict[str, Any], db: Session) -> Dict[str, Any]:
@@ -125,28 +206,27 @@ def merge_fields_to_db(candidate_id: str, extracted: Dict[str, Any], db: Session
     if candidate is None:
         raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found.")
 
-    core_fields = {f for f, _ in CANDIDATE_CORE_FIELDS}
+    core_fields = {f for f, _ in CANDIDATE_CORE_FIELDS} | set(SALARY_TYPE_FIELDS.values())
     info_fields = {f for f, _ in INFO_FORM_FIELDS}
     updated: List[str] = []
     skipped: List[str] = []
     info = None
     for field, raw_value in extracted.items():
+        if field == "candidateSkills" and isinstance(raw_value, list):
+            (updated if _save_skills(db, candidate, raw_value) else skipped).append(field)
+            continue
         value = str(raw_value).strip() if raw_value is not None else ""
         if not value:
             skipped.append(field)
+        elif field == "candidateSkills":
+            (updated if _save_skills(db, candidate, value) else skipped).append(field)
         elif field in core_fields:
-            if field in DATE_FIELDS:
-                try:
-                    setattr(candidate, field, _date.fromisoformat(value))
-                except ValueError:
-                    logger.warning(f"[ProfileMerge] {candidate_id}: {field}={value!r} is not YYYY-MM-DD")
-                    skipped.append(field)
-                    continue
-            elif field == "candidateMobile" and not value.startswith("+"):
+            stored = _core_value(field, value)
+            if stored is None:
+                logger.warning(f"[ProfileMerge] {candidate_id}: {field}={value!r} is not a valid value")
                 skipped.append(field)
                 continue
-            else:
-                setattr(candidate, field, value)
+            setattr(candidate, field, stored)
             updated.append(field)
         elif field in info_fields:
             if info is None:
@@ -384,7 +464,7 @@ def _default_llm_call(prompt: str) -> str:
         raise RuntimeError("GEMINI_API_KEY is not configured -- candidate replies cannot be read")
     resp = requests.post(f"{GEMINI_MODEL_URL}?key={api_key}", timeout=30, json={
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 512},
+        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 1024},
     })
     resp.raise_for_status()
     text = resp.json().get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
@@ -413,6 +493,13 @@ Rules:
 - Marital Status: Single, Married, Divorced or Widowed ("unmarried" -> "Single").
 - Gender: Male, Female or Other. Dates: YYYY-MM-DD.
 - permanent_address: only "City, State, Country" -- never street, house or pincode details.
+- candidateExperience: total years as a number, e.g. "6".
+- candidateSkills: a JSON list of {{"name": "...", "years": number or null}}, most important first.
+- employment_type: "FULLTIME" for full-time / permanent / W2, "CONTRACT" for contract; omit anything else.
+- candidate_notice_period: whole days ("2 months" -> 60, "immediately" -> 0).
+- candidateCurrentSalary / candidateExpectedSalary: the amount only, e.g. "120000". When the reply
+  gives the rate, also return candidateCurrentSalaryType / candidateExpectedSalaryType as one of
+  {", ".join(SALARY_RATE_TYPES)}.
 JSON output:"""
     prompt = build_safe_prompt(instruction=instruction, untrusted_label="CANDIDATE_REPLY", untrusted_content=clean_text)
     raw = (llm_call or _default_llm_call)(prompt)
@@ -424,6 +511,7 @@ JSON output:"""
     if not isinstance(result, dict):
         raise ValueError(f"The reply parser returned {type(result).__name__}, not an object")
     allowed = {m["field"] for m in missing_fields}
+    allowed |= {SALARY_TYPE_FIELDS[f] for f in allowed if f in SALARY_TYPE_FIELDS}
     return {k: v for k, v in result.items() if k in allowed}
 
 

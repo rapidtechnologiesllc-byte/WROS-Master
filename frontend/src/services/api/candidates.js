@@ -156,3 +156,10 @@ export const saveCandidateCertifications = async (candidateId, items) => {
   });
   return data;
 };
+
+export const getCandidateThunderStatus = async (candidateId) => {
+  const { data } = await apiRequest(`/candidates/${candidateId}/thunder-status`, {
+    method: "GET",
+  });
+  return data;
+};

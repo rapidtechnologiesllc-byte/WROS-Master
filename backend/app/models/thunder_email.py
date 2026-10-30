@@ -37,7 +37,9 @@ class ThunderEmailMessage(Base):
     # OUT: QUEUED -> DRAFTED -> SENT | SUPERSEDED ; IN: RECEIVED -> PROCESSED | IGNORED
     status = Column(String(16), nullable=False)
     cadence_seq = Column(Integer, nullable=False, default=1)
-    step = Column(String(16), nullable=True)  # NULL on IN rows (NULLs never collide in the unique key)
+    # OUT: the step sent. IN: the acknowledgement planned for this reply, if any (an OUT step of the
+    # same name never collides: direction is part of the unique key); else NULL
+    step = Column(String(16), nullable=True)
     variant_id = Column(Integer, ForeignKey("thunder_outreach_variants.id"), nullable=True)
     mailbox = Column(String(320), nullable=False)
     graph_message_id = Column(String(512), nullable=True)

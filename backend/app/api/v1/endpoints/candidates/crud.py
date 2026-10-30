@@ -826,6 +826,21 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         employment_type_label=_employment_type_label(candidate),
     )
 
+@router.get(
+    "/{candidate_id}/thunder-status",
+    dependencies=[Depends(require_role_template_permission("candidates", "can_view"))],
+)
+def get_thunder_status(candidate_id: str, db: Session = Depends(get_db), user = Depends(get_current_user)):
+    """Thunder's last email, the candidate's last reply, the next planned email and the
+    profile details still being asked for (candidate profile)."""
+    from app.services.thunder_mail.status_service import thunder_status
+
+    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, user)
+    if not candidate:
+        raise HTTPException(status_code=404, detail=f"Candidate with ID {candidate_id} not found")
+    return thunder_status(db, candidate)
+
+
 @router.patch(
     "/{candidate_id}/thunder-config",
     response_model=CandidateCompleteResponse,

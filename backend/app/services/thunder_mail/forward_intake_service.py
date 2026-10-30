@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 from app.models.candidate import Candidate
 from app.models.mailbox_intake import MailboxIntakeMessage
 from app.models.user import Users
+from app.services import candidate_resume_intake as resume_intake
 from app.services.delivery_errors import DeliveryDeferred
 from app.services.thunder_mail.forward_classifier import ForwardReading, read_forward
 
@@ -238,7 +239,9 @@ def _attach_to_candidate(db: Session, row, forwarder: Users, mailbox) -> Dict:
         if row.kind == "CANDIDATE_UPDATE":
             _fill_blanks(candidate, extracted.get("candidate") or {})
         if resume and resume.get("text"):
-            _save_parsed_resume(db, candidate, resume["text"], extracted.get("candidate") or {})
+            parsed = resume_intake.save_parsed_resume(
+                db, candidate, resume["text"], (extracted.get("candidate") or {}).get("total_experience_years"))
+            resume_intake.fill_empty_sections(db, candidate, parsed)
         row.note_id = _candidate_note(db, row, forwarder, candidate, extracted)
         db.commit()
 
@@ -263,31 +266,6 @@ def _fill_blanks(candidate: Candidate, details: Dict) -> None:
             setattr(candidate, column, details[key])
     if not candidate.candidateSkills and details.get("skills"):
         candidate.candidateSkills = ", ".join(details["skills"])
-
-
-def _save_parsed_resume(db: Session, candidate: Candidate, text: str, details: Dict) -> None:
-    from app.models.candidate_resume_parsed import CandidateResumeParsed
-    from app.services.resume_parser_slm import ResumeSLM
-
-    parsed = ResumeSLM.parse_resume(text)
-    row = db.query(CandidateResumeParsed).filter_by(candidate_id=candidate.candidateID).first()
-    if row is None:
-        row = CandidateResumeParsed(candidate_id=candidate.candidateID, tenant_id=str(candidate.tenant_id))
-        db.add(row)
-    years = details.get("total_experience_years")
-    row.raw_text, row.full_name, row.email, row.phone = text, parsed["full_name"], parsed["email"], parsed["phone"]
-    row.current_title, row.current_employer = parsed["current_title"], parsed["current_employer"]
-    row.work_history, row.education, row.skills = parsed["work_history"], parsed["education"], parsed["skills"]
-    row.certifications, row.languages = parsed["certifications"], parsed["languages"]
-    row.total_experience_years = years if isinstance(years, (int, float)) else None
-    row.total_experience_months = round(years * 12) if isinstance(years, (int, float)) else None
-    row.parsed_at = datetime.utcnow()
-    from app.services.resume_completeness_service import calculate_resume_completeness
-
-    db.flush()
-    score = calculate_resume_completeness(row)
-    row.resume_completeness_score, row.score_calculated_at = score, datetime.utcnow()
-    candidate.resume_completeness_score = score
 
 
 def _note_text(row, forwarder: Users, extracted: Dict) -> str:
@@ -327,37 +305,15 @@ def _attach_resume(db: Session, row, forwarder: Users, candidate: Candidate, res
     """Upload the resume like the HR resume upload does (SharePoint + candidate_documents). Returns
     why it could not be attached when storage is not set up; raises RuntimeError (retried) when
     Graph or SharePoint fails."""
-    from fastapi import HTTPException
-
-    from app.core.graph_auth import GraphServiceAuth, get_graph_token
-    from app.services import document_service
-    from app.services.virus_scan_service import scan_document_content
-
-    if not (GraphServiceAuth.is_configured() and document_service.SHAREPOINT_SITE_ID
-            and document_service.SHAREPOINT_DRIVE_ID):
-        return (f"The resume {resume['name']} could not be attached: document storage (SharePoint) is not "
-                "configured. Download it from the email and upload it on the candidate's Documents tab.")
     if mailbox is None:
         from app.services.thunder_mail.graph_mailbox import GraphMailbox
         mailbox = GraphMailbox(row.mailbox)
-    attachment = mailbox.get_attachment(row.graph_message_id, resume["attachment_id"])
-    content = base64.b64decode(attachment["contentBytes"])
-    service = document_service.DocumentService(db)
-    filename = service.generate_unique_filename(resume["name"], candidate.candidateID, "resume")
-    try:
-        stored = service.upload_to_sharepoint(get_graph_token(), candidate.candidateID, "resume", content, filename)
-    except HTTPException as exc:
-        raise RuntimeError(f"Resume upload for intake {row.id} failed: {exc.detail}") from exc
-    extension = "." + resume["name"].rsplit(".", 1)[-1].lower() if "." in resume["name"] else ""
-    document = service.save_document_metadata(
-        candidate_id=candidate.candidateID, document_type="resume", original_filename=resume["name"],
-        unique_filename=filename, file_size=len(content), file_extension=extension, sharepoint_data=stored,
-        uploaded_by=forwarder.UserID)
-    scan_document_content(document, content)
-    from app.services.candidate_activity_service import log_resume_uploaded
-
-    log_resume_uploaded(db, candidate.candidateID, resume["name"], len(content) / (1024 * 1024),
-                        uploaded_by_user_id=forwarder.UserID, uploaded_by_name=forwarder.UserName)
+    content = base64.b64decode(mailbox.get_attachment(row.graph_message_id, resume["attachment_id"])["contentBytes"])
+    document = resume_intake.store_resume_document(db, candidate, resume["name"], content, forwarder.UserID,
+                                                   forwarder.UserID, forwarder.UserName)
+    if document is None:
+        return (f"The resume {resume['name']} could not be attached: document storage (SharePoint) is not "
+                "configured. Download it from the email and upload it on the candidate's Documents tab.")
     row.document_id = document.id
     db.commit()
     return None

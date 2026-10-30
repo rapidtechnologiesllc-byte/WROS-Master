@@ -2,6 +2,9 @@
 
 Silence never ends a cadence: after the 4 active touches a candidate moves to
 monthly NURTURE indefinitely. Only an opt-out or a hostile reply stops it.
+A candidate who replied while profile details are still missing gets a DETAILS reminder
+every THUNDER_DETAILS_REMINDER_DAYS (each asks for what is still missing) until the profile
+is complete or THUNDER_MAX_DETAILS_REMINDERS were sent; then monthly nurture.
 """
 from app.core.tenant_context import sole_tenant_id
 import html
@@ -31,15 +34,82 @@ NOT_NOW_PAUSE_DAYS = 90
 AUTO_REPLY_PUSH_DAYS = 3
 MAX_NURTURE_JOBS = 5
 ACK_STEP_FOR_INTENT = {"INTERESTED": "ACK_INTERESTED", "QUESTION_COMP": "ACK_COMP", "QUESTION_ROLE": "ACK_ROLE"}
+# Compensation asked but no salary on record: a holding reply (a person answers the pay question)
+ACK_HOLD = "ACK_HOLD"
+# Any other reply while profile details are still missing: thank them and ask for the rest
+ACK_FIELDS = "ACK_FIELDS"
+# Each further reply gets its own acknowledgement ("ACK_ROLE#2"...); never more than this many per
+# kind in one cadence, so a candidate's mail loop cannot make Thunder answer forever
+MAX_ACKS_PER_KIND = 5
+# Reminder for the profile details still missing ("DETAILS-<n>")
+DETAILS = "DETAILS"
 
 
 def step_family(step: str) -> str:
-    return "NURTURE" if step.startswith("NURTURE") else step
+    if step.startswith("NURTURE"):
+        return "NURTURE"
+    if step.startswith(DETAILS):
+        return DETAILS
+    return step.split("#", 1)[0] if step.startswith("ACK_") else step
+
+
+def next_ack_step(db: Session, candidate_id: str, cadence_seq: int, ack: str) -> Optional[str]:
+    """The step id for this acknowledgement: the kind itself the first time, then "<kind>#<n>";
+    None once MAX_ACKS_PER_KIND were planned in this cadence. Counted on the inbound rows (each
+    records the acknowledgement it was answered with), so replies that arrive before the first
+    acknowledgement is sent still get their own."""
+    used = db.query(ThunderEmailMessage.step).filter(
+        ThunderEmailMessage.candidate_id == candidate_id, ThunderEmailMessage.cadence_seq == cadence_seq,
+        ThunderEmailMessage.direction == "IN",
+        (ThunderEmailMessage.step == ack) | ThunderEmailMessage.step.like(f"{ack}#%"),
+    ).count()
+    if used >= MAX_ACKS_PER_KIND:
+        return None
+    return ack if used == 0 else f"{ack}#{used + 1}"
+
+
+def fields_request_html(fields: List[Dict[str, str]]) -> str:
+    """The profile details still missing, as the paragraph an acknowledgement ends with."""
+    if not fields:
+        return ""
+    items = "".join(f"<li>{html.escape(f['label'])}</li>" for f in fields)
+    return f"<p>To move things forward, could you reply with these details?</p><ul>{items}</ul>"
+
+
+def with_fields_request(template: str) -> str:
+    """The template with a {fields_request} slot before the signature: approved copy written
+    before the slot existed has none, and an empty request renders as nothing."""
+    if "{fields_request}" in template:
+        return template
+    at = template.find("<p>Regards,")
+    return template + "{fields_request}" if at < 0 else template[:at] + "{fields_request}" + template[at:]
 
 
 def nurture_step(when: datetime) -> str:
     # Day-level key: two nurture touches can never collide on (candidate, seq, step)
     return f"NURTURE-{when:%Y%m%d}"
+
+
+def details_step(number: int) -> str:
+    """The nth reminder of the cadence: numbered, so no two reminders share a step."""
+    return f"{DETAILS}-{number}"
+
+
+def plan_after_engagement(db: Session, state: ThunderCadenceState, now: datetime,
+                          missing_fields: Optional[List[Dict[str, str]]]) -> None:
+    """After a reply or a details reminder: the next DETAILS reminder while details are missing
+    and reminders remain, otherwise monthly nurture."""
+    sent = db.query(ThunderEmailMessage.id).filter(
+        ThunderEmailMessage.candidate_id == state.candidate_id, ThunderEmailMessage.cadence_seq == state.cadence_seq,
+        ThunderEmailMessage.direction == "OUT", ThunderEmailMessage.status == "SENT",
+        ThunderEmailMessage.step.like(f"{DETAILS}-%"),
+    ).count()
+    if missing_fields and sent < settings.THUNDER_MAX_DETAILS_REMINDERS:
+        when = now + timedelta(days=settings.THUNDER_DETAILS_REMINDER_DAYS)
+        state.next_step, state.next_action_at = details_step(sent + 1), when
+    else:
+        when = now + timedelta(days=settings.THUNDER_NURTURE_INTERVAL_DAYS)
+        state.next_step, state.next_action_at = nurture_step(when), when
 
 
 def send_task_id(candidate_id: str, cadence_seq: int, step: str) -> str:
@@ -215,7 +285,7 @@ def render(variant: ThunderOutreachVariant, candidate: Candidate, job: Optional[
         **(extra or {}),
     })
     subject = variant.subject_template.format_map(_SafeFields({k: html.unescape(v) for k, v in fields.items()}))
-    return subject, variant.body_template.format_map(fields)
+    return subject, with_fields_request(variant.body_template).format_map(fields)
 
 
 # ---- plan updates ----------------------------------------------------------------
@@ -244,7 +314,8 @@ def stop(db: Session, state: ThunderCadenceState, candidate: Candidate, reason: 
 
 
 def apply_reply(db: Session, state: ThunderCadenceState, candidate: Candidate, intent: str,
-                erasure_requested: bool, job: Optional[Jobs], now: datetime) -> Dict:
+                erasure_requested: bool, job: Optional[Jobs], now: datetime,
+                missing_fields: Optional[List[Dict[str, str]]] = None) -> Dict:
     """Re-plan after an inbound email. Returns the actions for the caller to
     execute after commit: {'ack_step', 'handoff', 'erasure'}."""
     actions = {"ack_step": None, "handoff": None, "erasure": False}
@@ -270,17 +341,20 @@ def apply_reply(db: Session, state: ThunderCadenceState, candidate: Candidate, i
         state.stage, state.next_step, state.next_action_at = "NURTURE", nurture_step(when), when
         return actions
 
-    # Positive or unclear: a recruiter takes the conversation. If nobody follows
-    # up, the candidate falls back to monthly nurture instead of being left.
-    when = now + timedelta(days=settings.THUNDER_NURTURE_INTERVAL_DAYS)
-    state.stage, state.next_step, state.next_action_at = "HANDOFF", nurture_step(when), when
+    # Positive or unclear: a recruiter takes the conversation. Thunder keeps asking for missing
+    # details every few days; with nothing missing (or nobody following up) the candidate falls
+    # back to monthly nurture instead of being left.
+    state.stage = "HANDOFF"
+    plan_after_engagement(db, state, now, missing_fields)
     ack = ACK_STEP_FOR_INTENT.get(intent)
     if ack == "ACK_COMP" and not (job and job.salaryRange):
-        ack = None  # never quote pay we don't have on record
-    actions["ack_step"] = ack
+        ack = ACK_HOLD  # never quote pay we don't have on record; never leave them unanswered
+    if ack is None and missing_fields:
+        ack = ACK_FIELDS
+    actions["ack_step"] = next_ack_step(db, state.candidate_id, state.cadence_seq, ack) if ack else None
     actions["handoff"] = {
         "INTERESTED": "Candidate is interested — book a call",
-        "QUESTION_COMP": "Candidate asked about compensation" + ("" if ack else " (no salary on record — answer personally)"),
+        "QUESTION_COMP": "Candidate asked about compensation" + ("" if ack != ACK_HOLD else " (no salary on record — answer personally)"),
         "QUESTION_ROLE": "Candidate asked about the role — follow up",
     }.get(intent, "Candidate replied — review and respond")
     return actions

@@ -99,7 +99,8 @@ def _send(db, world, step, mailbox, seq=1):
     return result, enqueue
 
 
-def _inbound(db, world, body, subject="Re: a quick question", received=None, headers=None, llm=None):
+def _inbound(db, world, body, subject="Re: a quick question", received=None, headers=None, llm=None, fields_llm=None,
+             attachments=None):
     row = ThunderEmailMessage(
         id=str(uuid.uuid4()), tenant_id=1, candidate_id=world.candidate.candidateID, direction="IN",
         status="RECEIVED", cadence_seq=1, mailbox=MAILBOX, graph_message_id=f"in-{uuid.uuid4().hex[:6]}",
@@ -108,9 +109,13 @@ def _inbound(db, world, body, subject="Re: a quick question", received=None, hea
     )
     db.add(row)
     db.commit()
-    message = SimpleNamespace(id="m2", payload={"thunder_message_id": row.id, "headers": headers or {}})
+    message = SimpleNamespace(id="m2", payload={"thunder_message_id": row.id, "headers": headers or {},
+                                                "has_attachments": bool(attachments)})
+    mailbox = SimpleNamespace(list_attachments=lambda message_id: attachments or [])
     with patch(ENQUEUE, return_value={"message_id": "x", "task_id": "x"}) as enqueue:
-        result = ThunderInboundEmailHandler.process(message, db, llm_call=llm or (lambda *a: "garbage"))
+        result = ThunderInboundEmailHandler.process(message, db, llm_call=llm or (lambda *a: "garbage"),
+                                                    field_llm_call=fields_llm or (lambda prompt: "{}"),
+                                                    mailbox=mailbox)
     db.refresh(world.state)
     return result, enqueue, row
 
@@ -286,16 +291,191 @@ def test_interested_reply_hands_off_acks_and_credits_variant(db, world):
     out = db.query(ThunderEmailMessage).filter_by(candidate_id=world.candidate.candidateID, direction="OUT").one()
     db.refresh(row)
     assert result["intent"] == "INTERESTED" and row.credited_out_id == out.id
-    assert world.state.stage == "HANDOFF" and world.state.next_step.startswith("NURTURE")
+    # details are still missing: Thunder reminds in 15 days instead of waiting for the monthly nurture
+    assert world.state.stage == "HANDOFF" and world.state.next_step.startswith("DETAILS-")
+    assert timedelta(days=14) < world.state.next_action_at - datetime.utcnow() <= timedelta(days=15)
     acks = [c.kwargs["data"]["step"] for c in enqueue.call_args_list if c.kwargs["task_name"] == "thunder_send_email"]
     assert acks == ["ACK_INTERESTED"]
     assert db.query(Task).filter_by(candidate_id=world.candidate.candidateID, category="THUNDER_REPLY").count() == 1
 
 
-def test_salary_question_without_salary_on_record_goes_to_human_not_ack(db, world):
+def test_salary_question_without_salary_on_record_gets_a_holding_reply_and_a_human(db, world):
     result, enqueue, _ = _inbound(db, world, "What's the CTC for this?")
-    assert result["intent"] == "QUESTION_COMP" and result["ack_step"] is None
-    assert db.query(Task).filter_by(candidate_id=world.candidate.candidateID).count() == 1
+    assert result["intent"] == "QUESTION_COMP" and result["ack_step"] == "ACK_HOLD"
+    task = db.query(Task).filter_by(candidate_id=world.candidate.candidateID).one()
+    assert "answer personally" in task.title
+    variant = db.query(ThunderOutreachVariant).filter_by(key="ack_hold").one()
+    _, body = cadence.render(variant, world.candidate, None, {})
+    assert "come back to you personally" in body and "{" not in body
+
+
+def test_details_in_a_reply_are_saved_and_the_rest_is_asked_for(db, world):
+    details = '{"candidateMobile": "+91 98765 43210", "candidateExperience": "6"}'
+    result, enqueue, _ = _inbound(db, world, "Interested. My number is +91 98765 43210, 6 years in Kafka.",
+                                  llm=lambda *a: '{"intent": "INTERESTED", "confidence": 0.9}',
+                                  fields_llm=lambda prompt: details)
+    db.refresh(world.candidate)
+    assert world.candidate.candidateMobile == "+91 98765 43210"
+    assert set(result["fields_saved"]) == {"candidateMobile", "candidateExperience"}
+    assert "candidateMobile" not in result["fields_missing"] and "candidateGender" in result["fields_missing"]
+    task = db.query(Task).filter_by(candidate_id=world.candidate.candidateID).one()
+    assert "Saved from this reply: " in task.description and "Thunder asked for them" in task.description
+
+
+def test_every_further_reply_is_answered_until_the_cap(db, world):
+    steps = [_inbound(db, world, f"Here you go, reply {n}")[0]["ack_step"] for n in range(cadence.MAX_ACKS_PER_KIND)]
+    assert steps == ["ACK_FIELDS"] + [f"ACK_FIELDS#{n}" for n in range(2, cadence.MAX_ACKS_PER_KIND + 1)]
+    mailbox = FakeMailbox()
+    for step in steps:
+        _send(db, world, step, mailbox)
+    assert _inbound(db, world, "And one more")[0]["ack_step"] is None
+
+
+def test_an_acknowledgement_asks_for_the_missing_details_before_the_signature(db, world):
+    mailbox = FakeMailbox()
+    result, _ = _send(db, world, "ACK_FIELDS#2", mailbox)
+    out = db.query(ThunderEmailMessage).filter_by(candidate_id=world.candidate.candidateID, step="ACK_FIELDS#2").one()
+    assert result["status"] == "sent" and out.variant_id == db.query(ThunderOutreachVariant).filter_by(key="ack_fields").one().id
+    sent = mailbox.drafts[out.graph_message_id]["html"]
+    assert "<li>Gender</li>" in sent and sent.index("To move things forward") < sent.index("<p>Regards,")
+    # copy approved before the slot existed gets the request placed before its signature too
+    variant = db.query(ThunderOutreachVariant).filter_by(key="ack_interested").one()
+    _, body = cadence.render(variant, world.candidate, None, {"fields_request": cadence.fields_request_html(
+        [{"field": "candidateGender", "label": "Gender"}])})
+    assert body.index("<li>Gender</li>") < body.index("<p>Regards,")
+
+
+def test_unreadable_details_never_block_the_reply(db, world):
+    def broken(prompt):
+        raise RuntimeError("GEMINI_API_KEY is not configured")
+    result, _, _ = _inbound(db, world, "Interested, call me", llm=lambda *a: '{"intent": "INTERESTED", "confidence": 0.9}',
+                            fields_llm=broken)
+    assert result["status"] == "processed" and result["ack_step"] == "ACK_INTERESTED"
+    task = db.query(Task).filter_by(candidate_id=world.candidate.candidateID).one()
+    assert "could not be read automatically" in task.description
+
+
+def test_an_opt_out_reads_and_asks_for_nothing(db, world):
+    calls = []
+    result, _, _ = _inbound(db, world, "Please remove me", fields_llm=lambda p: calls.append(p) or "{}")
+    assert result["intent"] == "UNSUBSCRIBE" and calls == [] and result["fields_missing"] == []
+
+
+def _resume_attachment(name="Ankurjit_Singh_Resume.docx"):
+    import base64
+    import io
+
+    from docx import Document
+
+    document = Document()
+    for line in ("Ankurjit Singh", "Experience", "Acme Insurance Inc", "Kafka Engineer 2019-01 to 2026-09",
+                 "Education", "Pune University", "Bachelor of Engineering 2018", "Skills: Java, Kafka, SQL"):
+        document.add_paragraph(line)
+    out = io.BytesIO()
+    document.save(out)
+    content = out.getvalue()
+    return {"@odata.type": "#microsoft.graph.fileAttachment", "id": "att-1", "name": name, "size": len(content),
+            "isInline": False, "contentBytes": base64.b64encode(content).decode()}
+
+
+def test_the_resume_is_asked_for_when_none_is_on_file(db, world):
+    result, _, _ = _inbound(db, world, "Sounds good, what next?",
+                            llm=lambda *a: '{"intent": "INTERESTED", "confidence": 0.9}')
+    assert "resume" in result["fields_missing"] and "employment_type" in result["fields_missing"]
+    mailbox = FakeMailbox()
+    _send(db, world, result["ack_step"], mailbox)
+    out = db.query(ThunderEmailMessage).filter_by(candidate_id=world.candidate.candidateID,
+                                                  step=result["ack_step"], direction="OUT").one()
+    html = mailbox.drafts[out.graph_message_id]["html"]
+    assert "attach it to your reply" in html and "Expected Salary" in html and "Notice Period" in html
+
+
+def test_a_resume_attached_to_a_reply_fills_the_profile_and_is_stored(db, world):
+    from app.models.candidate import CandidateEducationForm, CandidateExperienceForm
+    from app.models.candidate_profile_extras import CandidateProfileSkill
+
+    with patch("app.services.candidate_resume_intake.store_resume_document",
+               return_value=SimpleNamespace(id=1)) as store:
+        result, _, _ = _inbound(db, world, "Interested, resume attached.", attachments=[_resume_attachment()],
+                                llm=lambda *a: '{"intent": "INTERESTED", "confidence": 0.9}')
+    cid = world.candidate.candidateID
+    assert store.call_args.args[2] == "Ankurjit_Singh_Resume.docx"
+    assert "resume" not in result["fields_missing"]
+    assert db.query(CandidateExperienceForm).filter_by(candidateID=cid).count() >= 1
+    assert db.query(CandidateEducationForm).filter_by(candidateID=cid).count() >= 1
+    assert "Java" in {s.name for s in db.query(CandidateProfileSkill).filter_by(candidate_id=cid)}
+    task = db.query(Task).filter_by(candidate_id=cid).one()
+    assert "Resume attached: Ankurjit_Singh_Resume.docx (filled" in task.description
+
+
+def test_a_resume_that_cannot_be_stored_is_flagged_on_the_task(db, world):
+    with patch("app.services.candidate_resume_intake.store_resume_document", return_value=None):
+        result, _, _ = _inbound(db, world, "Interested, CV attached.", attachments=[_resume_attachment("cv.docx")],
+                                llm=lambda *a: '{"intent": "INTERESTED", "confidence": 0.9}')
+    assert result["status"] == "processed"
+    task = db.query(Task).filter_by(candidate_id=world.candidate.candidateID).one()
+    assert task.description.startswith("The resume cv.docx could not be saved")
+
+
+def test_an_attachment_is_not_taken_as_a_resume_when_one_is_on_file(db, world):
+    with patch("app.services.candidate_resume_intake.has_resume", return_value=True),          patch("app.services.candidate_resume_intake.store_resume_document") as store:
+        _inbound(db, world, "Interested, payslip attached.", attachments=[_resume_attachment("payslip.docx")],
+                 llm=lambda *a: '{"intent": "INTERESTED", "confidence": 0.9}')
+    store.assert_not_called()
+
+
+def _due_details_reminder(db, world):
+    _inbound(db, world, "Sounds good", llm=lambda *a: '{"intent": "INTERESTED", "confidence": 0.9}')
+    step = world.state.next_step
+    world.state.next_action_at = datetime.utcnow() - timedelta(minutes=1)
+    world.state.last_outbound_at = None
+    db.commit()
+    return step
+
+
+def test_a_details_reminder_asks_for_what_is_missing_and_plans_the_next(db, world):
+    step = _due_details_reminder(db, world)
+    mailbox = FakeMailbox()
+    result, _ = _send(db, world, step, mailbox)
+    assert result["status"] == "sent" and result["variant"] == "details_reminder"
+    out = db.query(ThunderEmailMessage).filter_by(candidate_id=world.candidate.candidateID, step=step).one()
+    html = mailbox.drafts[out.graph_message_id]["html"]
+    assert "Expected Salary" in html and html.index("To move things forward") < html.index("<p>Regards,")
+    db.refresh(world.state)
+    assert world.state.next_step.startswith("DETAILS-") and world.state.next_step != step
+
+
+def test_a_complete_profile_gets_no_reminder_and_moves_to_monthly_nurture(db, world):
+    step = _due_details_reminder(db, world)
+    with patch("app.services.ai_conversation_service.get_missing_fields", return_value=[]):
+        result, _ = _send(db, world, step, FakeMailbox())
+    db.refresh(world.state)
+    assert result["status"] == "skipped_profile_complete" and world.state.next_step.startswith("NURTURE-")
+
+
+def test_reminders_stop_at_the_cap_then_monthly_nurture(db, world):
+    from app.core.config import settings
+
+    _inbound(db, world, "Sounds good", llm=lambda *a: '{"intent": "INTERESTED", "confidence": 0.9}')
+    for n in range(settings.THUNDER_MAX_DETAILS_REMINDERS):
+        db.add(ThunderEmailMessage(id=str(uuid.uuid4()), tenant_id=1, candidate_id=world.candidate.candidateID,
+                                   direction="OUT", status="SENT", cadence_seq=1, step=f"DETAILS-2026010{n}",
+                                   mailbox=MAILBOX, sent_at=datetime.utcnow()))
+    db.flush()
+    cadence.plan_after_engagement(db, world.state, datetime.utcnow(), [{"field": "x", "label": "X"}])
+    assert world.state.next_step.startswith("NURTURE-")
+
+
+def test_thunder_status_shows_last_email_reply_and_next_step(db, world):
+    from app.services.thunder_mail.status_service import thunder_status
+
+    _send(db, world, "1", FakeMailbox())
+    _inbound(db, world, "Sounds good", llm=lambda *a: '{"intent": "INTERESTED", "confidence": 0.9}')
+    status = thunder_status(db, world.candidate)
+    assert status["emails_sent"] == 1 and status["last_email_at"] and status["last_reply_at"]
+    assert status["last_reply_intent"] == "INTERESTED" and status["stage_label"] == "Talking with a recruiter"
+    assert status["next_step_label"] == "Reminder for missing details" and status["next_action_at"]
+    assert any(label.startswith("Your latest resume") for label in status["missing_fields"])
 
 
 def test_salary_ack_quotes_job_record_verbatim(db, world):

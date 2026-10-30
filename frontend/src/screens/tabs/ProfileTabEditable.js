@@ -16,6 +16,7 @@ import {
 import { getHrCandidateFullDetails } from "../../services/api/candidateSelfService";
 import { saveCandidateCertifications, saveCandidateEducation, saveCandidateExperience, saveCandidateSkills } from "../../services/api/candidates";
 import { getCandidateDocuments, uploadResume } from "../../services/api/documents";
+import ThunderContactCard from "../../components/thunder/ThunderContactCard";
 
 // The employment-type picker for a country: its accepted types first; types it never accepts
 // (C2C, 1099) stay selectable so they can be recorded, marked as not accepted
@@ -345,6 +346,8 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
           </button>
         </div>
       )}
+
+      <ThunderContactCard candidateId={candidateId} />
 
       {/* Basic Information */}
       <EditableSection
