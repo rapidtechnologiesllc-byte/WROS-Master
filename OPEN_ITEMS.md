@@ -2,11 +2,50 @@
 
 **Built:** 2026-10-13 by validating ~430 unique documents and the 346 open GitHub issues against `main` (`a91e408d`).
 **Rule:** an item is listed only if it was checked against the current code. Status documents that only made claims were archived (see `archive/README.md`).
-**Production:** `hrms.blitzenx.com` runs `a91f6288` (deployed 2026-10-20 over SSH, backend + frontend, on top of `9105f708`; DB backup `pre-deploy-20261020-050911.dump`; the whole backend suite, 912 tests, passed as the gate).
+**Production:** `hrms.blitzenx.com` runs `main` @ `8d401ef9` (PR #434), deployed 2026-10-29 by GitHub Actions (`test-and-deploy.yml`: backend tests, frontend build, SSH deploy with health check and auto-rollback; `deploy.yml` for the frontend). Every merge to `main` deploys; manual SSH deploys are no longer needed.
+**Re-verified:** 2026-10-30 against `main` @ `8d401ef9` and the Production Status workflow (run 41074196166).
 
 Other live documents: `HANDOFF.md` (deploy procedure, prod state) · `docs/OPEN_REQUIREMENTS_BACKLOG.md` (246 open backlog stories) · `CLAUDE.md` (rules) · `LOCAL_DEVELOPMENT.md`, `DEVELOPER_ONBOARDING.md` (setup).
 
-## Progress log (working tree, not yet committed)
+## Open now (verified 2026-10-30)
+
+Everything in the P0/P1/P2 tables further down is fixed on `main` (details in the progress log). What is still open:
+
+### Production configuration (owner: CEO / server access; code cannot do these)
+
+| Item | State | Action |
+|---|---|---|
+| Background jobs off | `SCHEDULED_JOBS_ENABLED=thunder_engagement_sweep` only; timesheet drafts/reminders, AR follow-up, auto-invoicing, client start date and the other internal jobs last ran 2026-10-13 | Set in `/home/HRMS/WROS-Master/backend/.env`: `SCHEDULED_JOBS_ENABLED=thunder_engagement_sweep,timesheet_draft_creation,timesheet_reminders,ar_follow_up,auto_invoicing,client_start_date,daily_revenue_scan,hiring_pipeline_sweep,engagement_metrics,expire_bu_ownerships,birthday_drafts,core_certification_sweep,interview_reminders,utilization_snapshot,renewal_alerts,po_expiry_alerts,performance_reviews` (every registered job except `flash_mission_sweep`, which waits on the model keys; names in `backend/app/core/scheduled_jobs.py`) |
+| `FRONTEND_BASE_URL` not set | Candidate portal links in Thunder emails and WhatsApp point at `http://localhost:3000` | Set `FRONTEND_BASE_URL=https://hrms.blitzenx.com` in `backend/.env` |
+| SQL Server 1433 | Public port with a leaked password; reported stopped 2026-10-19 but a probe the same day still got a reply | Verify closed; change the password |
+| Old secrets | Old Gemini/Azure secrets not revoked | Revoke |
+| Cost rates | 0 cost-rate configs, so bench loss and P&L cost read $0 | Set BU × country cost rates |
+| Org chart | 2 of 4 users seated; the manager is read from the org chart (#413), so imports refuse anyone whose manager has no seat | Seat managers under Organizational Hierarchy, then import employees |
+| Role permission sets | Every "(role)" set except Partner grants 0 of 114 resources (created empty by design) | Grant access per role (Manage Roles → Permissions) |
+| Branch protection | Off (no GitHub Pro, decision 2026-10-19) | Process only: run the local gate before every merge |
+| Production data | 0 employees, projects, timesheets, invoices | Import staff (dry run first, 5 people) |
+
+### Under investigation
+
+- 4 `engage_candidate_with_thunder` queue messages FAILED in the 14 days before 2026-10-30, all older than 3 days, so `prod_status.py` showed the count but not the error. The failure listing now covers the same 14 days; re-run Production Status to read the errors. #432 (2026-10-29) changed Thunder engagement and may already cover them.
+
+### Decisions waiting on the CEO
+
+1. Org reporting rule: a manager may sit only 1–2 levels above the report (Consultant 4 cannot report to Manager 8). Keep or relax?
+2. Margin floor values per delivery engine and country, and who approves below them (the policy table ships empty, #417).
+3. Imported employees: create a client-submittable profile automatically? (recommended yes)
+4. P&L: split "bench (unallocated)" from "idle on a project"? (recommended yes)
+5. Activation emails on import: batch by business unit?
+6. Fixed-price / retainer billing and PM / Program Manager / Delivery Head roles: deferred until Core's share of revenue is known (the staff-aug side was built in #414, #417, #419, #422).
+7. Company model Part 2: the 4 decisions in `docs/COMPANY_MODEL_DESIGN.md`.
+8. Tenants 2 and 3 (decision 7 below).
+9. `kpi_agent_service.py` and `employee_mental_health_agent_service.py` have no callers: switch on or delete.
+
+### GitHub issues
+
+347 open on 2026-10-30. About 335 should be closed (table at the end, re-verified 2026-10-30: all 26 "orphaned endpoint" files are now registered or deleted; #381, #382, #383, #375 and #406 are fixed). Closing needs the repo owner (the bulk close was not done from the agent session). Keep open: #405, #57, #56, #55, #54, #52, #51, #19.
+
+## Progress log (2026-10-13 to 2026-10-20)
 
 Verification method for every fix: pyflakes over `backend/app` (0 undefined names, 0 syntax errors), the live route table (all registered routes and their real dependencies), a GET sweep of every parameterless route through the real app and middleware as a super user, and targeted checks that run real code against `wros_dev` inside one transaction that is always rolled back.
 
@@ -70,7 +109,7 @@ These are implemented but nothing calls them. Most send email or WhatsApp to can
 
 ---
 
-## P0 — `main` is broken / blocked (fix before the next deploy)
+## P0 — `main` is broken / blocked (as found 2026-10-13; all resolved, see the progress log)
 
 | # | Defect | Evidence (verified 2026-10-13) |
 |---|---|---|
@@ -83,7 +122,7 @@ These are implemented but nothing calls them. Most send email or WhatsApp to can
 
 Recommendation: either fix P0-2..P0-6 forward or revert the 2026-10-13 commits `08f2c853..a91e408d`. Either way, run pyflakes and the API tests locally before pushing, because CI cannot run until P0-1 is fixed.
 
-## P1 — Security / access control (verified against the live route table)
+## P1 — Security / access control (as found 2026-10-13; P1-1..P1-6 resolved, P1-7 closed by decision)
 
 Route audit (all 603 registered routes, real FastAPI dependencies including router-level ones): **534 permission-gated, 43 login-only, 26 no auth dependency.** The 26 are public by design (login, signup, OAuth callback, WhatsApp webhook, public Thunder chat, health) or are covered by `AuthenticationMiddleware`.
 
@@ -97,7 +136,7 @@ Route audit (all 603 registered routes, real FastAPI dependencies including rout
 | P1-6 | The old DB password (still the local-dev password) is in 25 tracked files, including `CLAUDE.md` and `LOCAL_DEVELOPMENT.md`, and in git history. It no longer opens prod. | `git grep -l P7kQmR9x` |
 | P1-7 | Branch protection cannot be enabled: GitHub returns "Upgrade to GitHub Pro or make this repository public". The CLAUDE.md "force push blocked" rule is not enforceable today. | `gh api .../branches/main/protection` → 403 |
 
-## P2 — Functional defects (verified)
+## P2 — Functional defects (as found 2026-10-13; all resolved or obsolete, see the progress log)
 
 | # | Defect | Evidence |
 |---|---|---|
@@ -133,7 +172,7 @@ Route audit (all 603 registered routes, real FastAPI dependencies including rout
 
 ---
 
-## GitHub issues — validity against current code (346 open)
+## GitHub issues — validity against current code (346 open on 2026-10-13; 347 on 2026-10-30)
 
 | Issues | Count | Verdict | Evidence |
 |---|---|---|---|
