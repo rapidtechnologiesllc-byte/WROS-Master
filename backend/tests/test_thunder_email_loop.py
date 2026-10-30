@@ -291,7 +291,9 @@ def test_interested_reply_hands_off_acks_and_credits_variant(db, world):
     out = db.query(ThunderEmailMessage).filter_by(candidate_id=world.candidate.candidateID, direction="OUT").one()
     db.refresh(row)
     assert result["intent"] == "INTERESTED" and row.credited_out_id == out.id
-    assert world.state.stage == "HANDOFF" and world.state.next_step.startswith("NURTURE")
+    # details are still missing: Thunder reminds in 15 days instead of waiting for the monthly nurture
+    assert world.state.stage == "HANDOFF" and world.state.next_step.startswith("DETAILS-")
+    assert timedelta(days=14) < world.state.next_action_at - datetime.utcnow() <= timedelta(days=15)
     acks = [c.kwargs["data"]["step"] for c in enqueue.call_args_list if c.kwargs["task_name"] == "thunder_send_email"]
     assert acks == ["ACK_INTERESTED"]
     assert db.query(Task).filter_by(candidate_id=world.candidate.candidateID, category="THUNDER_REPLY").count() == 1
@@ -420,6 +422,60 @@ def test_an_attachment_is_not_taken_as_a_resume_when_one_is_on_file(db, world):
         _inbound(db, world, "Interested, payslip attached.", attachments=[_resume_attachment("payslip.docx")],
                  llm=lambda *a: '{"intent": "INTERESTED", "confidence": 0.9}')
     store.assert_not_called()
+
+
+def _due_details_reminder(db, world):
+    _inbound(db, world, "Sounds good", llm=lambda *a: '{"intent": "INTERESTED", "confidence": 0.9}')
+    step = world.state.next_step
+    world.state.next_action_at = datetime.utcnow() - timedelta(minutes=1)
+    world.state.last_outbound_at = None
+    db.commit()
+    return step
+
+
+def test_a_details_reminder_asks_for_what_is_missing_and_plans_the_next(db, world):
+    step = _due_details_reminder(db, world)
+    mailbox = FakeMailbox()
+    result, _ = _send(db, world, step, mailbox)
+    assert result["status"] == "sent" and result["variant"] == "details_reminder"
+    out = db.query(ThunderEmailMessage).filter_by(candidate_id=world.candidate.candidateID, step=step).one()
+    html = mailbox.drafts[out.graph_message_id]["html"]
+    assert "Expected Salary" in html and html.index("To move things forward") < html.index("<p>Regards,")
+    db.refresh(world.state)
+    assert world.state.next_step.startswith("DETAILS-") and world.state.next_step != step
+
+
+def test_a_complete_profile_gets_no_reminder_and_moves_to_monthly_nurture(db, world):
+    step = _due_details_reminder(db, world)
+    with patch("app.services.ai_conversation_service.get_missing_fields", return_value=[]):
+        result, _ = _send(db, world, step, FakeMailbox())
+    db.refresh(world.state)
+    assert result["status"] == "skipped_profile_complete" and world.state.next_step.startswith("NURTURE-")
+
+
+def test_reminders_stop_at_the_cap_then_monthly_nurture(db, world):
+    from app.core.config import settings
+
+    _inbound(db, world, "Sounds good", llm=lambda *a: '{"intent": "INTERESTED", "confidence": 0.9}')
+    for n in range(settings.THUNDER_MAX_DETAILS_REMINDERS):
+        db.add(ThunderEmailMessage(id=str(uuid.uuid4()), tenant_id=1, candidate_id=world.candidate.candidateID,
+                                   direction="OUT", status="SENT", cadence_seq=1, step=f"DETAILS-2026010{n}",
+                                   mailbox=MAILBOX, sent_at=datetime.utcnow()))
+    db.flush()
+    cadence.plan_after_engagement(db, world.state, datetime.utcnow(), [{"field": "x", "label": "X"}])
+    assert world.state.next_step.startswith("NURTURE-")
+
+
+def test_thunder_status_shows_last_email_reply_and_next_step(db, world):
+    from app.services.thunder_mail.status_service import thunder_status
+
+    _send(db, world, "1", FakeMailbox())
+    _inbound(db, world, "Sounds good", llm=lambda *a: '{"intent": "INTERESTED", "confidence": 0.9}')
+    status = thunder_status(db, world.candidate)
+    assert status["emails_sent"] == 1 and status["last_email_at"] and status["last_reply_at"]
+    assert status["last_reply_intent"] == "INTERESTED" and status["stage_label"] == "Talking with a recruiter"
+    assert status["next_step_label"] == "Reminder for missing details" and status["next_action_at"]
+    assert any(label.startswith("Your latest resume") for label in status["missing_fields"])
 
 
 def test_salary_ack_quotes_job_record_verbatim(db, world):

@@ -64,6 +64,9 @@ SEED_VARIANTS = [
     ("ack_fields", "ACK_FIELDS", "Re: thanks for getting back to me",
      "<p>Hi {first_name},</p><p>Thanks for your reply. A member of our team will follow up with you "
      "shortly.</p>"),
+    ("details_reminder", "DETAILS", "Re: a few details to complete your profile",
+     "<p>Hi {first_name},</p><p>Following up on our conversation: we are still missing a few details "
+     "to put your profile forward for the right roles.</p>"),
 ]
 REQUIRES_JOB = {"ack_comp"}
 

@@ -51,6 +51,7 @@ class ThunderSendEmailHandler:
             raise ValueError(f"Message {message.id} missing candidate_id/step")
         now = datetime.utcnow()
         is_ack = step.startswith("ACK_")
+        is_details = step.startswith(cadence.DETAILS)
         logger.info(f"[ThunderSend] handler_start candidate={candidate_id} seq={seq} step={step}")
 
         state = db.query(ThunderCadenceState).filter_by(candidate_id=candidate_id).first()
@@ -99,9 +100,16 @@ class ThunderSendEmailHandler:
         extra = {"source_note": cadence.source_note(db, candidate)}
         if step == "1":
             extra["hook"] = cadence.personal_hook(db, candidate)
-        if is_ack:
+        if is_ack or is_details:
             from app.services.ai_conversation_service import get_missing_fields
-            extra["fields_request"] = cadence.fields_request_html(get_missing_fields(candidate, db, include_documents=True))
+            missing = get_missing_fields(candidate, db, include_documents=True)
+            if is_details and not missing:
+                cadence.plan_after_engagement(db, state, now, missing)
+                db.commit()
+                logger.info(f"[ThunderSend] details reminder skipped for {candidate_id}: profile complete; "
+                            f"next {state.next_step}")
+                return _done("skipped_profile_complete", candidate_id, step, next_step=state.next_step)
+            extra["fields_request"] = cadence.fields_request_html(missing)
         if step.startswith("NURTURE"):
             content = cadence.nurture_content(db, candidate, now)
             if content is None:
@@ -150,6 +158,9 @@ class ThunderSendEmailHandler:
         state.touches_sent += 1
         state.last_outbound_at = now
         cadence.schedule_after_send(state, step, now)
+        if is_details:
+            db.flush()  # this reminder counts towards the cap
+            cadence.plan_after_engagement(db, state, now, missing)
         db.commit()
         logger.info(
             f"[ThunderSend] handler_complete candidate={candidate_id} step={step} "
@@ -171,8 +182,8 @@ class ThunderSendEmailHandler:
 
     @staticmethod
     def _thread_parent(db: Session, candidate_id: str, seq: int, step: str) -> Optional[str]:
-        """Follow-ups reply in our thread; acks reply to the candidate's email."""
-        if step.startswith("ACK_"):
+        """Follow-ups reply in our thread; acks and details reminders reply to the candidate's email."""
+        if step.startswith("ACK_") or step.startswith(cadence.DETAILS):
             direction = "IN"
         elif step in THREADED_STEPS:
             direction = "OUT"

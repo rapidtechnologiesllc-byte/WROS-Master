@@ -305,6 +305,10 @@ class Settings:
     THUNDER_SEND_WINDOW: str = os.getenv("THUNDER_SEND_WINDOW", "09-18")  # candidate-local hours
     THUNDER_MIN_GAP_HOURS: int = int(os.getenv("THUNDER_MIN_GAP_HOURS", "48"))
     THUNDER_NURTURE_INTERVAL_DAYS: int = int(os.getenv("THUNDER_NURTURE_INTERVAL_DAYS", "30"))
+    # A candidate who replied while profile details are missing is reminded every N days until the
+    # profile is complete (cadence_service DETAILS steps), at most THUNDER_MAX_DETAILS_REMINDERS times
+    THUNDER_DETAILS_REMINDER_DAYS: int = int(os.getenv("THUNDER_DETAILS_REMINDER_DAYS", "15"))
+    THUNDER_MAX_DETAILS_REMINDERS: int = int(os.getenv("THUNDER_MAX_DETAILS_REMINDERS", "6"))
     # Thunder first engagement (go-live 2026-10-13): every contactable candidate created in the
     # last THUNDER_ENGAGEMENT_LOOKBACK_DAYS who is not yet in the email cadence is engaged by the
     # thunder_engagement_sweep job. Kill switches: this flag, and the global pause on the
