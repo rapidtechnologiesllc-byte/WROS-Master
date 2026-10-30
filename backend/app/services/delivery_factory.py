@@ -117,6 +117,23 @@ def get_delivery_service(db: Session, tenant_id: int) -> DeliveryService:
         raise RuntimeError(msg)
 
 
+def whatsapp_delivery_ready(db: Session, tenant_id: int) -> bool:
+    """True when get_delivery_service would hand back a WhatsApp transport for this tenant: stub
+    mode, or an active Twilio provider whose credentials passed their test. Callers that add
+    WhatsApp to something that already works (the email cadence) check this first, so a tenant
+    that never set up WhatsApp is skipped instead of failing every send."""
+    if STUB_MODE:
+        return True
+    from app.models.api_keys_config import APIKeysConfig
+
+    active_config = db.query(APIKeysConfig).filter(
+        APIKeysConfig.tenant_id == tenant_id,
+        APIKeysConfig.is_active == True  # noqa: E712 -- SQL comparison
+    ).first()
+    return bool(active_config and (active_config.provider or "").lower() == "twilio"
+                and active_config.last_tested_status == "success")
+
+
 def validate_delivery_provider_health(db: Session, tenant_id: int) -> dict:
     """
     Health check: Verify tenant's delivery provider is configured, tested, and ready.

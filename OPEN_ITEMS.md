@@ -25,9 +25,9 @@ Everything in the P0/P1/P2 tables further down is fixed on `main` (details in th
 | Branch protection | Off (no GitHub Pro, decision 2026-10-19) | Process only: run the local gate before every merge |
 | Production data | 0 employees, projects, timesheets, invoices | Import staff (dry run first, 5 people) |
 
-### Under investigation
+### Thunder engagement failures (resolved 2026-10-30)
 
-- 4 `engage_candidate_with_thunder` queue messages FAILED in the 14 days before 2026-10-30, all older than 3 days, so `prod_status.py` showed the count but not the error. The failure listing now covers the same 14 days; re-run Production Status to read the errors. #432 (2026-10-29) changed Thunder engagement and may already cover them.
+- 4 `engage_candidate_with_thunder` messages FAILED between 2026-10-16 and 2026-10-30. Two (last 2026-10-24 17:10) were the aborted-transaction bug fixed by `868787b2` (#432). Two (last 2026-10-25) were WhatsApp sends attempted for a tenant with no WhatsApp provider: the engagement was retried and marked FAILED although its email cadence had started. Fixed: WhatsApp is now added only when the tenant has an active, tested Twilio provider (`delivery_factory.whatsapp_delivery_ready`); otherwise the candidate is engaged by email only.
 
 ### Decisions waiting on the CEO
 
