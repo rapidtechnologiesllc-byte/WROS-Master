@@ -67,12 +67,51 @@ def test_a_whatsapp_failure_never_undoes_the_email_cadence(db):
     with patch(ENQUEUE, return_value={"message_id": "x", "task_id": "x"}) as enqueue, \
          patch("app.services.thunder_service.has_active_consent", return_value=True), \
          patch("app.services.whatsapp_routing_service.resolve_outbound_whatsapp_number", return_value="+1555"), \
+         patch("app.services.delivery_factory.whatsapp_delivery_ready", return_value=True), \
          patch("app.services.thunder_service.send_thunder_message", side_effect=RuntimeError("WhatsApp down")):
         with pytest.raises(RuntimeError, match="email cadence already started"):
             ThunderEngagementHandler.process(message, db)
     state = db.query(ThunderCadenceState).filter_by(candidate_id=c.candidateID).one()
     assert state.next_step == "1"
     assert any(call.kwargs["task_name"] == "thunder_send_email" for call in enqueue.call_args_list)
+
+
+def test_a_tenant_without_a_whatsapp_provider_is_engaged_by_email_only(db):
+    """Production 2026-10-25: tenant 1 has no WhatsApp provider, so every engagement with a
+    WhatsApp-consenting candidate failed after its email cadence had started."""
+    from app.models.api_keys_config import APIKeysConfig
+
+    db.query(APIKeysConfig).filter(APIKeysConfig.tenant_id == 1).update({"is_active": False})  # as in production
+    db.flush()
+    c = candidate(db)
+    message = SimpleNamespace(id=f"q-{uid()}", payload={"candidate_id": c.candidateID}, retry_count=0)
+    with patch(ENQUEUE, return_value={"message_id": "x", "task_id": "x"}) as enqueue, \
+         patch("app.services.thunder_service.has_active_consent", return_value=True), \
+         patch("app.services.whatsapp_routing_service.resolve_outbound_whatsapp_number", return_value="+1555"), \
+         patch("app.services.thunder_service.send_thunder_message") as send:
+        result = ThunderEngagementHandler.process(message, db)
+    assert result["status"] == "success" and result["message_sent"] is False
+    send.assert_not_called()
+    assert db.query(ThunderCadenceState).filter_by(candidate_id=c.candidateID).one().next_step == "1"
+    assert any(call.kwargs["task_name"] == "thunder_send_email" for call in enqueue.call_args_list)
+
+
+def test_whatsapp_is_ready_only_with_an_active_tested_twilio_provider(db):
+    from app.models.api_keys_config import APIKeysConfig
+    from app.services.delivery_factory import whatsapp_delivery_ready
+
+    tenant_id = 900000 + int(uid(), 16) % 99999  # api_keys_config.tenant_id has no FK: a fresh tenant number
+    assert whatsapp_delivery_ready(db, tenant_id) is False
+    config = APIKeysConfig(tenant_id=tenant_id, provider="twilio", is_active=True, last_tested_status="failed")
+    db.add(config)
+    db.flush()
+    assert whatsapp_delivery_ready(db, tenant_id) is False
+    config.last_tested_status = "success"
+    db.flush()
+    assert whatsapp_delivery_ready(db, tenant_id) is True
+    config.provider = "sendgrid"
+    db.flush()
+    assert whatsapp_delivery_ready(db, tenant_id) is False
 
 
 def _engagement(db, c, status, n):

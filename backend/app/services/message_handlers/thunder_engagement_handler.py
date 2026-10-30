@@ -142,13 +142,22 @@ class ThunderEngagementHandler:
                 logger.info(f"[Thunder] Email cadence step 1 queued for {candidate_id}: {email_queued}")
 
             # ===== STEP 4: WhatsApp first touch (only when it can actually be sent) =====
-            # Added when the candidate consented, has a mobile number and a sending number is
-            # configured (THUNDER_WHATSAPP_NUMBER or the owning recruiter's number); otherwise skipped.
+            # Added when the candidate consented, has a mobile number, a sending number is
+            # configured (THUNDER_WHATSAPP_NUMBER or the owning recruiter's number) and the tenant
+            # has a tested WhatsApp provider; otherwise skipped. Without the provider check every
+            # engagement of a tenant with no WhatsApp set up was retried and ended FAILED (and was
+            # queued again by the sweep) although its email cadence had started (production
+            # 2026-10-25: "No active delivery provider configured").
+            from app.services.delivery_factory import whatsapp_delivery_ready
             from app.services.whatsapp_routing_service import resolve_outbound_whatsapp_number
             message_sent = False
             delivery_confirmed = False
             whatsapp_from = resolve_outbound_whatsapp_number(db, conversation) if (
                 candidate.candidateMobile and has_active_consent(db, candidate_id)) else None
+            if whatsapp_from and not whatsapp_delivery_ready(db, candidate.tenant_id):
+                logger.info(f"[Thunder] {candidate_id}: email cadence only (tenant {candidate.tenant_id} has no "
+                            "tested WhatsApp provider; set it up under API Keys)")
+                whatsapp_from = None
             if whatsapp_from:
                 initial_message = payload.get("slm_generated_email_body") or (
                     f"Hi {getattr(candidate, 'candidateFirstName', None) or 'there'}, thanks for your interest "
@@ -172,7 +181,7 @@ class ThunderEngagementHandler:
                     raise RuntimeError(f"Failed to send Thunder WhatsApp message (email cadence already "
                                        f"started): {str(send_err)}") from send_err
             else:
-                logger.info(f"[Thunder] {candidate_id}: email cadence only (no WhatsApp consent, number or sender)")
+                logger.info(f"[Thunder] {candidate_id}: email cadence only (no WhatsApp consent, number, sender or provider)")
 
             return {
                 "status": "success",
