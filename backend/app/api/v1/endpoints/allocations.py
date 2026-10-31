@@ -311,6 +311,9 @@ def create_allocation(
         raise HTTPException(status_code=422, detail=str(exc))
     db.commit()
     db.refresh(allocation)
+    from app.services.action_emails.allocations import notify_allocated
+
+    notify_allocated(db, allocation, actor=current_user)
     created = db.query(AllocationChange).filter(AllocationChange.allocation_id == allocation.id,
                                                 AllocationChange.change_type == "CREATE").first()
     return _to_item(db, allocation, margin_change=created)
@@ -416,6 +419,9 @@ def end_allocation_endpoint(
         raise HTTPException(status_code=409, detail=str(exc))
     db.commit()
     db.refresh(allocation)
+    from app.services.action_emails.allocations import notify_allocation_ended
+
+    notify_allocation_ended(db, allocation, actor=current_user)
     return _to_item(db, allocation)
 
 
@@ -554,6 +560,9 @@ def _decide(db: Session, change_id: str, user: Users, approve: bool, reason: str
     except (AllocationNotEditable, EmployeeNotDeployable, AllocationOverCapacity, EmployeeAlreadyAllocated) as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     db.commit()
+    from app.services.action_emails.allocations import notify_margin_decision
+
+    notify_margin_decision(db, change, actor=user)
     allocation = db.query(EmployeeAllocation).filter(EmployeeAllocation.id == change.allocation_id).one()
     return _to_item(db, allocation)
 
@@ -614,6 +623,9 @@ def update_allocation(
         raise HTTPException(status_code=409, detail=str(exc))
     db.commit()
     db.refresh(allocation)
+    from app.services.action_emails.allocations import notify_allocation_changed
+
+    notify_allocation_changed(db, allocation, change, actor=current_user)
     return AllocationEditResponse(allocation=_to_item(db, allocation, margin_change=change),
                                   change=_change_item(db, change))
 

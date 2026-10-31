@@ -397,6 +397,9 @@ def reopen(
             },
         )
         db.refresh(timesheet)
+        from app.services.action_emails.timesheets import notify_reopened
+
+        notify_reopened(db, timesheet, actor=current_user)
         return _to_item(db, timesheet)
     except Exception as e:
         db.rollback()
@@ -547,6 +550,9 @@ def create_dispute(
             },
         )
         db.refresh(dispute)
+        from app.services.action_emails.timesheets import notify_dispute_raised
+
+        notify_dispute_raised(db, dispute, actor=current_user)
         return _dispute_to_item(dispute)
     except Exception as e:
         db.rollback()
@@ -616,6 +622,9 @@ def resolve_dispute_endpoint(
             },
         )
         db.refresh(dispute)
+        from app.services.action_emails.timesheets import notify_dispute_resolved
+
+        notify_dispute_resolved(db, dispute, actor=current_user)
         return _dispute_to_item(dispute)
     except Exception as e:
         db.rollback()

@@ -43,7 +43,7 @@ def client(db):
     app.dependency_overrides[get_db] = lambda: db
     with patch("app.services.thunder_mail.cadence_service.enqueue_once", return_value=True), \
             patch("app.services.offer_release_notification_service.send_offer_release_notification"), \
-            patch("app.services.email_service.EmailService.notify_hr_candidate_responded"):
+            patch("app.services.staff_mail_service.queue_staff_email", return_value=True):
         yield TestClient(app)
     app.dependency_overrides.clear()
 

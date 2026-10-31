@@ -311,6 +311,9 @@ def create_offer_letter(
     db.add(new_offer)
     db.commit()
     db.refresh(new_offer)
+    from app.services.action_emails.offers import notify_offer_created
+
+    notify_offer_created(db, new_offer, actor=user)
 
     # Emit offer_generated event for Thunder and other handlers
     try:
@@ -404,6 +407,9 @@ def cancel_offer_letter(
     if request.reason:
         offer.candidate_response = f"Cancellation reason: {request.reason}"
     db.commit()
+    from app.services.action_emails.offers import notify_offer_cancelled
+
+    notify_offer_cancelled(db, offer, actor=user)
 
     return DeleteResponse(status="Success", message=f"Offer letter {offer_id} cancelled successfully")
 
@@ -692,19 +698,10 @@ def generate_offer_letter_document(
     offer.approval_status   = "AwaitingApproval"
     db.commit()
 
-    # "" Notify Hiring Manager by email (best-effort) """""""""""""""""""""""""
-    try:
-        if hm_user:
-            EmailService.notify_hm_approval_requested(
-                hm_email=hm_user.UserEmail,
-                hm_name=hm_user.UserName or hm_user.UserEmail,
-                candidate_name=candidate_name,
-                position=offer.position or "",
-                offer_id=offer_id,
-            )
-    except Exception as exc:
-        # Email failure must never block the generation response -- but it is logged
-        logger.error(f"[OfferLetter] HM approval email failed for offer {offer_id}: {exc}", exc_info=True)
+    # the hiring manager is asked to approve (staff mail path; a failure is logged, never raised)
+    from app.services.action_emails.offers import notify_offer_awaiting_approval
+
+    notify_offer_awaiting_approval(db, offer, actor=user)
 
     return {
         "status":           "success",
@@ -838,23 +835,10 @@ async def approve_offer_letter(
     offer.approval_notes = notes
     db.commit()
 
-    # "" Notify the HR creator by email """"""""""""""""""""""""""""""""""""""""
-    try:
-        hr_creator = db.query(Users).filter(Users.UserID == offer.created_by).first()
-        candidate_for_email = db.query(Candidate).filter(Candidate.candidateID == offer.candidate_id).first()
-        if hr_creator and candidate_for_email:
-            EmailService.notify_hr_hm_decision(
-                hr_email=hr_creator.UserEmail,
-                hm_name=user.UserName or user.UserEmail,
-                candidate_name=_candidate_name(candidate_for_email) or offer.candidate_id,
-                position=offer.position or "",
-                offer_id=offer_id,
-                decision=offer.approval_status,
-                approval_notes=notes or "",
-            )
-    except Exception as exc:
-        # the decision is committed; a failed notification is logged, not raised
-        logger.error(f"[OfferLetter] HR decision email failed for offer {offer_id}: {exc}", exc_info=True)
+    # the offer's creator, recruiters and managers hear the decision (a failure is logged, never raised)
+    from app.services.action_emails.offers import notify_offer_decided
+
+    notify_offer_decided(db, offer, actor=user)
 
     return OfferApprovalResponse(
         status="success",
@@ -918,6 +902,9 @@ def release_offer_letter(
     offer.released_at  = now
     offer.released_by  = user.UserID
     db.commit()
+    from app.services.action_emails.offers import notify_offer_released
+
+    notify_offer_released(db, offer, actor=user)
 
     # "" Notify the candidate via WhatsApp + email (S-054/HRMS-0454) """""""""
     from app.services.offer_release_notification_service import send_offer_release_notification
