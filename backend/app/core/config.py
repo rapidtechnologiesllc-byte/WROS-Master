@@ -421,7 +421,8 @@ class Settings:
         "SCHEDULED_JOBS_ENABLED",
         "timesheet_draft_creation,timesheet_reminders,ar_follow_up,expire_bu_ownerships,"
         "daily_revenue_scan,engagement_metrics,birthday_drafts,hiring_pipeline_sweep,client_start_date,auto_invoicing,"
-        "utilization_snapshot,renewal_alerts,po_expiry_alerts,performance_reviews,task_due_reminders",
+        "utilization_snapshot,renewal_alerts,po_expiry_alerts,performance_reviews,task_due_reminders,"
+        "notification_release",
     )
     SCHEDULED_JOB_LEASE_GRACE_SECONDS: int = int(os.getenv("SCHEDULED_JOB_LEASE_GRACE_SECONDS", "120"))
 

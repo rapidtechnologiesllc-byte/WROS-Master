@@ -12,7 +12,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from app.models.client import (
-    CONTACT_ROLE_TYPES, Client, ClientContact, ClientHistory, STATUSES_REQUIRING_CONTACT,
+    CLIENT_STATUSES, CONTACT_ROLE_TYPES, Client, ClientContact, ClientHistory, STATUSES_REQUIRING_CONTACT,
 )
 from app.models.demand import Demand
 from app.models.employee import Employee
@@ -269,6 +269,8 @@ def set_client_status(
     record. Checked here, not just at the API/UI layer, so a direct
     call to this function (the only sanctioned path) can't bypass it.
     """
+    if new_status not in CLIENT_STATUSES:
+        raise ClientValidationError(f"Unknown client status {new_status!r}; one of {', '.join(CLIENT_STATUSES)}.")
     if new_status in STATUSES_REQUIRING_CONTACT:
         contact_count = db.query(ClientContact).filter(ClientContact.client_id == client.id).count()
         if contact_count == 0:
@@ -388,16 +390,40 @@ def _notify_account_manager(db: Session, client: Client, recipient: Users, tenan
     except Exception as exc:
         logger.error(f"[ClientService] Could not send AM assignment notification: {exc}", exc_info=True)
 
-def resolve_account_manager_user(db: Session, user_id: str, tenant_id: Optional[int]) -> Users:
-    """Validate an account-manager pick from the Users & Access Control user list."""
+def resolve_client_team_user(db: Session, user_id: str, tenant_id: Optional[int],
+                             role: str = "account manager") -> Users:
+    """Validate an account-manager or client-owner pick from the Users & Access Control user list."""
     user = db.query(Users).filter(Users.UserID == user_id).first()
     if user is None:
         raise ClientValidationError(f"User {user_id!r} not found.")
     if tenant_id is not None and user.tenant_id != tenant_id:
         raise ClientValidationError(f"User {user_id!r} belongs to a different tenant.")
     if user.terminated_at is not None:
-        raise ClientValidationError(f"User {user_id!r} is terminated and cannot be an account manager.")
+        raise ClientValidationError(f"User {user_id!r} is terminated and cannot be a {role}.")
     return user
+
+
+def assign_client_owner(
+    db: Session,
+    client: Client,
+    user: Optional[Users],
+    *,
+    changed_by: Optional[str] = None,
+) -> bool:
+    """Set (or clear, with user=None) the client's Client Owner and write ClientHistory.
+    Returns whether it changed. Does not commit -- the caller owns the transaction."""
+    new_user_id = user.UserID if user is not None else None
+    if client.client_owner_user_id == new_user_id:
+        return False
+    db.add(ClientHistory(
+        tenant_id=client.tenant_id, client_id=client.id, change_type="CLIENT_OWNER",
+        old_value=json.dumps({"client_owner_user_id": client.client_owner_user_id}),
+        new_value=json.dumps({"client_owner_user_id": new_user_id}),
+        changed_by=changed_by,
+    ))
+    client.client_owner_user_id = new_user_id
+    db.add(client)
+    return True
 
 def assign_account_manager_user(
     db: Session,

@@ -48,6 +48,8 @@ CLIENT_TIERS = ("PLATINUM", "GOLD", "SILVER", "STANDARD")
 PIPELINE_STATUSES = ("QUALIFICATION", "PROSPECT", "PROPOSAL", "NEGOTIATION", "CONTRACT", "ACTIVE", "LOST")
 CLIENT_STATUSES = PIPELINE_STATUSES  # Client.status uses same values as Opportunity.stage
 BILLING_CURRENCIES = ("USD", "INR", "GBP", "EUR", "CAD", "AUD")
+# CLIENT_OWNER (2026-10-30): the person who owns the relationship -- separate from the account manager
+CLIENT_CHANGE_TYPES = ("STATUS", "ACCOUNT_MANAGER", "CLIENT_OWNER", "TIER", "CONTRACT_TERMS")
 CONTACT_ROLE_TYPES = ("HIRING_MANAGER", "TECHNICAL_PANEL", "PROCUREMENT", "ACCOUNTS", "PRIMARY", "TIMESHEET_APPROVER")
 
 # 2026-08-06, confirmed directly with Avinash while redesigning Client
@@ -107,6 +109,9 @@ class Client(Base):
     # account_manager_employee_id (kept for backward compatibility and mirrored
     # when the user has a linked Employee record).
     account_manager_user_id = Column(String(512), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True, index=True)
+    # Client Owner (2026-10-30): the user who owns the client relationship (sells to it); a new
+    # opportunity for this client defaults its Client Owner to this person. Not the account manager.
+    client_owner_user_id = Column(String(512), ForeignKey("users.UserID", ondelete="SET NULL"), nullable=True, index=True)
 
     billing_address = Column(Text, nullable=True)
     billing_currency = Column(Enum(*BILLING_CURRENCIES, name="billing_currency", native_enum=False, create_constraint=True), nullable=False, default="USD")
@@ -173,7 +178,7 @@ class ClientHistory(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
     client_id = Column(String(512), ForeignKey("clients.id"), nullable=False, index=True)
     change_type = Column(
-        Enum("STATUS", "ACCOUNT_MANAGER", "TIER", "CONTRACT_TERMS", name="client_change_type", native_enum=False, create_constraint=True),
+        Enum(*CLIENT_CHANGE_TYPES, name="client_change_type", native_enum=False, create_constraint=True),
         nullable=False,
     )
     old_value = Column(Text, nullable=True)

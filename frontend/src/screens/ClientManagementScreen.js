@@ -64,6 +64,7 @@ const emptyForm = {
   business_unit_id: "",
   contracting_company_id: "",
   account_manager_user_id: "",
+  client_owner_user_id: "",
   notes: "",
 };
 
@@ -79,7 +80,7 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [], comp
       .then((list) => setUsers(list))
       .catch((err) => {
         console.error("[ClientForm] Failed to load users:", err);
-        setError(`Could not load the account manager list: ${err.message}`);
+        setError(`Could not load the user list: ${err.message}`);
       });
   }, []);
 
@@ -100,13 +101,17 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [], comp
     return () => { cancelled = true; };
   }, [mode, businessUnits]);
 
+  const userChoices = useMemo(() => (Array.isArray(users) ? users : []).map(u => ({
+    label: u.user_name ? `${u.user_name} (${u.user_email})` : u.user_email,
+    value: String(u.user_id)
+  })), [users]);
   const userOptions = useMemo(() => [
-    { label: "Select Account Manager", value: "", disabled: true },
-    ...(Array.isArray(users) ? users : []).map(u => ({
-      label: u.user_name ? `${u.user_name} (${u.user_email})` : u.user_email,
-      value: String(u.user_id)
-    }))
-  ], [users]);
+    { label: "Select Account Manager", value: "", disabled: true }, ...userChoices,
+  ], [userChoices]);
+  // Client Owner: who owns the relationship; on create, blank means whoever adds the client
+  const ownerOptions = useMemo(() => [
+    { label: mode === "create" ? "Me (whoever adds the client)" : "No client owner", value: "" }, ...userChoices,
+  ], [userChoices, mode]);
 
   const set = (field) => (value) => setForm((f) => ({ ...f, [field]: value }));
 
@@ -123,7 +128,7 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [], comp
     setError("");
     try {
       if (mode === "edit") {
-        const { company_name, company_short_name, country, line_type, website, tier, billing_currency, business_unit_id, notes, account_manager_user_id, contracting_company_id } = form;
+        const { company_name, company_short_name, country, line_type, website, tier, billing_currency, business_unit_id, notes, account_manager_user_id, client_owner_user_id, contracting_company_id, status } = form;
         const terms = Number(form.payment_terms_days);
         if (!Number.isInteger(terms) || terms < 0) {
           setError("Payment terms must be a whole number of days.");
@@ -131,7 +136,9 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [], comp
         }
         await updateClient(form.id, {
           company_name, company_short_name, country, line_type, website, tier, billing_currency, business_unit_id, notes, account_manager_user_id: account_manager_user_id || null,
+          client_owner_user_id: client_owner_user_id || null,
           contracting_company_id: contracting_company_id || "",
+          ...(status ? { status } : {}),
           payment_terms_days: terms,
           requires_client_timesheet_approval: Boolean(form.requires_client_timesheet_approval),
         });
@@ -147,6 +154,7 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [], comp
           tier: form.tier || null,
           notes: form.notes || null,
           account_manager_user_id: form.account_manager_user_id || null,
+          client_owner_user_id: form.client_owner_user_id || null,
           contracting_company_id: form.contracting_company_id || null,
         });
       }
@@ -183,6 +191,7 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [], comp
         ]} />
         <Select label="Tier" value={form.tier} onChange={set("tier")} options={CLIENT_TIERS} />
         <Select label="Billing Currency" value={form.billing_currency} onChange={set("billing_currency")} options={BILLING_CURRENCIES} />
+        <Select label="Client Owner" value={form.client_owner_user_id || ""} onChange={set("client_owner_user_id")} options={ownerOptions} />
         <Select label="Account Manager" value={form.account_manager_user_id || ""} onChange={set("account_manager_user_id")} options={userOptions} />
         {mode === "edit" && (
           <Select label="Status" value={form.status || "PROSPECT"} onChange={set("status")} options={CLIENT_STATUSES} />
@@ -289,6 +298,8 @@ export default function ClientManagementScreen() {
         business_unit_id: full.business_unit_id ? String(full.business_unit_id) : "",
         contracting_company_id: full.contracting_company_id || "",
         account_manager_user_id: full.account_manager_user_id || "",
+        client_owner_user_id: full.client_owner_user_id || "",
+        status: full.status || "PROSPECT",
         notes: full.notes || "",
         payment_terms_days: full.payment_terms_days ?? 30,
         requires_client_timesheet_approval: Boolean(full.requires_client_timesheet_approval),
@@ -369,6 +380,7 @@ export default function ClientManagementScreen() {
     ),
     business_unit: c.business_unit_name || "—",
     contracting_company: c.contracting_company_name || "—",
+    client_owner: c.client_owner_name || "—",
     status: (
       <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
         {c.status}
@@ -419,6 +431,7 @@ export default function ClientManagementScreen() {
               { key: "company_name", header: "Company" },
               { key: "business_unit", header: "Business Unit" },
               { key: "contracting_company", header: "Contracting company" },
+              { key: "client_owner", header: "Client Owner" },
               { key: "status", header: "Status" },
               { key: "actions", header: "" },
             ]}

@@ -34,9 +34,10 @@ from app.schemas.client import (
 )
 from app.services.client_service import (
     ClientValidationError, DuplicateClientError, add_client_contact, assign_account_manager,
-    assign_account_manager_user, create_client, resolve_account_manager_user,
-    set_client_business_unit, update_client_details,
+    assign_account_manager_user, assign_client_owner, create_client, resolve_client_team_user,
+    set_client_business_unit, set_client_status, update_client_details,
 )
+from app.services.client_team_notification_service import notify_client_created, notify_client_owner_assigned
 
 from app.core.data_scope import bu_filter, ensure_assignable, ensure_visible
 router = APIRouter(prefix="/clients", tags=["clients"])
@@ -110,7 +111,7 @@ def list_clients(
     # doesn't have to cross-reference raw IDs itself.
     bu_names = _bu_name_map(db, (c.business_unit_id for c in clients))
     am_names = _employee_name_map(db, (c.account_manager_employee_id for c in clients))
-    am_user_names = _user_name_map(db, (c.account_manager_user_id for c in clients))
+    user_names = _user_name_map(db, [u for c in clients for u in (c.account_manager_user_id, c.client_owner_user_id)])
     company_names = _contracting_company_name_map(db, (c.contracting_company_id for c in clients))
     return ClientListResponse(
         clients=[
@@ -124,9 +125,11 @@ def list_clients(
                 account_manager_user_id=c.account_manager_user_id,
                 # The user-based account manager wins; the employee one is legacy
                 account_manager_name=(
-                    am_user_names.get(c.account_manager_user_id)
+                    user_names.get(c.account_manager_user_id)
                     or am_names.get(c.account_manager_employee_id)
                 ),
+                client_owner_user_id=c.client_owner_user_id,
+                client_owner_name=user_names.get(c.client_owner_user_id),
                 line_type=c.line_type,
                 website=c.website,
             )
@@ -142,7 +145,7 @@ def list_account_manager_options(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_internal_user),
 ):
-    """Account manager choices: active users in the caller's tenant (the
+    """Account manager and Client Owner choices: active users in the caller's tenant (the
     Users & Access Control list). Gated on clients.view, not
     users-access-control.view, so client editors can always load it."""
     users = (
@@ -204,9 +207,12 @@ def create_client_endpoint(
     try:
         # Validate the pick before creating, so a bad id can't leave a half-made client
         am_user = (
-            resolve_account_manager_user(db, body.account_manager_user_id, current_user.tenant_id)
+            resolve_client_team_user(db, body.account_manager_user_id, current_user.tenant_id)
             if body.account_manager_user_id else None
         )
+        # The Client Owner defaults to whoever adds the client
+        owner = resolve_client_team_user(db, body.client_owner_user_id or current_user.UserID,
+                                         current_user.tenant_id, "client owner")
         ensure_assignable(db, current_user, body.business_unit_id, "client")
         client = create_client(
             db,
@@ -231,15 +237,19 @@ def create_client_endpoint(
             client = update_client_details(db, client, extra)
         if body.contracting_company_id:
             _set_contracting_company(db, client, body.contracting_company_id, current_user.tenant_id)
+        assign_client_owner(db, client, owner, changed_by=current_user.UserID)
         if am_user is not None:
+            # notify=False: the new-client team email below tells the account manager
             client = assign_account_manager_user(
                 db, client, am_user, changed_by=current_user.UserID, tenant_id=current_user.tenant_id,
+                notify=False,
             )
-            db.commit()
+        db.commit()
     except DuplicateClientError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except ClientValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    notify_client_created(db, client, actor=current_user)
     return client
 
 def _to_detail_response(db: Session, client: Client) -> ClientDetailResponse:
@@ -257,6 +267,7 @@ def _to_detail_response(db: Session, client: Client) -> ClientDetailResponse:
     return ClientDetailResponse(
         **{c: getattr(client, c) for c in ClientDetailResponse.__fields__ if hasattr(client, c)},
         business_unit_name=bu_name, account_manager_name=am_name,
+        client_owner_name=_user_name_map(db, [client.client_owner_user_id]).get(client.client_owner_user_id),
         contracting_company_name=_contracting_company_name_map(db, [client.contracting_company_id]).get(client.contracting_company_id),
     )
 
@@ -323,13 +334,16 @@ def update_client_endpoint(
 ):
     client = _get_client_or_404(db, client_id, current_user)
     updates = body.dict(exclude_unset=True)
-    # account_manager_employee_id ("Client Owner") has its own real
-    # audit-history + notification path (assign_account_manager, HRMS-0709)
-    # -- routed here separately rather than through the generic field-set
-    # update_client_details() uses for everything else.
+    # The account manager (assign_account_manager*, HRMS-0709) and the Client Owner
+    # (assign_client_owner) have their own audit-history + notification paths -- routed here
+    # separately rather than through the generic field-set update_client_details() uses.
     account_manager_employee_id = updates.pop("account_manager_employee_id", None)
     has_am_user = "account_manager_user_id" in updates
     account_manager_user_id = updates.pop("account_manager_user_id", None)
+    has_owner = "client_owner_user_id" in updates
+    client_owner_user_id = updates.pop("client_owner_user_id", None)
+    owner_changed = False
+    new_status = updates.pop("status", None)
     business_unit_id = updates.pop("business_unit_id", None)
     has_company = "contracting_company_id" in updates
     company_id = updates.pop("contracting_company_id", None)
@@ -341,10 +355,12 @@ def update_client_endpoint(
             client = set_client_business_unit(db, client, business_unit_id, current_user.tenant_id)
         if updates:
             client = update_client_details(db, client, updates)
+        if new_status is not None and new_status != client.status:
+            client = set_client_status(db, client, new_status, changed_by=current_user.UserID)
         if has_am_user:
             # User pick (Users & Access Control) wins over the legacy employee field
             am_user = (
-                resolve_account_manager_user(db, account_manager_user_id, current_user.tenant_id)
+                resolve_client_team_user(db, account_manager_user_id, current_user.tenant_id)
                 if account_manager_user_id else None
             )
             client = assign_account_manager_user(
@@ -355,10 +371,18 @@ def update_client_endpoint(
             if not employee:
                 raise HTTPException(status_code=404, detail=f"Employee {account_manager_employee_id!r} not found.")
             client = assign_account_manager(db, client, employee, changed_by=current_user.UserID)
+        if has_owner:
+            owner = (
+                resolve_client_team_user(db, client_owner_user_id, current_user.tenant_id, "client owner")
+                if client_owner_user_id else None
+            )
+            owner_changed = assign_client_owner(db, client, owner, changed_by=current_user.UserID)
     except DuplicateClientError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except ClientValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     db.commit()
     db.refresh(client)
+    if owner_changed and client.client_owner_user_id:
+        notify_client_owner_assigned(db, client, actor=current_user)
     return _to_detail_response(db, client)

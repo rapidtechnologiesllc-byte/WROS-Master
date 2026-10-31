@@ -17,7 +17,7 @@
 //  - createRoleDemandFromOpportunity (POST /opportunities/:id/role-demand)
 //    as a "Create Role Demand" form inside that same detail panel,
 //    shown once the contract is signed (CONTRACT / ACTIVE).
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { TrendingUp, Plus, LayoutGrid, List as ListIcon, X } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
 import { listClients, createClient } from "../services/api/clients";
@@ -52,7 +52,6 @@ const formatUsdCents = (cents) =>
 
 function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) {
   const [clientId, setClientId] = useState("");
-  const [dealName, setDealName] = useState("");
   const [revenueValue, setRevenueValue] = useState("");
   const [accountManagerId, setAccountManagerId] = useState(""); // Account manager
   const [clientOwnerId, setClientOwnerId] = useState(""); // Client owner (from users list)
@@ -156,6 +155,12 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
     };
     loadClientOwners();
   }, []);
+
+  // A client's own Client Owner is the default Client Owner of its opportunities (when they may sell)
+  useEffect(() => {
+    const ownerId = clients.find((c) => c.id === clientId)?.client_owner_user_id;
+    if (ownerId && clientOwners.some((u) => u.id === ownerId)) setClientOwnerId(ownerId);
+  }, [clientId, clients, clientOwners]);
 
   const handleAddClient = async () => {
     if (!newClientWebsite.trim()) {
@@ -690,7 +695,7 @@ export default function OpportunityPipelineScreen() {
     }
   };
 
-  const loadList = async () => {
+  const loadList = useCallback(async () => {
     setListLoading(true);
     try {
       const data = await listOpportunities({
@@ -703,7 +708,7 @@ export default function OpportunityPipelineScreen() {
     } finally {
       setListLoading(false);
     }
-  };
+  }, [listStage, listClientId]);
 
   useEffect(() => {
     load();
@@ -713,7 +718,7 @@ export default function OpportunityPipelineScreen() {
     if (viewMode === "list") {
       loadList();
     }
-  }, [viewMode, listStage, listClientId]);
+  }, [viewMode, loadList]);
 
   const refreshAll = () => {
     load();
