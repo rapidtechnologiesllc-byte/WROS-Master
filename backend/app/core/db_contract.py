@@ -1660,6 +1660,11 @@ def _apply_schema_migrations(db: Session):
                     "ALTER TABLE IF EXISTS app_schema.employee_allocations "
                     "ADD COLUMN IF NOT EXISTS billable BOOLEAN NOT NULL DEFAULT TRUE")
 
+    # Thunder: the words that decided a reply's intent (shown on the candidate's Messages tab)
+    _migration_step(db, "thunder_email_messages.intent_evidence",
+                    "ALTER TABLE IF EXISTS app_schema.thunder_email_messages "
+                    "ADD COLUMN IF NOT EXISTS intent_evidence VARCHAR(255) NULL")
+
     # Migration 2: candidate_status.thunder_assigned_at (when Thunder was assigned)
     _migration_step(db, "candidate_status.thunder_assigned_at",
                     "ALTER TABLE IF EXISTS app_schema.candidate_status "

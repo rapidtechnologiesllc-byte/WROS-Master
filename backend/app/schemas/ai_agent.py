@@ -96,10 +96,32 @@ class ConversationThreadItem(BaseModel):
     thunder_resume_at: Optional[str] = None
     events: List[ConversationEventOut]
 
+class ThunderThreadItem(BaseModel):
+    """One Thunder email (OUT = sent to the candidate, IN = the candidate's email) or an opt-out record."""
+    id: str
+    kind: str                       # email | opt_out
+    at: Optional[str]
+    direction: Optional[str] = None  # OUT / IN (emails)
+    subject: Optional[str] = None
+    body: Optional[str] = None
+    step: Optional[str] = None
+    intent: Optional[str] = None
+    intent_confidence: Optional[float] = None
+    intent_source: Optional[str] = None  # rule / llm / keyword
+    intent_evidence: Optional[str] = None
+    source: Optional[str] = None    # opt-out: where it came from, in words
+
+class ThunderThread(BaseModel):
+    stage: Optional[str]
+    stop_reason: Optional[str]
+    stopped_by_item_id: Optional[str]  # the email or opt-out record that stopped Thunder
+    items: List[ThunderThreadItem]     # oldest first
+
 class ConversationThreadResponse(BaseModel):
     candidate_id: str
     total_conversations: int
     conversations: List[ConversationThreadItem]
+    thunder: ThunderThread
 
 # ---------------------------------------------------------------------------
 # Manual send / ownership (S-009 / S-010)

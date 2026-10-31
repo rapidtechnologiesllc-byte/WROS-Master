@@ -82,10 +82,12 @@ from app.schemas.ai_agent import (
     SendMessageRequest,
     SendMessageResponse,
     ThunderPauseResponse,
+    ThunderThread,
 )
 from app.services.ai_conversation_service import (
     get_conversation_thread,
     get_missing_fields,
+    get_thunder_email_thread,
     process_candidate_reply,
     resolve_default_tenant_id,
 )
@@ -397,7 +399,10 @@ def poll_and_process(
         "- `candidate_reply` — candidate replied\n"
         "- `gemini_parse` — Gemini extracted field values\n"
         "- `fields_merged` — extracted values written to DB\n"
-        "- `status_changed` — conversation status changed\n"
+        "- `status_changed` — conversation status changed\n\n"
+        "`thunder` lists Thunder's emails and the candidate's replies (the intent each reply was read "
+        "as and the words that decided it) and any email opt-out with its source, oldest first; "
+        "`stopped_by_item_id` names the one that stopped Thunder."
     ),
 )
 def get_conversations(
@@ -412,6 +417,7 @@ def get_conversations(
         candidate_id=candidate_id,
         total_conversations=len(thread),
         conversations=[ConversationThreadItem(**c) for c in thread],
+        thunder=ThunderThread(**get_thunder_email_thread(candidate_id, db)),
     )
 
 # ===========================================================================
