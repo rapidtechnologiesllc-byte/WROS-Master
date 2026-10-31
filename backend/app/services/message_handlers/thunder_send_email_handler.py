@@ -131,7 +131,7 @@ class ThunderSendEmailHandler:
                 db.commit()
             variant = db.query(ThunderOutreachVariant).filter_by(id=out.variant_id).one()
             subject, body = cadence.render(variant, candidate, job, extra)
-            out.subject = subject
+            out.subject, out.body_text = subject, cadence.plain_text(body)
         except ValueError:
             db.rollback()
             raise
