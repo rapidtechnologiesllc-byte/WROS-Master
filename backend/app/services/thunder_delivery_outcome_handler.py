@@ -32,6 +32,10 @@ class ThunderDeliveryOutcomeHandler:
         "bounced": "bounced",
         "complained": "complained",
         "unsubscribed": "unsubscribed",
+        # SendGrid's own event names for the same opt-outs
+        "unsubscribe": "unsubscribed",
+        "group_unsubscribe": "unsubscribed",
+        "spamreport": "complained",
 
         # SMS/WhatsApp events
         "sent": "sent",
@@ -82,6 +86,23 @@ class ThunderDeliveryOutcomeHandler:
             outcome_type = ThunderDeliveryOutcomeHandler.EVENT_TYPE_TO_OUTCOME.get(
                 event_type, event_type
             )
+
+            # An unsubscribe click or spam complaint is an opt-out: Thunder stops emailing, whatever
+            # the learning record below does
+            from app.services.thunder_mail.cadence_service import PROVIDER_OPT_OUT_EVENTS, stop_for_provider_opt_out
+            if outcome_type in PROVIDER_OPT_OUT_EVENTS and event_data.get("channel") == "email":
+                provider = str(event_data.get("provider") or "email provider")
+                try:
+                    stopped = stop_for_provider_opt_out(db, candidate_id, outcome_type, provider)
+                    db.commit()
+                except Exception:
+                    db.rollback()
+                    raise
+                if not stopped:
+                    logger.error(f"[ThunderOutcomeHandler] {provider} {outcome_type} for unknown candidate "
+                                 f"{candidate_id}: no opt-out recorded")
+                    return {"status": "error", "reason": "unknown_candidate"}
+                logger.info(f"[ThunderOutcomeHandler] Thunder stopped for {candidate_id}: {provider} {outcome_type}")
 
             # Record the outcome
             result = ThunderLearningIntegration.record_engagement_outcome(

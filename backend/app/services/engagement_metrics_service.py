@@ -22,7 +22,7 @@ Real architecture adaptations:
   consumer would read.
 """
 from datetime import datetime, timedelta
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -43,9 +43,34 @@ def _ghost_window(db: Session, candidate_id: str):
         return None, None
     return ghosting.ghosted_at, ghosting.reactivated_at
 
+def _messages(db: Session, candidate_id: str, conversation) -> List[Tuple[datetime, str]]:
+    """Every message to (OUT) and from (IN) the candidate, oldest first: the AI conversation's
+    events and Thunder's emails (ThunderEmailMessage: sent emails, and the candidate's emails
+    except automatic replies). The Thunder card and the Messages tab read the same emails."""
+    from app.models.thunder_email import ThunderEmailMessage
+
+    messages = []
+    if conversation is not None:
+        events = db.query(ConversationEvent.created_at, ConversationEvent.event_type).filter(
+            ConversationEvent.conversation_id == conversation.id,
+            ConversationEvent.event_type.in_(("ai_message_sent", "candidate_reply"))).all()
+        messages += [(at, "OUT" if kind == "ai_message_sent" else "IN") for at, kind in events if at]
+    emails = db.query(ThunderEmailMessage).filter(
+        ThunderEmailMessage.candidate_id == candidate_id,
+        ((ThunderEmailMessage.direction == "OUT") & (ThunderEmailMessage.status == "SENT"))
+        | ((ThunderEmailMessage.direction == "IN") & (ThunderEmailMessage.status == "PROCESSED")
+           & ((ThunderEmailMessage.intent.is_(None)) | (ThunderEmailMessage.intent != "AUTO"))),
+    ).all()
+    for email in emails:
+        at = email.sent_at if email.direction == "OUT" else email.received_at
+        if at:
+            messages.append((at, email.direction))
+    return sorted(messages)
+
+
 def calculate_engagement_health(db: Session, candidate_id: str, tenant_id: str) -> Dict:
     """Step 2. Never raises -- returns {"outcome": "not_found"} if the
-    candidate/conversation doesn't exist."""
+    candidate doesn't exist or no message was ever exchanged."""
     try:
         candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
         conversation = (
@@ -54,15 +79,9 @@ def calculate_engagement_health(db: Session, candidate_id: str, tenant_id: str) 
             .order_by(CandidateConversation.id.desc())
             .first()
         )
-        if candidate is None or conversation is None:
+        messages = _messages(db, candidate_id, conversation)
+        if candidate is None or not messages:
             return {"outcome": "not_found"}
-
-        events = (
-            db.query(ConversationEvent)
-            .filter(ConversationEvent.conversation_id == conversation.id, ConversationEvent.event_type.in_(("ai_message_sent", "candidate_reply")))
-            .order_by(ConversationEvent.created_at.asc())
-            .all()
-        )
 
         ghosted_at, reactivated_at = _ghost_window(db, candidate_id)
 
@@ -77,31 +96,32 @@ def calculate_engagement_health(db: Session, candidate_id: str, tenant_id: str) 
         gaps_minutes = []
         pending_outbound: Optional[datetime] = None
 
-        for event in events:
-            if event.event_type == "ai_message_sent":
-                if not in_ghost_period(event.created_at):
+        for sent_at, direction in messages:
+            if direction == "OUT":
+                if not in_ghost_period(sent_at):
                     outbound_count += 1
-                pending_outbound = event.created_at
-            elif event.event_type == "candidate_reply":
+                pending_outbound = sent_at
+            else:
                 inbound_count += 1
-                last_inbound_at = event.created_at
+                last_inbound_at = sent_at
                 if pending_outbound is not None:
-                    gap_minutes = (event.created_at - pending_outbound).total_seconds() / 60
+                    gap_minutes = (sent_at - pending_outbound).total_seconds() / 60
                     if 0 <= gap_minutes < MAX_RESPONSE_GAP_MINUTES:
                         gaps_minutes.append(gap_minutes)
                     pending_outbound = None
 
         response_rate = round(min(100 * inbound_count / outbound_count, 100), 2) if outbound_count > 0 else 0
         avg_response_time_minutes = round(sum(gaps_minutes) / len(gaps_minutes)) if gaps_minutes else None
-        total_messages_exchanged = len(events)
+        total_messages_exchanged = len(messages)
+        first_message_at = messages[0][0]
 
         days_to_qualification = None
         try:
             from app.services.candidate_journey_service import get_candidate_journey
             journey = get_candidate_journey(db, candidate_id, tenant_id)
             screened = next((s for s in journey["stages"] if s["stage_name"] == "SCREENED"), None)
-            if screened and screened["entered_at"] and conversation.created_at:
-                days_to_qualification = (screened["entered_at"] - conversation.created_at).days
+            if screened and screened["entered_at"]:
+                days_to_qualification = (screened["entered_at"] - first_message_at).days
         except Exception as exc:
             logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.warning(f"[EngagementMetrics] Could not resolve qualification stage for {candidate_id!r}: {exc}")
@@ -156,6 +176,25 @@ def run_engagement_metrics_job(db: Session) -> Dict:
         except Exception as exc:
             logger.error(f"Error: {str(exc)}", exc_info=True)
             logger.error(f"[EngagementMetrics] Failed processing candidate {conversation.candidate_id!r}: {exc}")
+            db.rollback()
+            result["skipped"] += 1
+
+    # candidates Thunder emails without an AI conversation
+    from app.models.thunder_email import ThunderCadenceState
+
+    for candidate_id, tenant_id in db.query(ThunderCadenceState.candidate_id, ThunderCadenceState.tenant_id).all():
+        if candidate_id in seen_candidates:
+            continue
+        seen_candidates.add(candidate_id)
+        result["processed"] += 1
+        try:
+            from app.core.tenant_context import sole_tenant_id
+
+            calc = calculate_engagement_health(
+                db, candidate_id, str(tenant_id if tenant_id is not None else sole_tenant_id(db)))
+            result["calculated" if calc.get("outcome") == "calculated" else "skipped"] += 1
+        except Exception as exc:
+            logger.error(f"[EngagementMetrics] Failed processing candidate {candidate_id!r}: {exc}", exc_info=True)
             db.rollback()
             result["skipped"] += 1
 
