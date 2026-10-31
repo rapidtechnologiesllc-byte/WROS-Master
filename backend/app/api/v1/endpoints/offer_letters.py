@@ -44,7 +44,6 @@ from app.services.salary_structure_generator import (
     get_salary_filename,
     calculate_salary,
 )
-from app.services.email_service import EmailService
 from app.services import offer_response_service
 from app.services.candidate_event_bus import CandidateEventBus
 
@@ -410,6 +409,9 @@ def cancel_offer_letter(
     from app.services.action_emails.offers import notify_offer_cancelled
 
     notify_offer_cancelled(db, offer, actor=user)
+    from app.services.thunder_mail import candidate_notices
+
+    candidate_notices.safely("offer withdrawn", candidate_notices.queue_offer_cancelled, db, offer)
 
     return DeleteResponse(status="Success", message=f"Offer letter {offer_id} cancelled successfully")
 

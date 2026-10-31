@@ -20,7 +20,9 @@ TEMPLATE_KEYS = ("GREETING_WHATSAPP", "GREETING_EMAIL", "EMPLOYEE_WELCOME_EMAIL"
                  # every pipeline status change emails the candidate (app.services.candidate_status_notifications)
                  "CANDIDATE_STATUS_APPLIED", "CANDIDATE_STATUS_SCREENING", "CANDIDATE_STATUS_INTERVIEW",
                  "CANDIDATE_STATUS_FINAL_REVIEW", "CANDIDATE_STATUS_PRE_ONBOARDING", "CANDIDATE_STATUS_HIRED",
-                 "CANDIDATE_STATUS_ONBOARDED", "CANDIDATE_STATUS_REJECTED")
+                 "CANDIDATE_STATUS_ONBOARDED", "CANDIDATE_STATUS_REJECTED",
+                 # candidate notices through Thunder (app.services.thunder_mail.candidate_notices)
+                 "CANDIDATE_INTERVIEW_CANCELLED", "CANDIDATE_OFFER_CANCELLED")
 
 logger = logging.getLogger(__name__)
 
