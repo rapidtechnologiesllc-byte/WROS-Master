@@ -84,8 +84,8 @@ Every state-changing route in `backend/app/api/v1/endpoints/` (2026-10-31): who 
 | `checklist_templates.py` | POST `/hr/templates/{template_id}/items` | admin only | no | - | not needed (config) |
 | `checklist_templates.py` | PUT `/hr/templates/{template_id}/items/{item_id}` | admin only | no | - | not needed (config) |
 | `checklist_templates.py` | DELETE `/hr/templates/{template_id}/items/{item_id}` | admin only | no | - | not needed (config) |
-| `clients.py` | POST `/` | Client Owner; account manager; BU head | client-owner PR | staff mail (queue_staff_email) | client-owner PR (not deployed: Troy case) |
-| `clients.py` | POST `/{client_id}/contacts` | Client Owner; account manager; BU head | client-owner PR | staff mail (queue_staff_email) | client-owner PR (stash, not on main) |
+| `clients.py` | POST `/` | Client Owner; account manager; BU head | client-owner PR | staff mail (queue_staff_email) | client-owner PR #444 (not deployed: Troy case) |
+| `clients.py` | POST `/{client_id}/contacts` | Client Owner; account manager; BU head | client-owner PR | staff mail (queue_staff_email) | client-owner PR #444 |
 | `clients.py` | PATCH `/{client_id}` | new Client Owner; new account manager | client-owner PR: owner only | staff mail (queue_staff_email) | client-owner PR; account manager change still silent (follow-up) |
 | `client_onboarding.py` | POST `/{onboarding_id}/confirm-start` | employee; account manager | yes | notify (staff) | unchanged |
 | `client_timesheet_approval.py` | POST `/view` | client contact (actor); employee; approver | yes | staff mail (queue_staff_email) | unchanged |
