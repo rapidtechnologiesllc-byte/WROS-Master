@@ -90,16 +90,7 @@ def notify_pipeline(offer: OfferLetter) -> None:
 def after_response(db: Session, offer: OfferLetter, candidate: Candidate, message: Optional[str] = None) -> None:
     """After commit: move the hiring pipeline on, and tell the offer's creator. The email is a
     courtesy; the offer state is already saved, so a mail failure is logged, not raised."""
-    notify_pipeline(offer)
-    creator = db.query(Users).filter(Users.UserID == offer.created_by).first()
-    if creator is None or not creator.UserEmail:
-        return
-    from app.services.email_service import EmailService
+    from app.services.action_emails.offers import notify_offer_answered
 
-    name = f"{candidate.candidateFirstName or ''} {candidate.candidateLastName or ''}".strip() or offer.candidate_id
-    try:
-        EmailService.notify_hr_candidate_responded(
-            hr_email=creator.UserEmail, candidate_name=name, position=offer.position or "",
-            offer_id=offer.id, decision=offer.offer_status, response_message=message or "")
-    except Exception as exc:
-        logger.error(f"[Offer] could not email {offer.created_by} about offer {offer.id}: {exc}", exc_info=True)
+    notify_pipeline(offer)
+    notify_offer_answered(db, offer, message=message)

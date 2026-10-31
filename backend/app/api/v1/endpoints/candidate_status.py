@@ -372,7 +372,12 @@ def update_candidate_status(
             db.commit()
             logger.info(f"Logged status change for candidate {candidate_id}: {old_pipeline_status} -> {request.pipeline_status}")
         except Exception as log_err:
-            logger.warning(f"Failed to log status change for {candidate_id}: {log_err}, but status update succeeded")
+            logger.error(f"Failed to log status change for {candidate_id}: {log_err}, but status update succeeded",
+                         exc_info=True)
+        from app.services.action_emails.candidates import notify_pipeline_status
+
+        notify_pipeline_status(db, candidate, actor=user, old_status=old_pipeline_status,
+                               new_status=request.pipeline_status)
 
     # (The status_changed event -- candidate email, Thunder pause -- is queued by the
     # CandidateStatus hook in app.models.candidate once the change commits.)

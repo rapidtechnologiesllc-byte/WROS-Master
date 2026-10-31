@@ -617,6 +617,7 @@ def approve_job(
     # Queue job approval event for FLASH orchestrator
     MessageQueueService.enqueue(
         task_name='job_approved_flash',
+        tenant_id=job.tenant_id,
         data={
             'job_id': job_id,
             'job_title': job.jobTitle,
@@ -629,6 +630,10 @@ def approve_job(
     # Assign recruiter and send notifications
     from app.services.job_approval_workflow_service import handle_job_approval
     approval_result = handle_job_approval(db, job, user, send_emails=True)
+
+    from app.services.action_emails.jobs import notify_job_approved
+
+    notify_job_approved(db, job, actor=user)  # after the recruiter is assigned, so they hear too
 
     from app.services.recruiting_service import start_recruiting
 
@@ -667,6 +672,7 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
     """
     # Find the job -- another business unit's job is "not found" (CEO 2026-10-12)
     job = visible_job_or_404(db, user, job_id, f"Job with ID {job_id}")
+    previous_hiring_manager, previous_recruiter = job.hiringManagerID, job.recuriterID
 
     # ...and it cannot be moved into a BU, or onto a client of a BU, outside the caller's
     # scope. Checked before any field changes.
@@ -751,11 +757,17 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
     db.commit()
     db.refresh(job)
 
+    from app.services.action_emails.jobs import notify_job_assignees
+
+    notify_job_assignees(db, job, actor=user, previous_hiring_manager=previous_hiring_manager,
+                         previous_recruiter=previous_recruiter)
+
     # Queue job update event for FLASH orchestrator. No task_id: it is the
     # queue row's primary key, and job_created_flash already used job_id, so
     # reusing it made every update after creation fail with a duplicate key.
     MessageQueueService.enqueue(
         task_name='job_updated_flash',
+        tenant_id=job.tenant_id,
         data={
             'job_id': job_id,
             'job_title': job.jobTitle,
@@ -820,12 +832,18 @@ def delete_job(job_id: str, db: Session = Depends(get_db), user = Depends(get_cu
         assert_deletable(db, job_id)
     except JobHasHistory as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+    from app.services.action_emails.core import before_delete
+    from app.services.action_emails.jobs import job_team, notify_job_deleted
+
+    team, title = before_delete("jobs", job_team, db, job) or {}, job.jobTitle or job_id
     db.delete(job)
     db.commit()
+    notify_job_deleted(db, team, job_id=job_id, title=title, actor=user)
 
     # Queue job deletion event for FLASH orchestrator
     MessageQueueService.enqueue(
         task_name='job_deleted_flash',
+        tenant_id=job.tenant_id,
         data={
             'job_id': job_id,
             'job_title': job.jobTitle,

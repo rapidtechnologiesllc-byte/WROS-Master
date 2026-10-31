@@ -171,6 +171,9 @@ class RecruiterAssignmentServiceForCandidates:
 
             db.add(candidate)
             db.commit()
+            from app.services.action_emails.candidates import notify_recruiter_assigned
+
+            notify_recruiter_assigned(db, candidate, actor_id=None)
 
             logger.info(
                 f"[CandidateRecruiterAssignment] Assigned {selected_recruiter_id} to {candidate_id} "

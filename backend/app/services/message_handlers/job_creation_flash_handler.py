@@ -172,6 +172,10 @@ class JobCreationFlashHandler:
                 db.commit()
                 logger.info(f"[JobCreate] ✅ Created job {job_id}: {job_title}")
 
+                from app.services.action_emails.jobs import notify_job_created
+
+                notify_job_created(db, job, actor_id=payload.get('created_by_user_id'))
+
                 # HANDLER LOGIC: Handle job-specific workflows (after persisted to DB)
                 # These were moved from endpoint to handler to follow queue-driven architecture
 

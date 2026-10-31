@@ -235,6 +235,9 @@ def create_employee(
 
         update_htd(db, employee, on_track=True, start=employee.joining_date, changed_by=current_user.UserID)
         db.commit()
+    from app.services.action_emails.employees import notify_employee_created
+
+    notify_employee_created(db, employee, actor=current_user)
     return _to_item(db, employee, viewer=current_user)
 
 
@@ -552,7 +555,10 @@ def update_employee_manager(
     without a login has the manager recorded on their employee row."""
     from app.services.org_structure_service import place_under_manager
 
+    from app.services.org_structure_service import manager_user_for
+
     employee = _get_employee_or_404(db, employee_id, current_user)
+    previous = manager_user_for(db, employee)
     manager = db.query(Users).filter(Users.UserID == body.manager_user_id, Users.tenant_id == current_user.tenant_id,
                                      Users.terminated_at.is_(None)).first()
     if manager is None:
@@ -572,6 +578,9 @@ def update_employee_manager(
     db.commit()
     db.refresh(employee)
     logger.info(f"[Employees] {employee.id} now reports to {manager.UserID} (set by {current_user.UserID})")
+    from app.services.action_emails.employees import notify_manager_changed
+
+    notify_manager_changed(db, employee, actor=current_user, previous_manager=previous.UserID if previous else None)
     return _to_item(db, employee, viewer=current_user)
 
 
@@ -783,6 +792,10 @@ def change_employee_employment(
     db.commit()
     db.refresh(employee)
     logger.info(f"[Employees] {employee.id} employment change {body.action} by {current_user.UserID}")
+    from app.services.action_emails.employees import notify_employment_changed
+
+    notify_employment_changed(db, employee, body.action, actor=current_user, effective_date=body.effective_date,
+                              reason=body.reason)
     return _to_item(db, employee, viewer=current_user)
 
 
@@ -1068,6 +1081,9 @@ def mark_bench(
     sync_billing_classification(db, employee)
     db.commit()
     db.refresh(employee)
+    from app.services.action_emails.employees import notify_marked_bench
+
+    notify_marked_bench(db, employee, actor=current_user, reason=body.reason)
     return _to_item(db, employee, viewer=current_user)
 
 @router.post(
@@ -1144,6 +1160,9 @@ def raise_escalation(
     db.commit()
     db.refresh(row)
     logger.info(f"[Escalation] {row.id} raised on employee {employee.id} by {current_user.UserID}")
+    from app.services.action_emails.employees import notify_escalation_raised
+
+    notify_escalation_raised(db, row, actor=current_user)
     return _escalation_item(row)
 
 
@@ -1175,4 +1194,7 @@ def resolve_escalation(
     db.commit()
     db.refresh(row)
     logger.info(f"[Escalation] {row.id} resolved by {current_user.UserID}")
+    from app.services.action_emails.employees import notify_escalation_resolved
+
+    notify_escalation_resolved(db, row, actor=current_user)
     return _escalation_item(row)

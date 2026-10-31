@@ -157,6 +157,9 @@ def generate_invoice_endpoint(
         raise HTTPException(status_code=422, detail=str(exc))
     db.commit()
     db.refresh(invoice)
+    from app.services.action_emails.invoices import notify_invoice_drafted
+
+    notify_invoice_drafted(db, invoice, actor=current_user)
 
     # Queue invoice creation for FLASH orchestrator
     try:
@@ -194,6 +197,9 @@ def approve_invoice_endpoint(
         raise HTTPException(status_code=409, detail=str(exc))
     db.commit()
     db.refresh(invoice)
+    from app.services.action_emails.invoices import notify_invoice_approved
+
+    notify_invoice_approved(db, invoice, actor=current_user)
 
     # an invoice auto-invoicing drafted goes to the client as soon as Finance approves it
     from app.services.invoice_automation_service import send_after_approval
@@ -285,6 +291,9 @@ def mark_invoice_paid_endpoint(
         raise HTTPException(status_code=409, detail=str(exc))
     db.commit()
     db.refresh(invoice)
+    from app.services.action_emails.invoices import notify_invoice_paid
+
+    notify_invoice_paid(db, invoice, actor=current_user)
     return _to_item(db, invoice)
 
 @router.post(
@@ -311,6 +320,9 @@ def record_payment_endpoint(
         db.rollback()
         raise HTTPException(status_code=409, detail=str(exc))
     db.refresh(invoice)
+    from app.services.action_emails.invoices import notify_invoice_paid
+
+    notify_invoice_paid(db, invoice, actor=current_user)  # the same key as mark-paid: one email
     return _to_item(db, invoice)
 
 @router.get(

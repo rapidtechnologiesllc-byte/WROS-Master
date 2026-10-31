@@ -116,7 +116,9 @@ class SendPipelineEmailHandler:
         payload = message.payload or {}
         email_id = payload.get("email_id")
         row = db.query(PipelineEmail).filter(PipelineEmail.id == email_id).with_for_update().first()
-        if row is None or row.kind not in COPY:
+        from app.services.thunder_mail import candidate_notices
+
+        if row is None or (row.kind not in COPY and not candidate_notices.is_notice(row.kind)):
             raise ValueError(f"Message {message.id}: pipeline email {email_id!r} not found or unknown kind")
         if row.sent_at is not None:
             return {"status": "already_sent", "email_id": email_id}
@@ -129,14 +131,17 @@ class SendPipelineEmailHandler:
         if row.graph_id is None:
             tenant = db.query(Tenant).filter(Tenant.id == candidate.tenant_id).first()
             company = tenant.name if tenant else "BlitzenX"
-            subject, build = COPY[row.kind]
             try:
-                body = build(db, candidate, company, generate_portal_link_url(db, candidate.candidateID), row)
-            except Superseded as exc:
+                if row.kind in COPY:
+                    subject, build = COPY[row.kind]
+                    subject = subject.format(company=company)
+                    body = build(db, candidate, company, generate_portal_link_url(db, candidate.candidateID), row)
+                else:  # a candidate notice: Thunder's consent, window, caps and the tenant's template
+                    subject, body = candidate_notices.render(db, candidate, row, company)
+            except (Superseded, candidate_notices.NotSent) as exc:
                 logger.info(f"[PipelineEmail] handler_complete {email_id}: not sent, {exc}")
                 return {"status": "superseded", "email_id": email_id, "reason": str(exc)}
-            row.graph_id, _, _ = mailbox.create_draft(candidate.candidateEmail, subject.format(company=company),
-                                                      body, f"pipeline:{row.id}")
+            row.graph_id, _, _ = mailbox.create_draft(candidate.candidateEmail, subject, body, f"pipeline:{row.id}")
             db.commit()
         if mailbox.is_draft(row.graph_id):
             mailbox.send(row.graph_id)

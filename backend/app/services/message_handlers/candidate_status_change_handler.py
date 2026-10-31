@@ -102,13 +102,13 @@ class CandidateStatusChangeHandler:
                 logger.error(f"[CandidateStatusChange] Commit failed: {commit_err}", exc_info=True)
                 raise RuntimeError(f"Failed to update status: {str(commit_err)}") from commit_err
 
-            # PHASE 5: Tell the candidate (every status; wording = the stage's message template).
-            # A delivery failure raises RuntimeError so the queue retries.
+            # PHASE 5: Tell the candidate (every status; wording = the stage's message template),
+            # queued through Thunder's guardrails (candidate_notices). A failure to queue raises.
             email = send_status_email(db, candidate, new_status)
-            if email.get("sent"):
-                actions_taken.append(f"emailed:{email['template']}")
-            delivery_channel = "email" if email.get("sent") else None
-            delivery_id = email.get("template")
+            if email.get("queued"):
+                actions_taken.append(f"email_queued:{email['template']}")
+            delivery_channel = "email" if email.get("queued") else None
+            delivery_id = email.get("email_id")
 
             logger.info("[CandidateStatusChange] ✅ Status change processed")
 

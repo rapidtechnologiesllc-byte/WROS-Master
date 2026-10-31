@@ -182,9 +182,11 @@ def submit_candidate(
         raise HTTPException(status_code=409, detail=str(exc))
     db.commit()
     db.refresh(submission)
+    from app.services.action_emails.submissions import notify_submitted
     from app.services.hiring_pipeline_service import notify
 
     notify(submission.candidate_id, "submission", f"{submission.id}:{submission.status}")
+    notify_submitted(db, submission, actor=current_user)
     return _to_item(db, submission)
 
 @router.get(
@@ -433,7 +435,9 @@ def client_response(
         raise HTTPException(status_code=409, detail=f"Cannot place: {exc}")
     db.commit()
     db.refresh(submission)
+    from app.services.action_emails.submissions import notify_client_response
     from app.services.hiring_pipeline_service import notify
 
     notify(submission.candidate_id, "submission", f"{submission.id}:{submission.status}")
+    notify_client_response(db, submission, actor=current_user)
     return _to_item(db, submission)

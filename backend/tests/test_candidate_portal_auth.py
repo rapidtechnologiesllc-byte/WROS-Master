@@ -131,11 +131,13 @@ def test_candidate_sees_only_their_visible_offers(client, world):
 
 def test_portal_accept_moves_offer_to_accepted(client, db, world):
     _, me, offers = world
-    with patch("app.services.email_service.EmailService.notify_hr_candidate_responded") as mail:
+    with patch("app.services.staff_mail_service.queue_staff_email", return_value=True) as mail:
         response = client.post(f"/api/v1/portal/offers/{offers['released'].id}/respond",
                                headers=_candidate_headers(me), json={"action": "accept", "message": "Excited!"})
     assert response.status_code == 200, response.text
-    assert response.json()["offer_status"] == "Accepted" and mail.call_count == 1
+    assert response.json()["offer_status"] == "Accepted"
+    # the offer's creator (and its managers / recruiters) hear the answer through the staff mail path
+    assert mail.call_count >= 1 and all("offer-answered-accepted-" in c.kwargs["key"] for c in mail.call_args_list)
     # the hiring pipeline is told, so onboarding starts without anyone pushing it
     assert any(c.args[0] == "hiring_pipeline_evaluate" for c in client.queued.call_args_list)
     db.expire_all()
@@ -169,7 +171,7 @@ def test_signing_an_unreleased_offer_is_refused(client, world):
 
 def test_legacy_respond_route_uses_the_same_rules(client, world):
     _, me, offers = world
-    with patch("app.services.email_service.EmailService.notify_hr_candidate_responded"):
+    with patch("app.services.staff_mail_service.queue_staff_email", return_value=True):
         response = client.post("/api/v1/offer-letter/respond", headers=_candidate_headers(me),
                                json={"offer_id": offers["released"].id, "action": "reject"})
     assert response.status_code == 200 and response.json()["offer_status"] == "Rejected"
