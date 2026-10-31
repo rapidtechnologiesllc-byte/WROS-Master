@@ -10,6 +10,11 @@ POST /expenses/{id}/manager-reject   -- the assigned manager (or finance): never
 POST /expenses/{id}/approve          -- finance approval for payment (after the manager)
 POST /expenses/{id}/mark-paid        -- finance: reimbursed
 GET  /clients/{client_id}/investment-position -- full prospect-to-breakeven history
+PATCH /expenses/{id}/attribution     -- who the spend is on (and its conference), until it is decided
+GET  /expense-events?q=              -- the team's shared conferences, closest match first
+POST /expense-events                 -- pick-or-add a conference (same name+year = the same event)
+GET  /expense-events/{id}/summary    -- one conference's cost: total, per client, per person
+POST /expense-events/{id}/merge      -- finance: fold a duplicate conference into another
 
 Create is deliberately self-service only (get_current_internal_user,
 not an admin-gated dependency) -- Avinash: "the expense is logged by
@@ -30,11 +35,17 @@ from app.core.dependencies import get_current_internal_user, require_resource_pe
 from app.models.expense import ExpenseRecord
 from app.models.user import Users
 from app.schemas.expense import (
-    ClientInvestmentPositionResponse, ExpenseCreateRequest, ExpenseItem, ExpenseListResponse,
+    ClientInvestmentPositionResponse, ExpenseAttributionRequest, ExpenseCreateRequest, ExpenseEventCreateRequest,
+    ExpenseEventItem, ExpenseEventListResponse, ExpenseEventMergeRequest, ExpenseEventSummaryResponse, ExpenseItem,
+    ExpenseListResponse,
+)
+from app.services.expense_event_service import (
+    ExpenseEventError, NearDuplicateEventError, event_rollup, find_or_create_event, get_event, merge_events,
+    search_events,
 )
 from app.services.expense_service import (
     ExpenseValidationError, approve_expense, approve_manager_step, can_review_as_manager,
-    get_client_investment_position, log_expense, mark_expense_paid, reject_manager_step,
+    get_client_investment_position, log_expense, mark_expense_paid, reject_manager_step, update_attribution,
 )
 
 router = APIRouter(tags=["expenses"])
@@ -54,8 +65,9 @@ def create_expense(
         expense = log_expense(
             db, logged_by_user=current_user, purpose=body.purpose,
             expense_category=body.expense_category, amount_usd_cents=body.amount_usd_cents,
-            expense_date=body.expense_date, client_id=body.client_id,
-            conference_name=body.conference_name, investment_label=body.investment_label,
+            expense_date=body.expense_date, client_id=body.client_id, spend_for=body.spend_for,
+            client_splits=[s.model_dump() for s in body.client_splits] if body.client_splits else None,
+            event_id=body.event_id, investment_label=body.investment_label,
             travel_type=body.travel_type, trip_label=body.trip_label, location=body.location,
             description=body.description, receipt_ref=body.receipt_ref,
         )
@@ -94,8 +106,11 @@ def list_all_expenses(
     query = db.query(ExpenseRecord).filter(
         ExpenseRecord.tenant_id == current_user.tenant_id, expense_filter(db, current_user),
     )
-    if client_id:
-        query = query.filter(ExpenseRecord.client_id == client_id)
+    if client_id:  # its whole-client expenses and the splits that include it
+        from app.models.expense import ExpenseClientShare
+
+        query = query.filter(or_(ExpenseRecord.client_id == client_id, ExpenseRecord.id.in_(
+            select(ExpenseClientShare.expense_id).where(ExpenseClientShare.client_id == client_id))))
     if purpose:
         query = query.filter(ExpenseRecord.purpose == purpose)
     expenses = query.order_by(ExpenseRecord.expense_date.desc()).all()
@@ -252,3 +267,127 @@ def download_expense_receipt(
     if not expense.receipt_file_path or not os.path.isfile(expense.receipt_file_path):
         raise HTTPException(status_code=404, detail="No receipt attached")
     return FileResponse(expense.receipt_file_path, media_type=expense.receipt_content_type)
+
+
+@router.patch(
+    "/expenses/{expense_id}/attribution",
+    response_model=ExpenseItem,
+    dependencies=[Depends(require_resource_permission("my-expenses", "view"))],
+)
+def update_expense_attribution(
+    expense_id: str,
+    body: ExpenseAttributionRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Who the spend is on: the person who logged it (until the manager decides) or its reviewer
+    (until Finance approves). Same rules as logging it."""
+    expense = db.query(ExpenseRecord).filter(ExpenseRecord.id == expense_id,
+                                             ExpenseRecord.tenant_id == current_user.tenant_id,
+                                             ExpenseRecord.logged_by_user_id == current_user.UserID).first() \
+        or _expense_or_404(db, expense_id, current_user)
+    try:
+        return update_attribution(
+            db, expense, current_user, spend_for=body.spend_for, client_id=body.client_id,
+            client_splits=[s.model_dump() for s in body.client_splits] if body.client_splits else None,
+            event_id=body.event_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except ExpenseValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+def _event_item(event, score=None, created=None) -> ExpenseEventItem:
+    item = ExpenseEventItem.model_validate(event)
+    item.match_score, item.created = score, created
+    return item
+
+
+@router.get(
+    "/expense-events",
+    response_model=ExpenseEventListResponse,
+    dependencies=[Depends(require_resource_permission("my-expenses", "view"))],
+)
+def list_expense_events(
+    q: Optional[str] = None,
+    year: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """The tenant's conferences, closest to `q` first ("Namic-2026" finds "NAMIC 2026")."""
+    return ExpenseEventListResponse(
+        events=[_event_item(e, score) for e, score in search_events(db, current_user.tenant_id, q, year)])
+
+
+@router.post(
+    "/expense-events",
+    response_model=ExpenseEventItem,
+    dependencies=[Depends(require_resource_permission("my-expenses", "create"))],
+)
+def create_expense_event(
+    body: ExpenseEventCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Pick-or-add: the same name and year returns the team's existing event; a near match is a
+    409 with the matches unless confirm_new."""
+    try:
+        event, created = find_or_create_event(
+            db, tenant_id=current_user.tenant_id, name=body.name, year=body.year, start_date=body.start_date,
+            end_date=body.end_date, location=body.location, created_by_user_id=current_user.UserID,
+            confirm_new=body.confirm_new)
+    except NearDuplicateEventError as exc:
+        raise HTTPException(status_code=409, detail={
+            "message": str(exc), "matches": [_event_item(e).model_dump(mode="json") for e in exc.matches]})
+    except ExpenseEventError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    db.commit()
+    db.refresh(event)
+    return _event_item(event, created=created)
+
+
+@router.get(
+    "/expense-events/{event_id}/summary",
+    response_model=ExpenseEventSummaryResponse,
+    dependencies=[Depends(require_resource_permission("expenses", "view"))],
+)
+def expense_event_summary(
+    event_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+):
+    """One conference's cost over the expenses the caller may see (their business units)."""
+    try:
+        event = get_event(db, current_user.tenant_id, event_id)
+    except ExpenseEventError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    expenses = db.query(ExpenseRecord).filter(ExpenseRecord.event_id == event.id,
+                                              ExpenseRecord.tenant_id == current_user.tenant_id,
+                                              expense_filter(db, current_user)).all()
+    return event_rollup(db, event, expenses)
+
+
+@router.post(
+    "/expense-events/{event_id}/merge",
+    response_model=ExpenseEventItem,
+    dependencies=[Depends(require_resource_permission("expenses", "create"))],
+)
+def merge_expense_event(
+    event_id: str,
+    body: ExpenseEventMergeRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_resource_permission("revenue", "view")),
+):
+    """Finance: two events are the same conference -- move this one's expenses to the other."""
+    from app.models.expense import ExpenseEvent
+
+    source = db.query(ExpenseEvent).filter(ExpenseEvent.id == event_id,
+                                           ExpenseEvent.tenant_id == current_user.tenant_id).first()
+    if source is None:
+        raise HTTPException(status_code=404, detail=f"Event {event_id!r} not found.")
+    try:
+        target = get_event(db, current_user.tenant_id, body.into_event_id)
+        merge_events(db, source, target)
+    except ExpenseEventError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return _event_item(target)

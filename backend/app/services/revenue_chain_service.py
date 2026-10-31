@@ -553,29 +553,31 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
 def _expenses(db: Session, start: date, end: date, tenant_id: Optional[int], units: Dict,
               business_unit_ids: Optional[Set[int]] = None):
     """Manager-approved expenses dated in the period, keyed (partner, business unit, client):
-    the client's business unit when the expense is for a client, else the logger's.
+    each client's part (expense_service.expense_shares -- a split expense counts on every client
+    it names) goes to that client's business unit; internal spend stays with the logger's.
     Pending expenses are totalled separately; rejected ones never count."""
     from app.models.expense import ExpenseRecord
+    from app.services.expense_service import expense_shares
 
     query = db.query(ExpenseRecord).filter(ExpenseRecord.expense_date >= start, ExpenseRecord.expense_date <= end)
     if tenant_id is not None:
         query = query.filter(ExpenseRecord.tenant_id == tenant_id)
-    records = query.all()
-    clients = _by_id(db, Client, Client.id, (r.client_id for r in records))
+    records = [r for r in query.all() if r.manager_approval_status in ("PENDING", "APPROVED")]
+    shares = expense_shares(records)
+    clients = _by_id(db, Client, Client.id, (c for r in records for c, _ in shares[r.id]))
     out, pending = [], 0
     for record in records:
-        client = clients.get(record.client_id)
-        bu_id = client.business_unit_id if client and client.business_unit_id else record.business_unit_id
-        if business_unit_ids is not None and bu_id not in business_unit_ids:
-            continue
-        if record.manager_approval_status == "PENDING":
-            pending += record.amount_usd_cents
-            continue
-        if record.manager_approval_status != "APPROVED":
-            continue
-        unit = units.get(bu_id)
-        partner = unit.partner_user_id if unit and unit.partner_user_id else UNASSIGNED
-        out.append({"key": (partner, bu_id, record.client_id), "amount": record.amount_usd_cents})
+        for client_id, cents in shares[record.id]:
+            client = clients.get(client_id)
+            bu_id = client.business_unit_id if client and client.business_unit_id else record.business_unit_id
+            if business_unit_ids is not None and bu_id not in business_unit_ids:
+                continue
+            if record.manager_approval_status == "PENDING":
+                pending += cents
+                continue
+            unit = units.get(bu_id)
+            partner = unit.partner_user_id if unit and unit.partner_user_id else UNASSIGNED
+            out.append({"key": (partner, bu_id, client_id), "amount": cents})
     return out, pending
 
 

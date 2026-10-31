@@ -112,7 +112,7 @@ def compare(expense: ExpenseRecord, receipt: Dict) -> Tuple[str, list]:
 
 def attach_and_check(db: Session, expense: ExpenseRecord, filename: str, content_type: str, data: bytes) -> ExpenseRecord:
     """Store the receipt, read and check it, and approve the manager step when it matches."""
-    from app.services.expense_service import _close_open_tasks
+    from app.services.expense_service import _close_open_tasks, attribution_gaps
 
     if expense.manager_approval_status != "PENDING":
         raise ReceiptError(f"The expense is already {expense.manager_approval_status.lower()}; "
@@ -130,7 +130,10 @@ def attach_and_check(db: Session, expense: ExpenseRecord, filename: str, content
     expense.receipt_check_status = status
     expense.receipt_check_detail = json.dumps({"receipt": receipt, "reasons": reasons,
                                                "checked_at": datetime.utcnow().isoformat(timespec="seconds")})
-    if status == "MATCHED":
+    gaps = attribution_gaps(expense)
+    if status == "MATCHED" and gaps:  # the receipt is fine, but who it is on is not settled yet
+        logger.info(f"[ExpenseReceipt] {expense.id}: receipt matches, manager reviews (missing {'; '.join(gaps)})")
+    elif status == "MATCHED":
         expense.manager_approval_status = "APPROVED"
         expense.manager_approved_by = SYSTEM_APPROVER
         expense.manager_approved_at = datetime.utcnow()

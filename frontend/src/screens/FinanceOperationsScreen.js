@@ -34,6 +34,8 @@ import {
   listAllExpenses, approveExpense, managerApproveExpense, managerRejectExpense, markExpensePaid,
 } from "../services/api/expenses";
 import { apiRequest } from "../services/api/client";
+import { expenseSubject } from "../utils/expenseAttribution";
+import ConferenceCostCard from "../components/ConferenceCostCard";
 
 const INCENTIVE_TYPES = [
   { label: "Revenue Share", value: "REVENUE_SHARE" },
@@ -672,7 +674,7 @@ export default function FinanceOperationsScreen() {
             rows={allExpenses.map((e) => ({
               date: e.expense_date,
               purpose: e.purpose.replace("_", " "),
-              subject: e.conference_name || e.investment_label || (e.client_id ? "Client" : "—"),
+              subject: expenseSubject(e),
               category: `${e.expense_category}${e.travel_type ? ` / ${e.travel_type}` : ""}`,
               amount: formatUsdCents(e.amount_usd_cents),
               status: (
@@ -720,6 +722,8 @@ export default function FinanceOperationsScreen() {
           />
         )}
       </Card>
+
+      <ConferenceCostCard />
     </div>
   );
 }

@@ -274,6 +274,42 @@ def _candidate_timezones_from_location(db: Session) -> int:
     return changed
 
 
+def _expense_attribution_and_events(db: Session) -> int:
+    """Who the spend is on + one event per conference (CEO 2026-10-31). Existing expenses keep
+    what they already said: a client expense is on that client (one 100% share), everything
+    else is internal. Free-text conference names become shared events -- "NAMIC 2026" and
+    "Namic-2026" land on the same one (expense_event_service.event_key); the year is the one in
+    the name, else the expense date's. Names that are only near each other stay separate events
+    for Finance to merge (POST /expense-events/{id}/merge). Returns expenses changed."""
+    from app.models.expense import FULL_SHARE_BPS, ExpenseClientShare, ExpenseRecord
+    from app.services.expense_event_service import event_key, find_or_create_event
+
+    changed = 0
+    for expense in db.query(ExpenseRecord).filter(ExpenseRecord.spend_for.is_(None)).all():
+        expense.spend_for = "CLIENT" if expense.client_id else "INTERNAL"
+        if expense.client_id and not expense.client_shares:
+            expense.client_shares = [ExpenseClientShare(client_id=expense.client_id, share_bps=FULL_SHARE_BPS,
+                                                        amount_usd_cents=expense.amount_usd_cents)]
+        changed += 1
+    db.flush()
+    conferences = db.query(ExpenseRecord).filter(ExpenseRecord.purpose == "CONFERENCE",
+                                                 ExpenseRecord.event_id.is_(None),
+                                                 ExpenseRecord.conference_name.isnot(None)).all()
+    for expense in conferences:
+        key, named_year = event_key(expense.conference_name)
+        if not key:
+            logger.warning(f"[Contract] expense {expense.id}: conference name {expense.conference_name!r} "
+                           "names no event; its manager picks the conference before approving it")
+            continue
+        event, _ = find_or_create_event(db, tenant_id=expense.tenant_id or 1, name=expense.conference_name,
+                                        year=named_year or expense.expense_date.year,
+                                        created_by_user_id=expense.logged_by_user_id, confirm_new=True)
+        expense.event_id, expense.conference_name = event.id, event.name
+        changed += 1
+    db.flush()
+    return changed
+
+
 DATA_MIGRATIONS = (
     ("interview_times_to_utc", _interview_times_to_utc),
     ("employee_org_history_backfill", _employee_org_history_backfill),
@@ -283,6 +319,7 @@ DATA_MIGRATIONS = (
     ("activity_timeline_entity_types_lowercase", _activity_timeline_entity_types_lowercase),
     ("pay_from_monthly_usd", _pay_from_monthly_usd),
     ("candidate_timezones_from_location", _candidate_timezones_from_location),
+    ("expense_attribution_and_events", _expense_attribution_and_events),
 )
 
 
@@ -1750,6 +1787,9 @@ def _apply_schema_migrations(db: Session):
             ("receipt_content_type", "VARCHAR(100) NULL"),
             ("receipt_check_status", "VARCHAR(20) NOT NULL DEFAULT 'NOT_ATTACHED'"),
             ("receipt_check_detail", "TEXT NULL"),
+            # Who the spend is on + the shared conference (CEO 2026-10-31; expense_event_service)
+            ("spend_for", "VARCHAR(20) NULL"),
+            ("event_id", "VARCHAR(512) NULL REFERENCES app_schema.expense_events(id) ON DELETE SET NULL"),
         ],
         # A Manage Role's permission set (CEO 2026-10-13)
         "org_roles": [
@@ -1936,6 +1976,7 @@ def _apply_schema_migrations(db: Session):
         ("ix_projects_manager_user_id", "projects(manager_user_id)"),
         ("ix_intercompany_settlements_from_company_id", "intercompany_settlements(from_company_id)"),
         ("ix_intercompany_settlements_to_company_id", "intercompany_settlements(to_company_id)"),
+        ("ix_expense_records_event_id", "expense_records(event_id)"),
     ):
         _migration_step(db, f"index {index_name}",
                         f"CREATE INDEX IF NOT EXISTS {index_name} ON app_schema.{table_column}")
