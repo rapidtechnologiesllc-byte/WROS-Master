@@ -90,6 +90,11 @@ _JOBS = (
     ScheduledJob("task_due_reminders", "app.services.task_notification_service:run_due_reminders",
                  timedelta(minutes=5), timeout_s=120,
                  backlog_guard="app.services.task_notification_service:backlog_guard"),
+    # internal only: P1/P2 notifications held outside the recipient's business hours are sent once
+    # the hold ends (notification_service); nothing released them before this job
+    ScheduledJob("notification_release", "app.services.notification_service:release_pending_notifications",
+                 timedelta(minutes=5), timeout_s=120,
+                 backlog_guard="app.services.notification_service:release_backlog_guard"),
     ScheduledJob("birthday_drafts", "app.services.culture_agent_service:generate_birthday_drafts",
                  timedelta(days=1), timeout_s=120, daily_after_utc="03:00"),
 )

@@ -25,6 +25,7 @@ from app.core.agent_logging import log_agent_execution
 from app.models.client import Client
 from app.models.employee import Employee
 from app.models.opportunity import CLOSED_STAGES, Opportunity
+from app.models.user import Users
 from app.services.opportunity_service import (
     calculate_weighted_forecast,
     create_opportunity,
@@ -76,7 +77,9 @@ class OpportunityTrackerAgent:
         partner_id is the logging user's UserID; their employee record, if
         any, becomes the opportunity owner.
         """
-        client = db.query(Client).filter(func.lower(Client.company_name) == client_name.strip().lower()).first()
+        # The caller's tenant only: a same-named client of another tenant is not theirs
+        client = db.query(Client).filter(Client.tenant_id == tenant_id,
+                                         func.lower(Client.company_name) == client_name.strip().lower()).first()
         if client is None:
             raise ValueError(f"No client named {client_name!r}; create the client first")
 
@@ -100,9 +103,16 @@ class OpportunityTrackerAgent:
             client_id=client.id,
             revenue_value_usd_cents=deal_size_usd_cents,
             owner_employee_id=owner.id if owner else None,
+            # the client's own Client Owner, else the partner who logged it
+            client_owner_id=client.client_owner_user_id or partner_id,
             expected_close_date=_as_date(expected_close_date),
         )
         db.commit()
+        actor = db.query(Users).filter(Users.UserID == partner_id).first()
+        if actor is not None:
+            from app.services.client_team_notification_service import notify_opportunity_created
+
+            notify_opportunity_created(db, opportunity, actor=actor)
         weighted = calculate_weighted_forecast(opportunity)
         return {
             "status": "success",

@@ -204,11 +204,9 @@ def release_pending_notifications(
     channel_senders: Optional[Dict[str, Callable[[Users, str], bool]]] = None,
 ) -> int:
     """
-    The function a cron would call to actually send P1/P2 notifications
-    once their business-hours hold expires. Not wired to a scheduler in
-    this build -- same "idempotent function exists, cron wiring is
-    follow-up" posture as timesheet_service.create_weekly_draft().
-    Returns the count of notifications processed (sent or failed).
+    Sends P1/P2 notifications once their business-hours hold expires: the
+    notification_release scheduled job (every 5 min). Returns the count of
+    notifications processed (sent or failed).
     """
     now = now or dt.datetime.utcnow()
     senders = channel_senders or DEFAULT_CHANNEL_SENDERS
@@ -235,6 +233,23 @@ def release_pending_notifications(
         processed += 1
 
     return processed
+
+# notification_release's first run: a hold that ended longer ago than this is a stale backlog
+# (nothing released held notifications before the job existed), so it is not emailed
+RELEASE_BACKLOG_MAX_AGE = dt.timedelta(hours=24)
+
+
+def release_backlog_guard(db: Session, now: dt.datetime) -> None:
+    """Before notification_release first runs: held notifications whose release time passed more
+    than RELEASE_BACKLOG_MAX_AGE ago are marked FAILED instead of being emailed days late. They
+    stay in the recipient's in-app list (the row is the in-app delivery)."""
+    expired = db.query(Notification).filter(
+        Notification.delivery_status == "PENDING",
+        Notification.scheduled_release_at.isnot(None),
+        Notification.scheduled_release_at < now - RELEASE_BACKLOG_MAX_AGE,
+    ).update({"delivery_status": "FAILED"}, synchronize_session=False)
+    logger.info(f"[Notifications] first release run: {expired} stale held notification(s) not emailed")
+
 
 def mark_as_read(db: Session, notification: Notification) -> Notification:
     notification.read_at = dt.datetime.utcnow()
