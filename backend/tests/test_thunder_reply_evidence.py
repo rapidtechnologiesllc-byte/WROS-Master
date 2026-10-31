@@ -187,3 +187,63 @@ def test_a_provider_open_event_changes_nothing(db, world):
     db.refresh(world.state)
     assert world.state.stage == "ACTIVE"
     assert db.query(ConsentRecord).filter_by(subject_id=world.candidate.candidateID).count() == 0
+
+
+# ---- regression: an iPhone reply whose uniqueBody kept our whole email (prod, 2026-10-30) -------
+
+IPHONE_REPLY = """Dear HR team,
+Please see the details below:
+
+  *   Years of Experience - 22+ years
+  *   Notice Period (in days) - 2/3 weeks
+
+Best Regards,
+-A Candidate
+Sent from my iPhone
+
+On Oct 30, 2026, at 3:37 PM, Helpdesk_HRMS <helpdesk_hrms@blitzenx.com> wrote:
+
+\ufeff
+
+Hi A,
+
+Following up on our conversation: we are still missing a few details to put your profile forward.
+
+Regards,
+the BlitzenX talent team
+
+________________________________
+
+You're hearing from us because your professional profile is in the BlitzenX talent network. Reply "remove" and we will stop emailing you and delete your details.
+
+________________________________
+
+This email and any attachments are confidential. If received in error, please notify the sender and delete this message."""
+
+
+def test_a_details_reply_quoting_our_whole_email_is_not_an_opt_out(db, world):
+    result, _, row = _inbound(db, world, IPHONE_REPLY, subject="Re: Director | Technical Client Partner | BlitzenX")
+    db.refresh(row)
+    assert result["intent"] != "UNSUBSCRIBE" and row.intent_source != "rule"
+    assert world.state.stage != "STOPPED"
+
+
+# ---- Response Rate reads the same emails as the Thunder card -------------------------------------
+
+def test_response_rate_counts_thunder_emails_and_ignores_automatic_replies(db, world):
+    from app.services.engagement_metrics_service import calculate_engagement_health
+
+    _send(db, world, "1", FakeMailbox())
+    _inbound(db, world, "Can you share the JD?")
+    _inbound(db, world, "I am out of office", subject="Automatic reply: a quick question")
+    metrics = calculate_engagement_health(db, world.candidate.candidateID, "1")
+    assert metrics["outcome"] == "calculated"
+    # 1 sent email; 1 real reply (the out-of-office does not count)
+    assert metrics["response_rate"] == 100 and metrics["total_messages_exchanged"] == 2
+    assert metrics["last_inbound_at"] is not None
+
+
+def test_no_messages_at_all_has_no_metrics(db, world):
+    from app.services.engagement_metrics_service import calculate_engagement_health
+
+    assert calculate_engagement_health(db, world.candidate.candidateID, "1") == {"outcome": "not_found"}
