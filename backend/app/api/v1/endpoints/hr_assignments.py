@@ -139,6 +139,9 @@ def create_hr_assignment(
     db.add(assignment)
     db.commit()
     db.refresh(assignment)
+    from app.services.action_emails.candidates import notify_hr_assigned
+
+    notify_hr_assigned(db, assignment, actor=current_user)
 
     return _to_response(assignment, db)
 
@@ -223,6 +226,8 @@ def update_hr_assignment(
             detail=f"No HR assignment found for candidate '{candidate_id}'. Use POST to create one.",
         )
 
+    previous = {assignment.hr1_id, assignment.hr2_id}
+
     # Update hr1 if provided
     if body.hr1_id is not None:
         hr1 = db.query(Users).filter(Users.UserID == body.hr1_id).first()
@@ -244,6 +249,9 @@ def update_hr_assignment(
 
     db.commit()
     db.refresh(assignment)
+    from app.services.action_emails.candidates import notify_hr_assigned
+
+    notify_hr_assigned(db, assignment, actor=current_user, previous=previous)
 
     return _to_response(assignment, db)
 

@@ -713,6 +713,9 @@ def decide_round_verdict(panel_id: int, request: RoundVerdictRequest, db: Sessio
     from app.services.hiring_pipeline_service import notify
 
     notify(panel.candidate_id, "verdict", f"{panel.id}:{row.verdict}:manual")
+    from app.services.action_emails.interviews import notify_round_verdict
+
+    notify_round_verdict(db, panel, row.verdict, actor=user, rationale=request.rationale)
     latest = db.query(Interview).filter(Interview.panel_id == panel.id).order_by(Interview.id.desc()).first()
     if latest is not None:
         _check_and_auto_submit_for_hire(latest, db)
@@ -849,6 +852,9 @@ def assign_panel_member(
     db.refresh(panel_member)
     # the new interviewer gets a feedback task on the round's scheduled interviews
     scheduling.after_member_assigned(db, request.panel_id)
+    from app.services.action_emails.interviews import notify_panel_member_added
+
+    notify_panel_member_added(db, panel_member, actor=user)
 
     return PanelMemberResponse(
         id=panel_member.id,
@@ -984,7 +990,11 @@ def create_interview(
     db.commit()
     db.refresh(interview)
     # queued only after the commit: a rolled-back interview never leaves a message behind
-    scheduling.after_commit(db, interview, _visible_panel_or_404(db, user, interview.panel_id))
+    panel = _visible_panel_or_404(db, user, interview.panel_id)
+    scheduling.after_commit(db, interview, panel)
+    from app.services.action_emails.interviews import notify_interview_scheduled
+
+    notify_interview_scheduled(db, interview, panel, actor=user)
 
     return InterviewResponse(
         id=interview.id,
@@ -1396,6 +1406,10 @@ def update_interview(
     # new time or a cancellation needs nothing here; a new time invites the candidate again
     if interview.start_time != previous_start:
         scheduling.queue_invite(db, interview)
+    from app.services.action_emails.interviews import notify_interview_changed
+
+    notify_interview_changed(db, interview, actor=user, rescheduled=interview.start_time != previous_start,
+                             cancelled=interview.status == "Cancelled" and previous_status != "Cancelled")
 
     # Backlog item, 2026-08-05: create the HM review Task the first time
     # (and only the first time) this interview round transitions into
@@ -1442,6 +1456,12 @@ def delete_interview(
         HTTPException: If interview not found
     """
     interview = _visible_interview_or_404(db, user, interview_id)
+    from app.services.action_emails.core import before_delete
+    from app.services.action_emails.interviews import deleted_interview_context, notify_interview_deleted
+
+    team, round_label = before_delete("interviews", deleted_interview_context, db, interview) \
+        or ({}, f"interview {interview_id}")
+    candidate_id = interview.candidate_id
 
     # Delete all associated feedback
     db.query(InterviewFeedback).filter(InterviewFeedback.interview_id == interview_id).delete()
@@ -1449,6 +1469,8 @@ def delete_interview(
     # Delete the interview
     db.delete(interview)
     db.commit()
+    notify_interview_deleted(db, team, interview_id=interview_id, round_label=round_label,
+                             candidate_id=candidate_id, actor=user)
     
     return DeleteResponse(
         status="Success",

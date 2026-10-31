@@ -677,7 +677,9 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
                 event_at=datetime.utcnow(),
             ))
 
+    recruiter_changed = False
     if request.assigned_recruiter_id is not None and request.assigned_recruiter_id != candidate.assigned_recruiter_id:
+        recruiter_changed = True
         recruiter = db.query(Users).filter(Users.UserID == request.assigned_recruiter_id).first()
         if not recruiter:
             raise HTTPException(status_code=404, detail=f"User {request.assigned_recruiter_id} not found")
@@ -743,6 +745,10 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
             status_code=500,
             detail=f"Failed to update candidate: {str(e)}"
         )
+    if recruiter_changed:
+        from app.services.action_emails.candidates import notify_recruiter_assigned
+
+        notify_recruiter_assigned(db, candidate, actor_id=getattr(user, "UserID", None))
 
     # ENQUEUE UPDATE FOR ASYNC PROCESSING (history, events, SLM, etc.)
     # This gives us full audit trail visibility in the message queue
