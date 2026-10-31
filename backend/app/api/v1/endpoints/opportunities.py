@@ -104,10 +104,15 @@ def create_opportunity_endpoint(
     current_user: Users = Depends(require_resource_permission("opportunities", "create")),
 ):
     ensure_visible(db, current_user, client_bu_id(db, body.client_id), "Client")
-    # The client owner is a person who may sell (same tenant, opportunities.create);
-    # by default whoever records the opportunity
-    client_owner_id = body.client_owner_id or current_user.UserID
-    if not _sellers(db, current_user.tenant_id, "create").filter(Users.UserID == client_owner_id).first():
+    # The client owner is a person who may sell (same tenant, opportunities.create); by default
+    # the client's own Client Owner when they may sell, else whoever records the opportunity
+    sellers = _sellers(db, current_user.tenant_id, "create")
+    client_owner_id = body.client_owner_id
+    if not client_owner_id:
+        client = db.query(Client).filter(Client.id == body.client_id).first()
+        owner_id = client.client_owner_user_id if client else None
+        client_owner_id = owner_id if owner_id and sellers.filter(Users.UserID == owner_id).first()             else current_user.UserID
+    if not sellers.filter(Users.UserID == client_owner_id).first():
         raise HTTPException(status_code=422, detail="Client Owner must be someone who can create opportunities")
     try:
         opportunity = create_opportunity(
@@ -126,6 +131,9 @@ def create_opportunity_endpoint(
     except OpportunityValidationError as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc))
+    from app.services.client_team_notification_service import notify_opportunity_created
+
+    notify_opportunity_created(db, opportunity, actor=current_user)
     return _to_item(db, opportunity)
 
 @router.get(

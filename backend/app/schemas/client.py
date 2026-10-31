@@ -20,12 +20,13 @@ class ClientListItem(BaseModel):
     # Resolved name so the UI doesn't have to show/cross-reference a raw ID.
     business_unit_name: Optional[str] = None
     contracting_company_name: Optional[str] = None
-    # "Client Owner" -- the field already exists (account_manager_employee_id,
-    # HRMS-0709) but was never surfaced in any screen. Same pattern as
-    # Opportunity.owner_employee_id.
+    # Account manager (HRMS-0709); the user pick wins over the legacy employee field
     account_manager_employee_id: Optional[str] = None
     account_manager_user_id: Optional[str] = None
     account_manager_name: Optional[str] = None
+    # Client Owner: who owns the relationship (separate from the account manager)
+    client_owner_user_id: Optional[str] = None
+    client_owner_name: Optional[str] = None
     line_type: Optional[str] = None
     # Not shown/edited anywhere -- exposed only so the Create Job screen
     # can derive Internal (BlitzenX) vs External without a per-client
@@ -70,6 +71,8 @@ class ClientCreateRequest(BaseModel):
     notes: Optional[str] = None
     # Picked from the Users & Access Control user list
     account_manager_user_id: Optional[str] = None
+    # Client Owner, from the same user list; defaults to the creator
+    client_owner_user_id: Optional[str] = None
 
 class ClientCreateResponse(BaseModel):
     id: str
@@ -122,6 +125,8 @@ class ClientDetailResponse(BaseModel):
     account_manager_employee_id: Optional[str] = None
     account_manager_user_id: Optional[str] = None
     account_manager_name: Optional[str] = None
+    client_owner_user_id: Optional[str] = None
+    client_owner_name: Optional[str] = None
     billing_address: Optional[str]
     billing_currency: str
     payment_terms_days: int
@@ -145,6 +150,10 @@ class ClientUpdateRequest(BaseModel):
     account_manager_employee_id: Optional[str] = None
     # Preferred over account_manager_employee_id; null clears the account manager
     account_manager_user_id: Optional[str] = None
+    # Routed separately to client_service.assign_client_owner(); null clears the client owner
+    client_owner_user_id: Optional[str] = None
+    # Routed separately to client_service.set_client_status() (BR-01 contact rule + history)
+    status: Optional[str] = None
     # Routed separately to client_service.set_client_business_unit()
     business_unit_id: Optional[int] = None
     # Contracting company (BX-US / BX-IN): which of our companies invoices this client

@@ -1,5 +1,6 @@
 """The user directory never crosses tenants: list, search and by-ID lookups (CEO 2026-10-12)."""
 import pytest
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.tenant import Tenant
@@ -29,7 +30,8 @@ def test_users_of_another_tenant_are_invisible(db, api):
     w = two_bu_world(db)
     other = db.query(Tenant).filter(Tenant.id != 1).first()
     if other is None:
-        other = Tenant(name=f"other-{uid()}")
+        # tenant 1 is seeded with an explicit id, so the id sequence still says 1: pick a free id
+        other = Tenant(id=(db.query(func.max(Tenant.id)).scalar() or 0) + 1, name=f"other-{uid()}")
         db.add(other)
         db.flush()
     outsider = Users(UserID=f"U-{uid()}", UserName="Outsider", UserEmail=f"{uid()}@other.test", UserPassword="x",

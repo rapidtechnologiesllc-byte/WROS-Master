@@ -698,6 +698,7 @@ def _initialize_leadership_roles():
         _initialize_thunder_conversation_owner(db)
         _initialize_candidate_status_templates(db)
         _initialize_submission_violation_types(db)
+        _initialize_client_change_types(db)
         _initialize_allocation_statuses(db)
         _initialize_employment_types(db)
         _initialize_permission_row_tenants(db)
@@ -1016,6 +1017,21 @@ def _initialize_submission_violation_types(db):
     db.execute(text("ALTER TABLE app_schema.submission_violations DROP CONSTRAINT IF EXISTS submission_violation_type"))
     db.execute(text(f"ALTER TABLE app_schema.submission_violations ADD CONSTRAINT submission_violation_type "
                     f"CHECK (violation_type IN ({allowed}))"))
+    db.commit()
+
+
+def _initialize_client_change_types(db):
+    """The client_history change_type CHECK constraint is rebuilt from CLIENT_CHANGE_TYPES
+    (create_all never alters an existing table: CLIENT_OWNER was added 2026-10-30). The Client
+    Owner column gets its index. Idempotent."""
+    from app.models.client import CLIENT_CHANGE_TYPES
+
+    allowed = ", ".join("'" + kind + "'" for kind in CLIENT_CHANGE_TYPES)
+    db.execute(text("ALTER TABLE app_schema.client_history DROP CONSTRAINT IF EXISTS client_change_type"))
+    db.execute(text(f"ALTER TABLE app_schema.client_history ADD CONSTRAINT client_change_type "
+                    f"CHECK (change_type IN ({allowed}))"))
+    db.execute(text("CREATE INDEX IF NOT EXISTS ix_app_schema_clients_client_owner_user_id "
+                    "ON app_schema.clients (client_owner_user_id)"))
     db.commit()
 
 
@@ -1794,6 +1810,8 @@ def _apply_schema_migrations(db: Session):
         ],
         "clients": [
             ("account_manager_user_id", 'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
+            # Client Owner (2026-10-30): who owns the relationship, separate from the account manager
+            ("client_owner_user_id", 'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
             # Contracting company (BX-US / BX-IN): revenue splits by company
             ("contracting_company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
             # Client timesheet approval (CEO 2026-10-23): off for every existing client
