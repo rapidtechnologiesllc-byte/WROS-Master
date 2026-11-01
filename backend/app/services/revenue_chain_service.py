@@ -402,7 +402,7 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
             bench_rows[bucket]["bench_cost_usd_cents" if employee.is_billable else "overhead_cost_usd_cents"] += uncovered
             company_staff_cost[company_id]["bench" if employee.is_billable else "overhead"] += uncovered
 
-    expenses, pending_expenses = _expenses(db, start, end, tenant_id, units, business_unit_ids)
+    expenses, pending_expenses = _expenses(db, start, end, tenant_id, units, business_unit_ids, costs)
     if country is not None:
         expenses = []  # a client expense has no location
 
@@ -521,8 +521,8 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
         rows[company_id]["htd"] += cost["htd"]
         if not cost["complete"]:
             rows[company_id]["complete"] = False
-    for e in expenses:
-        rows[client_company.get(e["key"][2]) if e["key"][2] else None]["expense"] += e["amount"]
+    for e in expenses:  # a client's contracting company; personal spend, the logger's company that day
+        rows[e["company_id"]]["expense"] += e["amount"]
     settlements = db.query(IntercompanySettlement).filter(
         IntercompanySettlement.settlement_date >= start, IntercompanySettlement.settlement_date <= end)
     if tenant_id is not None:
@@ -551,10 +551,14 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
 
 
 def _expenses(db: Session, start: date, end: date, tenant_id: Optional[int], units: Dict,
-              business_unit_ids: Optional[Set[int]] = None):
+              business_unit_ids: Optional[Set[int]] = None, costs: Optional["CostBook"] = None):
     """Manager-approved expenses dated in the period, keyed (partner, business unit, client):
     each client's part (expense_service.expense_shares -- a split expense counts on every client
-    it names) goes to that client's business unit; internal spend stays with the logger's.
+    it names) goes to that client's business unit and contracting company; internal (personal)
+    spend stays with the logger's business unit and goes to the company the logger worked for on
+    the expense date (CostBook.object_on, the same rule as their salary -- CEO 2026-11-01: an
+    attendee's own conference meals and travel count in their company's P&L, not "Group").
+    A logger with no employee record stays with the parent ("Group", company None).
     Pending expenses are totalled separately; rejected ones never count."""
     from app.models.expense import ExpenseRecord
     from app.services.expense_service import expense_shares
@@ -565,6 +569,14 @@ def _expenses(db: Session, start: date, end: date, tenant_id: Optional[int], uni
     records = [r for r in query.all() if r.manager_approval_status in ("PENDING", "APPROVED")]
     shares = expense_shares(records)
     clients = _by_id(db, Client, Client.id, (c for r in records for c, _ in shares[r.id]))
+    costs = costs or CostBook(db)
+    loggers = {e.wros_user_id: e for e in db.query(Employee).filter(
+        Employee.wros_user_id.in_({r.logged_by_user_id for r in records} or {""}))}
+
+    def logger_company(record) -> Optional[str]:
+        employee = loggers.get(record.logged_by_user_id)
+        return costs.object_on(employee, record.expense_date)[1] if employee is not None else None
+
     out, pending = [], 0
     for record in records:
         for client_id, cents in shares[record.id]:
@@ -577,7 +589,8 @@ def _expenses(db: Session, start: date, end: date, tenant_id: Optional[int], uni
                 continue
             unit = units.get(bu_id)
             partner = unit.partner_user_id if unit and unit.partner_user_id else UNASSIGNED
-            out.append({"key": (partner, bu_id, client_id), "amount": cents})
+            company_id = client.contracting_company_id if client is not None else logger_company(record)
+            out.append({"key": (partner, bu_id, client_id), "amount": cents, "company_id": company_id})
     return out, pending
 
 

@@ -173,12 +173,16 @@ def outlook(db: Session, *, start: date, end: date, today: Optional[date] = None
         expenses = expenses.filter(ExpenseRecord.tenant_id == tenant_id)
     records = expenses.all()
     shares = expense_shares(records)
+    loggers = {e.wros_user_id: e for e in db.query(Employee).filter(
+        Employee.wros_user_id.in_({r.logged_by_user_id for r in records} or {""}))}
     for record in records:
         # each client's part follows that client (a split expense lands on every client it names);
-        # internal spend stays with the logging BU, company unknown (only whole-BU viewers --
-        # partner, org -- see it)
+        # internal (personal) spend stays with the logging BU and goes to the company the logger
+        # worked for on the expense date, like their salary (no employee record: company unknown)
+        logger = loggers.get(record.logged_by_user_id)
+        own_company = costs.object_on(logger, record.expense_date)[1] if logger is not None else None
         for client_id, cents in shares[record.id]:
-            cell = client_cell(client_id) if client_id else (record.business_unit_id, None)
+            cell = client_cell(client_id) if client_id else (record.business_unit_id, own_company)
             row = rows[cell if cell[0] is not None else (record.business_unit_id, None)]
             row["anticipated_other_expense"] += cents
             row["anticipated_expense"] += cents
