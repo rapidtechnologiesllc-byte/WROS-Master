@@ -17,7 +17,6 @@ import { AlertCircle, CheckCircle, X } from "lucide-react";
 import ThunderMemorySection from "../../components/ThunderMemorySection";
 import ThunderActivitySection from "../../components/activity/ThunderActivitySection";
 import EngagementMetricsSection from "../../components/engagement/EngagementMetricsSection";
-import ThunderAssignmentSection from "../../components/assignment/ThunderAssignmentSection";
 
 // State for action feedback (replaces toast notifications)
 const useActionFeedback = () => {
@@ -47,7 +46,6 @@ export default function MessagesTab({ candidateId }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [missingFields, setMissingFields] = useState(null);
-  const [missingLoading, setMissingLoading] = useState(false);
   const [polling, setPolling] = useState(false);
 
   // Action feedback state
@@ -75,14 +73,11 @@ export default function MessagesTab({ candidateId }) {
   const fetchMissingFields = useCallback(async () => {
     if (!candidateId) return;
     try {
-      setMissingLoading(true);
       const res = await getMissingFields(candidateId);
       setMissingFields(res);
     } catch (err) {
       console.error("Failed to fetch missing fields", err);
       setActionError("Failed to load missing fields");
-    } finally {
-      setMissingLoading(false);
     }
   }, [candidateId, setActionError]);
 
@@ -142,6 +137,8 @@ export default function MessagesTab({ candidateId }) {
   }
 
   const conversations = thread?.conversations || [];
+  const thunder = thread?.thunder;
+  const hasThunderItems = !!thunder?.items?.length;
 
   return (
     <div className="space-y-6">
@@ -206,8 +203,10 @@ export default function MessagesTab({ candidateId }) {
       {candidateId ? <ThunderActivitySection candidateId={candidateId} /> : null}
       {candidateId ? <EngagementMetricsSection candidateId={candidateId} /> : null}
 
+      {hasThunderItems && <ThunderEmailsCard thunder={thunder} />}
+
       {!conversations.length ? (
-        <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center">
+        hasThunderItems ? null : <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center">
           <p className="text-sm text-gray-500">No messages yet</p>
         </div>
       ) : (
@@ -472,6 +471,116 @@ function ConversationCard({ conversation, onChanged, setActionError, setActionSu
         >
           {sending ? "Sending..." : "Send"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+const INTENT_SOURCE_LABELS = {
+  rule: "decided by rule",
+  llm: "decided by AI",
+  keyword: "keyword fallback (AI unavailable)",
+};
+
+function humanize(value) {
+  return String(value || "").toLowerCase().replace(/_/g, " ");
+}
+
+// How Thunder read one of the candidate's emails: intent, how it was decided, the matched words.
+function intentDescription(item) {
+  if (!item.intent) return "Not classified yet";
+  const parts = [`Read as ${humanize(item.intent)}`];
+  if (item.intent_source) parts.push(INTENT_SOURCE_LABELS[item.intent_source] || item.intent_source);
+  if (item.intent_confidence != null) parts.push(`${Math.round(item.intent_confidence * 100)}% confidence`);
+  if (item.intent_evidence) parts.push(`matched "${item.intent_evidence}"`);
+  return parts.join(" · ");
+}
+
+// Thunder's own email thread (ThunderEmailMessage): what Thunder sent, what the candidate wrote,
+// and what stopped Thunder.
+function ThunderEmailsCard({ thunder }) {
+  const items = thunder.items || [];
+  const stopper = items.find((i) => i.id === thunder.stopped_by_item_id);
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <h4 className="text-base font-semibold text-gray-900">Thunder emails</h4>
+        {thunder.stage && <StatusBadge value={thunder.stage} />}
+      </div>
+      {thunder.stage === "STOPPED" && (
+        <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className="font-medium">
+            Thunder stopped{thunder.stop_reason ? ` (${thunder.stop_reason})` : ""}
+          </div>
+          <div className="mt-0.5 text-xs">
+            {!stopper
+              ? "The email or opt-out that stopped Thunder is not on record."
+              : stopper.kind === "opt_out"
+                ? `Email opt-out recorded from ${stopper.source} on ${formatDateTime(stopper.at)}.`
+                : `The candidate's email of ${formatDateTime(stopper.at)} (shown below): ${intentDescription(stopper)}.`}
+          </div>
+        </div>
+      )}
+      <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
+        {items.map((item) => (
+          <ThunderItemRow key={item.id} item={item} isStopper={item.id === thunder.stopped_by_item_id} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ThunderItemRow({ item, isStopper }) {
+  const [expanded, setExpanded] = useState(isStopper);
+  if (item.kind === "opt_out") {
+    return (
+      <div className={`flex gap-3 ${isStopper ? "rounded-lg bg-red-50 p-2" : ""}`}>
+        <div className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-red-400" />
+        <div className="flex-1">
+          <span className="text-sm font-medium text-gray-800">Email opt-out recorded</span>
+          <span className="ml-2 text-xs text-gray-400">{formatDateTime(item.at)}</span>
+          <div className="mt-0.5 text-xs text-gray-500">Source: {item.source}</div>
+        </div>
+      </div>
+    );
+  }
+  const inbound = item.direction === "IN";
+  const body = item.body || "";
+  const long = body.length > 300;
+  return (
+    <div className={`flex gap-3 ${isStopper ? "rounded-lg bg-red-50 p-2" : ""}`}>
+      <div className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${inbound ? "bg-emerald-400" : "bg-indigo-400"}`} />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline gap-2">
+          <span className="text-sm font-medium text-gray-800">
+            {inbound ? "Candidate's email" : `Thunder sent${item.step ? ` (step ${item.step})` : ""}`}
+          </span>
+          <span className="text-xs text-gray-400">{formatDateTime(item.at)}</span>
+        </div>
+        {item.subject && <div className="mt-0.5 text-xs font-medium text-gray-600">{item.subject}</div>}
+        {inbound && (
+          <div className={`mt-1 text-xs font-medium ${isStopper ? "text-red-700" : "text-gray-500"}`}>
+            {intentDescription(item)}
+          </div>
+        )}
+        {body ? (
+          <div className="mt-1 whitespace-pre-wrap break-words text-sm text-gray-700">
+            {long && !expanded ? `${body.slice(0, 300)}…` : body}
+            {long && (
+              <button
+                type="button"
+                onClick={() => setExpanded((v) => !v)}
+                className="ml-1 text-xs font-semibold text-blue-600 hover:underline"
+              >
+                {expanded ? "Show less" : "Show all"}
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="mt-1 text-xs text-gray-400">
+            {inbound ? "The email had no text." : "Email text not stored (sent before Thunder kept a copy)."}
+          </div>
+        )}
       </div>
     </div>
   );

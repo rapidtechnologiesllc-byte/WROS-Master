@@ -113,30 +113,29 @@ def test_every_status_change_from_any_writer_is_queued_after_commit_only(db):
     assert queued == [(c.candidateID, None, "Applied"), (c.candidateID, "Applied", "Interview")]
 
 
-def test_status_email_uses_the_stage_template_and_never_a_placeholder_address(db):
+def test_status_email_is_a_thunder_notice_once_per_status_and_never_to_a_placeholder(db):
     from app.services.candidate_status_notifications import seed_templates, send_status_email
 
     seed_templates(db, 1)
     db.flush()
     c = candidate(db)
-    sent = []
-    with patch("app.services.email_service.EmailService.send_email",
-               side_effect=lambda **kw: sent.append(kw) or {"status": "success"}):
+    with patch("app.services.thunder_mail.cadence_service.enqueue_once", return_value=True) as queued:
         result = send_status_email(db, c, "Rejected")
+        again = send_status_email(db, c, "Rejected")  # same status, same job: one email
         skipped = send_status_email(db, candidate(db, email=f"y{uid()}@linkedin-pending.blitzenx.com"), "Interview")
         unknown = send_status_email(db, c, "SomethingInternal")
-    assert result == {"sent": True, "template": "CANDIDATE_STATUS_REJECTED"}
-    assert sent[0]["to_email"] == c.candidateEmail and "Asha" in sent[0]["body_content"]
-    assert "{{" not in sent[0]["subject"] + sent[0]["body_content"]
-    assert skipped["sent"] is False and unknown["sent"] is False and len(sent) == 1
+    assert result["queued"] and result["template"] == "CANDIDATE_STATUS_REJECTED"
+    assert result["email_id"] == f"pe:CANDIDATE_STATUS_REJECTED:{c.candidateID}:Rejected:none"
+    assert queued.call_args.args[0] == "send_pipeline_email"  # the Thunder mailbox path
+    assert not again["queued"] and not skipped["queued"] and not unknown["queued"] and queued.call_count == 1
 
 
-def test_a_failed_delivery_is_retried_not_swallowed(db):
+def test_a_failed_queue_is_retried_not_swallowed(db):
     from app.services.candidate_status_notifications import seed_templates, send_status_email
 
     seed_templates(db, 1)
     db.flush()
-    with patch("app.services.email_service.EmailService.send_email", return_value={"status": "failed"}):
+    with patch("app.services.thunder_mail.cadence_service.enqueue_once", side_effect=RuntimeError("queue down")):
         with pytest.raises(RuntimeError):
             send_status_email(db, candidate(db), "Interview")
 

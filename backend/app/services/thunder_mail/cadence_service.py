@@ -288,6 +288,13 @@ def render(variant: ThunderOutreachVariant, candidate: Candidate, job: Optional[
     return subject, with_fields_request(variant.body_template).format_map(fields)
 
 
+def plain_text(body_html: str) -> str:
+    """An email's HTML as the text the candidate reads (stored on the OUT row for staff)."""
+    text = re.sub(r"(?i)<br\s*/?>|</p>|<hr\s*/?>|</li>|</h\d>", "\n", body_html or "")
+    text = html.unescape(re.sub(r"<[^>]+>", "", text))
+    return "\n".join(line.strip() for line in text.splitlines() if line.strip())
+
+
 # ---- plan updates ----------------------------------------------------------------
 
 def schedule_after_send(state: ThunderCadenceState, sent_step: str, now: datetime) -> None:
@@ -302,15 +309,35 @@ def schedule_after_send(state: ThunderCadenceState, sent_step: str, now: datetim
     # ACK_* sends leave the HANDOFF fallback (set by apply_reply) untouched
 
 
-def stop(db: Session, state: ThunderCadenceState, candidate: Candidate, reason: str) -> None:
-    state.stage, state.stop_reason = "STOPPED", reason
-    state.next_step, state.next_action_at = None, None
+def stop(db: Session, state: Optional[ThunderCadenceState], candidate: Candidate, reason: str,
+         captured_by: str = "candidate_email_reply") -> None:
+    """End outreach: the cadence (when there is one) stops and email consent is withdrawn.
+    captured_by names where the opt-out came from (shown on the candidate's Messages tab)."""
+    if state is not None:
+        state.stage, state.stop_reason = "STOPPED", reason
+        state.next_step, state.next_action_at = None, None
     candidate.thunder_enabled = False
     db.add(ConsentRecord(
         subject_type="candidate", subject_id=candidate.candidateID, tenant_id=candidate.tenant_id,
-        consent_type="email_outreach", consent_given=False, captured_by="candidate_email_reply",
+        consent_type="email_outreach", consent_given=False, captured_by=captured_by,
+        captured_at=datetime.utcnow(),  # Thunder's clock (UTC), so it sorts among the emails it ends
     ))
     db.add(candidate)
+
+
+PROVIDER_OPT_OUT_EVENTS = ("unsubscribed", "complained")
+
+
+def stop_for_provider_opt_out(db: Session, candidate_id: str, event: str, provider: str) -> bool:
+    """An email provider reported the candidate unsubscribed (list-unsubscribe click) or marked
+    our email as spam: that is an opt-out like a "remove me" reply. Returns False when the
+    candidate is unknown. The caller commits."""
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    if candidate is None:
+        return False
+    state = db.query(ThunderCadenceState).filter_by(candidate_id=candidate_id).with_for_update().first()
+    stop(db, state, candidate, f"{provider} {event}"[:255], captured_by=f"provider_{event}:{provider}"[:512])
+    return True
 
 
 def apply_reply(db: Session, state: ThunderCadenceState, candidate: Candidate, intent: str,

@@ -79,9 +79,13 @@ class ThunderInboundEmailHandler:
         if candidate is None:
             raise ValueError(f"Candidate {row.candidate_id} for inbound {row_id} not found")
 
+        own_texts = [text for (text,) in db.query(ThunderEmailMessage.body_text).filter(
+            ThunderEmailMessage.candidate_id == row.candidate_id, ThunderEmailMessage.direction == "OUT",
+            ThunderEmailMessage.body_text.isnot(None))]
         result = classify_reply(db, row.tenant_id, row.candidate_id, row.subject, row.body_text,
-                                payload.get("headers"), llm_call=llm_call)
-        logger.info(f"[ThunderInbound] classified message={row_id} intent={result.intent} source={result.source}")
+                                payload.get("headers"), llm_call=llm_call, own_texts=own_texts)
+        logger.info(f"[ThunderInbound] classified message={row_id} intent={result.intent} source={result.source} "
+                    f"evidence={result.matched_text!r}")
         extracted, extraction_error = ThunderInboundEmailHandler._read_profile_details(
             db, candidate, row, result.intent, field_llm_call)
         resume, attachment_problems = ThunderInboundEmailHandler._read_resume(
@@ -110,6 +114,7 @@ class ThunderInboundEmailHandler:
                                           job, datetime.utcnow(), missing_fields=still_missing)
 
             row.intent, row.intent_confidence, row.intent_source = result.intent, result.confidence, result.source
+            row.intent_evidence = result.matched_text
             row.credited_out_id = credited.id if credited and result.intent != "AUTO" else None
             row.status, row.processed_at = "PROCESSED", datetime.utcnow()
             row.step = actions["ack_step"]

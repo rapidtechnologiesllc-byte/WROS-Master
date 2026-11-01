@@ -52,6 +52,8 @@ class ThunderEmailMessage(Base):
     intent = Column(String(32), nullable=True)
     intent_confidence = Column(Float, nullable=True)
     intent_source = Column(String(16), nullable=True)  # rule / llm / keyword
+    # IN: the words the rule (or keyword fallback) matched, e.g. "stop emailing": why it was read so
+    intent_evidence = Column(String(255), nullable=True)
     credited_out_id = Column(String(36), ForeignKey("thunder_email_messages.id"), nullable=True)
     not_sent_reason = Column(String(512), nullable=True)
     created_at = Column(DateTime, server_default=func.now())

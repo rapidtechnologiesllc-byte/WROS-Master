@@ -2,13 +2,21 @@
 
 Opt-out detection is a deterministic rule that runs first and never depends
 on the LLM: no model output can turn "remove me" into "interested".
+
+Every rule reads only the candidate's own words: Graph's uniqueBody normally drops
+the quoted thread, but not always (a reply from a client Exchange does not thread
+with ours), and our own copy must never decide the intent. Our footer says "we will
+stop emailing you", which the opt-out rule would otherwise match. So the quoted
+thread (below the first reply header, and any "> " line) and every sentence of our
+own emails (the footer, and the emails sent to this candidate) are removed first.
 """
 from app.core.tenant_context import sole_tenant_id
+import html as _html
 import json
 import logging
 import re
 from dataclasses import dataclass
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Iterable, List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -25,6 +33,16 @@ OPT_OUT_PATTERN = re.compile(
     r"delete (my|all my) (data|details|information|info)|take me off|opt[ -]?out|no more emails)\b",
     re.IGNORECASE,
 )
+# The first line of a quoted thread: everything from here down is not the candidate's
+QUOTE_HEADER_PATTERN = re.compile(
+    r"^(On\s[^\n]*(\n[^\n]*)?\swrote:\s*$|-{2,}\s*Original Message\s*-{2,}|_{10,}\s*$|"
+    r"From:\s[^\n]*\n\s*(Sent|Date):)",
+    re.MULTILINE | re.IGNORECASE,
+)
+_TAG = re.compile(r"<[^>]+>")
+_QUOTES = str.maketrans({"“": '"', "”": '"', "‘": "'", "’": "'"})
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
+MIN_OWN_SENTENCE = 15  # shorter fragments ("Regards,") are too common to strip from a reply
 REMOVE_ONLY_PATTERN = re.compile(r"^\W*remove\W*$", re.IGNORECASE)
 ERASURE_PATTERN = re.compile(r"\bdelete (my|all my) (data|details|information|info)\b", re.IGNORECASE)
 AUTO_SUBJECT_PATTERN = re.compile(
@@ -55,6 +73,34 @@ class Classification:
     confidence: float
     source: str  # rule / llm / keyword
     erasure_requested: bool = False
+    matched_text: Optional[str] = None  # the words a rule or keyword matched (an opt-out's evidence)
+
+
+def _flat(text: str) -> str:
+    return " ".join(_html.unescape(_TAG.sub(" ", text or "")).translate(_QUOTES).split())
+
+
+def _own_sentences(own_texts: Iterable[str]) -> List[str]:
+    from app.services.thunder_mail.seed_variants import FOOTER
+
+    sentences = set()
+    for text in (FOOTER, *own_texts):
+        for sentence in _SENTENCE_END.split(_flat(re.sub(r"\{[a-z_]+\}", " ", text or ""))):
+            if len(sentence.strip()) >= MIN_OWN_SENTENCE:
+                sentences.add(sentence.strip())
+    return sorted(sentences, key=len, reverse=True)
+
+
+def candidate_words(body: str, own_texts: Iterable[str] = ()) -> str:
+    """The candidate's own text of an email: the quoted thread and our own sentences removed."""
+    text = _html.unescape(body or "")
+    header = QUOTE_HEADER_PATTERN.search(text)
+    if header:
+        text = text[:header.start()]
+    text = _flat("\n".join(line for line in text.splitlines() if not line.lstrip().startswith(">")))
+    for sentence in _own_sentences(own_texts):
+        text = re.sub(r"\s*".join(re.escape(word) for word in sentence.split()), " ", text, flags=re.IGNORECASE)
+    return " ".join(text.split())
 
 
 def is_auto_message(subject: str, headers: Dict[str, str]) -> bool:
@@ -67,10 +113,18 @@ def is_auto_message(subject: str, headers: Dict[str, str]) -> bool:
     return bool(AUTO_SUBJECT_PATTERN.search(subject or ""))
 
 
+def _auto_evidence(subject: str, headers: Dict[str, str]) -> str:
+    for name in ("auto-submitted", "x-autoreply", "precedence"):
+        if headers.get(name):
+            return f"{name}: {headers[name]}"[:255]
+    return (subject or "")[:255]
+
+
 def _keyword(text: str) -> Classification:
     for intent, pattern in KEYWORDS:
-        if pattern.search(text):
-            return Classification(intent, 0.5, "keyword")
+        match = pattern.search(text)
+        if match:
+            return Classification(intent, 0.5, "keyword", matched_text=match.group(0))
     return Classification("OTHER", 0.3, "keyword")
 
 
@@ -95,20 +149,25 @@ def _parse_llm(raw: str) -> Optional[Classification]:
 def classify_reply(
     db: Session, tenant_id, candidate_id: str, subject: str, body: str,
     headers: Optional[Dict[str, str]] = None, *, llm_call: Optional[Callable] = None,
+    own_texts: Iterable[str] = (),
 ) -> Classification:
-    text = f"{subject or ''}\n{body or ''}"
+    """own_texts: the emails we sent this candidate (their sentences are not the candidate's words)."""
+    body = candidate_words(body, own_texts)
+    text = f"{subject or ''}\n{body}"
     headers = {k.lower(): v for k, v in (headers or {}).items()}
 
-    if OPT_OUT_PATTERN.search(text) or REMOVE_ONLY_PATTERN.match((body or "").strip()):
-        return Classification("UNSUBSCRIBE", 1.0, "rule", bool(ERASURE_PATTERN.search(text)))
+    opt_out = OPT_OUT_PATTERN.search(text) or REMOVE_ONLY_PATTERN.match(body)
+    if opt_out:
+        return Classification("UNSUBSCRIBE", 1.0, "rule", bool(ERASURE_PATTERN.search(text)),
+                              opt_out.group(0).strip()[:255])
     if is_auto_message(subject, headers):
-        return Classification("AUTO", 1.0, "rule")
+        return Classification("AUTO", 1.0, "rule", matched_text=_auto_evidence(subject, headers))
 
     from app.services.prompt_framework_service import call_llm
     try:
         raw = call_llm(
             db, str(tenant_id if tenant_id is not None else sole_tenant_id(db)), candidate_id, "thunder_reply_intent", "v1",
-            SYSTEM_PROMPT, f"Subject: {subject or ''}\n\n{(body or '')[:4000]}", 120, 0.0,
+            SYSTEM_PROMPT, f"Subject: {subject or ''}\n\n{body[:4000]}", 120, 0.0,
             llm_call=llm_call,
         )
         parsed = _parse_llm(raw)

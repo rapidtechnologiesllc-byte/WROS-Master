@@ -417,6 +417,65 @@ def get_conversation_thread(candidate_id: str, db: Session) -> List[Dict[str, An
     return result
 
 
+_PROVIDER_EVENT_WORDS = {"unsubscribed": "unsubscribe link", "complained": "spam complaint"}
+
+
+def opt_out_source(captured_by: Optional[str]) -> str:
+    """Where an email opt-out came from, in words (ConsentRecord.captured_by)."""
+    if captured_by == "candidate_email_reply":
+        return "the candidate's email reply"
+    if captured_by and captured_by.startswith("provider_") and ":" in captured_by:
+        event, provider = captured_by[len("provider_"):].split(":", 1)
+        return f"{provider} {_PROVIDER_EVENT_WORDS.get(event, event)}"
+    return captured_by or "not recorded"
+
+
+def get_thunder_email_thread(candidate_id: str, db: Session) -> Dict[str, Any]:
+    """Thunder's emails to the candidate, the candidate's emails (with how each was read) and any
+    email opt-out, oldest first, plus which of them stopped Thunder."""
+    from app.models.consent import ConsentRecord
+    from app.models.thunder_email import ThunderCadenceState, ThunderEmailMessage
+
+    state = db.query(ThunderCadenceState).filter_by(candidate_id=candidate_id).first()
+    emails = db.query(ThunderEmailMessage).filter(
+        ThunderEmailMessage.candidate_id == candidate_id,
+        ((ThunderEmailMessage.direction == "OUT") & (ThunderEmailMessage.status == "SENT"))
+        | (ThunderEmailMessage.direction == "IN"),
+    ).all()
+    opt_outs = db.query(ConsentRecord).filter(
+        ConsentRecord.subject_type == "candidate", ConsentRecord.subject_id == candidate_id,
+        ConsentRecord.consent_type == "email_outreach", ConsentRecord.consent_given.is_(False),
+    ).all()
+
+    items = []
+    for row in emails:
+        at = row.sent_at if row.direction == "OUT" else row.received_at
+        items.append((at, {
+            "id": row.id, "kind": "email", "at": at.isoformat() if at else None, "direction": row.direction,
+            "subject": row.subject, "body": row.body_text, "step": row.step if row.direction == "OUT" else None,
+            "intent": row.intent, "intent_confidence": row.intent_confidence, "intent_source": row.intent_source,
+            "intent_evidence": row.intent_evidence,
+        }))
+    for record in opt_outs:
+        items.append((record.captured_at, {
+            "id": f"consent-{record.id}", "kind": "opt_out",
+            "at": record.captured_at.isoformat() if record.captured_at else None,
+            "source": opt_out_source(record.captured_by),
+        }))
+    items.sort(key=lambda pair: (pair[0] is None, pair[0] or datetime.min))
+
+    stopped_by = None
+    if state is not None and state.stage == "STOPPED":
+        if (state.stop_reason or "").startswith("candidate "):
+            stops = [i for _, i in items if i["kind"] == "email" and i["direction"] == "IN"
+                     and i["intent"] in ("UNSUBSCRIBE", "HOSTILE")]
+        else:
+            stops = [i for _, i in items if i["kind"] == "opt_out"]
+        stopped_by = stops[-1]["id"] if stops else None
+    return {"stage": state.stage if state else None, "stop_reason": state.stop_reason if state else None,
+            "stopped_by_item_id": stopped_by, "items": [i for _, i in items]}
+
+
 # ===========================================================================
 # 4. Reading the reply and extracting fields
 # ===========================================================================

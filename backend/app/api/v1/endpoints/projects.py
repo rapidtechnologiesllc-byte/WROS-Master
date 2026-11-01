@@ -209,6 +209,9 @@ def create_project_endpoint(
     persisted_project = db.query(Project).filter(Project.id == project.id).first()
     if not persisted_project:
         raise HTTPException(status_code=500, detail=f"Write validation failed: Project {project.id} not found in database after commit")
+    from app.services.action_emails.projects import notify_project_created
+
+    notify_project_created(db, project, actor=current_user)
 
     try:
         MessageQueueService.enqueue(
@@ -308,6 +311,7 @@ def update_project_endpoint(
     current_user: Users = Depends(get_current_internal_user),
 ):
     project = _get_project_or_404(db, project_id, current_user)
+    previous_manager = project.manager_user_id
     try:
         update_project(db, project, body.model_dump(exclude_unset=True))
     except ProjectValidationError as exc:
@@ -315,6 +319,9 @@ def update_project_endpoint(
         raise HTTPException(status_code=400, detail=str(exc))
     db.commit()
     db.refresh(project)
+    from app.services.action_emails.projects import notify_project_manager_changed
+
+    notify_project_manager_changed(db, project, actor=current_user, previous_manager=previous_manager)
     return _one_item(db, project)
 
 
@@ -336,6 +343,9 @@ def transition_status(
     except InvalidProjectTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     db.commit()  # the transition is persisted before anyone is told about it
+    from app.services.action_emails.projects import notify_project_status
+
+    notify_project_status(db, project, actor=current_user)
 
     try:
         MessageQueueService.enqueue(
@@ -373,6 +383,9 @@ def create_milestone_endpoint(
         owner_employee_id=body.owner_employee_id,
     )
     db.commit()
+    from app.services.action_emails.projects import notify_milestone_created
+
+    notify_milestone_created(db, project, milestone, actor=current_user)
 
     try:
         MessageQueueService.enqueue(
@@ -425,7 +438,7 @@ def complete_milestone_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    _get_project_or_404(db, project_id, current_user)
+    project = _get_project_or_404(db, project_id, current_user)
     milestone = db.query(ProjectMilestone).filter(
         ProjectMilestone.id == milestone_id, ProjectMilestone.project_id == project_id,
     ).first()
@@ -436,6 +449,9 @@ def complete_milestone_endpoint(
     except MilestoneValidationError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     db.commit()
+    from app.services.action_emails.projects import notify_milestone_completed
+
+    notify_milestone_completed(db, project, milestone, actor=current_user)
 
     try:
         MessageQueueService.enqueue(

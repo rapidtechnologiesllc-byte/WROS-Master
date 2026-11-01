@@ -348,7 +348,11 @@ def test_add_employee_form_is_a_one_row_import(api, db, world, mail):
     assert created.status_code == 200, created.text
     item = created.json()
     assert item["has_login"] and item["status"] == "BENCH" and item["buddy_program_status"] == "GRADUATED"
-    assert item["reporting_manager_user_id"] == world.manager.UserID and mail.once.call_count == 1
+    assert item["reporting_manager_user_id"] == world.manager.UserID
+    task_ids = [c.args[1] for c in mail.once.call_args_list]
+    # one activation email to the new hire; their manager (and BU head) hear about the new employee
+    assert len([t for t in task_ids if not t.startswith("staff-email-employee-created-")]) == 1
+    assert f"staff-email-employee-created-{item['id']}-{world.manager.UserID}" in task_ids
     assert api.post("/api/v1/employees", headers=_h(world.hr), json=body).status_code == 409
 
 

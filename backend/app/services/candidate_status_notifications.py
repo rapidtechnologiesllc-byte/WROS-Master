@@ -9,7 +9,6 @@ rolled-back change never does. The wording is a message template per stage
 (Settings > Message Templates), seeded once per tenant and editable; it never includes internal
 notes or rejection reasons. Kill switch: CANDIDATE_STATUS_EMAILS_ENABLED.
 """
-import html
 import logging
 from typing import Dict, Optional
 
@@ -91,8 +90,10 @@ def seed_templates(db: Session, tenant_id) -> int:
     (idempotent; admin edits are new versions and are never overwritten). Caller commits."""
     from app.models.message_template import MessageTemplate
 
+    from app.services.thunder_mail.candidate_notices import all_templates
+
     added = 0
-    for key, spec in DEFAULT_TEMPLATES.items():
+    for key, spec in all_templates().items():  # the status notices and the event notices
         exists = db.query(MessageTemplate.id).filter(
             MessageTemplate.tenant_id == str(tenant_id), MessageTemplate.template_key == key,
             MessageTemplate.channel == "EMAIL").first()
@@ -106,39 +107,16 @@ def seed_templates(db: Session, tenant_id) -> int:
 
 
 def send_status_email(db: Session, candidate, new_status: str) -> Dict:
-    """Email the candidate the stage's active template. Returns what happened; raises
-    RuntimeError when delivery fails (the queue retries)."""
-    from app.core.config import settings
-    from app.models.tenant import Tenant
-    from app.services.email_service import EmailService
-    from app.services.linkedin_pipeline_task_service import is_placeholder_email
-    from app.services.message_template_service import render_template
+    """Queue the stage's notice through Thunder (app.services.thunder_mail.candidate_notices:
+    consent, send window, send caps, the tenant's template, once per status and job). Returns
+    what happened; a failure to queue raises (the status-change queue retries)."""
+    from app.services.thunder_mail.candidate_notices import queue_status
 
-    key = template_key_for(new_status)
-    if key is None:
-        return {"sent": False, "reason": f"no candidate email for status {new_status!r}"}
-    if not settings.CANDIDATE_STATUS_EMAILS_ENABLED:
-        return {"sent": False, "reason": "CANDIDATE_STATUS_EMAILS_ENABLED is off"}
-    email = candidate.candidateEmail
-    if not email or is_placeholder_email(email):
-        return {"sent": False, "reason": "no real contact email"}
     if candidate.tenant_id is None:
         raise ValueError(f"Candidate {candidate.candidateID} has no tenant")
-    tenant = db.query(Tenant).filter(Tenant.id == candidate.tenant_id).first()
-    rendered = render_template(db, key, "EMAIL", str(candidate.tenant_id), {
-        "candidate_first_name": candidate.candidateFirstName or "there",
-        "company_name": tenant.name if tenant else "our company",
-    })
-    body_html = "<br>".join(html.escape(line) for line in rendered["rendered_body"].split("\n"))
-    result = EmailService.send_email(to_email=email, subject=rendered["rendered_subject"],
-                                     body_content=body_html, is_html=True)
-    if result.get("status") == "skipped":
-        logger.warning(f"[StatusEmail] {candidate.candidateID}: email skipped ({result.get('reason')})")
-        return {"sent": False, "reason": result.get("reason"), "template": key}
-    if result.get("status") != "success":
-        raise RuntimeError(f"Status email to {candidate.candidateID} failed: {result}")
-    logger.info(f"[StatusEmail] {candidate.candidateID}: {new_status} -> {key} sent")
-    return {"sent": True, "template": key}
+    result = queue_status(db, candidate, new_status)
+    logger.info(f"[StatusEmail] {candidate.candidateID}: {new_status} -> {result}")
+    return result
 
 
 def queue_status_change(candidate_id: str, old_status: Optional[str], new_status: str) -> None:
