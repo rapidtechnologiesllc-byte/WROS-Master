@@ -92,21 +92,23 @@ def resolve_attribution(
 ) -> Tuple[str, Optional[str], List[Tuple[str, int, int]]]:
     """Who the spend is on (CEO 2026-10-31) -> (spend_for, client_id, shares).
 
+      every purpose                     must say: personal/internal, one client, or a split
+                                        (naming the client or the split says it)
       CLIENT_CURRENT / CLIENT_PROSPECT  one client or a split; never internal
-      CONFERENCE                        the person must say: internal, one client, or a split
-      OTHER                             internal unless they name client(s)
       INVESTMENT                        internal only
     Every client must be in the caller's tenant and business units."""
     if spend_for is not None and spend_for not in SPEND_FOR:
         raise ExpenseValidationError(f"spend_for must be one of {', '.join(SPEND_FOR)}.")
     if spend_for is None:
-        if purpose == "CONFERENCE":
-            raise ExpenseValidationError(
-                "A conference expense must say who it is on: just you (internal), one client, or several clients.")
-        if purpose in CLIENT_DIRECTED_PURPOSES:
-            spend_for = "SPLIT" if client_splits else "CLIENT"
+        # every expense says who it is on (CEO 2026-10-31): naming the client(s) says it; nothing
+        # else is assumed -- personal/internal spend must be chosen, never defaulted
+        if client_splits:
+            spend_for = "SPLIT"
+        elif client_id:
+            spend_for = "CLIENT"
         else:
-            spend_for = "INTERNAL"
+            raise ExpenseValidationError(
+                "Every expense must say who it is on: personal/internal (no client), one client, or several clients.")
     if purpose in CLIENT_DIRECTED_PURPOSES and spend_for == "INTERNAL":
         raise ExpenseValidationError(f"purpose={purpose!r} is spend on a client: pick the client(s).")
     if purpose == "INVESTMENT" and spend_for != "INTERNAL":

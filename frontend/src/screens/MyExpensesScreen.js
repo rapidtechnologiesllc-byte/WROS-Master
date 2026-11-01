@@ -26,16 +26,17 @@ const formatUsdCents = (cents) =>
 
 // Who the spend is on (CEO 2026-10-31) -- the P&L puts it on that client (or each client's
 // share of a split), its BU and its contracting company; internal spend stays with your BU
-const SPEND_FOR_LABELS = { INTERNAL: "Just me (internal)", CLIENT: "One client", SPLIT: "Several clients" };
+// -- every expense says it; personal/internal is a choice, never a default
+const SPEND_FOR_LABELS = { INTERNAL: "Personal / internal (no client)", CLIENT: "One client", SPLIT: "Several clients" };
 const spendForChoices = (purpose) => {
   if (purpose === "CLIENT_CURRENT" || purpose === "CLIENT_PROSPECT") return ["CLIENT", "SPLIT"];
-  if (purpose === "INVESTMENT") return [];
+  if (purpose === "INVESTMENT") return ["INTERNAL"];
   return ["INTERNAL", "CLIENT", "SPLIT"];
 };
 const defaultSpendFor = (purpose) => {
-  if (purpose === "CLIENT_CURRENT" || purpose === "CLIENT_PROSPECT") return "CLIENT";
-  if (purpose === "CONFERENCE") return ""; // the person must say
-  return "INTERNAL";
+  if (purpose === "CLIENT_CURRENT" || purpose === "CLIENT_PROSPECT") return "CLIENT"; // still needs the client
+  if (purpose === "INVESTMENT") return "INTERNAL"; // the only answer
+  return ""; // the person must say
 };
 const emptySplitLine = () => ({ clientId: "", value: "" });
 
@@ -130,8 +131,8 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients }) {
       setError("Pick the conference (or add it if your team hasn't yet).");
       return;
     }
-    if (spendForChoices(form.purpose).length && !form.spendFor) {
-      setError("Say who this spend is on: just you, one client, or several clients.");
+    if (!form.spendFor) {
+      setError("Say who this expense is for: personal/internal, one client, or several clients.");
       return;
     }
     if (form.spendFor === "CLIENT" && !form.clientId) {
@@ -158,7 +159,7 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients }) {
     try {
       const created = await createExpense({
         purpose: form.purpose,
-        spend_for: form.purpose === "INVESTMENT" ? "INTERNAL" : form.spendFor,
+        spend_for: form.spendFor,
         client_id: form.spendFor === "CLIENT" ? form.clientId : null,
         client_splits: form.spendFor === "SPLIT" ? clientSplitsPayload() : null,
         event_id: form.purpose === "CONFERENCE" ? form.event.id : null,
@@ -222,7 +223,7 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients }) {
 
       {choices.length ? (
         <div className="mt-3 rounded-xl border border-gray-200 bg-white p-3">
-          <div className="mb-2 text-xs font-semibold text-gray-700">Who is this spend on?</div>
+          <div className="mb-2 text-xs font-semibold text-gray-700">Who is this expense for? *</div>
           <div className="flex flex-wrap gap-2">
             {choices.map((choice) => (
               <button

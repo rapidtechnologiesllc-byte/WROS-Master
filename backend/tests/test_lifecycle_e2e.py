@@ -201,10 +201,11 @@ def test_candidate_to_partner_and_org_pnl(db, api, world):
     revenue = db.query(Revenue).filter_by(invoice_id=invoice["id"]).one()
     assert revenue.revenue_usd_cents == hours * RATE and revenue.partner_id == world["partner"].UserID
 
-    # the employee logs a client expense; the manager approves it
+    # the employee logs a client expense; the manager approves it. Dated on the Monday: every
+    # period below is that week or that Monday's month (today can be in the next month)
     expense = ok(client.post("/api/v1/expenses", headers=emp_h, json={
         "purpose": "CLIENT_CURRENT", "client_id": world["client"].id, "expense_category": "TRAVEL",
-        "amount_usd_cents": 12_345, "expense_date": TODAY.isoformat(), "receipt_ref": "receipt-1"}), 201)
+        "amount_usd_cents": 12_345, "expense_date": MONDAY.isoformat(), "receipt_ref": "receipt-1"}), 201)
     assert client.post(f"/api/v1/expenses/{expense['id']}/manager-approve", headers=emp_h).status_code == 403
     ok(client.post(f"/api/v1/expenses/{expense['id']}/manager-approve", headers=admin_h))
 

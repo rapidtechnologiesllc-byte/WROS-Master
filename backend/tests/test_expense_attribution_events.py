@@ -64,7 +64,7 @@ def log(db, user, cents=10_000, purpose="CONFERENCE", event=None, **kw):
 
 def test_conference_spend_must_say_who_it_is_on(db, w):
     event = conference(db, w.seller_a)
-    with pytest.raises(ExpenseValidationError, match="who it is on"):
+    with pytest.raises(ExpenseValidationError, match="must say who it is on"):
         log(db, w.seller_a, event=event)
     alone = log(db, w.seller_a, event=event, spend_for="INTERNAL")
     assert alone.spend_for == "INTERNAL" and alone.client_id is None and alone.client_shares == []
@@ -118,8 +118,21 @@ def test_purpose_rules(db, w):
     with pytest.raises(ExpenseValidationError, match="Only a conference"):
         log(db, w.seller_a, purpose="OTHER", event=conference(db, w.seller_a))
     client_meal = log(db, w.seller_a, purpose="CLIENT_CURRENT", client_id=w.client_a.id)
-    assert client_meal.spend_for == "CLIENT"
-    assert log(db, w.seller_a, purpose="OTHER").spend_for == "INTERNAL"
+    assert client_meal.spend_for == "CLIENT"  # naming the client says who it is on
+    assert log(db, w.seller_a, purpose="OTHER", spend_for="INTERNAL").spend_for == "INTERNAL"
+
+
+def test_every_expense_must_say_client_or_personal(db, w):
+    """CEO 2026-10-31: "on every expense we need to identify which client it is for or if it is
+    for personal use" -- nothing is defaulted to internal."""
+    for purpose, extra in (("OTHER", {}), ("CLIENT_CURRENT", {}), ("CLIENT_PROSPECT", {}),
+                           ("INVESTMENT", {"investment_label": "x"})):
+        with pytest.raises(ExpenseValidationError, match="must say who it is on"):
+            log(db, w.seller_a, purpose=purpose, **extra)
+    with pytest.raises(ExpenseValidationError, match="must say who it is on"):
+        log(db, w.seller_a, event=conference(db, w.seller_a))
+    assert log(db, w.seller_a, purpose="INVESTMENT", investment_label="x", spend_for="INTERNAL").spend_for == "INTERNAL"
+    assert log(db, w.seller_a, purpose="OTHER", spend_for="CLIENT", client_id=w.client_a.id).client_id == w.client_a.id
 
 
 def test_clients_come_from_the_persons_tenant_and_business_units(db, w):
@@ -154,7 +167,7 @@ def test_attribution_is_corrected_before_the_decision_and_locked_after(db, w):
 
 
 def test_an_expense_that_does_not_say_who_it_is_on_is_not_approved(db, w):
-    e = log(db, w.seller_a, purpose="OTHER")
+    e = log(db, w.seller_a, purpose="OTHER", spend_for="INTERNAL")
     e.spend_for = None  # an old row the backfill has not reached
     db.flush()
     with pytest.raises(ExpenseValidationError, match="who the spend is on"):
