@@ -41,7 +41,7 @@ def expense(db, cents=12345, on=date(2026, 10, 1)):
                  tenant_id=1, role_template_id=role.id)
     db.add(user)
     db.flush()
-    return log_expense(db, logged_by_user=user, purpose="OTHER", expense_category="MEALS",
+    return log_expense(db, logged_by_user=user, purpose="OTHER", spend_for="INTERNAL", expense_category="MEALS",
                        amount_usd_cents=cents, expense_date=on, receipt_ref="r")
 
 

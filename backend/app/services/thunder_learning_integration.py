@@ -98,6 +98,23 @@ class ThunderLearningIntegration:
                 }
             )
 
+            # An outcome answers the LATEST prediction on the conversation (record_engagement_outcome),
+            # so two outreaches inside one clock tick (Windows ticks are ~15 ms) must not tie: each
+            # prediction is stamped strictly after the previous one on the same conversation.
+            from datetime import timedelta
+            from app.models.learning_events import LearningEvent
+
+            sent_at = datetime.utcnow()
+            previous = db.query(LearningEvent.event_timestamp).filter(
+                LearningEvent.tenant_id == str(tenant_id),
+                LearningEvent.module == ThunderLearningIntegration.THUNDER_MODULE,
+                LearningEvent.action_type == "outreach_sent",
+                LearningEvent.entity_id == candidate.candidateID,
+                LearningEvent.secondary_entity_id == str(conversation.id),
+            ).order_by(LearningEvent.event_timestamp.desc()).first()
+            if previous and previous[0] and previous[0] >= sent_at:
+                sent_at = previous[0] + timedelta(microseconds=1)
+
             # Record the prediction event
             event = LearningEventCollector.record_event(
                 db=db,
@@ -116,9 +133,9 @@ class ThunderLearningIntegration:
                     "channel": channel,
                     "message_length": len(message_body),
                     "message_preview": message_body[:50],
-                    "time_of_day": datetime.utcnow().hour,
+                    "time_of_day": sent_at.hour,
                 },
-                event_timestamp=datetime.utcnow(),
+                event_timestamp=sent_at,
                 expected_outcome_timestamp=expected_outcome_timestamp,
             )
 

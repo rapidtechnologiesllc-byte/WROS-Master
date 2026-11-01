@@ -17,13 +17,17 @@ PRIORITY-3 (2026-08-12): Expense Approval Chain
 """
 from app.services.task_service import create_task
 from datetime import date, datetime
-from typing import List, Optional
+from decimal import Decimal, InvalidOperation
+from typing import Dict, List, Optional, Sequence, Tuple
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.logging import logger
 from app.models.client import Client, ClientHistory
-from app.models.expense import CLIENT_DIRECTED_PURPOSES, ExpenseRecord
+from app.models.expense import (
+    CLIENT_DIRECTED_PURPOSES, FULL_SHARE_BPS, SPEND_FOR, ExpenseClientShare, ExpenseRecord,
+)
 from app.models.invoice import Invoice
 from app.models.user import Users
 from app.models.org_structure import OrgNode
@@ -32,6 +36,144 @@ FINANCE_INBOX_EMAIL = "accounts@blitzenx.com"
 
 class ExpenseValidationError(Exception):
     pass
+
+def _client_in_scope(db: Session, user: Users, client_id: str) -> Client:
+    """The client, when it is in the caller's tenant and business units (prospects without a BU
+    are open to everyone, app.core.data_scope); anything else is "not found"."""
+    from app.core.data_scope import client_filter
+
+    client = db.query(Client).filter(Client.id == client_id, Client.tenant_id == user.tenant_id,
+                                     client_filter(db, user, Client.id)).first()
+    if client is None:
+        raise ExpenseValidationError(f"Client {client_id!r} not found.")
+    return client
+
+
+def _split_shares(amount_usd_cents: int, client_splits: Sequence[dict]) -> List[Tuple[str, int, int]]:
+    """[(client_id, share_bps, amount_usd_cents)] from splits given all by `percent` or all by
+    `amount_usd_cents`. Percentages must total 100, amounts the full expense; the last line takes
+    the rounding remainder so the shares always add up exactly."""
+    if len(client_splits) < 2:
+        raise ExpenseValidationError("A split needs at least two clients.")
+    client_ids = [str(s.get("client_id") or "") for s in client_splits]
+    if not all(client_ids):
+        raise ExpenseValidationError("Every split line needs a client.")
+    if len(set(client_ids)) != len(client_ids):
+        raise ExpenseValidationError("Each client can appear only once in a split.")
+    by_percent = all(s.get("percent") is not None for s in client_splits)
+    by_amount = all(s.get("amount_usd_cents") is not None for s in client_splits)
+    if by_percent == by_amount:
+        raise ExpenseValidationError("Split every line by percent, or every line by amount.")
+    try:
+        if by_percent:
+            bps = [int((Decimal(str(s["percent"])) * 100).quantize(Decimal(1))) for s in client_splits]
+            if sum(bps) != FULL_SHARE_BPS:
+                raise ExpenseValidationError(f"The split must total 100% (it totals {sum(bps) / 100:g}%).")
+            cents = [amount_usd_cents * b // FULL_SHARE_BPS for b in bps]
+            cents[-1] = amount_usd_cents - sum(cents[:-1])
+        else:
+            cents = [int(s["amount_usd_cents"]) for s in client_splits]
+            if sum(cents) != amount_usd_cents:
+                raise ExpenseValidationError(
+                    f"The split must total the expense ({amount_usd_cents / 100:,.2f}); "
+                    f"it totals {sum(cents) / 100:,.2f}.")
+            bps = [c * FULL_SHARE_BPS // amount_usd_cents for c in cents]
+            bps[-1] = FULL_SHARE_BPS - sum(bps[:-1])
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise ExpenseValidationError(f"Invalid split: {exc}") from exc
+    if any(b <= 0 for b in bps) or any(c <= 0 for c in cents):
+        raise ExpenseValidationError("Every client in a split needs a share above zero.")
+    return list(zip(client_ids, bps, cents))
+
+
+def resolve_attribution(
+    db: Session, user: Users, *, purpose: str, amount_usd_cents: int, spend_for: Optional[str],
+    client_id: Optional[str], client_splits: Optional[Sequence[dict]],
+) -> Tuple[str, Optional[str], List[Tuple[str, int, int]]]:
+    """Who the spend is on (CEO 2026-10-31) -> (spend_for, client_id, shares).
+
+      every purpose                     must say: personal/internal, one client, or a split
+                                        (naming the client or the split says it)
+      CLIENT_CURRENT / CLIENT_PROSPECT  one client or a split; never internal
+      INVESTMENT                        internal only
+    Every client must be in the caller's tenant and business units."""
+    if spend_for is not None and spend_for not in SPEND_FOR:
+        raise ExpenseValidationError(f"spend_for must be one of {', '.join(SPEND_FOR)}.")
+    if spend_for is None:
+        # every expense says who it is on (CEO 2026-10-31): naming the client(s) says it; nothing
+        # else is assumed -- personal/internal spend must be chosen, never defaulted
+        if client_splits:
+            spend_for = "SPLIT"
+        elif client_id:
+            spend_for = "CLIENT"
+        else:
+            raise ExpenseValidationError(
+                "Every expense must say who it is on: personal/internal (no client), one client, or several clients.")
+    if purpose in CLIENT_DIRECTED_PURPOSES and spend_for == "INTERNAL":
+        raise ExpenseValidationError(f"purpose={purpose!r} is spend on a client: pick the client(s).")
+    if purpose == "INVESTMENT" and spend_for != "INTERNAL":
+        raise ExpenseValidationError("An investment expense is internal; it can't be put on a client.")
+
+    if spend_for == "INTERNAL":
+        if client_id or client_splits:
+            raise ExpenseValidationError("An internal expense can't name a client.")
+        return "INTERNAL", None, []
+    if spend_for == "CLIENT":
+        if client_splits:
+            raise ExpenseValidationError("A single-client expense can't have a split; use SPLIT.")
+        if not client_id:
+            raise ExpenseValidationError(f"purpose={purpose!r} on one client requires client_id.")
+        _client_in_scope(db, user, client_id)
+        return "CLIENT", client_id, [(client_id, FULL_SHARE_BPS, amount_usd_cents)]
+    # SPLIT
+    if client_id:
+        raise ExpenseValidationError("A split names its clients in client_splits, not client_id.")
+    shares = _split_shares(amount_usd_cents, client_splits or [])
+    for share_client_id, _, _ in shares:
+        _client_in_scope(db, user, share_client_id)
+    return "SPLIT", None, shares
+
+
+def _resolve_event(db: Session, user: Users, purpose: str, event_id: Optional[str]):
+    """The shared event a conference expense belongs to; only conference expenses have one."""
+    from app.services.expense_event_service import ExpenseEventError, get_event
+
+    if purpose != "CONFERENCE":
+        if event_id:
+            raise ExpenseValidationError("Only a conference expense belongs to an event.")
+        return None
+    if not event_id:
+        raise ExpenseValidationError("purpose=CONFERENCE requires the conference (event_id): pick it or add it.")
+    try:
+        return get_event(db, user.tenant_id, event_id)
+    except ExpenseEventError as exc:
+        raise ExpenseValidationError(str(exc)) from exc
+
+
+def _apply_attribution(expense: ExpenseRecord, spend_for: str, client_id: Optional[str],
+                       shares: List[Tuple[str, int, int]]) -> None:
+    expense.spend_for = spend_for
+    expense.client_id = client_id
+    expense.client_shares = [ExpenseClientShare(client_id=c, share_bps=b, amount_usd_cents=a) for c, b, a in shares]
+
+
+def attribution_gaps(expense: ExpenseRecord) -> List[str]:
+    """What still stops the expense from counting in the P&L: unsaid who it is on, a conference
+    without its event, a client expense without its client(s), or shares that don't add up."""
+    gaps = []
+    if expense.spend_for not in SPEND_FOR:
+        gaps.append("who the spend is on (internal, one client, or several)")
+    if expense.purpose == "CONFERENCE" and not expense.event_id:
+        gaps.append("the conference it belongs to")
+    if expense.spend_for in ("CLIENT", "SPLIT"):
+        shares = expense.client_shares or []
+        if not shares and not expense.client_id:
+            gaps.append("the client(s) it is on")
+        elif shares and (sum(s.share_bps for s in shares) != FULL_SHARE_BPS
+                         or sum(s.amount_usd_cents for s in shares) != expense.amount_usd_cents):
+            gaps.append("a client split that totals 100% of the amount")
+    return gaps
+
 
 def log_expense(
     db: Session,
@@ -43,7 +185,9 @@ def log_expense(
     expense_date: date,
     receipt_ref: str,  # PRIORITY-3: Receipt is now mandatory (not optional)
     client_id: Optional[str] = None,
-    conference_name: Optional[str] = None,
+    spend_for: Optional[str] = None,
+    client_splits: Optional[Sequence[dict]] = None,
+    event_id: Optional[str] = None,
     investment_label: Optional[str] = None,
     travel_type: Optional[str] = None,
     trip_label: Optional[str] = None,
@@ -53,7 +197,8 @@ def log_expense(
     """PRIORITY-3: Create an expense with mandatory receipt reference.
 
     Flow:
-    1. Employee logs expense (receipt_ref required)
+    1. Employee logs expense (receipt_ref required), saying who it is on (resolve_attribution)
+       and, for a conference, which shared event (expense_event_service)
     2. Manager approval task created (manager found via org_node_id)
     3. After manager approves task, expense moves to Finance review
     4. Finance approves and marks as reimbursed
@@ -64,34 +209,27 @@ def log_expense(
     if not receipt_ref or not receipt_ref.strip():
         raise ExpenseValidationError("receipt_ref is mandatory for all expenses.")
 
-    if purpose in CLIENT_DIRECTED_PURPOSES:
-        if not client_id:
-            raise ExpenseValidationError(f"purpose={purpose!r} requires client_id.")
-        client = db.query(Client).filter(Client.id == client_id).first()
-        if not client:
-            raise ExpenseValidationError(f"Client {client_id!r} not found.")
-    elif purpose == "CONFERENCE":
-        if not conference_name:
-            raise ExpenseValidationError("purpose=CONFERENCE requires conference_name.")
-        client_id = None
-    elif purpose == "INVESTMENT":
-        if not investment_label:
-            raise ExpenseValidationError("purpose=INVESTMENT requires investment_label.")
-        client_id = None
-    else:  # OTHER
-        client_id = None
+    if purpose == "INVESTMENT" and not investment_label:
+        raise ExpenseValidationError("purpose=INVESTMENT requires investment_label.")
+    event = _resolve_event(db, logged_by_user, purpose, event_id)
+    spend_for, client_id, shares = resolve_attribution(
+        db, logged_by_user, purpose=purpose, amount_usd_cents=amount_usd_cents, spend_for=spend_for,
+        client_id=client_id, client_splits=client_splits)
 
     expense = ExpenseRecord(
         tenant_id=logged_by_user.tenant_id,
         business_unit_id=logged_by_user.business_unit_id,
         logged_by_user_id=logged_by_user.UserID,
-        purpose=purpose, client_id=client_id, conference_name=conference_name,
-        investment_label=investment_label, expense_category=expense_category,
+        purpose=purpose, event_id=event.id if event else None,
+        conference_name=event.name if event else None,
+        investment_label=investment_label if purpose == "INVESTMENT" else None,
+        expense_category=expense_category,
         travel_type=travel_type, trip_label=trip_label, amount_usd_cents=amount_usd_cents,
         location=location, description=description, receipt_ref=receipt_ref,
         expense_date=expense_date,
         manager_approval_status="PENDING",  # PRIORITY-3: Start with pending manager approval
     )
+    _apply_attribution(expense, spend_for, client_id, shares)
     db.add(expense)
     db.flush()
 
@@ -101,6 +239,60 @@ def log_expense(
     db.commit()
     db.refresh(expense)
     return expense
+
+
+def can_edit_attribution(db: Session, expense: ExpenseRecord, user: Users) -> bool:
+    """The person who logged it until their manager decides; the reviewer until Finance approves."""
+    if user.UserID == expense.logged_by_user_id:
+        return expense.manager_approval_status == "PENDING"
+    return (expense.payment_status == "PENDING" and expense.manager_approval_status != "REJECTED"
+            and can_review_as_manager(db, expense, user))
+
+
+def update_attribution(
+    db: Session, expense: ExpenseRecord, user: Users, *, spend_for: Optional[str],
+    client_id: Optional[str] = None, client_splits: Optional[Sequence[dict]] = None,
+    event_id: Optional[str] = None,
+) -> ExpenseRecord:
+    """Correct who an expense is on and (for a conference) its event -- same rules as logging it.
+    Clients are checked against the editor's business units."""
+    if not can_edit_attribution(db, expense, user):
+        raise PermissionError("You can't change who this expense is on any more.")
+    event = _resolve_event(db, user, expense.purpose, event_id or expense.event_id)  # unchanged unless given
+    spend_for, client_id, shares = resolve_attribution(
+        db, user, purpose=expense.purpose, amount_usd_cents=expense.amount_usd_cents, spend_for=spend_for,
+        client_id=client_id, client_splits=client_splits)
+    expense.client_shares = []
+    db.flush()  # the old shares go before the new ones (unique per expense and client)
+    _apply_attribution(expense, spend_for, client_id, shares)
+    if event is not None:
+        expense.event_id, expense.conference_name = event.id, event.name
+    db.add(expense)
+    db.commit()
+    db.refresh(expense)
+    logger.info(f"[ExpenseService] attribution of {expense.id} set to {spend_for} by {user.UserID}")
+    return expense
+
+
+def expense_shares(expenses: Sequence[ExpenseRecord]) -> Dict[str, List[Tuple[Optional[str], int]]]:
+    """{expense id: [(client_id or None for internal, amount_usd_cents)]} -- how each expense's
+    amount falls on clients. The P&L, the investment position and the event rollup all read
+    this, so a split client expense is counted once, in parts."""
+    out: Dict[str, List[Tuple[Optional[str], int]]] = {}
+    for expense in expenses:
+        shares = list(expense.client_shares or [])
+        out[expense.id] = ([(s.client_id, s.amount_usd_cents) for s in shares] if shares
+                           else [(expense.client_id, expense.amount_usd_cents)])
+    return out
+
+
+def _attribution_line(expense: ExpenseRecord) -> str:
+    if expense.spend_for == "SPLIT":
+        return f"Split across {len(expense.client_shares or [])} clients"
+    if expense.spend_for == "CLIENT":
+        return f"On client {expense.client.company_name if expense.client else expense.client_id}"
+    return "Internal (no client)"
+
 
 def _get_employee_manager(db: Session, employee_user: Users) -> Optional[Users]:
     """PRIORITY-3: Find the employee's manager via org hierarchy.
@@ -140,6 +332,8 @@ def _create_manager_approval_task(db: Session, expense: ExpenseRecord, employee_
             f"Category: {expense.expense_category}\n"
             f"Amount: ${expense.amount_usd_cents / 100:,.2f}\n"
             f"Date: {expense.expense_date}\n"
+            f"For: {_attribution_line(expense)}"
+            f"{f' -- {expense.conference_name}' if expense.conference_name else ''}\n"
             f"Receipt: {expense.receipt_ref}\n"
             f"Please review and approve before it moves to Finance."
         ),
@@ -193,6 +387,9 @@ def approve_manager_step(db: Session, expense: ExpenseRecord, *, approved_by: st
         )
     if approved_by == expense.logged_by_user_id:
         raise ExpenseValidationError("You can't approve your own expense.")
+    gaps = attribution_gaps(expense)
+    if gaps:
+        raise ExpenseValidationError("Before it counts in the P&L the expense needs " + "; ".join(gaps) + ".")
 
     expense.manager_approval_status = "APPROVED"
     expense.manager_approved_by = approved_by
@@ -241,6 +438,9 @@ def approve_expense(db: Session, expense: ExpenseRecord, *, approved_by: str) ->
             f"Cannot approve expense {expense.id} for Finance until manager approves "
             f"(current status: {expense.manager_approval_status})"
         )
+    gaps = attribution_gaps(expense)
+    if gaps:
+        raise ExpenseValidationError("Before it is paid the expense needs " + "; ".join(gaps) + ".")
 
     expense.payment_status = "APPROVED"
     expense.approved_by = approved_by
@@ -328,12 +528,17 @@ def get_client_investment_position(db: Session, client_id: str) -> dict:
     if not client:
         raise ExpenseValidationError(f"Client {client_id!r} not found.")
 
-    expenses: List[ExpenseRecord] = (
+    # its whole-client expenses and its part of split ones; rejected spend never counts
+    split_ids = db.query(ExpenseClientShare.expense_id).filter(ExpenseClientShare.client_id == client_id)
+    records: List[ExpenseRecord] = (
         db.query(ExpenseRecord)
-        .filter(ExpenseRecord.client_id == client_id)
+        .filter(or_(ExpenseRecord.client_id == client_id, ExpenseRecord.id.in_(split_ids)),
+                ExpenseRecord.manager_approval_status != "REJECTED")
         .order_by(ExpenseRecord.expense_date)
         .all()
     )
+    shares = expense_shares(records)
+    expenses = [(e.expense_date, sum(c for cid, c in shares[e.id] if cid == client_id)) for e in records]
     invoices: List[Invoice] = (
         db.query(Invoice)
         .filter(Invoice.client_id == client_id, Invoice.status.in_(("APPROVED", "SENT", "PAID")))
@@ -341,7 +546,7 @@ def get_client_investment_position(db: Session, client_id: str) -> dict:
         .all()
     )
 
-    total_expense_usd_cents = sum(e.amount_usd_cents for e in expenses)
+    total_expense_usd_cents = sum(cents for _, cents in expenses)
     total_revenue_usd_cents = sum(i.total_usd_cents for i in invoices)
 
     converted_on = None
@@ -360,7 +565,7 @@ def get_client_investment_position(db: Session, client_id: str) -> dict:
 
     # Running balance to find the first date the relationship turned
     # net-positive -- merge expense and revenue events chronologically.
-    events = [(e.expense_date, -e.amount_usd_cents) for e in expenses]
+    events = [(spent_on, -cents) for spent_on, cents in expenses]
     events += [(i.created_at.date() if i.created_at else i.created_at, i.total_usd_cents) for i in invoices if i.created_at]
     events.sort(key=lambda ev: ev[0])
     running = 0

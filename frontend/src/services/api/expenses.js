@@ -50,6 +50,45 @@ export const markExpensePaid = async (expenseId) => {
   return data;
 };
 
+// Who the spend is on (INTERNAL / CLIENT / SPLIT) and, for a conference, its shared event
+export const updateExpenseAttribution = async (expenseId, payload) => {
+  const { data } = await apiRequest(`/expenses/${expenseId}/attribution`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+  return data;
+};
+
+// The team's shared conferences, closest to `q` first ("Namic-2026" finds "NAMIC 2026")
+export const searchExpenseEvents = async (q) => {
+  const qs = q ? `?q=${encodeURIComponent(q)}` : "";
+  const { data } = await apiRequest(`/expense-events${qs}`, { method: "GET" });
+  return data;
+};
+
+// Pick-or-add: the same name and year returns the existing event; a near match throws a 409
+// whose error.detail.matches lists the events it looks like (resend with confirm_new to add anyway)
+export const createExpenseEvent = async (payload) => {
+  const { data } = await apiRequest("/expense-events", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return data;
+};
+
+export const getExpenseEventSummary = async (eventId) => {
+  const { data } = await apiRequest(`/expense-events/${eventId}/summary`, { method: "GET" });
+  return data;
+};
+
+export const mergeExpenseEvent = async (eventId, intoEventId) => {
+  const { data } = await apiRequest(`/expense-events/${eventId}/merge`, {
+    method: "POST",
+    body: JSON.stringify({ into_event_id: intoEventId }),
+  });
+  return data;
+};
+
 export const getClientInvestmentPosition = async (clientId) => {
   const { data } = await apiRequest(`/clients/${clientId}/investment-position`, {
     method: "GET",

@@ -137,14 +137,18 @@ def timesheet_filter(db, user: Users):
 
 def expense_filter(db, user: Users):
     """WHERE clause for ExpenseRecord: its client's BU when it has a client, else its own
-    business_unit_id (the logger's BU at the time)."""
-    from app.models.expense import ExpenseRecord
+    business_unit_id (the logger's BU at the time). An expense split across clients is visible
+    to every BU one of its clients belongs to, and to the logger's BU."""
+    from app.models.expense import ExpenseClientShare, ExpenseRecord
 
     if visible_bu_ids(db, user) is None:
         return true()
+    split_in_scope = select(ExpenseClientShare.expense_id).where(
+        client_filter(db, user, ExpenseClientShare.client_id, unassigned_visible=False))
     return or_(
         and_(ExpenseRecord.client_id.isnot(None), client_filter(db, user, ExpenseRecord.client_id)),
         and_(ExpenseRecord.client_id.is_(None), bu_filter(db, user, ExpenseRecord.business_unit_id)),
+        and_(ExpenseRecord.client_id.is_(None), ExpenseRecord.id.in_(split_in_scope)),
     )
 
 

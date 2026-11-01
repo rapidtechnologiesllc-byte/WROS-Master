@@ -110,7 +110,8 @@ class TestThunderLearningIntegration:
 
         # Verify outcome event in database
         outcome_events = db.query(LearningEvent).filter(
-            LearningEvent.action_type == "engagement_outcome"
+            LearningEvent.action_type == "engagement_outcome",
+            LearningEvent.entity_id == test_candidate.candidateID,  # only this test's rows
         ).all()
 
         assert len(outcome_events) == 1
@@ -147,7 +148,8 @@ class TestThunderLearningIntegration:
 
         # Get the outcome event
         outcome_event = db.query(LearningEvent).filter(
-            LearningEvent.action_type == "engagement_outcome"
+            LearningEvent.action_type == "engagement_outcome",
+            LearningEvent.entity_id == test_candidate.candidateID,  # only this test's rows
         ).first()
 
         # Confidence gap = |0.75 - 1.0| = 0.25
@@ -182,7 +184,8 @@ class TestThunderLearningIntegration:
 
         # Get the outcome event
         outcome_event = db.query(LearningEvent).filter(
-            LearningEvent.action_type == "engagement_outcome"
+            LearningEvent.action_type == "engagement_outcome",
+            LearningEvent.entity_id == test_candidate.candidateID,  # only this test's rows
         ).first()
 
         # Confidence gap = |0.75 - 0.0| = 0.75
@@ -223,7 +226,8 @@ class TestThunderLearningIntegration:
 
         # Verify outcome recorded
         outcome_events = db.query(LearningEvent).filter(
-            LearningEvent.action_type == "engagement_outcome"
+            LearningEvent.action_type == "engagement_outcome",
+            LearningEvent.entity_id == test_candidate.candidateID,  # only this test's rows
         ).all()
 
         assert len(outcome_events) == 1
@@ -265,7 +269,8 @@ class TestThunderLearningIntegration:
 
         # Verify outcome recorded as "replied"
         outcome_events = db.query(LearningEvent).filter(
-            LearningEvent.action_type == "engagement_outcome"
+            LearningEvent.action_type == "engagement_outcome",
+            LearningEvent.entity_id == test_candidate.candidateID,  # only this test's rows
         ).all()
 
         assert len(outcome_events) == 1
@@ -345,7 +350,8 @@ class TestThunderLearningMetrics:
 
         # Verify all events recorded
         all_events = db.query(LearningEvent).filter(
-            LearningEvent.module == "thunder"
+            LearningEvent.module == "thunder",
+            LearningEvent.entity_id == test_candidate.candidateID,
         ).all()
 
         # Should have: 50 predictions + 50 outcomes = 100 events
@@ -353,7 +359,8 @@ class TestThunderLearningMetrics:
 
         # Verify outcomes have confidence_gap
         outcome_events = db.query(LearningEvent).filter(
-            LearningEvent.action_type == "engagement_outcome"
+            LearningEvent.action_type == "engagement_outcome",
+            LearningEvent.entity_id == test_candidate.candidateID,  # only this test's rows
         ).all()
 
         assert len(outcome_events) == 50

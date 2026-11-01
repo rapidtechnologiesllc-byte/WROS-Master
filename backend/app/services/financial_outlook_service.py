@@ -165,21 +165,26 @@ def outlook(db: Session, *, start: date, end: date, today: Optional[date] = None
     # other expenses: anticipated = everything logged for the period that is not rejected;
     # actual = what has been reimbursed
     from app.models.expense import ExpenseRecord
+    from app.services.expense_service import expense_shares
 
     expenses = db.query(ExpenseRecord).filter(ExpenseRecord.expense_date >= start, ExpenseRecord.expense_date <= end,
                                               ExpenseRecord.manager_approval_status != "REJECTED")
     if tenant_id is not None:
         expenses = expenses.filter(ExpenseRecord.tenant_id == tenant_id)
-    for record in expenses.all():
-        # spend for a client follows the client; other spend stays with the logging BU,
-        # company unknown (only whole-BU viewers -- partner, org -- see it)
-        cell = client_cell(record.client_id) if record.client_id else (record.business_unit_id, None)
-        row = rows[cell if cell[0] is not None else (record.business_unit_id, None)]
-        row["anticipated_other_expense"] += record.amount_usd_cents
-        row["anticipated_expense"] += record.amount_usd_cents
-        if record.payment_status == "REIMBURSED":
-            row["actual_other_expense"] += record.amount_usd_cents
-            row["actual_expense"] += record.amount_usd_cents
+    records = expenses.all()
+    shares = expense_shares(records)
+    for record in records:
+        # each client's part follows that client (a split expense lands on every client it names);
+        # internal spend stays with the logging BU, company unknown (only whole-BU viewers --
+        # partner, org -- see it)
+        for client_id, cents in shares[record.id]:
+            cell = client_cell(client_id) if client_id else (record.business_unit_id, None)
+            row = rows[cell if cell[0] is not None else (record.business_unit_id, None)]
+            row["anticipated_other_expense"] += cents
+            row["anticipated_expense"] += cents
+            if record.payment_status == "REIMBURSED":
+                row["actual_other_expense"] += cents
+                row["actual_expense"] += cents
 
     by_unit: Dict[Optional[int], Dict[str, int]] = defaultdict(_empty)
     for (bu_id, company_id), figures in rows.items():

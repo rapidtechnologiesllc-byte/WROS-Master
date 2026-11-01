@@ -281,6 +281,27 @@ class TestWebhookLearningIntegration:
         outcome2 = [o for o in outcomes if o.actual_outcome == "no_response"][0]
         assert outcome2.confidence_gap == pytest.approx(0.82, abs=0.01)
 
+    def test_outreaches_in_the_same_clock_tick_answer_in_order(self, db: Session, test_candidate, test_conversation):
+        """Two outreaches stamped in one clock tick (a Windows tick is ~15 ms) must not tie: the
+        outcome answers the second one, never an arbitrary one of the two."""
+        frozen = datetime(2026, 11, 1, 12, 0, 0)
+        with patch("app.services.thunder_learning_integration.datetime") as clock:
+            clock.utcnow.return_value = frozen
+            clock.fromisoformat = datetime.fromisoformat
+            for confidence in (0.75, 0.82):
+                ThunderLearningIntegration.record_outreach_prediction(
+                    db=db, tenant_id=test_candidate.tenant_id, candidate=test_candidate,
+                    conversation=test_conversation, channel="email", message_body="Email",
+                    confidence_score=confidence)
+            result = ThunderLearningIntegration.record_engagement_outcome(
+                db=db, tenant_id=test_candidate.tenant_id, candidate_id=test_candidate.candidateID,
+                conversation_id=str(test_conversation.id), event_type="no_response",
+                event_data={"channel": "email"})
+        assert result["status"] == "recorded"
+        outcome = db.query(LearningEvent).filter(LearningEvent.action_type == "engagement_outcome",
+                                                 LearningEvent.entity_id == test_candidate.candidateID).one()
+        assert outcome.predicted_probability == pytest.approx(0.82)
+
     def test_webhook_event_deduplication(self, db: Session, test_candidate, test_conversation):
         """
         Test: Same webhook event sent twice → second one should be deduplicated.
