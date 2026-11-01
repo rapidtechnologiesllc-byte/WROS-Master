@@ -325,3 +325,40 @@ def test_api_attribution_edit_follows_the_same_rules(db, w, api):
     ok = api.patch(w.seller_a, path, json={"spend_for": "CLIENT", "client_id": w.client_a.id})
     assert ok.status_code == 200 and ok.json()["client_id"] == w.client_a.id
     assert api.patch(w.partner_b, path, json={"spend_for": "INTERNAL"}).status_code == 404
+
+
+def test_guidewire_connections_client_meals_and_attendee_spend_land_in_the_right_company(db, w):
+    """CEO 2026-11-01: "we went to a conference called Guidewire connections we had 2 types of
+    expenses 1, where we took the client to lunch/dinner or other thing is when the attendees ate
+    vs travel ... ask if it is client or personal then it has to come into P&L". The client dinner
+    is the client's (its BU and contracting company); the attendee's own meal and flight count in
+    the company the attendee works for that day -- never the "Group" catch-all."""
+    from app.models.employee import Employee
+    from app.models.location import Location
+    from app.services.revenue_chain_service import _company_pnl, _expenses
+
+    bx_us, bx_in = Location(tenant_id=1, name=f"BX-US {uid()}"), Location(tenant_id=1, name=f"BX-IN {uid()}")
+    db.add_all([bx_us, bx_in])
+    db.flush()
+    w.client_a.contracting_company_id = bx_us.id
+    db.add(Employee(first_name="Seller", last_name="A", email=f"{uid()}@emp.test", wros_user_id=w.seller_a.UserID,
+                    tenant_id=1, bu_id=w.bu_a.id, company_id=bx_in.id, joining_date=date(2025, 1, 1),
+                    status="ACTIVE"))
+    db.commit()
+    event = conference(db, w.seller_a, name=f"Guidewire Connections {uid()} 2026")
+    dinner = log(db, w.seller_a, cents=30_000, event=event, spend_for="CLIENT", client_id=w.client_a.id)
+    own_meal = log(db, w.seller_a, cents=4_000, event=event, spend_for="INTERNAL")
+    flight = expenses.log_expense(db, logged_by_user=w.seller_a, purpose="CONFERENCE", expense_category="TRAVEL",
+                                  travel_type="AIRFARE", amount_usd_cents=50_000, expense_date=ON, receipt_ref="r",
+                                  event_id=event.id, spend_for="INTERNAL")
+    for expense in (dinner, own_meal, flight):
+        expenses.approve_manager_step(db, expense, approved_by=w.partner_a.UserID)
+    db.commit()
+
+    rows, _ = _expenses(db, *SEPT_OCT, 1, {w.bu_a.id: w.bu_a, w.bu_b.id: w.bu_b}, {w.bu_a.id})
+    ours = [r for r in rows if r["company_id"] in (bx_us.id, bx_in.id)]
+    assert sorted((r["key"][2] or "", r["company_id"], r["amount"]) for r in ours) == sorted([
+        (w.client_a.id, bx_us.id, 30_000), ("", bx_in.id, 4_000), ("", bx_in.id, 50_000)])
+    by_company = {c["key"]: c["expense_cost_usd_cents"] for c in _company_pnl(db, [], {}, ours, *SEPT_OCT, 1)}
+    assert by_company[bx_us.id] == 30_000 and by_company[bx_in.id] == 54_000
+    assert None not in by_company  # nothing of this conference fell into "Group"
