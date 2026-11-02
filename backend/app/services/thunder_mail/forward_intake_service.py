@@ -123,10 +123,18 @@ def process_intake(db: Session, intake_id: str, mailbox=None, *, llm_call: Optio
     if reading.kind in ("NEW_CANDIDATE", "CANDIDATE_UPDATE"):
         return _candidate_email(db, row, forwarder, reading, mailbox)
     if reading.kind == "JOB_REQUIREMENT":
-        return _job_email(db, row, forwarder, reading)
+        return _job_email(db, row, forwarder, reading, mailbox)
     if reading.kind == "EMPLOYEE_NOTE":
-        return _employee_email(db, row, forwarder, reading)
+        return _employee_email(db, row, forwarder, reading, mailbox)
     return _file_by_address(db, row, forwarder, reading, mailbox)
+
+
+def _known_address(db: Session, row, reading: ForwardReading) -> bool:
+    """An address in the email belongs to a candidate or client we know."""
+    from app.services.client_email_log_service import match_clients
+
+    addresses = [e for e in [reading.original_sender_email] + reading.emails if e]
+    return _existing_candidate(db, row, reading) is not None or bool(match_clients(db, addresses))
 
 
 def _file_by_address(db: Session, row, forwarder: Users, reading: ForwardReading, mailbox) -> Dict:
@@ -361,7 +369,7 @@ def _timeline_note(db: Session, row, forwarder: Users, entity_type: str, entity_
     return {"status": "processed", "intake_id": row.id, entity_type + "_id": entity_id, "note_id": entry.id}
 
 
-def _job_email(db: Session, row, forwarder: Users, reading: ForwardReading) -> Dict:
+def _job_email(db: Session, row, forwarder: Users, reading: ForwardReading, mailbox=None) -> Dict:
     from app.core import data_scope
     from app.models.user import Jobs
 
@@ -369,6 +377,9 @@ def _job_email(db: Session, row, forwarder: Users, reading: ForwardReading) -> D
     jobs = db.query(Jobs).filter(Jobs.tenant_id == row.tenant_id, Jobs.is_deleted.is_(False))
     matches = jobs.filter(or_(Jobs.jobID == reference, func.lower(Jobs.jobTitle) == reference.lower())).all() \
         if reference else []
+    if len(matches) != 1 and mailbox is not None and _known_address(db, row, reading):
+        # job words in a thread with someone we know (a candidate replying about a role): file it there
+        return _file_by_address(db, row, forwarder, reading, mailbox)
     if len(matches) != 1:
         return _needs_review(db, row, forwarder, "This looks like a job requirement, but it matches "
                              f"{'no' if not matches else len(matches)} existing job"
@@ -381,7 +392,7 @@ def _job_email(db: Session, row, forwarder: Users, reading: ForwardReading) -> D
     return _timeline_note(db, row, forwarder, "job", job.jobID)
 
 
-def _employee_email(db: Session, row, forwarder: Users, reading: ForwardReading) -> Dict:
+def _employee_email(db: Session, row, forwarder: Users, reading: ForwardReading, mailbox=None) -> Dict:
     from app.core import data_scope
     from app.models.employee import Employee
 
@@ -392,6 +403,8 @@ def _employee_email(db: Session, row, forwarder: Users, reading: ForwardReading)
             func.lower(Employee.email) == email, func.lower(Employee.personal_email) == email)).first()
         if employee is not None:
             break
+    if employee is None and mailbox is not None and _known_address(db, row, reading):
+        return _file_by_address(db, row, forwarder, reading, mailbox)
     if employee is None:
         return _needs_review(db, row, forwarder, "This email is about an employee, but no employee in the "
                              "system matches the email addresses in it.")
