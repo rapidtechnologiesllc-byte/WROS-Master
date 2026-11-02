@@ -88,3 +88,27 @@ def run_sweep(db: Session, now: datetime = None) -> Dict:
             queued += 1
     logger.info(f"[ThunderSweep] queued {queued}, skipped {skipped} (of {len(candidates)} not yet engaged)")
     return {"status": "ok", "queued": queued, "skipped": skipped, "considered": len(candidates)}
+
+
+def engage_now(db: Session, candidate: Candidate) -> bool:
+    """Queue the first engagement for one candidate now (a real email was just added), with the
+    same rules as the sweep: Thunder on, contactable, not yet in a cadence, no engagement in flight.
+    Returns whether it was queued."""
+    from app.core.config import settings
+    from app.models.thunder_email import ThunderCadenceState
+    from app.services.candidate_contact_policy import is_contactable
+    from app.services.thunder_mail.cadence_service import enqueue_once
+    from app.services.thunder_pause_service import is_thunder_paused
+
+    if not settings.THUNDER_ENGAGEMENT_ENABLED or is_thunder_paused(db) or candidate.tenant_id is None:
+        return False
+    if db.query(ThunderCadenceState.candidate_id).filter_by(candidate_id=candidate.candidateID).first():
+        return False
+    if not is_contactable(db, candidate)[0]:
+        return False
+    attempt = _next_attempt(db, candidate.candidateID)
+    if attempt is None:
+        return False
+    return enqueue_once(ENGAGE_TASK, engage_task_id(candidate.candidateID, attempt),
+                        {"candidate_id": candidate.candidateID, "trigger": "email_added",
+                         "tenant_id": candidate.tenant_id}, candidate.tenant_id)
