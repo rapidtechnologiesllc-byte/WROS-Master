@@ -175,6 +175,35 @@ def _save_skills(db: Session, candidate: Candidate, value: Any) -> bool:
     return True
 
 
+NOTICE_UNIT_DAYS = (("month", 30), ("week", 7), ("day", 1))
+IMMEDIATE_NOTICE = re.compile(r"\b(immediate(ly)?|right away|now|none|no notice|serving)\b", re.IGNORECASE)
+
+
+def notice_period_days(value: str) -> Optional[int]:
+    """Whole days from a notice period as people write it: "30", "45 days", "2 months", "2/3 weeks"
+    (a range counts as its longer end: they may not be free sooner), "immediately" (0)."""
+    numbers = [float(n) for n in re.findall(r"\d+(?:\.\d+)?", value or "")]
+    if not numbers:
+        return 0 if IMMEDIATE_NOTICE.search(value or "") else None
+    per_unit = next((days for unit, days in NOTICE_UNIT_DAYS if unit in value.lower()), 1)
+    return int(round(max(numbers) * per_unit))
+
+
+def askable_employment_type(value: str) -> Optional[str]:
+    """FULLTIME / CONTRACT from how people write it; C2C and 1099 are never accepted
+    (employment_type_policy), so a reply naming them stays unanswered."""
+    text = re.sub(r"[^a-z0-9]", "", (value or "").lower())
+    if not text or "c2c" in text or "corp" in text or "1099" in text:
+        return None
+    if text.upper() in ASKABLE_EMPLOYMENT_TYPES:
+        return text.upper()
+    if text.startswith(("fulltime", "permanent", "fte", "w2", "direct")):
+        return "FULLTIME"
+    if text.startswith(("contract", "c2h")):
+        return "CONTRACT"
+    return None
+
+
 def _core_value(field: str, value: str) -> Any:
     """The value to store for a core field, or None when it is not valid for that field."""
     if field in DATE_FIELDS:
@@ -185,10 +214,10 @@ def _core_value(field: str, value: str) -> Any:
     if field == "candidateMobile":
         return value if value.startswith("+") else None
     if field == "candidate_notice_period":
-        match = re.search(r"\d+", value)
-        return int(match.group(0)) if match and int(match.group(0)) <= 365 else None
+        days = notice_period_days(value)
+        return days if days is not None and days <= 365 else None
     if field == "employment_type":
-        return value.upper() if value.upper() in ASKABLE_EMPLOYMENT_TYPES else None
+        return askable_employment_type(value)
     if field in SALARY_TYPE_FIELDS.values():
         return value if value in SALARY_RATE_TYPES else None
     return value
@@ -530,11 +559,128 @@ def _default_llm_call(prompt: str) -> str:
     return re.sub(r"```(?:json)?", "", text).strip()
 
 
+_BULLET = re.compile(r"^\s*(?:[*\-\u2022\u25cf\u25aa]+|\d{1,2}[.)])?\s*")  # "* ", "- ", "1." -- not "60 days"
+_ANSWER_SEPARATOR = re.compile(r"^[\s:\-\u2013\u2014=>|]*")
+_MONEY = re.compile(r"\d[\d,]*(?:\.\d+)?\s*[kK]?")
+SALARY_RATE_WORDS = (
+    ("$/Hour", r"hour|/\s*hr\b|hourly"), ("$/Day", r"\bday\b|daily"), ("$/Week", r"week"),
+    ("$/Month", r"month"), ("$/Year", r"year|annum|annual|\byr\b|\bpa\b|lpa|ctc"),
+)
+MARITAL_WORDS = (("Single", r"single|unmarried"), ("Married", r"married"), ("Divorced", r"divorced"),
+                 ("Widowed", r"widow"))
+GENDER_WORDS = (("Female", r"\b(female|woman|f)\b"), ("Male", r"\b(male|man|m)\b"),
+                ("Other", r"\b(other|non.?binary)\b"))
+EMPTY_ANSWERS = ("na", "n/a", "-", "none", "nil")
+
+
+def _label_head(label: str) -> str:
+    """The words a reply repeats: "Notice Period (in days)" -> "notice period"."""
+    return " ".join(label.split("(")[0].lower().split())
+
+
+def _flat_line(line: str) -> str:
+    return " ".join(_BULLET.sub("", line).split())
+
+
+def _normalised_answer(field: str, answer: str) -> Dict[str, Any]:
+    """{field: value[, rate field: rate]} in the shape merge_fields_to_db stores, or {}."""
+    answer = answer.strip().rstrip(".").strip()
+    if not answer or answer.lower() in EMPTY_ANSWERS:
+        return {}
+    if field in DATE_FIELDS:
+        found = re.search(r"\d{4}-\d{2}-\d{2}", answer)
+        return {field: found.group(0)} if found else {}
+    if field == "candidateExperience":
+        found = re.search(r"\d+(?:\.\d+)?", answer)
+        return {field: found.group(0)} if found else {}
+    if field in SALARY_TYPE_FIELDS:
+        amount = _MONEY.search(answer)
+        if amount is None:
+            return {field: answer}  # e.g. "Industry standard": what they said, nothing invented
+        written = amount.group(0).strip()
+        number = float(written.rstrip("kK").replace(",", "").strip())
+        if written.lower().endswith("k"):
+            number *= 1000
+        result = {field: str(int(number)) if number.is_integer() else str(number)}
+        # the rate word nearest after the amount ("232,000 per year + ... 176 hours PTO" is per year)
+        after = answer[amount.end():]
+        hits = [(m.start(), r) for r, words in SALARY_RATE_WORDS
+                for m in [re.search(words, after, re.IGNORECASE)] if m]
+        rate = min(hits)[1] if hits else None
+        if rate:
+            result[SALARY_TYPE_FIELDS[field]] = rate
+        return result
+    if field == "marital_status":
+        found = next((v for v, words in MARITAL_WORDS if re.search(words, answer, re.IGNORECASE)), None)
+        return {field: found} if found else {}
+    if field == "candidateGender":
+        found = next((v for v, words in GENDER_WORDS if re.search(words, answer, re.IGNORECASE)), None)
+        return {field: found} if found else {}
+    if field == "candidateSkills":
+        return {}  # a free-form list: left to the AI reader
+    return {field: answer}
+
+
+def parse_labelled_answers(reply_text: str, missing_fields: List[Dict[str, str]]) -> Dict[str, Any]:
+    """Answers given against our own labels, read without any AI. Our emails list each missing
+    detail by label ("Notice Period (in days)"); a reply that keeps the label and adds the answer
+    after it ("Notice Period (in days) - 2/3 weeks"), or on the next line, is read here. Only the
+    candidate's part of the email is read (the quoted thread below it repeats the empty labels)."""
+    lines = [_flat_line(line) for line in _extract_candidate_reply(reply_text).splitlines()]
+    heads = {m["field"]: _label_head(m["label"]) for m in missing_fields if m.get("source") != "document"}
+    all_heads = tuple(heads.values())
+    found: Dict[str, Any] = {}
+    for field, head in heads.items():
+        for index, line in enumerate(lines):
+            if not head or not line.lower().startswith(head):
+                continue
+            rest = line[len(head):].lstrip()
+            if rest.startswith("(") and ")" in rest:  # the label's own hint, e.g. "(YYYY-MM-DD)"
+                rest = rest[rest.index(")") + 1:]
+            answer = _ANSWER_SEPARATOR.sub("", rest)
+            if not answer and index + 1 < len(lines) and not lines[index + 1].lower().startswith(all_heads):
+                answer = lines[index + 1]
+            found.update(_normalised_answer(field, answer))
+            break
+    return found
+
+
+def _llm_configured() -> bool:
+    key = os.getenv("GEMINI_API_KEY", "").strip()
+    return bool(key) and not key.lower().startswith(("your_", "changeme"))
+
+
 def extract_fields_from_reply(reply_text: str, missing_fields: List[Dict[str, str]],
                               llm_call: Optional[Callable[[str], str]] = None) -> Dict[str, Any]:
-    """field -> value for every missing field the reply confidently answers. The reply is
-    untrusted: it is fenced as data (build_safe_prompt), never concatenated as instructions.
-    Raises on an LLM failure or an unparseable answer -- the caller records the error."""
+    """field -> value for every missing field the reply answers.
+
+    Rules first (CEO 2026-11-02: "we shouldnt depend on gemini to get the answer and save it on
+    candidate record"): answers written against our labels are read by parse_labelled_answers.
+    The AI reader only tries the fields the rules did not find, and only when one is configured
+    (or passed in). An AI failure is raised only when the rules found nothing either -- the caller
+    records the error; otherwise what the rules read is kept and the failure is logged."""
+    found = parse_labelled_answers(reply_text, missing_fields)
+    remaining = [m for m in missing_fields if m["field"] not in found and m.get("source") != "document"]
+    if not remaining:
+        return found
+    if llm_call is None and not _llm_configured():
+        logger.warning(f"[ReplyPipeline] No AI key configured: {len(remaining)} field(s) not read by rules "
+                       f"({', '.join(m['field'] for m in remaining)}) stay missing and are asked again")
+        return found
+    try:
+        found.update(_extract_fields_with_llm(reply_text, remaining, llm_call))
+    except Exception as exc:
+        if not found:
+            raise
+        logger.error(f"[ReplyPipeline] AI reader failed; keeping {len(found)} field(s) read by rules: {exc}",
+                     exc_info=True)
+    return found
+
+
+def _extract_fields_with_llm(reply_text: str, missing_fields: List[Dict[str, str]],
+                             llm_call: Optional[Callable[[str], str]] = None) -> Dict[str, Any]:
+    """The AI reader. The reply is untrusted: it is fenced as data (build_safe_prompt), never
+    concatenated as instructions. Raises on an LLM failure or an unparseable answer."""
     clean_text = _extract_candidate_reply(reply_text)
     suspicious = flag_suspicious_patterns(clean_text)
     if suspicious:
