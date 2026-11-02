@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
@@ -1195,6 +1195,18 @@ def get_interview_statistics(
     )
 
 @router.get(
+    "/log-options",
+    dependencies=[Depends(require_resource_permission("interviews", "view"))],
+)
+def get_log_options():
+    """Choices for the Log Interview form (types, platforms, the recommendation scale)."""
+    from app.models.interview_log import MEETING_PLATFORMS
+    from app.services.interview_log_service import INTERVIEW_TYPES, RECOMMENDATIONS
+    return {"interview_types": list(INTERVIEW_TYPES), "meeting_platforms": list(MEETING_PLATFORMS),
+            "recommendations": list(RECOMMENDATIONS)}
+
+
+@router.get(
     "/{interview_id}",
     response_model=InterviewDetailedResponse,
     dependencies=[Depends(require_resource_permission("interviews", "view"))],
@@ -1866,6 +1878,17 @@ def delete_interview_feedback(
 # Statistics and Analytics Endpoints
 # ============================================
 
+def _log_fields(db: Session, interview_id: int) -> dict:
+    """A logged interview's platform, summary and 5-year flag (empty for scheduled interviews)."""
+    from app.models.interview_log import InterviewLog
+    log = db.query(InterviewLog).filter_by(interview_id=interview_id).first()
+    if log is None:
+        return {}
+    return {"meeting_platform": log.meeting_platform, "logged_summary": log.summary,
+            "has_transcript": bool(log.transcript_text), "experience_unverified": log.experience_unverified,
+            "suggested_recommendation": log.suggested_recommendation}
+
+
 @router.get("/candidate-history/{candidate_id}", response_model=CandidateInterviewHistory, dependencies=[Depends(require_resource_permission("candidates", "view"))],
  )
 def get_candidate_interview_history(
@@ -1938,7 +1961,9 @@ def get_candidate_interview_history(
             meeting_link=interview.meeting_link,
             outlook_event_id=interview.outlook_event_id,
             status=interview.status,
-            feedback_count=feedback_count
+            feedback_count=feedback_count,
+            feedback_status=interview.feedback_status,
+            **_log_fields(db, interview.id),
         ))
     
     return CandidateInterviewHistory(
@@ -2043,7 +2068,9 @@ def get_interviewer_workload(
             meeting_link=interview.meeting_link,
             outlook_event_id=interview.outlook_event_id,
             status=interview.status,
-            feedback_count=feedback_count
+            feedback_count=feedback_count,
+            feedback_status=interview.feedback_status,
+            **_log_fields(db, interview.id),
         ))
     
     return InterviewerWorkload(
@@ -2089,3 +2116,93 @@ def get_my_hiring_manager_candidate_review(
     """
     result = get_hm_candidate_review_list(db, user)
     return HMCandidateReviewListResponse(**result)
+
+
+# ---------------------------------------------------------------------------
+# Log an interview that already happened (CEO 2026-11-02): date, type, panel members, platform,
+# summary and/or transcript (pasted or a Word document), and the interviewer's recommendation.
+# ---------------------------------------------------------------------------
+
+TRANSCRIPT_MAX_BYTES = 10 * 1024 * 1024
+
+
+@router.post(
+    "/log-completed",
+    status_code=201,
+    dependencies=[Depends(require_resource_permission("interviews", "edit"))],
+    summary="Record a completed interview with its transcript",
+)
+async def log_completed_interview_endpoint(
+    candidate_id: str = Form(...),
+    interview_type: str = Form(...),
+    meeting_platform: str = Form(...),
+    recommendation: str = Form(...),
+    interview_date: Optional[str] = Form(None),   # YYYY-MM-DD; else read from the transcript
+    interview_time: Optional[str] = Form(None),   # HH:MM
+    duration_minutes: Optional[int] = Form(None),
+    panel_member_ids: Optional[str] = Form(None),  # comma-separated user ids; default: the logger
+    job_id: Optional[str] = Form(None),
+    summary: Optional[str] = Form(None),
+    transcript_text: Optional[str] = Form(None),
+    transcript_file: Optional[UploadFile] = File(None),
+    db: Session = Depends(get_db),
+    user=Depends(get_current_internal_user),
+):
+    from app.services.interview_log_service import InterviewLogError, log_completed_interview, read_docx_text
+
+    candidate = ensure_candidate_visible(db, candidate_id, user)
+    if job_id:
+        visible_job_or_404(db, user, job_id)
+    text, file_name = transcript_text, None
+    if transcript_file is not None and transcript_file.filename:
+        content = await transcript_file.read()
+        if len(content) > TRANSCRIPT_MAX_BYTES:
+            raise HTTPException(status_code=400, detail="The transcript file is larger than 10 MB.")
+        name = transcript_file.filename.lower()
+        try:
+            if name.endswith(".docx"):
+                text = read_docx_text(content)
+            elif name.endswith((".txt", ".vtt")):
+                text = content.decode("utf-8", errors="replace")
+            else:
+                raise InterviewLogError("Upload the transcript as a Word document (.docx) or a text file (.txt, .vtt).")
+        except InterviewLogError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        file_name = transcript_file.filename[:255]
+    start = None
+    if interview_date:
+        try:
+            start = datetime.strptime(f"{interview_date} {interview_time or '09:00'}", "%Y-%m-%d %H:%M")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Interview date must be YYYY-MM-DD and time HH:MM.")
+    try:
+        interview = log_completed_interview(
+            db, user, candidate, interview_type=interview_type, meeting_platform=meeting_platform,
+            recommendation=recommendation, summary=summary, transcript_text=text, transcript_file_name=file_name,
+            panel_member_ids=[p.strip() for p in (panel_member_ids or "").split(",") if p.strip()],
+            interview_start=start, duration_minutes=duration_minutes, job_id=job_id,
+        )
+    except InterviewLogError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"interview_id": interview.id, "start_time": interview.start_time, "end_time": interview.end_time,
+            "status": interview.status}
+
+
+@router.get(
+    "/{interview_id}/transcript",
+    dependencies=[Depends(require_resource_permission("interviews", "view"))],
+)
+def get_interview_transcript(interview_id: int, db: Session = Depends(get_db),
+                             user=Depends(get_current_internal_user)):
+    """The transcript and summary of a logged interview."""
+    from app.models.interview_log import InterviewLog
+
+    interview = db.query(Interview).filter(Interview.id == interview_id, _interview_scope(db, user)).first()
+    log = db.query(InterviewLog).filter_by(interview_id=interview_id).first() if interview else None
+    if log is None:
+        raise HTTPException(status_code=404, detail="No logged transcript for this interview.")
+    return {"interview_id": interview_id, "meeting_platform": log.meeting_platform, "summary": log.summary,
+            "suggested_recommendation": log.suggested_recommendation, "transcript_text": log.transcript_text,
+            "transcript_file_name": log.transcript_file_name, "experience_unverified": log.experience_unverified,
+            "experience_note": log.experience_note}
