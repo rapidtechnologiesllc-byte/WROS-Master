@@ -5,7 +5,8 @@ Runs from the cron'd mail_sync_worker (every 15 min in prod). Matches, in order:
 2. one of our Message-IDs in In-Reply-To / References;
 3. a NEW email whose sender is a candidate already in a Thunder cadence.
 An email to or from a client's people (staff put the mailbox on CC/BCC) is logged on that client
-(client_email_log_service). Anything else sent by an active staff member (a forward, usually) goes to the
+(client_email_log_service). An email in a candidate's thread from one of our own people is ours,
+never the candidate's reply (staff_email_service). Anything else sent by an active staff member (a forward, usually) goes to the
 mailbox intake (forward_intake_service): it becomes a candidate, a note or a
 task, never dropped. Other mail (ordinary HR mail from outside) is neither
 stored nor processed here.
@@ -28,6 +29,7 @@ from app.services.thunder_mail.cadence_service import INBOUND_TASK, enqueue_once
 from app.services.thunder_mail.forward_intake_service import forwarding_user, queue_forward, store_forward
 from app.services.thunder_mail.graph_mailbox import GraphMailbox
 from app.services.thunder_mail.reply_classifier import is_auto_message
+from app.services.thunder_mail.staff_email_service import handle_staff_email, staff_sender
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +86,7 @@ def poll_thunder_mailbox(db: Session, mailbox: Optional[GraphMailbox] = None,
         logger.error(f"[ThunderPoll] Could not read {mailbox_address}: {exc}")
         return {"read": 0, "matched": 0, "error": str(exc)}
 
-    matched, clients_logged, newest, queued, forwards = 0, 0, cursor.last_received_at, [], []
+    matched, clients_logged, newest, queued, forwards, staff_rows = 0, 0, cursor.last_received_at, [], [], []
     for message in messages:
         received = _parse_time(message["receivedDateTime"])
         newest = max(newest, received)
@@ -115,12 +117,19 @@ def poll_thunder_mailbox(db: Session, mailbox: Optional[GraphMailbox] = None,
             body_text=((message.get("uniqueBody") or {}).get("content") or "")[:MAX_BODY_CHARS],
             received_at=received,
         )
+        staff = staff_sender(db, sender)
+        if staff is not None:
+            # one of our people wrote in the candidate's thread: ours, never the candidate's reply
+            row.direction, row.status, row.sent_at, row.received_at = "OUT", "SENT", received, None
         savepoint = db.begin_nested()
         try:
             db.add(row)
             savepoint.commit()
         except IntegrityError:
             savepoint.rollback()  # already stored by an earlier, overlapping run
+            continue
+        if staff is not None:
+            staff_rows.append((row.id, staff))
             continue
         matched += 1
         queued.append((row.id, state.tenant_id, {k: headers[k] for k in CLASSIFIER_HEADERS if k in headers},
@@ -134,6 +143,8 @@ def poll_thunder_mailbox(db: Session, mailbox: Optional[GraphMailbox] = None,
                       "has_attachments": has_attachments}, tenant_id)
     for intake_id, tenant_id in forwards:
         queue_forward(intake_id, tenant_id)
+    for row_id, staff in staff_rows:
+        handle_staff_email(db, db.query(ThunderEmailMessage).filter_by(id=row_id).one(), staff)
     logger.info(f"[ThunderPoll] {mailbox_address}: read {len(messages)}, matched {matched}, "
                 f"client emails {clients_logged}, forwarded {len(forwards)}")
     return {"read": len(messages), "matched": matched, "client_emails": clients_logged, "forwarded": len(forwards)}
