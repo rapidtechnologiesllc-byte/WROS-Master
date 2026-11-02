@@ -111,6 +111,10 @@ def process_intake(db: Session, intake_id: str, mailbox=None, *, llm_call: Optio
         return _attach_to_candidate(db, row, forwarder, mailbox)
 
     message = mailbox.get_message(row.graph_message_id)
+    from app.services.thunder_mail import certification_alert_service as cert_alert
+    text = (message.get("body") or {}).get("content") or ""
+    if cert_alert.is_certification_alert(row.subject or message.get("subject") or "", text):
+        return _certification_alert(db, row, forwarder, mailbox)
     attachments = mailbox.list_attachments(row.graph_message_id) if message.get("hasAttachments") else []
     reading = read_forward(db, row.tenant_id, row.subject or message.get("subject") or "",
                            (message.get("body") or {}).get("content") or "", attachments,
@@ -127,6 +131,21 @@ def process_intake(db: Session, intake_id: str, mailbox=None, *, llm_call: Optio
     if reading.kind == "EMPLOYEE_NOTE":
         return _employee_email(db, row, forwarder, reading, mailbox)
     return _file_by_address(db, row, forwarder, reading, mailbox)
+
+
+def _certification_alert(db: Session, row, forwarder: Users, mailbox) -> Dict:
+    """A certification-expiry alert: each row on its employee's certificates, with a renewal task."""
+    from app.services.thunder_mail import certification_alert_service as cert_alert
+
+    rows = cert_alert.parse_alert(mailbox.get_message_html(row.graph_message_id))
+    if not rows:
+        return _needs_review(db, row, forwarder, "This looks like a certification-expiry alert, but no rows "
+                             "could be read from its table.")
+    result = cert_alert.record_alert(db, rows, tenant_id=row.tenant_id, forwarder=forwarder,
+                                     received=row.received_at)
+    row.kind, row.status, row.processed_at = "CERT_ALERT", "PROCESSED", datetime.utcnow()
+    db.commit()
+    return {"status": "processed", "intake_id": row.id, **result}
 
 
 def _known_address(db: Session, row, reading: ForwardReading) -> bool:

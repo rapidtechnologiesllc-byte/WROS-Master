@@ -117,6 +117,12 @@ class GraphMailbox:
         return self._call("GET", f"/messages/{message_id}", params={"$select": MESSAGE_SELECT},
                           headers={"Prefer": TEXT_BODY})
 
+    def get_message_html(self, message_id: str) -> str:
+        """The message body as HTML (tables kept), for emails read by their table."""
+        data = self._call("GET", f"/messages/{message_id}", params={"$select": "body"},
+                          headers={"Prefer": 'IdType="ImmutableId", outlook.body-content-type="html"'})
+        return (data.get("body") or {}).get("content") or ""
+
     def list_attachments(self, message_id: str) -> List[Dict]:
         """File attachments carry contentBytes (base64). An attached email (itemAttachment,
         "forward as attachment") is expanded so its own subject, sender and body are readable."""
