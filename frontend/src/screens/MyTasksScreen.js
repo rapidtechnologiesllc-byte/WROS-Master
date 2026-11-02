@@ -9,7 +9,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { AlertCircle, CheckCircle, X } from "lucide-react";
 import { Card, Button, Input, Select } from "../components/ui";
 import {
-  completeTask, confirmUrgentTask, createTask, getMyDayTasks, getScheduledTasks, getUpcomingUrgentTasks,
+  approveTaskReplyDraft, completeTask, confirmUrgentTask, createTask, discardTaskReplyDraft, getMyDayTasks,
+  getScheduledTasks, getTaskReplyDraft, getUpcomingUrgentTasks,
 } from "../services/api/tasks";
 import TaskUpdateModal from "../components/TaskUpdateModal";
 import { ROUTES } from "../utils/Routes";
@@ -31,14 +32,119 @@ function isOverdue(task, now) {
   return task.due_date && new Date(task.due_date) < now && task.status !== "COMPLETED";
 }
 
-function TaskRow({ task, now, onComplete, onConfirmUrgent, onNavigate, onLogUpdate }) {
+// The task itself (CEO 2026-11-02: "click on the task shouldnt open candidate but the exact step or the
+// task and what has to be done on it"): what is needed, who it is about, the email behind it and, when
+// the system drafted an answer, that reply to approve (edit first if needed) or discard.
+function TaskPanel({ task, onClose, onNavigate, onComplete, onLogUpdate, onChanged }) {
+  const [draft, setDraft] = useState(undefined);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    getTaskReplyDraft(task.id)
+      .then((data) => { if (!cancelled) { setDraft(data); setText(data?.text || ""); } })
+      .catch((err) => {
+        console.error("[TaskPanel] Failed to load the drafted reply:", err);
+        if (!cancelled) { setDraft(null); setError(`Could not load the drafted reply: ${err.message}`); }
+      });
+    return () => { cancelled = true; };
+  }, [task.id]);
+
+  const act = async (fn, message) => {
+    setBusy(true);
+    setError("");
+    try {
+      await fn();
+      setDone(message);
+      setDraft(null);
+      onChanged();
+    } catch (err) {
+      setError(err.message || "That did not work.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
+      <div className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <div className="text-xs text-gray-500">Task #{task.id} · {task.priority}{task.due_date ? ` · due ${new Date(task.due_date).toLocaleString()}` : ""}</div>
+            <h2 className="text-base font-semibold text-gray-900">{task.title}</h2>
+            {task.related_name ? (
+              <div className="mt-1 text-sm text-gray-600">
+                About {task.related_kind ? task.related_kind.toLowerCase() : ""}{" "}
+                {task.related_link ? (
+                  <button className="text-blue-600 hover:underline" onClick={() => onNavigate({ ...task, link: task.related_link })}>
+                    {task.related_name}
+                  </button>
+                ) : task.related_name}
+              </div>
+            ) : null}
+          </div>
+          <button className="text-gray-400 hover:text-gray-700" onClick={onClose} aria-label="Close"><X className="h-5 w-5" /></button>
+        </div>
+
+        {done ? <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{done}</div> : null}
+        {error ? <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
+
+        {draft ? (
+          <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-3">
+            <div className="mb-1 text-xs font-semibold uppercase text-blue-800">
+              Drafted reply · {draft.composed_by === "claude" ? "written by Claude" : "written from the job record"}
+            </div>
+            {draft.their_email ? (
+              <div className="mb-2 rounded-lg bg-white p-2 text-xs text-gray-600 whitespace-pre-wrap">
+                <span className="font-semibold text-gray-800">Their email: </span>{draft.their_email.slice(0, 1200)}
+              </div>
+            ) : null}
+            <div className="mb-1 text-xs text-gray-600">Subject: {draft.subject}</div>
+            <textarea
+              className="h-48 w-full rounded-lg border border-gray-300 p-2 text-sm focus:border-bx-orange focus:outline-none"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              disabled={busy}
+            />
+            <div className="mt-1 text-[11px] text-gray-500">Greeting, your name and the opt-out line are added when it is sent.</div>
+            <div className="mt-2 flex gap-2">
+              <Button onClick={() => act(() => approveTaskReplyDraft(task.id, text), "Approved. Thunder sends it in the candidate's thread and closes this task.")} disabled={busy || !text.trim()}>
+                {busy ? "Sending…" : "Approve and send"}
+              </Button>
+              <Button variant="ghost" onClick={() => act(() => discardTaskReplyDraft(task.id), "Draft discarded.")} disabled={busy}>Discard draft</Button>
+            </div>
+          </div>
+        ) : draft === undefined ? (
+          <div className="mb-4 text-sm text-gray-500">Loading…</div>
+        ) : null}
+
+        <div className="mb-1 text-xs font-semibold uppercase text-gray-500">What this is about</div>
+        <div className="mb-4 whitespace-pre-wrap rounded-lg border bg-gray-50 p-3 text-sm text-gray-700">
+          {task.description || "No details were recorded on this task."}
+        </div>
+
+        {task.status !== "COMPLETED" ? (
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => onLogUpdate(task)}>Log update</Button>
+            <Button variant="ghost" onClick={() => { onComplete(task.id); onClose(); }}>Mark complete</Button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function TaskRow({ task, now, onComplete, onConfirmUrgent, onNavigate, onLogUpdate, onOpen }) {
   const overdue = isOverdue(task, now);
   return (
     <tr className="border-b border-bx-border last:border-0">
       <td className="py-2 px-3 text-xs text-gray-500">#{task.id}</td>
       <td className="py-2 px-3">
         <button
-          onClick={() => onNavigate(task)}
+          onClick={() => onOpen(task)}
           className="text-sm font-medium text-blue-600 hover:underline cursor-pointer text-left"
         >
           {task.title}
@@ -167,6 +273,7 @@ export default function MyTasksScreen() {
   const [upcoming, setUpcoming] = useState([]);
   const [scheduled, setScheduled] = useState([]);
   const [updatingTask, setUpdatingTask] = useState(null);
+  const [openTask, setOpenTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [mode, setMode] = useState("TASK"); // TASK | TICKET
@@ -458,7 +565,7 @@ export default function MyTasksScreen() {
                   <tr><td colSpan={8} className="py-6 text-center text-sm text-gray-400">Nothing due today. Nice.</td></tr>
                 ) : (
                   tasks.map((t) => (
-                    <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} />
+                    <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} onOpen={setOpenTask} />
                   ))
                 )}
               </tbody>
@@ -472,7 +579,7 @@ export default function MyTasksScreen() {
                 <table className="w-full text-left">
                   <tbody>
                     {scheduled.map((t) => (
-                      <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} />
+                      <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} onOpen={setOpenTask} />
                     ))}
                   </tbody>
                 </table>
@@ -487,7 +594,7 @@ export default function MyTasksScreen() {
                 <table className="w-full text-left">
                   <tbody>
                     {upcoming.map((t) => (
-                      <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} />
+                      <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} onOpen={setOpenTask} />
                     ))}
                   </tbody>
                 </table>
@@ -495,6 +602,11 @@ export default function MyTasksScreen() {
             </div>
           )}
         </>
+      )}
+
+      {openTask && (
+        <TaskPanel task={openTask} onClose={() => setOpenTask(null)} onNavigate={handleNavigateTask}
+          onComplete={handleComplete} onLogUpdate={setUpdatingTask} onChanged={load} />
       )}
 
       {updatingTask && (

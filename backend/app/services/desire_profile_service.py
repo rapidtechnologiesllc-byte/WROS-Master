@@ -205,10 +205,11 @@ def _default_llm_call(prompt: str, api_key: str) -> str:
 def _call_llm(prompt: str, llm_call: Optional[Callable[[str], str]]) -> str:
     if llm_call is not None:
         return llm_call(prompt)
-    api_key = os.getenv("GEMINI_API_KEY", "")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY not set")
-    return _default_llm_call(prompt, api_key)
+    from app.services.flash_brain.llm import claude_text, gemini_configured
+    if not gemini_configured():
+        # no Gemini key: Claude, when configured (raises BrainUnavailable otherwise)
+        return claude_text(purpose="desire_narrative", prompt=prompt, tenant_id="desire")
+    return _default_llm_call(prompt, os.getenv("GEMINI_API_KEY", ""))
 
 def generate_desire_narrative(db: Session, profile: CandidateDesireProfile, *, llm_call: Optional[Callable[[str], str]] = None) -> Optional[str]:
     """Never raises -- a narrative failure must not block the (already

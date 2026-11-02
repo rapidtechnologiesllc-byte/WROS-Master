@@ -1,8 +1,9 @@
 """Message Handler: thunder_send_email
 
-Sends one cadence step (1-4, NURTURE-*, ACK_*) from the Thunder mailbox, or one personal
-upcoming-role email (ROLE-<id>, written by role_outreach_service: its own subject and body, no
-template, outside the cadence plan, which it leaves untouched).
+Sends one cadence step (1-4, NURTURE-*, ACK_*) from the Thunder mailbox, or one personal email:
+an upcoming-role email (ROLE-<id>, role_outreach_service) or a reply a person approved (REPLY-<id>,
+reply_draft_service, threaded under the candidate's email). A personal email has its own subject and
+body, no template, and leaves the cadence plan untouched.
 Anything that prevents sending (credentials, permission, send window, caps,
 cooldown) raises DeliveryDeferred: the queue keeps the message PENDING as
 "not sent". Draft-then-send is idempotent across retries: the draft id is
@@ -54,11 +55,12 @@ class ThunderSendEmailHandler:
         now = datetime.utcnow()
         is_ack = step.startswith("ACK_")
         is_details = step.startswith(cadence.DETAILS)
-        from app.services import role_outreach_service as role_mail
-        role_outreach = role_mail.role_outreach_for(db, step)
-        if step.startswith(role_mail.ROLE_STEP_PREFIX) and role_outreach is None:
-            raise ValueError(f"Message {message.id}: no upcoming-role email for step {step}")
-        if role_outreach is not None and role_outreach.status != "QUEUED":
+        from app.services import reply_draft_service as personal_mail
+        # ROLE-<id> (upcoming-role email) and REPLY-<id> (an approved reply): their own text, no template
+        role_outreach = personal_mail.personal_email_for(db, step)
+        if personal_mail.is_personal_step(step) and role_outreach is None:
+            raise ValueError(f"Message {message.id}: no personal email for step {step}")
+        if role_outreach is not None and not personal_mail.ready_to_send(role_outreach):
             return _done("superseded" if role_outreach.status != "SENT" else "already_sent", candidate_id, step)
         logger.info(f"[ThunderSend] handler_start candidate={candidate_id} seq={seq} step={step}")
 
@@ -80,7 +82,7 @@ class ThunderSendEmailHandler:
             raise DeliveryDeferred("Thunder is switched off for this organisation", now + timedelta(hours=1))
         if cadence.email_consent_revoked(db, candidate_id):
             if role_outreach is not None:
-                role_outreach.status, role_outreach.note = "SKIPPED", "email consent revoked"
+                role_outreach.status, role_outreach.note = "DISCARDED" if hasattr(role_outreach, "in_message_id")                     else "SKIPPED", "email consent revoked"
             cadence.stop(db, state, candidate, "email consent revoked")
             db.commit()
             return _done("stopped", candidate_id, step, reason="email consent revoked")
@@ -176,7 +178,11 @@ class ThunderSendEmailHandler:
         seq = out.cadence_seq
         mailbox = mailbox or GraphMailbox(settings.THUNDER_MAILBOX)
         if out.graph_message_id is None:
-            thread_parent = ThunderSendEmailHandler._thread_parent(db, candidate_id, seq, step)
+            if role_outreach is not None:
+                from app.services.reply_draft_service import thread_parent_of
+                thread_parent = thread_parent_of(db, role_outreach)
+            else:
+                thread_parent = ThunderSendEmailHandler._thread_parent(db, candidate_id, seq, step)
             if thread_parent:
                 ids = mailbox.create_reply_draft(thread_parent, body)
             else:
@@ -193,8 +199,8 @@ class ThunderSendEmailHandler:
         state.touches_sent += 1
         state.last_outbound_at = now
         if role_outreach is not None:
-            from app.services.role_outreach_service import mark_sent
-            mark_sent(role_outreach, out.id, now)
+            from app.services.reply_draft_service import mark_personal_sent
+            mark_personal_sent(db, role_outreach, out.id, now)
         else:
             cadence.schedule_after_send(state, step, now)
         if is_details:

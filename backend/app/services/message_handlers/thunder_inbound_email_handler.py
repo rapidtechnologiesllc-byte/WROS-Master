@@ -147,6 +147,14 @@ class ThunderInboundEmailHandler:
         except Exception as exc:
             db.rollback()
             logger.warning(f"[ThunderInbound] timeline log failed for {row_id} (reply was processed): {exc}")
+        if result.intent not in ("AUTO", "UNSUBSCRIBE", "HOSTILE"):
+            # what the reply says they want feeds the candidate's Intelligence tab (never raises)
+            from app.core.tenant_context import conversation_tenant_key
+            from app.services.desire_signal_service import record_reply_signals
+            from app.services.thunder_mail.reply_classifier import candidate_words
+            record_reply_signals(db, conversation_tenant_key(row.tenant_id), row.candidate_id,
+                                 candidate_words(row.body_text or "", own_texts))
+        ThunderInboundEmailHandler._draft_reply(db, candidate, row, result.intent, task, job)
 
         return {"status": "processed", "thunder_message_id": row_id, "intent": result.intent,
                 "stage": state.stage, "ack_step": actions["ack_step"], "handoff": bool(actions["handoff"]),
@@ -210,6 +218,19 @@ class ThunderInboundEmailHandler:
             task.description = (f"The resume {resume.name} could not be saved to the candidate's documents "
                                 f"({problem}): download it from the email and upload it.\n{task.description}")
             db.commit()
+
+    @staticmethod
+    def _draft_reply(db: Session, candidate: Candidate, row: ThunderEmailMessage, intent: str, task, job) -> None:
+        """A handed-off reply gets a drafted answer for the task's owner to approve (never raises)."""
+        if task is None:
+            return
+        from app.services.reply_draft_service import draft_reply
+        from app.services.thunder_mail.reply_classifier import candidate_words
+
+        own = [t for (t,) in db.query(ThunderEmailMessage.body_text).filter(
+            ThunderEmailMessage.candidate_id == candidate.candidateID, ThunderEmailMessage.direction == "OUT",
+            ThunderEmailMessage.body_text.isnot(None))]
+        draft_reply(db, candidate, row, intent, task, job, candidate_words(row.body_text or "", own))
 
     @staticmethod
     def _handoff_task(db: Session, candidate: Candidate, row: ThunderEmailMessage, title: str, note: str) -> Any:

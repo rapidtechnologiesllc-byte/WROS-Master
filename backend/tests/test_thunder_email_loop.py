@@ -623,3 +623,38 @@ def test_a_second_reply_updates_the_candidates_open_task_instead_of_adding_one(d
     assert len(tasks) == 1
     assert tasks[0].description.index("is it remote") < tasks[0].description.index("---- Earlier ----")
     assert "salary for this role" in tasks[0].description
+
+
+def test_a_handed_off_reply_gets_a_draft_that_sends_in_their_thread_once_approved(db, world):
+    """CEO 2026-11-02: the system processes the email itself and asks the related person to approve."""
+    from app.models.candidate_desire_signal import CandidateDesireSignal
+    from app.models.reply_draft import ReplyDraft
+    from app.models.user import Users
+    from app.services.reply_draft_service import approve_draft
+    from tests.hiring_fixtures import full_access_role
+
+    comp = lambda *a: '{"intent": "QUESTION_COMP", "confidence": 0.9}'
+    _, _, row = _inbound(db, world, "What is the salary? I want to lead the billing practice.", llm=comp)
+    draft = db.query(ReplyDraft).filter_by(candidate_id=world.candidate.candidateID, status="DRAFT").one()
+    assert draft.composed_by == "rules" and "compensation" in draft.body_html.lower()
+    signals = {s.desire_category for s in db.query(CandidateDesireSignal).filter_by(
+        candidate_id=world.candidate.candidateID)}
+    assert {"COMPENSATION", "CAREER_GROWTH"} <= signals
+
+    approver = Users(UserID=f"U-{uuid.uuid4().hex[:8]}", UserName="Avinash", UserEmail=f"a{uuid.uuid4().hex[:6]}@bx.com",
+                     UserPassword="x", UserRole="x", tenant_id=1, role_template_id=full_access_role(db).id)
+    db.add(approver)
+    db.commit()
+    with patch(ENQUEUE, return_value={"message_id": "x", "task_id": "x"}) as enqueue:
+        approve_draft(db, draft, approver, "Happy to talk pay on a call.\n\nDoes Thursday work?")
+    step = f"REPLY-{draft.id}"
+    assert any(c.kwargs.get("data", {}).get("step") == step for c in enqueue.call_args_list)
+    row.graph_message_id = row.graph_message_id or "in-graph"
+    db.commit()
+    mailbox = FakeMailbox()
+    result, _ = _send(db, world, step, mailbox, seq=world.state.cadence_seq)
+    assert result["status"] == "sent" and mailbox.replies == [row.graph_message_id]
+    db.refresh(draft)
+    assert draft.status == "SENT" and "Does Thursday work?" in draft.body_html
+    task = db.query(Task).filter_by(id=draft.task_id).one()
+    assert task.status == "COMPLETED"
