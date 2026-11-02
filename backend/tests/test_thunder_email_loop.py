@@ -658,3 +658,64 @@ def test_a_handed_off_reply_gets_a_draft_that_sends_in_their_thread_once_approve
     assert draft.status == "SENT" and "Does Thursday work?" in draft.body_html
     task = db.query(Task).filter_by(id=draft.task_id).one()
     assert task.status == "COMPLETED"
+
+
+AVINASH_EMAIL = """Hello @Joss Sequeira<mailto:joss@example.com> – We have reconvened internally however your current pay is greater than what this role is offering.
+
+I will be in touch as we identify suitable opportunities we can work together.
+
+________________________________________
+Avinash Mukund
+Chief Executive Officer | BlitzenX"""
+
+
+def test_our_own_email_in_a_candidates_thread_is_ours_and_its_decision_is_acted_on(db, world):
+    """CEO 2026-11-02: the CEO's email was read as the candidate asking about pay, and the candidate
+    stayed Active / Applied although the email said we cannot meet his expectations."""
+    from app.models.candidate import CandidateStatus
+    from app.models.candidate_rejection import CandidateRejection
+    from app.models.reply_draft import ReplyDraft
+    from app.models.user import Users
+    from tests.hiring_fixtures import full_access_role
+
+    comp = lambda *a: '{"intent": "QUESTION_COMP", "confidence": 0.9}'
+    _, _, first = _inbound(db, world, "What is the salary for this role?", llm=comp)
+    first.conversation_id = "conv-joss"
+    ceo = Users(UserID=f"U-{uuid.uuid4().hex[:8]}", UserName="Avinash", UserEmail=f"am{uuid.uuid4().hex[:5]}@blitzenx.com",
+                UserPassword="x", UserRole="x", tenant_id=1, role_template_id=full_access_role(db).id)
+    db.add(ceo)
+    db.commit()
+    message = {"id": f"g-{uuid.uuid4().hex[:8]}", "conversationId": "conv-joss", "internetMessageId": "<x@bx>",
+               "from": {"emailAddress": {"address": ceo.UserEmail}}, "subject": "RE: Director | Technical Client Partner",
+               "uniqueBody": {"content": AVINASH_EMAIL},
+               "receivedDateTime": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"), "internetMessageHeaders": []}
+    db.add(ThunderEmailMessage(id=str(uuid.uuid4()), tenant_id=1, candidate_id=world.candidate.candidateID,
+                               direction="OUT", status="SENT", cadence_seq=1, step="1", mailbox=MAILBOX,
+                               conversation_id="conv-joss", sent_at=datetime.utcnow()))
+    db.commit()
+    with patch(ENQUEUE, return_value={"message_id": "x", "task_id": "x"}) as enqueue:
+        poll_thunder_mailbox(db, mailbox=FakeMailbox([message]))
+    stored = db.query(ThunderEmailMessage).filter_by(graph_message_id=message["id"]).one()
+    assert stored.direction == "OUT" and stored.intent is None
+    assert not [c for c in enqueue.call_args_list if c.kwargs.get("task_name") == cadence.INBOUND_TASK]
+
+    assert db.query(Task).filter_by(candidate_id=world.candidate.candidateID, category="THUNDER_REPLY",
+                                    status="NEW").count() == 0
+    assert db.query(ReplyDraft).filter_by(candidate_id=world.candidate.candidateID, status="DRAFT").count() == 0
+    rejection = db.query(CandidateRejection).filter_by(candidate_id=world.candidate.candidateID).one()
+    assert rejection.rejection_reason == "Compensation expectation above the role's budget"
+    assert "greater than what this role is offering" in rejection.rejection_note and rejection.email_sent is False
+    status = db.query(CandidateStatus).filter_by(candidateID=world.candidate.candidateID).one()
+    assert status.piplineStatus == "Rejected"
+
+
+@pytest.mark.parametrize("text,reason", [
+    ("your current pay is greater than what this role is offering", "Compensation expectation above the role's budget"),
+    ("We cannot meet your salary expectations.", "Compensation expectation above the role's budget"),
+    ("We have decided not to proceed with your application.", "Not progressing for this role"),
+    ("Can we talk about the salary on Friday?", None),
+])
+def test_reading_a_decision_in_our_email(text, reason):
+    from app.services.thunder_mail.staff_email_service import read_decision
+    found = read_decision(text)
+    assert (found or {}).get("reason") == reason
