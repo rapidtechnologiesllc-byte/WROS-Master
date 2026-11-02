@@ -584,3 +584,35 @@ def test_a_reply_about_a_role_from_a_known_candidate_is_filed_on_them_not_left_a
     row, mailbox = received_forward(db, ceo, body, subject="Fwd: Re: Director | Technical Client Partner | BlitzenX")
     result, _ = run_handler(db, row.id, mailbox)
     assert result["status"] == "processed" and result["candidate_id"] == existing.candidateID
+
+
+JOBDIVA_ALERT_HTML = """<p>Hello Avinash M,<br>Following is the list of Licenses/Certifications that are already expired
+or scheduled to expire:</p><table><tr><td colspan=6>Expiring in 6 months</td></tr>
+<tr><td>Candidate</td><td>License/Certification</td><td>State</td><td>Country</td>
+<td>License/Certification #</td><td>Expiry Date</td></tr>
+<tr><td><a href="#">Aniket Kamalakar Magar</a></td><td>Ace Guidewire</td><td></td><td></td>
+<td>Associate Certified Palisades</td><td>30/04/2027</td></tr>
+<tr><td>Unknown Person</td><td>Ace Guidewire</td><td></td><td></td><td>X1</td><td>01/02/2027</td></tr></table>"""
+
+
+def test_a_certification_expiry_alert_is_recorded_on_the_employee_with_a_renewal_task(db, ceo):
+    """CEO 2026-11-02: JobDiva's 'List of expiring Licenses and Certifications' for current employees."""
+    from app.models.certification import Certification, EmployeeCertification
+    from app.models.employee import Employee
+
+    employee = Employee(tenant_id=1, first_name="Aniket", last_name="Magar", email=f"aniket{uid()}@blitzenx.com",
+                        joining_date=date(2025, 1, 6))
+    db.add(employee)
+    db.commit()
+    body = "Hello Avinash M,\nFollowing is the list of Licenses/Certifications that are already expired or scheduled to expire:"
+    row, mailbox = received_forward(db, ceo, body, subject="FW: List of expiring Licenses and Certifications")
+    mailbox.get_message_html = lambda message_id: JOBDIVA_ALERT_HTML
+    result, _ = run_handler(db, row.id, mailbox)
+    assert result["status"] == "processed" and result["unmatched"] == ["Unknown Person"]
+    record = db.query(EmployeeCertification).filter_by(employee_id=employee.id).one()
+    cert = db.query(Certification).filter_by(id=record.certification_id).one()
+    assert cert.cert_name == "Ace Guidewire" and record.cert_number == "Associate Certified Palisades"
+    assert record.expires_date == datetime(2027, 4, 30) and record.status == "Active"
+    renew = db.query(Task).filter(Task.title.like("Renew Ace Guidewire for Aniket Magar%")).one()
+    assert renew.due_date == datetime(2027, 4, 30) - timedelta(days=60) and renew.link == f"/employees/{employee.id}"
+    assert db.query(Task).filter(Task.title.like("Certification alert: 1 person%")).count() == 1
