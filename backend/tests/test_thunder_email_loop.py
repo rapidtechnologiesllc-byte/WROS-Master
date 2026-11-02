@@ -613,3 +613,13 @@ def test_ab_selector_retires_variant_with_outlier_opt_outs(db):
     with patch("app.services.thunder_mail.variant_selector.variant_stats", return_value=stats):
         choose_variant(db, step, rng=random.Random(0))
     assert variants[2].active is False and "opt-out" in variants[2].retired_reason
+
+
+def test_a_second_reply_updates_the_candidates_open_task_instead_of_adding_one(db, world):
+    """CEO 2026-11-02: five tasks for one candidate told nobody what to do."""
+    _inbound(db, world, "What is the salary for this role?", subject="Re: question")
+    _inbound(db, world, "Also, is it remote?", subject="Re: question 2")
+    tasks = db.query(Task).filter_by(candidate_id=world.candidate.candidateID, category="THUNDER_REPLY").all()
+    assert len(tasks) == 1
+    assert tasks[0].description.index("is it remote") < tasks[0].description.index("---- Earlier ----")
+    assert "salary for this role" in tasks[0].description

@@ -53,6 +53,10 @@ class TaskResponse(BaseModel):
     recurrence: Optional[str] = None
     # In-app path the task opens; My Tasks follows it first
     link: Optional[str] = None
+    # What the task is about (My Tasks "Related to"): Candidate / Interview / Expense / Invoice
+    related_kind: Optional[str] = None
+    related_name: Optional[str] = None
+    related_link: Optional[str] = None
 
     class Config:
         from_attributes = True

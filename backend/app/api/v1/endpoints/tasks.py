@@ -40,6 +40,8 @@ from app.services.task_service import (
     list_candidate_tasks, stop_repeating,
 )
 
+from app.services.task_related_service import annotate_related  # noqa: E402
+
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 def _get_task_or_404(db: Session, task_id: int, user: Users) -> Task:
@@ -60,7 +62,7 @@ def _get_task_or_404(db: Session, task_id: int, user: Users) -> Task:
     dependencies=[Depends(require_resource_permission("my-tasks", "view"))]
 )
 def my_day(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
-    return get_daily_task_list(db, assigned_to_user_id=current_user.UserID)
+    return annotate_related(db, get_daily_task_list(db, assigned_to_user_id=current_user.UserID))
 
 @router.get(
     "/my-day/upcoming",
@@ -68,7 +70,7 @@ def my_day(current_user: Users = Depends(get_current_internal_user), db: Session
     dependencies=[Depends(require_resource_permission("my-tasks", "view"))]
 )
 def my_day_upcoming(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
-    return get_upcoming_urgent_tasks(db, assigned_to_user_id=current_user.UserID)
+    return annotate_related(db, get_upcoming_urgent_tasks(db, assigned_to_user_id=current_user.UserID))
 
 @router.get(
     "/my-day/scheduled",
@@ -76,7 +78,7 @@ def my_day_upcoming(current_user: Users = Depends(get_current_internal_user), db
     dependencies=[Depends(require_resource_permission("my-tasks", "view"))]
 )
 def my_day_scheduled(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
-    return get_scheduled_tasks(db, assigned_to_user_id=current_user.UserID)
+    return annotate_related(db, get_scheduled_tasks(db, assigned_to_user_id=current_user.UserID))
 
 @router.get(
     "/update-options",
