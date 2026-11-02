@@ -541,3 +541,33 @@ def test_duplicate_check_ignores_email_case_and_phone_formatting(db, ceo):
     by_phone, matched_on = find_duplicate_candidate(db, mobile=digits)
     assert by_phone.candidateID == candidate.candidateID and matched_on == "phone"
     assert find_duplicate_candidate(db, mobile="12345") == (None, None)
+
+
+# ---- no model: an email about someone we know is still filed by its addresses ---------------
+
+def test_without_the_llm_a_forward_from_a_known_candidate_goes_on_their_profile(db, ceo):
+    existing = Candidate(tenant_id=1, candidateID=f"CAN-{uid()}", candidateEmail=f"joss{uid()}@example.com",
+                         candidatePassword="h", candidateFirstName="Joss", candidateLastName="S")
+    db.add(existing)
+    db.commit()
+    body = forwarded_body("FYI", "Joss S", existing.candidateEmail, "Would BlitzenX consider an MD title?")
+    row, mailbox = received_forward(db, ceo, body, subject="Fwd: Re: Director | Technical Client Partner")
+    result, _ = run_handler(db, row.id, mailbox)  # the model is down
+    assert result["status"] == "processed" and result["candidate_id"] == existing.candidateID
+    assert db.query(Task).filter_by(candidate_id=existing.candidateID, category="MAILBOX_INTAKE").count() == 0
+
+
+def test_without_the_llm_a_forward_from_a_client_contact_goes_on_the_client(db, ceo):
+    from app.models.client import Client, ClientContact, ClientEmail
+
+    client = Client(tenant_id=1, company_name=f"Carrier {uid()}", website=f"carrier{uid()}.com")
+    db.add(client)
+    db.flush()
+    db.add(ClientContact(client_id=client.id, name="Pat", email=f"pat@{client.website}", role_type="PRIMARY"))
+    db.commit()
+    body = forwarded_body("See below", "Pat", f"pat@{client.website}", "Can we start the inception in December?")
+    row, mailbox = received_forward(db, ceo, body, subject="Fwd: inception")
+    result, _ = run_handler(db, row.id, mailbox)
+    assert result["status"] == "processed" and result["client_ids"] == [client.id]
+    logged = db.query(ClientEmail).filter_by(client_id=client.id).one()
+    assert logged.direction == "IN" and logged.sent_by_user_id == ceo.UserID

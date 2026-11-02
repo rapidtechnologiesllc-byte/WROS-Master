@@ -213,16 +213,32 @@ class ThunderInboundEmailHandler:
 
     @staticmethod
     def _handoff_task(db: Session, candidate: Candidate, row: ThunderEmailMessage, title: str, note: str) -> Any:
+        """One open hand-off task per candidate (CEO 2026-11-02: five tasks for one candidate told
+        nobody what to do): a new reply updates the open task -- the latest ask as its title, the
+        latest email first in its description, due now -- instead of adding another."""
+        from app.models.task import Task
         from app.services.task_service import create_task
 
         name = " ".join(filter(None, [candidate.candidateFirstName, candidate.candidateLastName]))
+        full_title = f"{title}: {name or candidate.candidateEmail}"[:255]
+        latest = (
+            f"{(row.received_at or datetime.utcnow()):%d %b %Y %H:%M} -- Thunder read this email as "
+            f"{row.intent} ({row.intent_source}).\n" + (f"{note}\n" if note else "") +
+            f"From: {row.from_address}\nSubject: {row.subject}\n\n{(row.body_text or '')[:1500]}"
+        )
+        open_task = db.query(Task).filter(
+            Task.candidate_id == candidate.candidateID, Task.category == "THUNDER_REPLY",
+            Task.status.in_(("NEW", "IN_PROGRESS", "ON_HOLD")),
+        ).order_by(Task.created_at.desc()).first()
+        if open_task is not None:
+            open_task.title, open_task.priority, open_task.due_date = full_title, "HIGH", datetime.utcnow()
+            open_task.description = (latest + "\n\n---- Earlier ----\n" + (open_task.description or ""))[:8000]
+            db.add(open_task)
+            logger.info(f"[ThunderInbound] updated open task {open_task.id} for {candidate.candidateID}: {title}")
+            return open_task
         return create_task(
-            db, title=f"{title}: {name or candidate.candidateEmail}"[:255],
-            description=(
-                f"Thunder classified this email as {row.intent} ({row.intent_source}).\n"
-                + (f"{note}\n" if note else "") +
-                f"From: {row.from_address}\nSubject: {row.subject}\n\n{(row.body_text or '')[:1500]}"
-            ),
+            db, title=full_title,
+            description=latest,
             priority="HIGH", category="THUNDER_REPLY", tenant_id=candidate.tenant_id,
             assigned_to_user_id=candidate.assigned_recruiter_id, due_date=datetime.utcnow(),
             candidate_id=candidate.candidateID, link=f"/candidates/{candidate.candidateID}",

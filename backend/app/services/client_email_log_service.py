@@ -109,3 +109,20 @@ def log_team_email(db: Session, client: Client, recipient: Users, *, key: str, s
         savepoint.commit()
     except IntegrityError:
         savepoint.rollback()  # the same key was logged before (a retried request)
+
+
+def log_forwarded_email(db: Session, client: Client, intake, forwarder: Users,
+                        original_sender: Optional[str], summary: Optional[str]) -> None:
+    """A forwarded email about a client (the mailbox intake matched it by address). Does not commit."""
+    savepoint = db.begin_nested()
+    try:
+        db.add(ClientEmail(
+            tenant_id=client.tenant_id, client_id=client.id,
+            direction="IN" if original_sender and original_sender != (forwarder.UserEmail or "").lower() else "OUT",
+            message_key=intake.graph_message_id, from_address=original_sender or forwarder.UserEmail,
+            to_addresses=None, subject=(intake.subject or "")[:998], snippet=(summary or "")[:SNIPPET_CHARS],
+            sent_by_user_id=forwarder.UserID, sent_at=intake.received_at or datetime.utcnow(),
+        ))
+        savepoint.commit()
+    except IntegrityError:
+        savepoint.rollback()  # the same message is already on this client

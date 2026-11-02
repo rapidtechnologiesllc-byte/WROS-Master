@@ -126,7 +126,36 @@ def process_intake(db: Session, intake_id: str, mailbox=None, *, llm_call: Optio
         return _job_email(db, row, forwarder, reading)
     if reading.kind == "EMPLOYEE_NOTE":
         return _employee_email(db, row, forwarder, reading)
-    return _needs_review(db, row, forwarder, "It is not clear what this email is about.")
+    return _file_by_address(db, row, forwarder, reading, mailbox)
+
+
+def _file_by_address(db: Session, row, forwarder: Users, reading: ForwardReading, mailbox) -> Dict:
+    """An email the reading could not name (no model, or a model unsure) is still about someone we
+    know when one of its addresses is ours: a candidate's (their profile), an employee's (their
+    record) or a client contact's / the client's domain (the client's History). Only an email that
+    matches nobody becomes a task (CEO 2026-11-02: the system has to process these emails itself)."""
+    from app.models.employee import Employee
+    from app.services.client_email_log_service import log_forwarded_email, match_clients
+
+    if _existing_candidate(db, row, reading) is not None:
+        reading.kind = row.kind = "CANDIDATE_UPDATE"
+        return _candidate_email(db, row, forwarder, reading, mailbox)
+    addresses = [e for e in [reading.original_sender_email] + reading.emails if e]
+    if addresses and db.query(Employee.id).filter(Employee.tenant_id == row.tenant_id, or_(
+            func.lower(Employee.email).in_(addresses), func.lower(Employee.personal_email).in_(addresses))).first():
+        reading.kind = row.kind = "EMPLOYEE_NOTE"
+        reading.employee_email = reading.employee_email or addresses[0]
+        return _employee_email(db, row, forwarder, reading)
+    clients = match_clients(db, addresses)
+    if clients:
+        for client in clients:
+            log_forwarded_email(db, client, row, forwarder, reading.original_sender_email, reading.summary)
+        row.kind, row.status, row.processed_at = "CLIENT_EMAIL", "PROCESSED", datetime.utcnow()
+        db.commit()
+        logger.info(f"[ForwardIntake] intake={row.id} processed: logged on client(s) {[c.id for c in clients]}")
+        return {"status": "processed", "intake_id": row.id, "client_ids": [c.id for c in clients]}
+    return _needs_review(db, row, forwarder, "It is not clear what this email is about, and none of its "
+                         "addresses belongs to a candidate, employee or client we know.")
 
 
 def _extracted(reading: ForwardReading) -> Dict:

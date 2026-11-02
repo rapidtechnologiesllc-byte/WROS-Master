@@ -55,6 +55,22 @@ function TaskRow({ task, now, onComplete, onConfirmUrgent, onNavigate, onLogUpda
           </div>
         )}
       </td>
+      <td className="py-2 px-3 text-sm">
+        {task.related_name ? (
+          <div>
+            {task.related_link ? (
+              <button className="text-left text-blue-600 hover:underline" onClick={() => onNavigate({ ...task, link: task.related_link })}>
+                {task.related_name}
+              </button>
+            ) : (
+              <span className="text-gray-800">{task.related_name}</span>
+            )}
+            <div className="text-[11px] uppercase tracking-wide text-gray-400">{task.related_kind}</div>
+          </div>
+        ) : (
+          <span className="text-xs text-gray-400">--</span>
+        )}
+      </td>
       <td className="py-2 px-3">
         <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-bx border ${PRIORITY_STYLES[task.priority] || ""}`}>
           {task.priority}
@@ -429,6 +445,7 @@ export default function MyTasksScreen() {
                 <tr>
                   <th className="py-2 px-3">Task #</th>
                   <th className="py-2 px-3">Task</th>
+                  <th className="py-2 px-3">Related to</th>
                   <th className="py-2 px-3">Priority</th>
                   <th className="py-2 px-3">Due Date</th>
                   <th className="py-2 px-3">Department</th>
@@ -438,7 +455,7 @@ export default function MyTasksScreen() {
               </thead>
               <tbody>
                 {tasks.length === 0 ? (
-                  <tr><td colSpan={7} className="py-6 text-center text-sm text-gray-400">Nothing due today. Nice.</td></tr>
+                  <tr><td colSpan={8} className="py-6 text-center text-sm text-gray-400">Nothing due today. Nice.</td></tr>
                 ) : (
                   tasks.map((t) => (
                     <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} />
