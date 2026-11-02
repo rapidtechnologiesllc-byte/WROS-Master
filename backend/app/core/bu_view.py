@@ -3,14 +3,15 @@ the CEO shouldnt have any restriction but partner should only see their BU stuff
 
 What a user MAY see is decided by their role template (app.core.visibility.scope_bu_ids). The
 selector only NARROWS that to one business unit for the screens they open: the browser sends the
-choice as X-Active-BU-Id on every request, this middleware keeps it for the request, and
+choice as X-BU-View on every request (a new name: browsers still running the old selector send its
+old X-Active-BU-Id, which held a default BU, not a choice, and must never narrow anything), this middleware keeps it for the request, and
 visibility.get_user_bu_ids intersects it with the user's scope. A BU outside the scope is ignored,
 never a way to see more.
 """
 from contextvars import ContextVar
 from typing import Optional
 
-ACTIVE_BU_HEADER = b"x-active-bu-id"
+ACTIVE_BU_HEADER = b"x-bu-view"
 
 _active_bu: ContextVar[Optional[int]] = ContextVar("active_bu", default=None)
 

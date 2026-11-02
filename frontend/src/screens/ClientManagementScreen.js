@@ -19,7 +19,7 @@ import { useEffect, useState, useMemo } from "react";
 import { Building2, Plus, Pencil, Users, X } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
 import {
-  listClients, createClient, updateClient, getClient, getClientHistory,
+  listClients, createClient, updateClient, getClient, getClientHistory, createClientUpdate,
   getClientContacts, addClientContact, listAccountManagerOptions,
 } from "../services/api/clients";
 import { getClientInvestmentPosition } from "../services/api/expenses";
@@ -814,9 +814,95 @@ const EMAIL_TONE = {
 };
 
 // Every change to the client (who, when, old -> new) and every email about it, newest first
+const today = () => new Date().toISOString().slice(0, 10);
+const emptyStep = { title: "", owner_user_id: "", due_date: "" };
+
+// What the meeting got us and where we are heading next: next steps become tasks for their owners
+function MeetingUpdateForm({ clientId, onSaved, onCancel }) {
+  const [form, setForm] = useState({ meeting_date: today(), attendees: "", summary: "", decisions: "" });
+  const [steps, setSteps] = useState([{ ...emptyStep }]);
+  const [users, setUsers] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const set = (field) => (value) => setForm((f) => ({ ...f, [field]: value }));
+  const setStep = (index, field) => (value) => setSteps((all) => all.map((s, i) => (i === index ? { ...s, [field]: value } : s)));
+
+  useEffect(() => {
+    listAccountManagerOptions()
+      .then((list) => setUsers(Array.isArray(list) ? list : []))
+      .catch((err) => {
+        console.error("[MeetingUpdate] Failed to load users:", err);
+        setError(`Could not load the people list: ${err.message}`);
+      });
+  }, []);
+
+  const save = async () => {
+    setError("");
+    const nextSteps = steps.filter((s) => s.title.trim());
+    if (!form.summary.trim()) {
+      setError("Say what was discussed.");
+      return;
+    }
+    if (nextSteps.some((s) => !s.owner_user_id)) {
+      setError("Every next step needs an owner.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await createClientUpdate(clientId, {
+        ...form,
+        next_steps: nextSteps.map((s) => ({ title: s.title, owner_user_id: s.owner_user_id, due_date: s.due_date || null })),
+      });
+      onSaved();
+    } catch (err) {
+      setError(err.message || "Could not save the update.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const owners = [{ label: "Owner", value: "", disabled: true },
+    ...users.map((u) => ({ label: u.user_name || u.user_email, value: String(u.user_id) }))];
+
+  return (
+    <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
+      {error ? <div className="text-xs text-rose-700">{error}</div> : null}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <Input label="Meeting date" type="date" value={form.meeting_date} onChange={set("meeting_date")} />
+        <Input label="Who was there" value={form.attendees} onChange={set("attendees")} placeholder="CIO, Head of Billing" />
+      </div>
+      <Input label="What was discussed *" value={form.summary} onChange={set("summary")}
+        placeholder="They want to start a BillingCenter inception" />
+      <Input label="What was agreed" value={form.decisions} onChange={set("decisions")}
+        placeholder="We staff a BC developer and a BC business analyst" />
+      <div className="text-xs font-semibold uppercase text-gray-500">Next steps</div>
+      {steps.map((step, index) => (
+        <div key={index} className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <Input label="To do" value={step.title} onChange={setStep(index, "title")} placeholder="Send the inception proposal" />
+          <Select label="Owner" value={step.owner_user_id} onChange={setStep(index, "owner_user_id")} options={owners} />
+          <Input label="Due" type="date" value={step.due_date} onChange={setStep(index, "due_date")} />
+        </div>
+      ))}
+      <Button variant="ghost" onClick={() => setSteps((all) => [...all, { ...emptyStep }])}>
+        <Plus className="h-4 w-4" /> Another next step
+      </Button>
+      <div className="text-[11px] text-gray-500">
+        For roles the client will need, open the client's opportunity and add them under Upcoming roles:
+        recruiting starts at once.
+      </div>
+      <div className="flex gap-2">
+        <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save update"}</Button>
+        <Button variant="ghost" onClick={onCancel} disabled={saving}>Cancel</Button>
+      </div>
+    </div>
+  );
+}
+
 function ClientHistoryPanel({ clientId }) {
   const [history, setHistory] = useState(null);
   const [error, setError] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -829,13 +915,19 @@ function ClientHistoryPanel({ clientId }) {
         if (!cancelled) setError(`Could not load history: ${err.message}`);
       });
     return () => { cancelled = true; };
-  }, [clientId]);
+  }, [clientId, reloadKey]);
 
   if (error) return <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>;
   if (!history) return <div className="py-8 text-center text-sm text-gray-500">Loading history…</div>;
 
   return (
     <div className="space-y-3">
+      {adding ? (
+        <MeetingUpdateForm clientId={clientId} onCancel={() => setAdding(false)}
+          onSaved={() => { setAdding(false); setReloadKey((k) => k + 1); }} />
+      ) : (
+        <Button onClick={() => setAdding(true)}><Plus className="h-4 w-4" /> Add meeting update</Button>
+      )}
       <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600">
         To log an email you send to this client, put <span className="font-semibold">{history.logging_mailbox}</span> on CC or BCC.
         Emails from the client's contacts, or anyone at the client's website domain, to that mailbox are logged too.
@@ -844,7 +936,7 @@ function ClientHistoryPanel({ clientId }) {
         <div className="py-6 text-center text-sm text-gray-400">No history yet.</div>
       ) : history.entries.map((entry, idx) => (
         <div key={`${entry.kind}-${entry.at}-${idx}`}
-          className={`rounded-xl border px-4 py-3 ${entry.kind === "EMAIL" ? EMAIL_TONE[entry.direction] || "" : "border-gray-200 bg-white"}`}>
+          className={`rounded-xl border px-4 py-3 ${entry.kind === "EMAIL" ? EMAIL_TONE[entry.direction] || "" : entry.kind === "UPDATE" ? "border-amber-200 bg-amber-50" : "border-gray-200 bg-white"}`}>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div className="text-sm font-semibold text-gray-900">{entry.title}</div>
             <div className="text-xs text-gray-500">

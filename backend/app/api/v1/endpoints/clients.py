@@ -17,6 +17,7 @@ internal user needs to see real client names to filter by them, this
 isn't sensitive data on its own the way markup_rate_pct etc. are.
 """
 import json
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -31,7 +32,8 @@ from app.models.user import Users
 from app.schemas.client import (
     ClientContactAddRequest, ClientContactResponse, ClientContactsListResponse,
     ClientCreateRequest, ClientCreateResponse, ClientDetailResponse, ClientListItem,
-    ClientHistoryEntry, ClientHistoryResponse, ClientListResponse, ClientUpdateRequest,
+    ClientHistoryEntry, ClientHistoryResponse, ClientListResponse, ClientUpdateCreateRequest,
+    ClientUpdateCreateResponse, ClientUpdateRequest,
 )
 from app.services.client_service import (
     ClientValidationError, DuplicateClientError, add_client_contact, assign_account_manager,
@@ -404,6 +406,53 @@ def _change_lines(old: dict, new: dict, names: dict) -> list:
             for k in keys if old.get(k) != new.get(k)]
 
 
+def _meeting_lines(meeting, tasks: dict, users: dict, opportunities: dict) -> list:
+    lines = []
+    if meeting.attendees:
+        lines.append(f"Attendees: {meeting.attendees}")
+    if meeting.opportunity_id in opportunities:
+        lines.append(f"Opportunity: {opportunities[meeting.opportunity_id].stage}")
+    lines.append(f"Discussed: {meeting.summary}")
+    if meeting.decisions:
+        lines.append(f"Agreed: {meeting.decisions}")
+    for task_id in meeting.task_ids or []:
+        task = tasks.get(task_id)
+        if task is not None:
+            owner = users.get(task.assigned_to_user_id) or "unassigned"
+            due = f", due {task.due_date:%d %b %Y}" if task.due_date else ""
+            lines.append(f"Next step: {task.title} ({owner}{due}, {task.status})")
+    return lines
+
+
+@router.post(
+    "/{client_id}/updates",
+    response_model=ClientUpdateCreateResponse,
+    status_code=201,
+    dependencies=[Depends(require_resource_permission("clients", "edit"))]
+)
+def create_client_update_endpoint(
+    client_id: str,
+    body: ClientUpdateCreateRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_internal_user),
+):
+    """Record a meeting with the client; each next step becomes a task for its owner."""
+    from app.services.client_update_service import ClientUpdateError, record_client_update
+
+    client = _get_client_or_404(db, client_id, current_user)
+    try:
+        update = record_client_update(
+            db, client, actor=current_user, meeting_date=body.meeting_date, summary=body.summary,
+            attendees=body.attendees, decisions=body.decisions, opportunity_id=body.opportunity_id,
+            next_steps=[step.model_dump() for step in body.next_steps],
+        )
+        db.commit()
+    except ClientUpdateError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+    return ClientUpdateCreateResponse(id=update.id, task_ids=update.task_ids or [])
+
+
 @router.get(
     "/{client_id}/history",
     response_model=ClientHistoryResponse,
@@ -418,12 +467,22 @@ def get_client_history_endpoint(
     from app.core.config import settings
 
     client = _get_client_or_404(db, client_id, current_user)
+    from app.models.client_update import ClientUpdate
+    from app.models.opportunity import Opportunity
+    from app.models.task import Task
+
     changes = db.query(ClientHistory).filter(ClientHistory.client_id == client.id).all()
     emails = db.query(ClientEmail).filter(ClientEmail.client_id == client.id).all()
+    meetings = db.query(ClientUpdate).filter(ClientUpdate.client_id == client.id).all()
+    tasks = {t.id: t for t in db.query(Task).filter(
+        Task.id.in_([i for m in meetings for i in (m.task_ids or [])] or [-1]))}
     parsed = [(row, json.loads(row.old_value or "{}"), json.loads(row.new_value or "{}")) for row in changes]
     ids = lambda key: [d.get(key) for _, old, new in parsed for d in (old, new)]
     users = _user_name_map(db, [r.changed_by for r in changes] + [e.sent_by_user_id for e in emails]
+                           + [m.created_by for m in meetings] + [t.assigned_to_user_id for t in tasks.values()]
                            + ids("account_manager_user_id") + ids("client_owner_user_id"))
+    opportunities = {o.id: o for o in db.query(Opportunity).filter(
+        Opportunity.id.in_([m.opportunity_id for m in meetings if m.opportunity_id] or ["-"]))}
     names = {
         "account_manager_user_id": users, "client_owner_user_id": users,
         "account_manager_employee_id": _employee_name_map(db, ids("account_manager_employee_id")),
@@ -441,6 +500,11 @@ def get_client_history_endpoint(
                            from_address=e.from_address, to_addresses=e.to_addresses, cc_addresses=e.cc_addresses,
                            snippet=e.snippet)
         for e in emails
+    ] + [
+        ClientHistoryEntry(kind="UPDATE", at=datetime.combine(m.meeting_date, datetime.min.time()),
+                           by=users.get(m.created_by) or m.created_by, title="Meeting update",
+                           lines=_meeting_lines(m, tasks, users, opportunities))
+        for m in meetings
     ]
     entries.sort(key=lambda entry: entry.at, reverse=True)
     return ClientHistoryResponse(client_id=client.id, logging_mailbox=settings.THUNDER_MAILBOX, entries=entries)

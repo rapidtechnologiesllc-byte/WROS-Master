@@ -1,6 +1,8 @@
 """Message Handler: thunder_send_email
 
-Sends one cadence step (1-4, NURTURE-*, ACK_*) from the Thunder mailbox.
+Sends one cadence step (1-4, NURTURE-*, ACK_*) from the Thunder mailbox, or one personal
+upcoming-role email (ROLE-<id>, written by role_outreach_service: its own subject and body, no
+template, outside the cadence plan, which it leaves untouched).
 Anything that prevents sending (credentials, permission, send window, caps,
 cooldown) raises DeliveryDeferred: the queue keeps the message PENDING as
 "not sent". Draft-then-send is idempotent across retries: the draft id is
@@ -52,6 +54,12 @@ class ThunderSendEmailHandler:
         now = datetime.utcnow()
         is_ack = step.startswith("ACK_")
         is_details = step.startswith(cadence.DETAILS)
+        from app.services import role_outreach_service as role_mail
+        role_outreach = role_mail.role_outreach_for(db, step)
+        if step.startswith(role_mail.ROLE_STEP_PREFIX) and role_outreach is None:
+            raise ValueError(f"Message {message.id}: no upcoming-role email for step {step}")
+        if role_outreach is not None and role_outreach.status != "QUEUED":
+            return _done("superseded" if role_outreach.status != "SENT" else "already_sent", candidate_id, step)
         logger.info(f"[ThunderSend] handler_start candidate={candidate_id} seq={seq} step={step}")
 
         state = db.query(ThunderCadenceState).filter_by(candidate_id=candidate_id).first()
@@ -60,7 +68,8 @@ class ThunderSendEmailHandler:
             raise ValueError(f"No cadence/candidate for {candidate_id}")
 
         # validation 1: still the planned step (a reply or newer plan supersedes it)
-        if state.stage == "STOPPED" or state.cadence_seq != seq or (not is_ack and state.next_step != step):
+        if state.stage == "STOPPED" or state.cadence_seq != seq or (
+                not is_ack and role_outreach is None and state.next_step != step):
             logger.info(f"[ThunderSend] superseded candidate={candidate_id} step={step} plan={state.next_step}")
             return _done("superseded", candidate_id, step)
 
@@ -70,6 +79,8 @@ class ThunderSendEmailHandler:
         if not is_thunder_enabled(db, candidate.tenant_id):
             raise DeliveryDeferred("Thunder is switched off for this organisation", now + timedelta(hours=1))
         if cadence.email_consent_revoked(db, candidate_id):
+            if role_outreach is not None:
+                role_outreach.status, role_outreach.note = "SKIPPED", "email consent revoked"
             cadence.stop(db, state, candidate, "email consent revoked")
             db.commit()
             return _done("stopped", candidate_id, step, reason="email consent revoked")
@@ -120,7 +131,19 @@ class ThunderSendEmailHandler:
             extra.update(content)
 
         try:
-            if out is None:
+            if role_outreach is not None:
+                variant = None
+                if out is None:
+                    out = ThunderEmailMessage(
+                        id=str(uuid.uuid4()), tenant_id=candidate.tenant_id, candidate_id=candidate_id,
+                        direction="OUT", status="QUEUED", cadence_seq=seq, step=step, variant_id=None,
+                        mailbox=settings.THUNDER_MAILBOX,
+                    )
+                    db.add(out)
+                    db.commit()
+                subject, body = role_outreach.subject, role_outreach.body_html
+                out.subject, out.body_text = subject, cadence.plain_text(body)
+            elif out is None:
                 variant = choose_variant(db, cadence.step_family(step), rng=rng, job_available=job is not None)
                 out = ThunderEmailMessage(
                     id=str(uuid.uuid4()), tenant_id=candidate.tenant_id, candidate_id=candidate_id,
@@ -129,9 +152,10 @@ class ThunderSendEmailHandler:
                 )
                 db.add(out)
                 db.commit()
-            variant = db.query(ThunderOutreachVariant).filter_by(id=out.variant_id).one()
-            subject, body = cadence.render(variant, candidate, job, extra)
-            out.subject, out.body_text = subject, cadence.plain_text(body)
+            if role_outreach is None:
+                variant = db.query(ThunderOutreachVariant).filter_by(id=out.variant_id).one()
+                subject, body = cadence.render(variant, candidate, job, extra)
+                out.subject, out.body_text = subject, cadence.plain_text(body)
         except ValueError:
             db.rollback()
             raise
@@ -139,6 +163,17 @@ class ThunderSendEmailHandler:
             db.rollback()
             raise RuntimeError(f"Could not prepare {step} for {candidate_id}: {exc}") from exc
 
+        return ThunderSendEmailHandler._deliver(db, out, state, candidate, step, subject, body, now, mailbox,
+                                                variant, is_details, missing if is_details else None, role_outreach)
+
+    @staticmethod
+    def _deliver(db: Session, out: ThunderEmailMessage, state: ThunderCadenceState, candidate: Candidate,
+                 step: str, subject: str, body: str, now: datetime, mailbox: Optional[GraphMailbox], variant,
+                 is_details: bool, missing, role_outreach) -> Dict[str, Any]:
+        """Draft (once), send, record and move the plan on. An upcoming-role email leaves the
+        cadence plan as it was and marks its RoleOutreach sent."""
+        candidate_id = candidate.candidateID
+        seq = out.cadence_seq
         mailbox = mailbox or GraphMailbox(settings.THUNDER_MAILBOX)
         if out.graph_message_id is None:
             thread_parent = ThunderSendEmailHandler._thread_parent(db, candidate_id, seq, step)
@@ -157,19 +192,23 @@ class ThunderSendEmailHandler:
         out.status, out.sent_at = "SENT", now
         state.touches_sent += 1
         state.last_outbound_at = now
-        cadence.schedule_after_send(state, step, now)
+        if role_outreach is not None:
+            from app.services.role_outreach_service import mark_sent
+            mark_sent(role_outreach, out.id, now)
+        else:
+            cadence.schedule_after_send(state, step, now)
         if is_details:
             db.flush()  # this reminder counts towards the cap
             cadence.plan_after_engagement(db, state, now, missing)
         db.commit()
         logger.info(
             f"[ThunderSend] handler_complete candidate={candidate_id} step={step} "
-            f"variant={variant.key} next={state.next_step}@{state.next_action_at}"
+            f"variant={variant.key if variant else 'personal'} next={state.next_step}@{state.next_action_at}"
         )
         try:
             from app.services.candidate_activity_service import log_thunder_operation
             log_thunder_operation(db, candidate_id, "MESSAGE_SENT", metadata={
-                "channel": "email", "step": step, "variant": variant.key,
+                "channel": "email", "step": step, "variant": variant.key if variant else "personal",
                 "thunder_message_id": out.id, "mailbox": settings.THUNDER_MAILBOX,
             })
             db.commit()
@@ -177,7 +216,7 @@ class ThunderSendEmailHandler:
             db.rollback()
             logger.warning(f"[ThunderSend] timeline log failed for {candidate_id} (email was sent): {exc}")
 
-        return _done("sent", candidate_id, step, thunder_message_id=out.id, variant=variant.key,
+        return _done("sent", candidate_id, step, thunder_message_id=out.id, variant=variant.key if variant else "personal",
                      message_sent=True, delivery_confirmed=True)
 
     @staticmethod

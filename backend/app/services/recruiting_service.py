@@ -7,7 +7,9 @@ start_recruiting(job, reason)  -> queues
     source_candidates_for_job  ranks the active candidate pool (location + skill recency)
                                and reports the top matches (candidate_sourcing_complete)
 handle_sourcing_complete       -> the report becomes a task for the job's recruiter: the top
-                               matches to screen, or "no viable candidates" to widen the search
+                               matches to screen, or "no viable candidates" to widen the search;
+                               for a job opened from an upcoming role, each new match also gets a
+                               personal email (role_outreach_service)
 Queue ids are unique per run, so a re-run never collides with an earlier one.
 """
 import logging
@@ -68,4 +70,8 @@ def handle_sourcing_complete(message: Any, db: Session) -> Dict[str, Any]:
                        tenant_id=getattr(job, "tenant_id", None), category="RECRUITING",
                        assigned_to_user_id=job.recuriterID or job.hiringManagerID,
                        visibility_scope="ASSIGNEE_MANAGER_DEPARTMENT")
-    return {"status": "success", "job_id": job.jobID, "task_id": task.id, "viable_matches": len(viable)}
+    # A job opened from an upcoming role: Thunder writes to each new match personally (CEO 2026-11-02)
+    from app.services.role_outreach_service import queue_role_outreach
+    emailed = queue_role_outreach(db, job, viable) if viable else 0
+    return {"status": "success", "job_id": job.jobID, "task_id": task.id, "viable_matches": len(viable),
+            "personal_emails_queued": emailed}

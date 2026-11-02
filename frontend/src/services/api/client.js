@@ -92,7 +92,7 @@ const withAuthHeaders = (headers = {}) => {
   // NARROW what the user's role already lets them see (app.core.bu_view); unset = their full scope.
   const activeBuId = localStorage.getItem("hrms_bu_view");
   if (activeBuId) {
-    result["X-Active-BU-Id"] = activeBuId;
+    result["X-BU-View"] = activeBuId;
   }
   return result;
 };

@@ -21,8 +21,8 @@ const formatValue = (value, unit) => {
 
 function TargetCell({ node, metric, onSave }) {
   const cell = node.metrics[metric.key] || {};
-  // A summed row's own typed figure is its plan; the target shown is the sum of the rows below
-  const typed = cell.rolled_up ? cell.plan : cell.target;
+  // A row that adds up the rows below shows only the sum and is not edited (CEO 2026-11-02)
+  const typed = cell.target;
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(typed ?? "");
   const [saving, setSaving] = useState(false);
@@ -71,9 +71,9 @@ function TargetCell({ node, metric, onSave }) {
         <span className={cell.target == null ? "text-gray-400" : "text-gray-700"}>
           {cell.target == null ? "no target" : formatValue(cell.target, metric.unit)}
         </span>
-        {node.editable && (
+        {node.editable && !cell.rolled_up && (
           <button className="ml-1 text-gray-400 hover:text-bx-orange" onClick={() => setEditing(true)}
-            title={cell.rolled_up ? "Set a plan for this row (the target is the sum below)" : "Set target"}>
+            title="Set target">
             <Pencil className="h-3.5 w-3.5" />
           </button>
         )}
@@ -85,14 +85,6 @@ function TargetCell({ node, metric, onSave }) {
       )}
       {cell.rolled_up && (
         <div className="mt-0.5 text-[11px] text-gray-500">sum of rows below</div>
-      )}
-      {cell.plan != null && cell.unassigned !== 0 && (
-        <div className={`text-[11px] ${cell.unassigned < 0 ? "text-rose-600" : "text-amber-700"}`}>
-          plan {formatValue(cell.plan, metric.unit)}:{" "}
-          {cell.unassigned > 0
-            ? `${formatValue(cell.unassigned, metric.unit)} not yet assigned below`
-            : `rows below exceed it by ${formatValue(-cell.unassigned, metric.unit)}`}
-        </div>
       )}
       {cell.companies_total != null && (
         <div className="mt-0.5 text-[11px] text-gray-500">

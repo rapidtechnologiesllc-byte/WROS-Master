@@ -20,7 +20,7 @@ class MyBUAccessResponse(BaseModel):
     access: List[BUAccessItem]
     # org-level users see every business unit, with "All business units" as the default view
     can_view_all_bus: bool
-    # the BU the selector narrows this request to (X-Active-BU-Id), when it is inside the scope
+    # the BU the selector narrows this request to (X-BU-View), when it is inside the scope
     active_business_unit_id: Optional[int] = None
 
 class SwitchBURequest(BaseModel):

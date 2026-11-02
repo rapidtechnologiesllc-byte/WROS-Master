@@ -8,9 +8,7 @@ from app.services.message_handler_registry import MessageHandlerRegistry
 APP_DIR = pathlib.Path(__file__).resolve().parents[1] / "app"
 
 # Producers that can never actually enqueue (dead path or invalid enqueue() kwargs)
-UNREACHABLE = {
-    "create_thunder_outreach": "job_created_orchestrator is never imported",
-}
+UNREACHABLE = {}
 
 
 def _enqueued_task_names():

@@ -30,7 +30,7 @@ import {
   getOpportunityRevenueRollup,
   createRoleDemandFromOpportunity,
   listEligibleOpportunityOwners,
-  listClientOwners,
+  listClientOwners, createUpcomingRole, listUpcomingRoles,
 } from "../services/api/opportunities";
 
 // Stage-based win probability -- mirrors app.services.opportunity_service.
@@ -462,6 +462,137 @@ function OpportunityCard({ opportunity, onMoved, onOpenDetail }) {
 // such view existed anywhere (Kanban cards and list rows were dead
 // ends). Surfaces the revenue rollup (GET .../revenue-rollup) and, once
 // WON, a form to spin up the role demand (POST .../role-demand).
+const OUTREACH_TONE = { SENT: "text-emerald-700", QUEUED: "text-blue-700", SKIPPED: "text-gray-500", FAILED: "text-rose-700" };
+const emptyRole = {
+  title: "", description: "", skills: "", client_description: "", positions: "1", work_location: "REMOTE",
+  location: "", employment_type: "FULLTIME", min_experience_years: "", target_start: "", likelihood_pct: "",
+  auto_outreach: true,
+};
+
+// Roles the client is about to need, raised before the contract (CEO 2026-11-02: hiring takes 60-90
+// days). Saving one opens a potential job and starts recruiting at once; Thunder writes to each
+// matched candidate personally and never names the client.
+function UpcomingRolesSection({ opportunityId }) {
+  const [roles, setRoles] = useState(null);
+  const [error, setError] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState(emptyRole);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+  const set = (field) => (value) => setForm((f) => ({ ...f, [field]: value }));
+
+  useEffect(() => {
+    let cancelled = false;
+    listUpcomingRoles(opportunityId)
+      .then((data) => { if (!cancelled) setRoles(data.roles || []); })
+      .catch((err) => {
+        console.error("[UpcomingRoles] Failed to load upcoming roles:", err);
+        if (!cancelled) setError(`Could not load upcoming roles: ${err.message}`);
+      });
+    return () => { cancelled = true; };
+  }, [opportunityId]);
+
+  const save = async () => {
+    setFormError("");
+    const skills = form.skills.split(",").map((s) => s.trim()).filter(Boolean);
+    if (!form.title.trim() || !form.description.trim() || !skills.length || !form.client_description.trim()) {
+      setFormError("Role, what the work is, skills and how candidates hear the client described are required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const data = await createUpcomingRole(opportunityId, {
+        title: form.title, description: form.description, skills, client_description: form.client_description,
+        positions: parseInt(form.positions || "1", 10), work_location: form.work_location, location: form.location,
+        employment_type: form.employment_type,
+        min_experience_years: form.min_experience_years === "" ? null : parseFloat(form.min_experience_years),
+        target_start: form.target_start || null,
+        likelihood_pct: form.likelihood_pct === "" ? null : parseInt(form.likelihood_pct, 10),
+        auto_outreach: form.auto_outreach,
+      });
+      setRoles(data.roles || []);
+      setForm(emptyRole);
+      setAdding(false);
+    } catch (err) {
+      setFormError(err.message || "Could not save the role.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-4">
+      <div className="mb-1 flex items-center justify-between">
+        <div className="text-xs font-semibold uppercase text-gray-500">Upcoming roles</div>
+        {!adding ? <Button variant="ghost" onClick={() => setAdding(true)}><Plus className="h-4 w-4" /> Add role</Button> : null}
+      </div>
+      <div className="mb-2 text-[11px] text-gray-500">
+        Roles the client is about to need. Saving one opens the job now and starts recruiting; matched
+        candidates get a personal email that never names the client.
+      </div>
+      {error ? <div className="text-xs text-rose-700">{error}</div> : null}
+      {adding ? (
+        <div className="mb-3 space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
+          {formError ? <div className="text-xs text-rose-700">{formError}</div> : null}
+          <Input label="Role" value={form.title} onChange={set("title")} placeholder="BillingCenter Developer" />
+          <Input label="What the work is" value={form.description} onChange={set("description")}
+            placeholder="Configure and extend BillingCenter for an inception" />
+          <Input label="Skills (comma separated)" value={form.skills} onChange={set("skills")}
+            placeholder="Guidewire BillingCenter, Gosu" />
+          <Input label="How candidates hear the client described" value={form.client_description}
+            onChange={set("client_description")} placeholder="a mid-size P&C carrier" />
+          <div className="grid grid-cols-2 gap-2">
+            <Input label="Positions" type="number" value={form.positions} onChange={set("positions")} />
+            <Input label="Min experience (yrs)" type="number" value={form.min_experience_years} onChange={set("min_experience_years")} />
+            <Select label="Work location" value={form.work_location} onChange={set("work_location")} options={["REMOTE", "HYBRID", "ONSITE"]} />
+            <Input label="Location" value={form.location} onChange={set("location")} placeholder="needed unless remote" />
+            <Select label="Employment" value={form.employment_type} onChange={set("employment_type")} options={["FULLTIME", "CONTRACT"]} />
+            <Input label="Expected start" type="date" value={form.target_start} onChange={set("target_start")} />
+            <Input label="Likelihood (%)" type="number" value={form.likelihood_pct} onChange={set("likelihood_pct")} />
+          </div>
+          <label className="flex items-center gap-2 text-xs text-gray-700">
+            <input type="checkbox" checked={form.auto_outreach}
+              onChange={(e) => set("auto_outreach")(e.target.checked)} />
+            Email matched candidates automatically
+          </label>
+          <div className="flex gap-2">
+            <Button onClick={save} disabled={saving}>{saving ? "Opening the job…" : "Save and start recruiting"}</Button>
+            <Button variant="ghost" onClick={() => { setAdding(false); setFormError(""); }} disabled={saving}>Cancel</Button>
+          </div>
+        </div>
+      ) : null}
+      {roles === null && !error ? <div className="text-xs text-gray-500">Loading…</div> : null}
+      {roles && roles.length === 0 && !adding ? <div className="text-xs text-gray-400">No upcoming roles yet.</div> : null}
+      <div className="space-y-2">
+        {(roles || []).map((role) => (
+          <div key={role.job_id} className="rounded-xl border bg-white p-3 text-xs text-gray-700">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="font-semibold text-gray-900">{role.title} × {role.positions}</span>
+              <span className="text-gray-500">{role.confirmation_status === "POTENTIAL" ? "Potential" : "Confirmed"}{role.likelihood_pct != null ? ` · ${role.likelihood_pct}%` : ""}</span>
+            </div>
+            <div className="mt-0.5 text-gray-500">
+              {role.skills.join(", ")}{role.target_start ? ` · start ${role.target_start}` : ""} · shown as "{role.client_description}"
+            </div>
+            <div className="mt-1">
+              {role.outreach.length === 0
+                ? (role.auto_outreach ? "Ranking candidates; personal emails go out as matches are found." : "Automatic emails are off.")
+                : `${role.outreach.filter((o) => o.status === "SENT").length} emailed, ${role.outreach.filter((o) => o.status === "QUEUED").length} queued, ${role.outreach.filter((o) => o.status === "SKIPPED").length} skipped`}
+            </div>
+            {role.outreach.slice(0, 8).map((o) => (
+              <div key={o.candidate_id} className="mt-1 border-t pt-1">
+                <span className="font-medium text-gray-900">{o.candidate_name}</span>{" "}
+                <span className={OUTREACH_TONE[o.status] || "text-gray-500"}>{o.status.toLowerCase()}</span>
+                {o.why_fit ? <span className="text-gray-500"> · {o.why_fit}</span> : null}
+                {o.note ? <span className="text-gray-400"> · {o.note}</span> : null}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function OpportunityDetailPanel({ opportunity, onClose, onRoleDemandCreated }) {
   const { won } = useStageRules();
   const [rollup, setRollup] = useState(null);
@@ -602,6 +733,8 @@ function OpportunityDetailPanel({ opportunity, onClose, onRoleDemandCreated }) {
             </div>
           )}
         </div>
+
+        {opportunity.stage !== "LOST" ? <UpcomingRolesSection opportunityId={opportunity.id} /> : null}
 
         {won.includes(opportunity.stage) ? (
           <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">

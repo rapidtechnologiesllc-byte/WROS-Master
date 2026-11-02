@@ -10,7 +10,7 @@ GET  /bu-context/my-access -- the BUs the user may look at, straight from their 
                               partner / BU head / member -> their BUs, with how they relate.
 POST /bu-context/switch    -- checks a choice is inside that scope before the browser sends it.
 
-The browser sends the choice as X-Active-BU-Id; app.core.bu_view keeps it for the request and
+The browser sends the choice as X-BU-View; app.core.bu_view keeps it for the request and
 visibility.get_user_bu_ids narrows every screen to it. It can only narrow, never widen.
 """
 from fastapi import APIRouter, Depends, HTTPException
