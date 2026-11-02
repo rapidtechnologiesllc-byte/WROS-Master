@@ -571,3 +571,16 @@ def test_without_the_llm_a_forward_from_a_client_contact_goes_on_the_client(db, 
     assert result["status"] == "processed" and result["client_ids"] == [client.id]
     logged = db.query(ClientEmail).filter_by(client_id=client.id).one()
     assert logged.direction == "IN" and logged.sent_by_user_id == ceo.UserID
+
+
+def test_a_reply_about_a_role_from_a_known_candidate_is_filed_on_them_not_left_as_a_job(db, ceo):
+    """Job words ('Director | Technical Client Partner') in a known candidate's thread: their profile."""
+    existing = Candidate(tenant_id=1, candidateID=f"CAN-{uid()}", candidateEmail=f"joss{uid()}@example.com",
+                         candidatePassword="h", candidateFirstName="Joss", candidateLastName="S")
+    db.add(existing)
+    db.commit()
+    body = forwarded_body("FYI", "Joss S", existing.candidateEmail,
+                          "Thanks for the details on the Director | Technical Client Partner role and job description.")
+    row, mailbox = received_forward(db, ceo, body, subject="Fwd: Re: Director | Technical Client Partner | BlitzenX")
+    result, _ = run_handler(db, row.id, mailbox)
+    assert result["status"] == "processed" and result["candidate_id"] == existing.candidateID
