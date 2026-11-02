@@ -348,3 +348,25 @@ def get_brains() -> Brains:
         small = SmallBrain(base_url=settings.FLASH_SMALL_LLM_BASE_URL, model=settings.FLASH_SMALL_LLM_MODEL,
                            timeout_s=settings.FLASH_SMALL_LLM_TIMEOUT_S)
     return Brains(small=small, large=large, small_offline_reason=small_reason, large_offline_reason=large_reason)
+
+
+TEXT_SCHEMA = {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"],
+               "additionalProperties": False}
+
+
+def claude_text(*, purpose: str, prompt: str, tenant_id) -> str:
+    """One answer from Claude for callers built around a "prompt in, text out" model (the desire
+    intelligence narrative and signals were written for Gemini). Raises BrainUnavailable when no
+    Claude is configured or it gives no usable answer; input is redacted like every LargeBrain call."""
+    large = get_brains().large
+    if large is None:
+        raise BrainUnavailable("No Claude model is configured (ANTHROPIC_API_KEY / FLASH_LARGE_LLM_MODEL)")
+    data = large.extract_json(purpose=purpose, system="Answer the request. Put your whole answer in the text field.",
+                              user=prompt, schema=TEXT_SCHEMA, tenant_id=tenant_id)
+    return data["text"].strip()
+
+
+def gemini_configured() -> bool:
+    import os
+    key = os.getenv("GEMINI_API_KEY", "").strip()
+    return bool(key) and not key.lower().startswith(("your_", "changeme"))

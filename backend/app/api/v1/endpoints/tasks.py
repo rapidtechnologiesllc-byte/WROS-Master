@@ -40,6 +40,7 @@ from app.services.task_service import (
     list_candidate_tasks, stop_repeating,
 )
 
+from app.schemas.task import TaskReplyApproveRequest  # noqa: E402
 from app.services.task_related_service import annotate_related  # noqa: E402
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -79,6 +80,76 @@ def my_day_upcoming(current_user: Users = Depends(get_current_internal_user), db
 )
 def my_day_scheduled(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     return annotate_related(db, get_scheduled_tasks(db, assigned_to_user_id=current_user.UserID))
+
+def _open_draft(db: Session, task):
+    from app.models.reply_draft import ReplyDraft
+    return (db.query(ReplyDraft).filter(ReplyDraft.task_id == task.id, ReplyDraft.status == "DRAFT")
+            .order_by(ReplyDraft.id.desc()).first())
+
+
+def _draft_response(db: Session, draft):
+    from app.models.thunder_email import ThunderEmailMessage
+    from app.schemas.task import TaskReplyDraftResponse
+    from app.services.reply_draft_service import draft_text
+    from app.services.thunder_mail.reply_classifier import candidate_words
+
+    their = db.query(ThunderEmailMessage).filter(ThunderEmailMessage.id == draft.in_message_id).first()
+    return TaskReplyDraftResponse(id=draft.id, status=draft.status, subject=draft.subject, text=draft_text(draft),
+                                  composed_by=draft.composed_by, intent=draft.intent, candidate_id=draft.candidate_id,
+                                  their_email=candidate_words(their.body_text or "") if their else None)
+
+
+@router.get(
+    "/{task_id}/reply-draft",
+    dependencies=[Depends(require_resource_permission("my-tasks", "view"))]
+)
+def get_task_reply_draft(task_id: int, current_user: Users = Depends(get_current_internal_user),
+                         db: Session = Depends(get_db)):
+    """The drafted answer waiting for approval on this task, or null."""
+    task = _get_task_or_404(db, task_id, current_user)
+    draft = _open_draft(db, task)
+    return _draft_response(db, draft) if draft is not None else None
+
+
+@router.post(
+    "/{task_id}/reply-draft/approve",
+    dependencies=[Depends(require_resource_permission("candidates", "edit"))]
+)
+def approve_task_reply_draft(task_id: int, body: TaskReplyApproveRequest,
+                             current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
+    """Send the drafted (or edited) reply through Thunder; the task closes when it is sent."""
+    from app.services.reply_draft_service import ReplyDraftError, approve_draft
+
+    task = _get_task_or_404(db, task_id, current_user)
+    draft = _open_draft(db, task)
+    if draft is None:
+        raise HTTPException(status_code=404, detail="There is no drafted reply waiting on this task.")
+    try:
+        approve_draft(db, draft, current_user, body.text)
+    except ReplyDraftError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _draft_response(db, draft)
+
+
+@router.post(
+    "/{task_id}/reply-draft/discard",
+    dependencies=[Depends(require_resource_permission("my-tasks", "edit"))]
+)
+def discard_task_reply_draft(task_id: int, current_user: Users = Depends(get_current_internal_user),
+                             db: Session = Depends(get_db)):
+    from app.services.reply_draft_service import ReplyDraftError, discard_draft
+
+    task = _get_task_or_404(db, task_id, current_user)
+    draft = _open_draft(db, task)
+    if draft is None:
+        raise HTTPException(status_code=404, detail="There is no drafted reply waiting on this task.")
+    try:
+        discard_draft(db, draft, current_user)
+    except ReplyDraftError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _draft_response(db, draft)
+
 
 @router.get(
     "/update-options",

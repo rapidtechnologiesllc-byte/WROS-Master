@@ -80,3 +80,19 @@ class TaskUpdateRequest(BaseModel):
     next_action_due: Optional[datetime] = None
     next_action_note: Optional[str] = None
     complete_task: bool = False
+
+
+class TaskReplyDraftResponse(BaseModel):
+    """The reply the system drafted for this task's candidate email, for a person to approve."""
+    id: int
+    status: str
+    subject: str
+    text: str              # the editable paragraphs (greeting, sign-off and footer are added on send)
+    composed_by: str       # "claude" / "rules"
+    intent: Optional[str] = None
+    their_email: Optional[str] = None  # the candidate's email it answers
+    candidate_id: str
+
+
+class TaskReplyApproveRequest(BaseModel):
+    text: Optional[str] = None  # edited text; omitted = send the draft as written

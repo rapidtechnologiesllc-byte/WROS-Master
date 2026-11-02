@@ -72,3 +72,23 @@ export const stopRepeatingTask = async (taskId) => {
   const { data } = await apiRequest(`/tasks/${taskId}/stop-repeating`, { method: "POST" });
   return data;
 };
+
+// The reply the system drafted for a task's candidate email (null when there is none)
+export const getTaskReplyDraft = async (taskId) => {
+  const { data } = await apiRequest(`/tasks/${taskId}/reply-draft`, { method: "GET" });
+  return data;
+};
+
+// Send the drafted reply (edited text optional); the task closes once Thunder has sent it
+export const approveTaskReplyDraft = async (taskId, text) => {
+  const { data } = await apiRequest(`/tasks/${taskId}/reply-draft/approve`, {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
+  return data;
+};
+
+export const discardTaskReplyDraft = async (taskId) => {
+  const { data } = await apiRequest(`/tasks/${taskId}/reply-draft/discard`, { method: "POST" });
+  return data;
+};
