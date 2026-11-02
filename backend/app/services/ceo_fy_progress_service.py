@@ -41,18 +41,13 @@ def billable_employee_ids():
 
 
 def get_fy_targets(db: Session, fy_year: Optional[int] = None, tenant_id: Optional[int] = None) -> dict:
-    """{metric_key: {"target": float|None}} -- the ORG-level rows of the goal tree."""
-    from app.models.strategic_goal import GoalTarget
-
+    """{metric_key: {"target": float|None}} -- the Organization row of the goal tree, rolled up
+    from companies / partners / BUs where they have targets (goal_tree_service.rolled_up_targets)."""
     from app.services.fiscal_year_service import current_fy
+    from app.services.goal_tree_service import ORG_ENTITY, rolled_up_targets
     fy_year = fy_year or current_fy(db, tenant_id)
-    query = db.query(GoalTarget).filter(
-        GoalTarget.year == fy_year, GoalTarget.level == "ORG", GoalTarget.metric.in_(list(FY_METRICS)),
-    )
-    if tenant_id is not None:
-        query = query.filter(GoalTarget.tenant_id == tenant_id)
-    found = {row.metric: row.target for row in query.all()}
-    return {key: {"target": found.get(key)} for key in FY_METRICS}
+    effective, _rolled = rolled_up_targets(db, tenant_id, fy_year)
+    return {key: {"target": effective.get(("ORG", ORG_ENTITY, key))} for key in FY_METRICS}
 
 
 def _metric(key: str, current, target, fy_progress_pct: float, *, higher_is_better_absolute: bool = False) -> dict:

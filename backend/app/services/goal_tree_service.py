@@ -56,14 +56,65 @@ ORG_ENTITY = "org"
 UNASSIGNED = "unassigned"
 # Metrics that add up across the tree (rates like margin % don't)
 TREE_METRICS = ("revenue", "headcount", "new_logos")
+# Summed up to the company but not into the Organization (intercompany would double count)
+ORG_TYPED_METRICS = ("revenue",)
 REVENUE_STATUSES = ("APPROVED", "SENT", "PAID")
 
 CellKey = Tuple[str, Optional[int]]  # (company_id or UNASSIGNED, bu_id)
 
 
-def _targets(db: Session, tenant_id: int, year: int) -> Dict[tuple, float]:
-    rows = db.query(GoalTarget).filter(GoalTarget.tenant_id == tenant_id, GoalTarget.year == year).all()
-    return {(r.level, r.entity_id, r.metric): r.target for r in rows}
+def _targets(db: Session, tenant_id: Optional[int], year: int) -> Dict[tuple, float]:
+    query = db.query(GoalTarget).filter(GoalTarget.year == year)
+    if tenant_id is not None:
+        query = query.filter(GoalTarget.tenant_id == tenant_id)
+    return {(r.level, r.entity_id, r.metric): r.target for r in query.all()}
+
+
+def rolled_up_targets(db: Session, tenant_id: int, year: int) -> Tuple[Dict[tuple, float], set]:
+    """The targets that count, (level, entity_id, metric) -> target, and the keys that are sums.
+
+    Roll-up (CEO 2026-11-02): for the metrics that add up (TREE_METRICS), a row whose children
+    have targets is the sum of those children -- BU -> partner (within a company) -> company ->
+    organization. A row whose children have none keeps the target typed on it. A typed target on
+    a row that now sums is kept as that row's plan (the tree shows what is not yet assigned
+    below); it is never the number tracked. Rate metrics are org-only and never roll up.
+
+    Revenue stops at the company: a company's revenue includes intercompany billing (BX-IN
+    subcontracting to BX-US), so adding companies together would count those dollars twice.
+    The Organization revenue target is external (client) revenue and stays as typed.
+    tenant_id None reads every tenant's rows (single-tenant callers)."""
+    stored = _targets(db, tenant_id, year)
+    bu_query = db.query(BusinessUnit)
+    if tenant_id is not None:
+        bu_query = bu_query.filter(BusinessUnit.tenant_id == tenant_id)
+    bu_partner = {b.id: b.partner_user_id or UNASSIGNED for b in bu_query.all()}
+    effective = dict(stored)
+    rolled = set()
+
+    def roll(level: str, sums: Dict[str, float], metric: str) -> None:
+        for entity, total in sums.items():
+            effective[(level, entity, metric)] = total
+            rolled.add((level, entity, metric))
+
+    for m in TREE_METRICS:
+        partner_sums: Dict[str, float] = defaultdict(float)
+        for (level, entity, metric), target in stored.items():
+            if level == "BU" and metric == m:
+                company_id, _, bu_id = entity.partition(":")
+                if bu_id.isdigit() and int(bu_id) in bu_partner:
+                    partner_sums[f"{company_id}:{bu_partner[int(bu_id)]}"] += target
+        roll("PARTNER", partner_sums, m)
+
+        company_sums: Dict[str, float] = defaultdict(float)
+        for (level, entity, metric), target in list(effective.items()):
+            if level == "PARTNER" and metric == m:
+                company_sums[entity.partition(":")[0]] += target
+        roll("LOCATION", company_sums, m)
+
+        companies = [t for (level, _, metric), t in effective.items() if level == "LOCATION" and metric == m]
+        if companies and m not in ORG_TYPED_METRICS:
+            roll("ORG", {ORG_ENTITY: sum(companies)}, m)
+    return effective, rolled
 
 
 def company_bu_actuals(db: Session, tenant_id: int, year: int) -> Tuple[Dict[CellKey, Dict[str, float]], float]:
@@ -112,16 +163,21 @@ def company_bu_actuals(db: Session, tenant_id: int, year: int) -> Tuple[Dict[Cel
     return actuals, intercompany
 
 
-def _metric_cells(level: str, entity_id: str, metrics, targets, actuals, children: Optional[List[dict]] = None) -> dict:
+def _metric_cells(level: str, entity_id: str, metrics, targets, actuals, rollup=None) -> dict:
+    """targets = the stored rows; rollup = rolled_up_targets() -- (effective, rolled keys).
+    A summed cell carries rolled_up, and plan / unassigned when a target was also typed on it."""
+    effective, rolled = rollup if rollup else (targets, set())
     cells = {}
     for m in metrics:
-        target = targets.get((level, entity_id, m))
-        cell = {"target": target, "actual": actuals.get(m, 0)}
+        key = (level, entity_id, m)
+        target = effective.get(key)
+        cell = {"target": target, "actual": actuals.get(m, 0), "rolled_up": key in rolled}
         if target:
             cell["progress_pct"] = round(cell["actual"] / target * 100, 1)
-        if children is not None and m in TREE_METRICS:
-            allocated = [c["metrics"][m]["target"] for c in children if c["metrics"][m]["target"]]
-            cell["allocated"] = sum(allocated) if allocated else None
+        plan = targets.get(key)
+        if cell["rolled_up"] and plan is not None:
+            cell["plan"] = plan
+            cell["unassigned"] = plan - target
         cells[m] = cell
     return cells
 
@@ -135,6 +191,7 @@ def build_company_tree(db: Session, tenant_id: int, year: int, partner_user_id: 
     """Company -> Partner -> BU nodes. partner_user_id / bu_ids narrow the
     tree to one partner's or some BUs' slice (Partner / BU Head dashboards)."""
     targets = _targets(db, tenant_id, year)
+    rollup = rolled_up_targets(db, tenant_id, year)
     actuals, intercompany = company_bu_actuals(db, tenant_id, year)
     companies = {l.id: l for l in db.query(Location).filter(Location.tenant_id == tenant_id).order_by(Location.name).all()}
     bus = {b.id: b for b in db.query(BusinessUnit).filter(BusinessUnit.tenant_id == tenant_id).all()}
@@ -184,7 +241,7 @@ def build_company_tree(db: Session, tenant_id: int, year: int, partner_user_id: 
                     "name": bus[bu_id].display_name or bus[bu_id].name,
                     "head": heads.get((company_id, bu_id)),
                     "editable": company_id != UNASSIGNED,
-                    "metrics": _metric_cells("BU", entity, TREE_METRICS, targets, actuals.get((company_id, bu_id), {})),
+                    "metrics": _metric_cells("BU", entity, TREE_METRICS, targets, actuals.get((company_id, bu_id), {}), rollup),
                 })
             entity = f"{company_id}:{pid}"
             partner = partner_users.get(pid)
@@ -192,7 +249,7 @@ def build_company_tree(db: Session, tenant_id: int, year: int, partner_user_id: 
                 "level": "PARTNER", "entity_id": entity, "partner_user_id": None if pid == UNASSIGNED else pid,
                 "name": (partner.UserName or partner.UserEmail) if partner else "No partner assigned",
                 "editable": company_id != UNASSIGNED and partner is not None,
-                "metrics": _metric_cells("PARTNER", entity, TREE_METRICS, targets, _sum(bu_list), bu_list),
+                "metrics": _metric_cells("PARTNER", entity, TREE_METRICS, targets, _sum(bu_list), rollup),
                 "children": bu_list,
             })
         company = companies.get(company_id)
@@ -200,7 +257,7 @@ def build_company_tree(db: Session, tenant_id: int, year: int, partner_user_id: 
             "level": "LOCATION", "entity_id": company_id,
             "name": company.name if company else "No company assigned",
             "editable": company is not None,
-            "metrics": _metric_cells("LOCATION", company_id, TREE_METRICS, targets, _sum(partner_list), partner_list),
+            "metrics": _metric_cells("LOCATION", company_id, TREE_METRICS, targets, _sum(partner_list), rollup),
             "children": partner_list,
         })
 
@@ -233,11 +290,16 @@ def get_goal_tree(db: Session, tenant_id: int, year: Optional[int] = None,
     org_actuals = {m["key"]: m["current"] for m in progress["metrics"]}
     org = {
         "level": "ORG", "entity_id": ORG_ENTITY, "name": "Organization", "editable": bu_ids is None,
-        "metrics": _metric_cells("ORG", ORG_ENTITY, list(FY_METRICS), targets, org_actuals, company_nodes),
+        "metrics": _metric_cells("ORG", ORG_ENTITY, list(FY_METRICS), targets, org_actuals,
+                                 rolled_up_targets(db, tenant_id, year)),
         "children": company_nodes,
     }
     for key, m in ((m["key"], m) for m in progress["metrics"]):
         org["metrics"][key]["status"] = m["status"]
+    for m in ORG_TYPED_METRICS:
+        # what the companies add up to, shown beside the typed org figure (includes intercompany)
+        below = [c["metrics"][m]["target"] for c in company_nodes if c["metrics"][m]["target"]]
+        org["metrics"][m]["companies_total"] = sum(below) if below else None
 
     info = fy_info(db, year, tenant_id)
     return {

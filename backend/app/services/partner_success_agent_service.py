@@ -61,11 +61,11 @@ def _partner_and_target(db: Session, tenant_id: int, partner_user_id: str):
     """(partner user, annual revenue target in USD cents, FY start date, FY end date).
 
     The partner must partner at least one business unit. The target is the partner's FY
-    revenue target on the Goals screen (PARTNER rows, one per company), else the sum of
-    their BUs' targets there. No target set -> ValueError: coaching against an invented
-    number would be worse than none."""
-    from app.models.strategic_goal import GoalTarget
+    revenue target on the Goals screen, summed over companies, where each company's figure
+    is the sum of their BUs' targets there (or the partner row as typed when no BU has one).
+    No target set -> ValueError: coaching against an invented number would be worse than none."""
     from app.services.fiscal_year_service import current_fy, fy_window
+    from app.services.goal_tree_service import rolled_up_targets
 
     partner = db.query(Users).filter(Users.UserID == partner_user_id, Users.tenant_id == tenant_id).first()
     bu_ids = partner_bu_ids(db, partner_user_id) if partner else []
@@ -73,13 +73,9 @@ def _partner_and_target(db: Session, tenant_id: int, partner_user_id: str):
         raise ValueError(f"User {partner_user_id} is not the partner of any business unit")
 
     fy = current_fy(db, tenant_id)
-    rows = db.query(GoalTarget).filter(GoalTarget.tenant_id == tenant_id, GoalTarget.year == fy,
-                                       GoalTarget.metric == "revenue")
-    partner_rows = [r for r in rows.filter(GoalTarget.level == "PARTNER")
-                    if r.entity_id.partition(":")[2] == partner_user_id]
-    bu_rows = [r for r in rows.filter(GoalTarget.level == "BU")
-               if r.entity_id.partition(":")[2] in {str(i) for i in bu_ids}]
-    target_usd = sum(r.target for r in partner_rows) or sum(r.target for r in bu_rows)
+    effective, _rolled = rolled_up_targets(db, tenant_id, fy)
+    target_usd = sum(t for (level, entity, metric), t in effective.items()
+                     if level == "PARTNER" and metric == "revenue" and entity.partition(":")[2] == partner_user_id)
     if not target_usd:
         raise ValueError(f"No FY{fy} revenue target is set for {partner.UserName} on the Goals screen")
     start, end = fy_window(db, fy, tenant_id)
