@@ -377,6 +377,11 @@ class Settings:
     # renewal owner gets an alert task (comma list, e.g. "60,30,15"); how long that task runs; and
     # how far ahead the Renewals tab looks by default
     RENEWAL_ALERT_DAYS: str = os.getenv("RENEWAL_ALERT_DAYS", "60,30,15")
+    # Certificate expiry (certification_expiry_monitor): alert the employee and their manager this many
+    # days before a certificate expires (0 = on the day), and still report certificates expired up to
+    # CERT_EXPIRY_LOOKBACK_DAYS ago; older lapses are left alone
+    CERT_EXPIRY_ALERT_DAYS: str = os.getenv("CERT_EXPIRY_ALERT_DAYS", "180,90,30,0")
+    CERT_EXPIRY_LOOKBACK_DAYS: int = int(os.getenv("CERT_EXPIRY_LOOKBACK_DAYS", "90"))
     RENEWAL_TASK_DUE_DAYS: int = int(os.getenv("RENEWAL_TASK_DUE_DAYS", "7"))
     RENEWAL_LIST_DAYS: int = int(os.getenv("RENEWAL_LIST_DAYS", "90"))
     # Margin floor approvals (rate card, CEO 2026-10-23): how long the approver's task runs
@@ -422,7 +427,7 @@ class Settings:
         "timesheet_draft_creation,timesheet_reminders,ar_follow_up,expire_bu_ownerships,"
         "daily_revenue_scan,engagement_metrics,birthday_drafts,hiring_pipeline_sweep,client_start_date,auto_invoicing,"
         "utilization_snapshot,renewal_alerts,po_expiry_alerts,performance_reviews,task_due_reminders,"
-        "notification_release",
+        "notification_release,certification_expiry",
     )
     SCHEDULED_JOB_LEASE_GRACE_SECONDS: int = int(os.getenv("SCHEDULED_JOB_LEASE_GRACE_SECONDS", "120"))
 

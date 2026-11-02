@@ -6,12 +6,13 @@ License/Certification # | Expiry Date) is read from the email's HTML. Each row i
 employee by name (first and last name; middle names ignored) and recorded as that employee's
 certificate (employee_certification_service's one record of who holds what): the expiry date and
 certificate number are set, the catalog entry is created when the name is new. A renewal task goes
-to the employee's reporting manager (else whoever forwarded the alert), due a set time before expiry.
+to the employee's reporting manager (else whoever forwarded the alert), the same open task the daily
+expiry monitor (certification_expiry_monitor) uses, so the two never duplicate it.
 Rows that match no employee are listed on one task for the forwarder; nothing is dropped.
 """
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 from html.parser import HTMLParser
 from typing import Dict, List, Optional
 
@@ -27,7 +28,6 @@ logger = logging.getLogger(__name__)
 ALERT_PATTERN = re.compile(r"expiring licen[cs]es and certifications|licen[cs]es/certifications that are "
                            r"(already )?expired", re.I)
 DATE_PATTERN = re.compile(r"^\s*(\d{1,2})/(\d{1,2})/(\d{4})\s*$")
-RENEW_DAYS_BEFORE = 60  # the renewal task is due this long before the certificate expires
 
 
 def is_certification_alert(subject: str, text: str) -> bool:
@@ -114,6 +114,7 @@ def record_alert(db: Session, rows: List[Dict], *, tenant_id: Optional[int], for
                  received: Optional[datetime]) -> Dict:
     """Record each row on its employee and plan the renewal; list unmatched rows. Commits."""
     from app.services.activity_timeline_service import write_timeline_entry
+    from app.services.certification_expiry_monitor import renewal_task
     from app.services.task_service import create_task
 
     now = datetime.utcnow()
@@ -138,15 +139,9 @@ def record_alert(db: Session, rows: List[Dict], *, tenant_id: Optional[int], for
                              description=f"{item['certification']} expires {item['expires']:%d %b %Y}"
                                          + (f" (certificate {item['number']})" if item["number"] else "")
                                          + " -- from a certification-expiry alert.")
-        owner = employee.reporting_manager_user_id or forwarder.UserID
-        task = create_task(db, title=f"Renew {item['certification']} for {name} (expires {item['expires']:%d %b %Y})"[:255],
-                           description=f"{name}'s {item['certification']} expires on {item['expires']:%d %b %Y}."
-                                       + (f" Certificate {item['number']}." if item["number"] else "")
-                                       + " Arrange the renewal, then update the certificate on their profile.",
-                           priority="HIGH" if item["expires"] - now < timedelta(days=RENEW_DAYS_BEFORE) else "MEDIUM",
-                           tenant_id=tenant_id, assigned_to_user_id=owner, created_by_user_id=forwarder.UserID,
-                           due_date=max(now, item["expires"] - timedelta(days=RENEW_DAYS_BEFORE)),
-                           category="CERTIFICATION", link=f"/employees/{employee.id}")
+        task = renewal_task(db, employee, item["certification"], item["expires"], item["number"],
+                            tenant_id=tenant_id, owner_id=employee.reporting_manager_user_id or forwarder.UserID,
+                            created_by=forwarder.UserID)
         recorded.append({"employee_id": employee.id, "certification": item["certification"],
                          "expires": item["expires"].date().isoformat()})
         task_ids.append(task.id)
