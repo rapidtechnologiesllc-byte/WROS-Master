@@ -36,6 +36,10 @@ from app.middleware.auth_middleware import AuthenticationMiddleware
 # Add in REVERSE order: CORS last (runs first), Logging first (runs last)
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(AuthenticationMiddleware)
+# The top-bar business unit selector (X-Active-BU-Id) narrows what this request shows
+from app.core.bu_view import ActiveBUMiddleware
+
+app.add_middleware(ActiveBUMiddleware)
 setup_cors(app)  # Add CORS LAST so it runs FIRST
 # Compress JSON / text responses over GZIP_MIN_BYTES: list endpoints shrink ~5-10x on the wire.
 # Outermost, so it sees the final body (CORS and logging headers included).
