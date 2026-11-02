@@ -312,3 +312,20 @@ export const getFlashAnalysisForInterview = async (interviewId) => {
     return null;
   }
 };
+
+// Choices for the Log Interview form: interview types, meeting platforms, the recommendation scale
+export const getInterviewLogOptions = async () => {
+  const { data } = await apiRequest("/interviews/log-options", { method: "GET" });
+  return data;
+};
+
+// Record an interview that already happened (multipart: the form fields and an optional .docx transcript)
+export const logCompletedInterview = async (formData) => {
+  const { data } = await apiRequest("/interviews/log-completed", { method: "POST", body: formData });
+  return data;
+};
+
+export const getInterviewTranscript = async (interviewId) => {
+  const { data } = await apiRequest(`/interviews/${interviewId}/transcript`, { method: "GET" });
+  return data;
+};

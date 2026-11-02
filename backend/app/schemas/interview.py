@@ -159,6 +159,13 @@ class InterviewDetailedResponse(BaseModel):
     status: str
     feedback_count: int
     feedback_status: Optional[str] = None # pending, completed, cancelled
+    # a logged (after the fact) interview: how it was held, its summary, whether a transcript is
+    # attached, Claude's suggestion, and whether the candidate's 5+ years were unverified when logged
+    meeting_platform: Optional[str] = None
+    logged_summary: Optional[str] = None
+    has_transcript: bool = False
+    experience_unverified: bool = False
+    suggested_recommendation: Optional[str] = None
 
 # ============================================
 # Interview Feedback Schemas

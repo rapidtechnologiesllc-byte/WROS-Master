@@ -26,7 +26,11 @@ import {
   getInterviewById,
   getMyInterviews,
   getFlashAnalysisForInterview,
+  getInterviewLogOptions,
+  getInterviewTranscript,
+  logCompletedInterview,
 } from "../../services/api/interviews";
+import { listAccountManagerOptions } from "../../services/api/clients";
 import {
   deleteInterviewMail,
   sendInterviewInvite,
@@ -138,7 +142,6 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
   const [activityLogging, setActivityLogging] = useState(false);
 
   const [showLogInterviewModal, setShowLogInterviewModal] = useState(false);
-  const [logInterviewNote, setLogInterviewNote] = useState("");
 
 
   const fetchData = useCallback(async () => {
@@ -956,67 +959,12 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
         </div>
       )}
 
-      {/* Log Interview Modal */}
       {showLogInterviewModal && (
-        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
-            <div className="border-b px-6 py-5 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Log Completed Interview</h2>
-              <button
-                onClick={() => {
-                  setShowLogInterviewModal(false);
-                  setLogInterviewNote("");
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Interview Summary & Feedback
-                </label>
-                <textarea
-                  value={logInterviewNote}
-                  onChange={(e) => setLogInterviewNote(e.target.value)}
-                  placeholder="Summary of interview discussion, candidate performance, strengths, areas for improvement, and recommendation"
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-500 resize-none h-32"
-                  autoFocus
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={() => {
-                    setShowLogInterviewModal(false);
-                    setLogInterviewNote("");
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    if (logInterviewNote.trim()) {
-                      createCandidateHistoryEvent(candidateId, {
-                        event_type: "Interview Completed",
-                        note: logInterviewNote.trim(),
-                      });
-                      setShowLogInterviewModal(false);
-                      setLogInterviewNote("");
-                    }
-                  }}
-                  disabled={!logInterviewNote.trim()}
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Log Interview
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <LogInterviewModal
+          candidateId={candidateId}
+          onClose={() => setShowLogInterviewModal(false)}
+          onLogged={() => { setShowLogInterviewModal(false); fetchData(); }}
+        />
       )}
     </>
   );
@@ -1085,12 +1033,26 @@ function InterviewRoundCard({
             <div><span className="font-medium text-gray-800">Date:</span> {dateLabel}</div>
             <div><span className="font-medium text-gray-800">Time:</span> {startLabel} - {endLabel}</div>
             <div><span className="font-medium text-gray-800">Duration:</span> {calculateDuration(interview?.start_time, interview?.end_time)}</div>
-            <div><span className="font-medium text-gray-800">Mode:</span> {isOnline ? "Online Interview" : "Offline / TBD"}</div>
+            <div><span className="font-medium text-gray-800">Mode:</span> {interview?.meeting_platform || (isOnline ? "Online Interview" : "Offline / TBD")}</div>
           </div>
           <div className="text-sm text-gray-600">
             Feedback Progress: <span className="font-medium text-gray-800">{feedbackProgress.done} / {feedbackProgress.total || 0} done</span>
             <span className="ml-2 text-xs text-gray-500">({feedbackProgress.submitted} submitted, {feedbackProgress.skipped} not attended)</span>
           </div>
+          {interview?.experience_unverified ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Logged without verified 5+ years of experience: verify it before an offer or a client submission.
+            </div>
+          ) : null}
+          {interview?.logged_summary ? (
+            <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">
+              <span className="font-medium text-gray-800">Summary: </span>{interview.logged_summary}
+              {interview.suggested_recommendation ? (
+                <div className="mt-1 text-xs text-gray-500">Claude suggested: {interview.suggested_recommendation}</div>
+              ) : null}
+            </div>
+          ) : null}
+          {interview?.has_transcript ? <div className="text-xs text-gray-500">Transcript attached (View Details).</div> : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -1282,6 +1244,8 @@ function InterviewDetailsModal({ open, onClose, loading, error, interview, flash
                   <DetailRow label="Mode" value={interview?.meeting_link ? "Online Interview" : "Offline / TBD"} />
                 </div>
               </div>
+
+              {interview ? <TranscriptSection interviewId={getInterviewId(interview)} /> : null}
 
               {flashAnalysis && (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
@@ -1749,4 +1713,173 @@ function calculateDuration(start, end) {
 
 function formatLabel(key) {
   return String(key).replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+// Record an interview that already happened (CEO 2026-11-02): date, type, panel members, platform,
+// the interviewer's recommendation, and a summary and/or the transcript (pasted or a Word document).
+// The date and length are read from a Teams transcript header when not given.
+function LogInterviewModal({ candidateId, onClose, onLogged }) {
+  const [options, setOptions] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [form, setForm] = useState({
+    interview_date: "", interview_time: "", duration_minutes: "", interview_type: "", meeting_platform: "",
+    recommendation: "", summary: "", transcript_text: "", panel_member_ids: [],
+  });
+  const [file, setFile] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+
+  useEffect(() => {
+    getInterviewLogOptions()
+      .then(setOptions)
+      .catch((err) => {
+        console.error("[LogInterview] Failed to load form options:", err);
+        setError(`Could not load the form: ${err.message}`);
+      });
+    listAccountManagerOptions()
+      .then((list) => setUsers(Array.isArray(list) ? list : []))
+      .catch((err) => {
+        console.error("[LogInterview] Failed to load users:", err);
+        setError(`Could not load the people list: ${err.message}`);
+      });
+  }, []);
+
+  const toggleMember = (id) => setForm((f) => ({
+    ...f,
+    panel_member_ids: f.panel_member_ids.includes(id) ? f.panel_member_ids.filter((m) => m !== id) : [...f.panel_member_ids, id],
+  }));
+
+  const save = async () => {
+    setError("");
+    if (!form.interview_type || !form.meeting_platform || !form.recommendation) {
+      setError("Choose the interview type, the meeting platform and your recommendation.");
+      return;
+    }
+    if (!form.summary.trim() && !form.transcript_text.trim() && !file) {
+      setError("Add a summary, paste the transcript, or upload it.");
+      return;
+    }
+    const data = new FormData();
+    data.append("candidate_id", candidateId);
+    ["interview_type", "meeting_platform", "recommendation", "summary", "transcript_text", "interview_date",
+      "interview_time", "duration_minutes"].forEach((key) => { if (String(form[key]).trim()) data.append(key, form[key]); });
+    if (form.panel_member_ids.length) data.append("panel_member_ids", form.panel_member_ids.join(","));
+    if (file) data.append("transcript_file", file);
+    setSaving(true);
+    try {
+      await logCompletedInterview(data);
+      onLogged();
+    } catch (err) {
+      setError(err.message || "Could not log the interview.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const field = "w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500";
+  const label = "block text-xs font-medium text-gray-700 mb-1";
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
+      <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl border border-gray-200">
+        <div className="sticky top-0 z-10 border-b bg-white px-6 py-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900">Log Completed Interview</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600" aria-label="Close"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div><label className={label}>Interview date</label><input type="date" className={field} value={form.interview_date} onChange={set("interview_date")} /></div>
+            <div><label className={label}>Start time</label><input type="time" className={field} value={form.interview_time} onChange={set("interview_time")} /></div>
+            <div><label className={label}>Length (minutes)</label><input type="number" min="1" className={field} value={form.duration_minutes} onChange={set("duration_minutes")} /></div>
+          </div>
+          <div className="text-[11px] text-gray-500 -mt-2">Leave the date empty to read it (and the length) from a Teams transcript.</div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <label className={label}>Interview type *</label>
+              <select className={field} value={form.interview_type} onChange={set("interview_type")}>
+                <option value="">Select…</option>
+                {(options?.interview_types || []).map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={label}>Meeting platform *</label>
+              <select className={field} value={form.meeting_platform} onChange={set("meeting_platform")}>
+                <option value="">Select…</option>
+                {(options?.meeting_platforms || []).map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={label}>Your recommendation *</label>
+              <select className={field} value={form.recommendation} onChange={set("recommendation")}>
+                <option value="">Select…</option>
+                {(options?.recommendations || []).map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className={label}>Panel members (you are included when none are picked)</label>
+            <div className="max-h-32 overflow-y-auto rounded-lg border border-gray-200 p-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
+              {users.map((u) => (
+                <label key={u.user_id} className="flex items-center gap-2 text-sm text-gray-700">
+                  <input type="checkbox" checked={form.panel_member_ids.includes(String(u.user_id))} onChange={() => toggleMember(String(u.user_id))} />
+                  {u.user_name || u.user_email}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className={label}>Summary &amp; feedback</label>
+            <textarea className={`${field} h-24 resize-none`} value={form.summary} onChange={set("summary")}
+              placeholder="Discussion, strengths, concerns and your recommendation" />
+          </div>
+          <div>
+            <label className={label}>Transcript (paste, or upload the Word document below)</label>
+            <textarea className={`${field} h-24 resize-none`} value={form.transcript_text} onChange={set("transcript_text")}
+              placeholder="Paste the meeting transcript" disabled={Boolean(file)} />
+            <input type="file" accept=".docx,.txt,.vtt" className="mt-2 text-sm" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+            {file ? <div className="mt-1 text-xs text-gray-600">Uploading {file.name} instead of pasted text.</div> : null}
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button onClick={onClose} disabled={saving} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium">Cancel</button>
+            <button onClick={save} disabled={saving} className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium disabled:opacity-50">
+              {saving ? "Logging…" : "Log Interview"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// The transcript of a logged interview (nothing when the interview has none)
+function TranscriptSection({ interviewId }) {
+  const [data, setData] = useState(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!interviewId) return undefined;
+    getInterviewTranscript(interviewId)
+      .then((res) => { if (!cancelled) setData(res); })
+      .catch((err) => {
+        // a scheduled interview has no transcript (404); anything else is logged
+        if (!/no logged transcript/i.test(err?.message || "")) console.error("[Transcript] Failed to load:", err);
+        if (!cancelled) setData(null);
+      });
+    return () => { cancelled = true; };
+  }, [interviewId]);
+
+  if (!data?.transcript_text) return null;
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-3">
+      <button type="button" className="text-sm font-semibold text-blue-700 hover:underline" onClick={() => setOpen((v) => !v)}>
+        {open ? "Hide transcript" : "Show transcript"}{data.transcript_file_name ? ` (${data.transcript_file_name})` : ""}
+      </button>
+      {open ? (
+        <div className="mt-2 max-h-80 overflow-y-auto whitespace-pre-wrap text-xs text-gray-700">{data.transcript_text}</div>
+      ) : null}
+    </div>
+  );
 }
