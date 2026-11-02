@@ -16,6 +16,7 @@ Gated the same way as GET /users/all (get_current_internal_user): any
 internal user needs to see real client names to filter by them, this
 isn't sensitive data on its own the way markup_rate_pct etc. are.
 """
+import json
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -23,21 +24,23 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
-from app.models.client import Client, ClientContact
+from app.models.client import Client, ClientContact, ClientEmail, ClientHistory
 from app.models.employee import Employee
 from app.models.business_unit import BusinessUnit
 from app.models.user import Users
 from app.schemas.client import (
     ClientContactAddRequest, ClientContactResponse, ClientContactsListResponse,
     ClientCreateRequest, ClientCreateResponse, ClientDetailResponse, ClientListItem,
-    ClientListResponse, ClientUpdateRequest,
+    ClientHistoryEntry, ClientHistoryResponse, ClientListResponse, ClientUpdateRequest,
 )
 from app.services.client_service import (
     ClientValidationError, DuplicateClientError, add_client_contact, assign_account_manager,
     assign_account_manager_user, assign_client_owner, create_client, resolve_client_team_user,
-    set_client_business_unit, set_client_status, update_client_details,
+    set_client_business_unit, set_client_contracting_company, set_client_status, update_client_details,
 )
-from app.services.client_team_notification_service import notify_client_created, notify_client_owner_assigned
+from app.services.client_team_notification_service import (
+    notify_client_changes, notify_client_created,
+)
 
 from app.core.data_scope import bu_filter, ensure_assignable, ensure_visible
 router = APIRouter(prefix="/clients", tags=["clients"])
@@ -56,13 +59,13 @@ def _contracting_company_name_map(db: Session, company_ids) -> dict:
     return {l.id: l.name for l in db.query(Location).filter(Location.id.in_(ids)).all()}
 
 
-def _set_contracting_company(db: Session, client: Client, company_id: str, tenant_id: int) -> None:
-    """company_id "" clears; an unknown company is a 400."""
+def _set_contracting_company(db: Session, client: Client, company_id: str, tenant_id: int,
+                             changed_by: Optional[str] = None) -> bool:
+    """company_id "" clears; an unknown company is a 400. Returns whether it changed."""
     from app.models.location import Location
     if company_id and not db.query(Location).filter(Location.id == company_id, Location.tenant_id == tenant_id).first():
         raise HTTPException(status_code=400, detail="Unknown company")
-    client.contracting_company_id = company_id or None
-    db.commit()
+    return set_client_contracting_company(db, client, company_id or None, changed_by=changed_by)
 
 
 def _user_name_map(db: Session, user_ids) -> dict:
@@ -244,6 +247,9 @@ def create_client_endpoint(
                 db, client, am_user, changed_by=current_user.UserID, tenant_id=current_user.tenant_id,
                 notify=False,
             )
+        db.add(ClientHistory(tenant_id=client.tenant_id, client_id=client.id, change_type="CREATED",
+                             new_value=json.dumps({"company_name": client.company_name}),
+                             changed_by=current_user.UserID))
         db.commit()
     except DuplicateClientError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
@@ -321,6 +327,125 @@ def add_client_contact_endpoint(
         raise HTTPException(status_code=400, detail=str(exc))
     return contact
 
+def _email_client_changes(db: Session, client: Client, before: dict, actor: Users) -> None:
+    """One email to the client's team for a save that moved responsibility; field edits (tier,
+    terms, notes...) are History only. The newly assigned and the removed account manager /
+    client owner are both told."""
+    from app.services.bu_leadership import head_for_client
+    from app.services.client_service import account_manager_workload
+
+    users = _user_name_map(db, [before["account_manager_user_id"], client.account_manager_user_id,
+                                before["client_owner_user_id"], client.client_owner_user_id])
+    bus = _bu_name_map(db, [before["business_unit_id"], client.business_unit_id])
+    companies = _contracting_company_name_map(db, [before["contracting_company_id"], client.contracting_company_id])
+    changes, extra = [], {}
+
+    def name(names, key):
+        return names.get(key) or "none" if key else "none"
+
+    if client.business_unit_id != before["business_unit_id"]:
+        changes.append(f"Business unit: {name(bus, before['business_unit_id'])} -> {name(bus, client.business_unit_id)}")
+        unit = db.query(BusinessUnit).filter(BusinessUnit.id == client.business_unit_id).first()
+        if unit is not None and unit.partner_user_id:
+            extra.setdefault(unit.partner_user_id, []).append("Partner of the new business unit")
+        head = head_for_client(db, client.business_unit_id, client.id)
+        if head:
+            extra.setdefault(head, []).append("BU Head of the new business unit")
+    if client.status != before["status"]:
+        changes.append(f"Status: {before['status']} -> {client.status}")
+    if client.account_manager_user_id != before["account_manager_user_id"]:
+        changes.append(f"Account manager: {name(users, before['account_manager_user_id'])} -> "
+                       f"{name(users, client.account_manager_user_id)}")
+        if client.account_manager_user_id:
+            changes.append(account_manager_workload(db, client))
+        if before["account_manager_user_id"]:
+            extra.setdefault(before["account_manager_user_id"], []).append("Former Account Manager")
+    if client.client_owner_user_id != before["client_owner_user_id"]:
+        changes.append(f"Client owner: {name(users, before['client_owner_user_id'])} -> "
+                       f"{name(users, client.client_owner_user_id)}")
+        if before["client_owner_user_id"]:
+            extra.setdefault(before["client_owner_user_id"], []).append("Former Client Owner")
+    if client.contracting_company_id != before["contracting_company_id"]:
+        changes.append(f"Contracting company: {name(companies, before['contracting_company_id'])} -> "
+                       f"{name(companies, client.contracting_company_id)}")
+    if not changes:
+        return
+    last = db.query(ClientHistory.id).filter(ClientHistory.client_id == client.id)         .order_by(ClientHistory.id.desc()).first()
+    notify_client_changes(db, client, actor=actor, key=f"client-change-{client.id}-{last[0] if last else 0}",
+                          changes=changes, extra_team=extra)
+
+
+# History tab: field labels and how to show stored ids
+HISTORY_LABELS = {
+    "CREATED": "Client created", "STATUS": "Status changed", "ACCOUNT_MANAGER": "Account manager changed",
+    "CLIENT_OWNER": "Client owner changed", "TIER": "Tier changed", "CONTRACT_TERMS": "Contract terms changed",
+    "BUSINESS_UNIT": "Business unit changed", "CONTRACTING_COMPANY": "Contracting company changed",
+    "DETAILS": "Details edited",
+}
+EMAIL_TITLES = {"OUT": "Email sent to the client", "IN": "Email from the client", "TEAM": "Email to our team"}
+
+
+def _history_value(key: str, value, names: dict):
+    if value is None or value == "":
+        return "blank"
+    if key in names:
+        return names[key].get(value) or str(value)
+    if isinstance(value, bool):
+        return "Yes" if value else "No"
+    return str(value)
+
+
+def _change_lines(old: dict, new: dict, names: dict) -> list:
+    keys = list(dict.fromkeys([*old.keys(), *new.keys()]))
+    label = lambda k: k.replace("_user_id", "").replace("_employee_id", " (employee)").replace("_id", "").replace("_", " ").capitalize()
+    if not old:
+        return [f"{label(k)}: {_history_value(k, new.get(k), names)}" for k in keys]
+    return [f"{label(k)}: {_history_value(k, old.get(k), names)} -> {_history_value(k, new.get(k), names)}"
+            for k in keys if old.get(k) != new.get(k)]
+
+
+@router.get(
+    "/{client_id}/history",
+    response_model=ClientHistoryResponse,
+    dependencies=[Depends(require_resource_permission("clients", "view"))]
+)
+def get_client_history_endpoint(
+    client_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_internal_user),
+):
+    """Every change to the client (who, when, old -> new) and every email about it, newest first."""
+    from app.core.config import settings
+
+    client = _get_client_or_404(db, client_id, current_user)
+    changes = db.query(ClientHistory).filter(ClientHistory.client_id == client.id).all()
+    emails = db.query(ClientEmail).filter(ClientEmail.client_id == client.id).all()
+    parsed = [(row, json.loads(row.old_value or "{}"), json.loads(row.new_value or "{}")) for row in changes]
+    ids = lambda key: [d.get(key) for _, old, new in parsed for d in (old, new)]
+    users = _user_name_map(db, [r.changed_by for r in changes] + [e.sent_by_user_id for e in emails]
+                           + ids("account_manager_user_id") + ids("client_owner_user_id"))
+    names = {
+        "account_manager_user_id": users, "client_owner_user_id": users,
+        "account_manager_employee_id": _employee_name_map(db, ids("account_manager_employee_id")),
+        "business_unit_id": _bu_name_map(db, ids("business_unit_id")),
+        "contracting_company_id": _contracting_company_name_map(db, ids("contracting_company_id")),
+    }
+    entries = [
+        ClientHistoryEntry(kind="CHANGE", at=row.changed_at, by=users.get(row.changed_by) or row.changed_by,
+                           title=HISTORY_LABELS.get(row.change_type, row.change_type),
+                           lines=_change_lines(old, new, names))
+        for row, old, new in parsed
+    ] + [
+        ClientHistoryEntry(kind="EMAIL", at=e.sent_at, by=users.get(e.sent_by_user_id) if e.sent_by_user_id else None,
+                           title=f"{EMAIL_TITLES[e.direction]}: {e.subject or '(no subject)'}", direction=e.direction,
+                           from_address=e.from_address, to_addresses=e.to_addresses, cc_addresses=e.cc_addresses,
+                           snippet=e.snippet)
+        for e in emails
+    ]
+    entries.sort(key=lambda entry: entry.at, reverse=True)
+    return ClientHistoryResponse(client_id=client.id, logging_mailbox=settings.THUNDER_MAILBOX, entries=entries)
+
+
 @router.patch(
     "/{client_id}",
     response_model=ClientDetailResponse,
@@ -335,54 +460,64 @@ def update_client_endpoint(
     client = _get_client_or_404(db, client_id, current_user)
     updates = body.dict(exclude_unset=True)
     # The account manager (assign_account_manager*, HRMS-0709) and the Client Owner
-    # (assign_client_owner) have their own audit-history + notification paths -- routed here
-    # separately rather than through the generic field-set update_client_details() uses.
+    # (assign_client_owner) have their own audit-history paths -- routed here separately rather
+    # than through the generic field-set update_client_details() uses. Every change writes
+    # ClientHistory; changes that move responsibility (BU, status, account manager, client owner,
+    # contracting company) are emailed to the client's team after the commit.
     account_manager_employee_id = updates.pop("account_manager_employee_id", None)
     has_am_user = "account_manager_user_id" in updates
     account_manager_user_id = updates.pop("account_manager_user_id", None)
     has_owner = "client_owner_user_id" in updates
     client_owner_user_id = updates.pop("client_owner_user_id", None)
-    owner_changed = False
     new_status = updates.pop("status", None)
     business_unit_id = updates.pop("business_unit_id", None)
     has_company = "contracting_company_id" in updates
     company_id = updates.pop("contracting_company_id", None)
+    before = {
+        "business_unit_id": client.business_unit_id, "status": client.status,
+        "account_manager_user_id": client.account_manager_user_id,
+        "client_owner_user_id": client.client_owner_user_id,
+        "contracting_company_id": client.contracting_company_id,
+    }
+    actor = current_user.UserID
     try:
         if has_company:
-            _set_contracting_company(db, client, company_id or "", current_user.tenant_id)
+            _set_contracting_company(db, client, company_id or "", current_user.tenant_id, changed_by=actor)
         if business_unit_id is not None:
             ensure_assignable(db, current_user, business_unit_id, "client")
-            client = set_client_business_unit(db, client, business_unit_id, current_user.tenant_id)
+            set_client_business_unit(db, client, business_unit_id, current_user.tenant_id, changed_by=actor)
         if updates:
-            client = update_client_details(db, client, updates)
+            client = update_client_details(db, client, updates, changed_by=actor)
         if new_status is not None and new_status != client.status:
-            client = set_client_status(db, client, new_status, changed_by=current_user.UserID)
+            client = set_client_status(db, client, new_status, changed_by=actor)
         if has_am_user:
             # User pick (Users & Access Control) wins over the legacy employee field
             am_user = (
                 resolve_client_team_user(db, account_manager_user_id, current_user.tenant_id)
                 if account_manager_user_id else None
             )
+            # notify=False: the change email below tells the new and the former account manager
             client = assign_account_manager_user(
-                db, client, am_user, changed_by=current_user.UserID, tenant_id=current_user.tenant_id,
+                db, client, am_user, changed_by=actor, tenant_id=current_user.tenant_id, notify=False,
             )
         elif account_manager_employee_id is not None:
             employee = db.query(Employee).filter(Employee.id == account_manager_employee_id).first()
             if not employee:
                 raise HTTPException(status_code=404, detail=f"Employee {account_manager_employee_id!r} not found.")
-            client = assign_account_manager(db, client, employee, changed_by=current_user.UserID)
+            client = assign_account_manager(db, client, employee, changed_by=actor, notify=False)
         if has_owner:
             owner = (
                 resolve_client_team_user(db, client_owner_user_id, current_user.tenant_id, "client owner")
                 if client_owner_user_id else None
             )
-            owner_changed = assign_client_owner(db, client, owner, changed_by=current_user.UserID)
+            assign_client_owner(db, client, owner, changed_by=actor)
     except DuplicateClientError as exc:
+        db.rollback()
         raise HTTPException(status_code=409, detail=str(exc))
     except ClientValidationError as exc:
+        db.rollback()
         raise HTTPException(status_code=400, detail=str(exc))
     db.commit()
     db.refresh(client)
-    if owner_changed and client.client_owner_user_id:
-        notify_client_owner_assigned(db, client, actor=current_user)
+    _email_client_changes(db, client, before, current_user)
     return _to_detail_response(db, client)

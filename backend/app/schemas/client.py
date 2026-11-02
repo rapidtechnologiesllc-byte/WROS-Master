@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 import logging
 from typing import Optional
 
@@ -177,3 +177,25 @@ class ClientUpdateRequest(BaseModel):
     nda_signed: Optional[bool] = None
     nda_url: Optional[str] = None
     notes: Optional[str] = None
+
+
+class ClientHistoryEntry(BaseModel):
+    """One line of a client's History tab: a change (kind CHANGE) or an email (kind EMAIL)."""
+    kind: str
+    at: datetime
+    by: Optional[str] = None
+    title: str
+    lines: list[str] = []
+    # emails only: OUT (we wrote to the client), IN (the client wrote to us), TEAM (system email to our team)
+    direction: Optional[str] = None
+    from_address: Optional[str] = None
+    to_addresses: Optional[str] = None
+    cc_addresses: Optional[str] = None
+    snippet: Optional[str] = None
+
+
+class ClientHistoryResponse(BaseModel):
+    client_id: str
+    # the mailbox to CC/BCC so an email to the client is logged here
+    logging_mailbox: str
+    entries: list[ClientHistoryEntry]

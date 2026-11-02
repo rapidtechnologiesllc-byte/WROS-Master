@@ -98,7 +98,7 @@ from app.models.employee import (
     EmployeeDocuments,
     EmployeeEngineHistory,
 )
-from app.models.client import Client, ClientContact, ClientHistory
+from app.models.client import Client, ClientContact, ClientEmail, ClientHistory
 from app.models.demand import Demand, DemandHistory
 from app.models.submission import Submission, SubmissionViolation
 from app.models.interview_pipeline import DemandInterviewPanel, SubmissionInterview
@@ -272,6 +272,7 @@ __all__ = [
     # Client (HRMS-0102, Phase 2 Domain 4)
     "Client",
     "ClientContact",
+    "ClientEmail",
     "ClientHistory",
     # Demand (HRMS-0103, Phase 2 Domain 2/4)
     "Demand",

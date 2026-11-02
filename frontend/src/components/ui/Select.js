@@ -8,6 +8,14 @@ export default function Select({ label, value, onChange, options, disabled }) {
     onChange(val);
   };
 
+  const current = String(value ?? "");
+  const optionValue = (o) =>
+    typeof o === "object" && o !== null && Object.prototype.hasOwnProperty.call(o, "value") ? String(o.value) : String(o);
+  // A value that is not one of the options (blank, or a saved value no longer listed) would make the
+  // browser show the first option while the form still holds the old value -- what you see is then
+  // not what gets saved. Show the real value instead.
+  const missing = !options.some((o) => o != null && optionValue(o) === current);
+
   return (
     <label className="block">
       {label ? (
@@ -15,11 +23,14 @@ export default function Select({ label, value, onChange, options, disabled }) {
       ) : null}
       <div className="relative">
         <select
-          value={value ?? ""}
+          value={current}
           onChange={disabled ? undefined : handleChange}
           disabled={disabled}
           className="w-full appearance-none rounded-xl border bg-white px-3 py-2 pr-9 text-sm outline-none transition focus:border-gray-900 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
         >
+          {missing ? (
+            <option value={current} disabled={current === ""}>{current === "" ? "Select…" : current}</option>
+          ) : null}
           {options.map((o, idx) => {
             if (o == null) return null;
             const isObject =

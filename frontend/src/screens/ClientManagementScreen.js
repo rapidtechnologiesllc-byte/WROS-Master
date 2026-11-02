@@ -19,7 +19,7 @@ import { useEffect, useState, useMemo } from "react";
 import { Building2, Plus, Pencil, Users, X } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
 import {
-  listClients, createClient, updateClient, getClient,
+  listClients, createClient, updateClient, getClient, getClientHistory,
   getClientContacts, addClientContact, listAccountManagerOptions,
 } from "../services/api/clients";
 import { getClientInvestmentPosition } from "../services/api/expenses";
@@ -67,6 +67,26 @@ const emptyForm = {
   client_owner_user_id: "",
   notes: "",
 };
+
+// The edit form's values from a full client record (GET /clients/:id)
+const toFormValues = (full) => ({
+  id: full.id,
+  company_name: full.company_name || "",
+  company_short_name: full.company_short_name || "",
+  country: full.country || "",
+  line_type: full.line_type || "CORE",
+  website: full.website || "",
+  tier: full.tier || "STANDARD",
+  billing_currency: full.billing_currency || "USD",
+  business_unit_id: full.business_unit_id ? String(full.business_unit_id) : "",
+  contracting_company_id: full.contracting_company_id || "",
+  account_manager_user_id: full.account_manager_user_id || "",
+  client_owner_user_id: full.client_owner_user_id || "",
+  status: full.status || "PROSPECT",
+  notes: full.notes || "",
+  payment_terms_days: full.payment_terms_days ?? 30,
+  requires_client_timesheet_approval: Boolean(full.requires_client_timesheet_approval),
+});
 
 function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [], companies = [] }) {
   const [form, setForm] = useState(initial || emptyForm);
@@ -233,8 +253,6 @@ export default function ClientManagementScreen() {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
-  const [editingClient, setEditingClient] = useState(null);
-  const [editLoadingId, setEditLoadingId] = useState(null);
   const [detailClient, setDetailClient] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
@@ -273,43 +291,7 @@ export default function ClientManagementScreen() {
 
   const handleSaved = () => {
     setShowAdd(false);
-    setEditingClient(null);
     load();
-  };
-
-  const handleEditClick = async (c) => {
-    setShowAdd(false);
-    setDetailClient(null);
-    setEditLoadingId(c.id);
-    try {
-      // The list endpoint only returns company_name/status/BU/line_type --
-      // fetching the real record here so Save doesn't blank out every
-      // other field (website, tier, notes, etc.) back to form defaults.
-      const full = await getClient(c.id);
-      setEditingClient({
-        id: full.id,
-        company_name: full.company_name || "",
-        company_short_name: full.company_short_name || "",
-        country: full.country || "",
-        line_type: full.line_type || "CORE",
-        website: full.website || "",
-        tier: full.tier || "STANDARD",
-        billing_currency: full.billing_currency || "USD",
-        business_unit_id: full.business_unit_id ? String(full.business_unit_id) : "",
-        contracting_company_id: full.contracting_company_id || "",
-        account_manager_user_id: full.account_manager_user_id || "",
-        client_owner_user_id: full.client_owner_user_id || "",
-        status: full.status || "PROSPECT",
-        notes: full.notes || "",
-        payment_terms_days: full.payment_terms_days ?? 30,
-        requires_client_timesheet_approval: Boolean(full.requires_client_timesheet_approval),
-      });
-    } catch (err) {
-      console.error("Failed to load client details:", err);
-      setEditingClient({ id: c.id, ...emptyForm, company_name: c.company_name });
-    } finally {
-      setEditLoadingId(null);
-    }
   };
 
   const loadContacts = async (clientId) => {
@@ -401,7 +383,6 @@ export default function ClientManagementScreen() {
         right={
           <Button
             onClick={() => {
-              setEditingClient(null);
               setShowAdd((v) => !v);
             }}
           >
@@ -411,16 +392,6 @@ export default function ClientManagementScreen() {
       >
         {showAdd ? (
           <ClientForm mode="create" onCancel={() => setShowAdd(false)} onSaved={handleSaved} businessUnits={businessUnits} companies={companies} />
-        ) : null}
-        {editingClient ? (
-          <ClientForm
-            mode="edit"
-            initial={editingClient}
-            onCancel={() => setEditingClient(null)}
-            onSaved={handleSaved}
-            businessUnits={businessUnits}
-            companies={companies}
-          />
         ) : null}
 
         {loading ? (
@@ -451,11 +422,10 @@ export default function ClientManagementScreen() {
           contactsLoading={contactsLoading}
           contactsError={contactsError}
           onContactAdded={() => loadContacts(detailClient.id)}
-          onClientChanged={() => reloadDetail(detailClient.id)}
-          onEdit={() => handleEditClick(detailClient)}
-          editLoading={editLoadingId === detailClient.id}
+          onClientChanged={() => { reloadDetail(detailClient.id); load(); }}
           onClose={handleCloseDetail}
           businessUnits={businessUnits}
+          companies={companies}
         />
       ) : null}
     </div>
@@ -550,10 +520,12 @@ function ClientContactsPanel({ clientId, contacts, loading, error, onContactAdde
 
 function ClientDetailModal({
   client, loading, error, investmentPosition, investmentPositionError,
-  contacts, contactsLoading, contactsError, onContactAdded, onClientChanged, onEdit, editLoading, onClose,
-  businessUnits = [],
+  contacts, contactsLoading, contactsError, onContactAdded, onClientChanged, onClose,
+  businessUnits = [], companies = [],
 }) {
   const [tab, setTab] = useState("details");
+  const [editing, setEditing] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [selectedBU, setSelectedBU] = useState(String(client?.business_unit_id || ""));
   const [selectedAccountManager, setSelectedAccountManager] = useState(String(client?.account_manager_user_id || ""));
   const [buSaving, setBuSaving] = useState(false);
@@ -595,10 +567,13 @@ function ClientDetailModal({
     if (!client?.id) return;
 
     setBuSaving(true);
+    setSaveError("");
     try {
       await updateClient(client.id, { business_unit_id: buId ? Number(buId) : null });
+      onClientChanged();
     } catch (err) {
       console.error("Failed to update business unit:", err);
+      setSaveError(`Business unit not saved: ${err.message}`);
       setSelectedBU(String(client.business_unit_id || ""));
     } finally {
       setBuSaving(false);
@@ -610,10 +585,13 @@ function ClientDetailModal({
     if (!client?.id) return;
 
     setAmSaving(true);
+    setSaveError("");
     try {
       await updateClient(client.id, { account_manager_user_id: amId || null });
+      onClientChanged();
     } catch (err) {
       console.error("Failed to update account manager:", err);
+      setSaveError(`Account manager not saved: ${err.message}`);
       setSelectedAccountManager(String(client.account_manager_user_id || ""));
     } finally {
       setAmSaving(false);
@@ -658,7 +636,7 @@ function ClientDetailModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 border-b border-gray-200 bg-white px-8 py-6 rounded-t-3xl">
+        <div className="sticky top-0 z-20 border-b border-gray-200 bg-white px-8 py-6 rounded-t-3xl">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
@@ -667,11 +645,11 @@ function ClientDetailModal({
               </div>
               <div className="mt-2">{getStatusBadge(client.status)}</div>
               <div className="mt-4 flex gap-1">
-                {[["details", "Details"], ["billing", "Billing setup"], ["work-orders", "Work Orders"]].map(([key, label]) => (
+                {[["details", "Details"], ["billing", "Billing setup"], ["work-orders", "Work Orders"], ["history", "History"]].map(([key, label]) => (
                   <button
                     key={key}
                     type="button"
-                    onClick={() => setTab(key)}
+                    onClick={() => { setTab(key); setEditing(false); }}
                     className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${tab === key ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"}`}
                   >
                     {label}
@@ -680,9 +658,11 @@ function ClientDetailModal({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" onClick={onEdit} disabled={editLoading}>
-                <Pencil className="h-4 w-4" /> {editLoading ? "Loading…" : "Edit details"}
-              </Button>
+              {!editing && !loading && !error ? (
+                <Button variant="ghost" onClick={() => { setTab("details"); setEditing(true); }}>
+                  <Pencil className="h-4 w-4" /> Edit details
+                </Button>
+              ) : null}
               <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
                 <X className="h-6 w-6" />
               </button>
@@ -696,18 +676,34 @@ function ClientDetailModal({
             <div className="py-12 text-center text-sm text-gray-500">Loading client details…</div>
           ) : error ? (
             <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
+          ) : editing ? (
+            <ClientForm
+              mode="edit"
+              initial={toFormValues(client)}
+              onCancel={() => setEditing(false)}
+              onSaved={() => { setEditing(false); onClientChanged(); }}
+              businessUnits={businessUnits}
+              companies={companies}
+            />
+          ) : tab === "history" ? (
+            <ClientHistoryPanel clientId={client.id} />
           ) : tab === "billing" ? (
             <BillingSetupPanel client={client} contacts={contacts} onClientChanged={onClientChanged} />
           ) : tab === "work-orders" ? (
             <WorkOrdersPanel client={client} />
           ) : (
             <>
+              {saveError ? (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{saveError}</div>
+              ) : null}
               {/* Company Details */}
               <FieldGroup label="Company Details">
                 <FieldRow label="Short Name" value={client.company_short_name} />
                 <FieldRow label="Website" value={client.website} />
                 <FieldRow label="Country" value={client.country} />
                 <FieldRow label="Line Type" value={client.line_type} />
+                <FieldRow label="Contracting Company" value={client.contracting_company_name} />
+                <FieldRow label="Client Owner" value={client.client_owner_name} />
                 <div>
                   <label className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Business Unit</label>
                   <Select
@@ -807,6 +803,65 @@ function ClientDetailModal({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+const EMAIL_TONE = {
+  OUT: "border-blue-200 bg-blue-50",
+  IN: "border-emerald-200 bg-emerald-50",
+  TEAM: "border-gray-200 bg-gray-50",
+};
+
+// Every change to the client (who, when, old -> new) and every email about it, newest first
+function ClientHistoryPanel({ clientId }) {
+  const [history, setHistory] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setHistory(null);
+    setError("");
+    getClientHistory(clientId)
+      .then((data) => { if (!cancelled) setHistory(data); })
+      .catch((err) => {
+        console.error("[ClientHistory] Failed to load history:", err);
+        if (!cancelled) setError(`Could not load history: ${err.message}`);
+      });
+    return () => { cancelled = true; };
+  }, [clientId]);
+
+  if (error) return <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>;
+  if (!history) return <div className="py-8 text-center text-sm text-gray-500">Loading history…</div>;
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600">
+        To log an email you send to this client, put <span className="font-semibold">{history.logging_mailbox}</span> on CC or BCC.
+        Emails from the client's contacts, or anyone at the client's website domain, to that mailbox are logged too.
+      </div>
+      {history.entries.length === 0 ? (
+        <div className="py-6 text-center text-sm text-gray-400">No history yet.</div>
+      ) : history.entries.map((entry, idx) => (
+        <div key={`${entry.kind}-${entry.at}-${idx}`}
+          className={`rounded-xl border px-4 py-3 ${entry.kind === "EMAIL" ? EMAIL_TONE[entry.direction] || "" : "border-gray-200 bg-white"}`}>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <div className="text-sm font-semibold text-gray-900">{entry.title}</div>
+            <div className="text-xs text-gray-500">
+              {new Date(entry.at).toLocaleString()}{entry.by ? ` · ${entry.by}` : ""}
+            </div>
+          </div>
+          {entry.lines.map((line) => <div key={line} className="mt-1 text-sm text-gray-700">{line}</div>)}
+          {entry.kind === "EMAIL" ? (
+            <div className="mt-1 space-y-0.5 text-xs text-gray-600">
+              {entry.from_address ? <div>From: {entry.from_address}</div> : null}
+              {entry.to_addresses ? <div>To: {entry.to_addresses}</div> : null}
+              {entry.cc_addresses ? <div>Cc: {entry.cc_addresses}</div> : null}
+              {entry.snippet ? <div className="mt-1 line-clamp-3 whitespace-pre-wrap text-gray-700">{entry.snippet}</div> : null}
+            </div>
+          ) : null}
+        </div>
+      ))}
     </div>
   );
 }
