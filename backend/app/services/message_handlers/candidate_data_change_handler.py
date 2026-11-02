@@ -14,6 +14,13 @@ from app.services.message_handlers.base_message_handler import time_bound
 
 logger = logging.getLogger(__name__)
 
+# what a candidate update calls the contact fields (candidate_update payloads)
+CONTACT_FIELDS = {"candidate_email", "candidate_mobile", "email", "phone"}
+
+
+# Enforced by time_bound on process (a data-change sync is a few small queries)
+TIMEOUT_SECONDS = 15
+
 
 class CandidateDataChangeHandler:
     """Handle candidate data changes and propagate impacts."""
@@ -22,7 +29,7 @@ class CandidateDataChangeHandler:
     RETRY_DELAY_MINUTES = 15
 
     @staticmethod
-    @time_bound(timeout_seconds=15)
+    @time_bound(timeout_seconds=TIMEOUT_SECONDS)
     def process(message: Any, db: Session) -> Dict[str, Any]:
         """
         Process candidate data changes.
@@ -77,9 +84,12 @@ class CandidateDataChangeHandler:
                 actions_taken.append("rescored_job_matches")
                 logger.info(f"[CandidateDataChange] Skills updated for {candidate_id}")
 
-            if "phone" in changed_fields or "email" in changed_fields:
-                if candidate.thunder_enabled:
-                    actions_taken.append("resent_contact_intros")
+            if CONTACT_FIELDS & set(changed_fields):
+                # a candidate added without an email (or with a placeholder) is engaged the moment a
+                # real address arrives, not at the next engagement sweep (CEO 2026-11-02)
+                from app.services.thunder_engagement_sweep import engage_now
+                if engage_now(db, candidate):
+                    actions_taken.append("thunder_engagement_queued")
                 logger.info(f"[CandidateDataChange] Contact info updated for {candidate_id}")
 
             if "location" in changed_fields:
