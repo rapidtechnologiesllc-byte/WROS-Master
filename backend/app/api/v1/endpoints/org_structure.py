@@ -35,6 +35,8 @@ from app.models.business_unit import BusinessUnit
 from app.models.tenant import Tenant
 from app.models.user import Users
 
+from app.services.org_roles_service import DESIGNATION_LEVELS, DESIGNATION_NAMES  # noqa: E402
+
 router = APIRouter(prefix="/org", tags=["Organization Structure"])
 
 
@@ -98,6 +100,9 @@ def get_hierarchy_reference(current_user = Depends(get_current_internal_user)):
         "levels": [{"level": level, "name": name, "position_code": LEVEL_POSITION_CODES.get(level)}
                    for level, name in sorted(HIERARCHY_LEVELS.items(), reverse=True)],
         "specializations": SPECIALIZATIONS,
+        # C-level designations a role can carry (a designated role sees every business unit)
+        "designations": [{"code": code, "name": DESIGNATION_NAMES[code], "level": level}
+                         for code, level in DESIGNATION_LEVELS.items()],
     }
 
 @router.get(

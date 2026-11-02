@@ -24,8 +24,9 @@ from app.core.dependencies import require_resource_permission
 from app.models.client import Client
 from app.models.employee import Employee
 from app.models.opportunity import OPPORTUNITY_STAGES, Opportunity, OpportunityProfile
-from app.models.user import Users
+from app.models.user import Jobs, Users
 from app.schemas.opportunity import (
+    UpcomingRoleCreateRequest, UpcomingRoleListResponse,
     OpportunityCreateRequest, OpportunityItem, OpportunityListResponse,
     OpportunityStageTransitionRequest, OpportunityStageTransitionResponse,
     PipelineColumn, PipelineResponse, RoleDemandFromOpportunityRequest,
@@ -298,3 +299,75 @@ def create_role_demand(
 
     start_recruiting(demand, reason="role demand for a won opportunity")
     return demand
+
+
+# ---------------------------------------------------------------------------
+# Upcoming roles (CEO 2026-11-02): roles the client is about to need, raised before the contract so
+# recruiting starts 60-90 days ahead. Each one opens a potential job and starts recruiting; Thunder
+# then writes to each matched candidate personally (role_outreach_service).
+# ---------------------------------------------------------------------------
+
+def _role_items(db: Session, opportunity_id: str):
+    from app.models.candidate import Candidate
+    from app.models.client_update import RoleOutreach, UpcomingRole
+    from app.schemas.opportunity import RoleOutreachItem, UpcomingRoleItem
+
+    rows = (db.query(UpcomingRole, Jobs).join(Jobs, Jobs.jobID == UpcomingRole.job_id)
+            .filter(UpcomingRole.opportunity_id == opportunity_id).order_by(UpcomingRole.created_at.desc()).all())
+    outreach = db.query(RoleOutreach).filter(RoleOutreach.job_id.in_([r.job_id for r, _ in rows] or ["-"])).all()
+    names = {c.candidateID: " ".join(p for p in (c.candidateFirstName, c.candidateLastName) if p) or c.candidateID
+             for c in db.query(Candidate).filter(Candidate.candidateID.in_([o.candidate_id for o in outreach] or ["-"]))}
+    by_job = {}
+    for o in sorted(outreach, key=lambda o: o.created_at, reverse=True):
+        by_job.setdefault(o.job_id, []).append(RoleOutreachItem(
+            candidate_id=o.candidate_id, candidate_name=names.get(o.candidate_id, o.candidate_id), status=o.status,
+            match_score=o.match_score, subject=o.subject, why_fit=o.why_fit, composed_by=o.composed_by,
+            note=o.note, sent_at=o.sent_at))
+    return [UpcomingRoleItem(
+        job_id=job.jobID, title=job.jobTitle, positions=job.noOfPositions or 1,
+        skills=[s.strip() for s in (job.jobSkills or "").split(",") if s.strip()],
+        work_location=job.work_location, location=job.jobLocation, employment_type=job.employment_type,
+        client_description=role.client_description, target_start=role.target_start,
+        likelihood_pct=role.likelihood_pct, auto_outreach=role.auto_outreach, job_status=job.jobStatus,
+        confirmation_status=job.confirmation_status, created_at=role.created_at,
+        outreach=by_job.get(job.jobID, [])) for role, job in rows]
+
+
+@router.get(
+    "/{opportunity_id}/upcoming-roles",
+    response_model=UpcomingRoleListResponse,
+)
+def list_upcoming_roles(
+    opportunity_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_resource_permission("opportunities", "view")),
+):
+    opportunity = _get_opportunity_or_404(db, opportunity_id, current_user)
+    return UpcomingRoleListResponse(opportunity_id=opportunity.id, roles=_role_items(db, opportunity.id))
+
+
+@router.post(
+    "/{opportunity_id}/upcoming-roles",
+    response_model=UpcomingRoleListResponse,
+    status_code=201,
+)
+def create_upcoming_role_endpoint(
+    opportunity_id: str,
+    body: UpcomingRoleCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_resource_permission("opportunities", "create")),
+):
+    """Open the job now (potential, not sold yet) and start recruiting on it."""
+    from app.services.recruiting_service import start_recruiting
+    from app.services.upcoming_role_service import UpcomingRoleError, create_upcoming_role
+
+    opportunity = _get_opportunity_or_404(db, opportunity_id, current_user)
+    try:
+        job = create_upcoming_role(db, opportunity, actor=current_user, **body.model_dump())
+        db.commit()
+    except (UpcomingRoleError, DemandValidationError) as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+    db.refresh(job)
+    start_recruiting(job, "upcoming role on an opportunity")
+    return UpcomingRoleListResponse(opportunity_id=opportunity.id, roles=_role_items(db, opportunity.id))

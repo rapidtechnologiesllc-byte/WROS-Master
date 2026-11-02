@@ -18,7 +18,6 @@ import {
   listModulesAndResources
 } from "../services/api/role_templates";
 import { apiRequest } from "../services/api/client";
-import { listBusinessUnits } from "../services/api/rbac";
 import { getHrMe } from "../services/api/users";
 import RoleTemplateEditor from "../components/RoleTemplateEditor";
 import { alertDialog, confirmDialog } from "../utils/dialogs";
@@ -883,7 +882,6 @@ function OrganizationalHierarchySection() {
 
   const [orgNodes, setOrgNodes] = useState([]);
   const [departments, setDepartments] = useState([]);
-  const [businessUnits, setBusinessUnits] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [reference, setReference] = useState({ levels: [], specializations: [] });
   const [loading, setLoading] = useState(true);
@@ -923,10 +921,9 @@ function OrganizationalHierarchySection() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [nodesRes, deptRes, buRes, refRes, companyRes, rolesRes] = await Promise.all([
+      const [nodesRes, deptRes, refRes, companyRes, rolesRes] = await Promise.all([
         apiRequest("/org/nodes"),
         apiRequest("/org/departments"),
-        listBusinessUnits(),
         apiRequest("/org/hierarchy-reference"),
         apiRequest(DELIVERY_CENTERS_PATH),
         // the role list is readable with user access; without it there is nothing to manage here
@@ -936,7 +933,6 @@ function OrganizationalHierarchySection() {
       setCompanies(companyRes.data?.delivery_centers || []);
       setOrgNodes(Array.isArray(nodesRes.data) ? nodesRes.data : []);
       setDepartments(Array.isArray(deptRes.data) ? deptRes.data : []);
-      setBusinessUnits(buRes);
       setReference(refRes.data || { levels: [], specializations: [] });
     } catch (err) {
       setActionError(err?.message || "Failed to load organizational hierarchy");
@@ -1388,8 +1384,9 @@ function OrganizationalHierarchySection() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
               >
                 <option value="">No designation</option>
-                <option value="ceo">CEO (Level 17)</option>
-                <option value="cfo">CFO (Level 16)</option>
+                {(reference.designations || []).map(d => (
+                  <option key={d.code} value={d.code}>{d.name} (Level {d.level}, sees all business units)</option>
+                ))}
               </select>
             </div>
             <div className="flex gap-2 justify-end">

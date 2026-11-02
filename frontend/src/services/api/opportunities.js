@@ -71,3 +71,18 @@ export const getOpportunityRevenueRollup = async (opportunityId) => {
   });
   return data;
 };
+
+// Upcoming roles: roles the client is about to need, raised before the contract. Each opens a
+// potential job and starts recruiting; Thunder emails each matched candidate personally.
+export const listUpcomingRoles = async (opportunityId) => {
+  const { data } = await apiRequest(`/opportunities/${opportunityId}/upcoming-roles`, { method: "GET" });
+  return data;
+};
+
+export const createUpcomingRole = async (opportunityId, payload) => {
+  const { data } = await apiRequest(`/opportunities/${opportunityId}/upcoming-roles`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return data;
+};

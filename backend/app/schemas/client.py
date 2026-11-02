@@ -199,3 +199,24 @@ class ClientHistoryResponse(BaseModel):
     # the mailbox to CC/BCC so an email to the client is logged here
     logging_mailbox: str
     entries: list[ClientHistoryEntry]
+
+
+class ClientNextStep(BaseModel):
+    title: str
+    owner_user_id: str
+    due_date: Optional[date] = None
+
+
+class ClientUpdateCreateRequest(BaseModel):
+    """A meeting or conversation with the client; its next steps become tasks."""
+    meeting_date: date
+    summary: str
+    attendees: Optional[str] = None
+    decisions: Optional[str] = None
+    opportunity_id: Optional[str] = None
+    next_steps: list[ClientNextStep] = []
+
+
+class ClientUpdateCreateResponse(BaseModel):
+    id: int
+    task_ids: list[int]

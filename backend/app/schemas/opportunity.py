@@ -108,3 +108,56 @@ class RoleDemandFromOpportunityResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class UpcomingRoleCreateRequest(BaseModel):
+    """A role the client is about to need (raised before the contract): opens a potential job now."""
+    title: str
+    description: str
+    skills: list[str]
+    # how candidates hear the client described, e.g. "a mid-size P&C carrier"; never its name
+    client_description: str
+    positions: int = 1
+    location: str = ""
+    work_location: str = "REMOTE"
+    employment_type: str = "FULLTIME"
+    min_experience_years: Optional[float] = None
+    target_start: Optional[date] = None
+    likelihood_pct: Optional[int] = None
+    auto_outreach: bool = True
+    client_update_id: Optional[int] = None
+
+
+class RoleOutreachItem(BaseModel):
+    candidate_id: str
+    candidate_name: str
+    status: str
+    match_score: Optional[int] = None
+    subject: Optional[str] = None
+    why_fit: Optional[str] = None
+    composed_by: Optional[str] = None
+    note: Optional[str] = None
+    sent_at: Optional[datetime] = None
+
+
+class UpcomingRoleItem(BaseModel):
+    job_id: str
+    title: str
+    positions: int
+    skills: list[str]
+    work_location: Optional[str] = None
+    location: Optional[str] = None
+    employment_type: Optional[str] = None
+    client_description: str
+    target_start: Optional[date] = None
+    likelihood_pct: Optional[int] = None
+    auto_outreach: bool
+    job_status: Optional[str] = None
+    confirmation_status: Optional[str] = None
+    created_at: datetime
+    outreach: list[RoleOutreachItem] = []
+
+
+class UpcomingRoleListResponse(BaseModel):
+    opportunity_id: str
+    roles: list[UpcomingRoleItem]

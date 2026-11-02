@@ -36,7 +36,7 @@ def api(db):
 def _get(api, user, path, bu=None):
     headers = ApiClient.headers(user)
     if bu is not None:
-        headers["X-Active-BU-Id"] = str(bu)
+        headers["X-BU-View"] = str(bu)
     return api.client.get(path, headers=headers)
 
 
@@ -82,3 +82,10 @@ def test_pnl_follows_the_selector(w, api):
     org = _get(api, w.org_user, "/api/v1/revenue-chain/summary" + period, bu=w.bu_a.id)
     assert org.status_code == 200, org.text
     assert ids(org.json(), "key") <= {w.bu_a.id}
+
+
+def test_the_old_selector_header_never_narrows(w, api):
+    """Browsers still running the old selector send X-Active-BU-Id (it held the user's own BU)."""
+    headers = {**ApiClient.headers(w.org_user), "X-Active-BU-Id": str(w.bu_a.id)}
+    seen = _client_ids(api.client.get(CLIENTS, headers=headers))
+    assert {w.client_a.id, w.client_b.id} <= seen

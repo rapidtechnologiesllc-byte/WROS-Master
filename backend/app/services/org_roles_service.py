@@ -5,6 +5,7 @@ the Organizational Hierarchy screen. A user's Job Title is one of these roles an
 their org level; the level maps to the org position (CEO / Partner / BU Head ...) through
 app.services.org_hierarchy_validator.LEVEL_POSITION_CODES.
 """
+import logging
 from typing import Optional
 
 from sqlalchemy import func
@@ -12,8 +13,15 @@ from sqlalchemy.orm import Session
 
 from app.models.org_structure import OrgRole
 
+logger = logging.getLogger(__name__)
+
 # Designations code treats specially, and the level each must sit at
-DESIGNATION_LEVELS = {"ceo": 17, "cfo": 16}
+# C-level designations and the level each sits at. A role with one sees every business unit
+# (CEO 2026-11-02: "if the job title is C-Level (CEO, CFO, and so on) they are defaulted to all
+# business unit. If the job title is partner or below then they are defaulted to their BU"):
+# ensure_permission_set turns org_level_access on for its permission set.
+DESIGNATION_LEVELS = {"ceo": 17, "cfo": 16, "coo": 16, "cto": 16, "cio": 16, "chro": 16}
+DESIGNATION_NAMES = {"ceo": "CEO", "cfo": "CFO", "coo": "COO", "cto": "CTO", "cio": "CIO", "chro": "CHRO"}
 
 # (role name, org level). Names of the firm's positions where one exists at that level.
 DEFAULT_ROLE_TITLES = (
@@ -104,10 +112,12 @@ def ensure_single_holder(db: Session, role: OrgRole, user_id: Optional[str] = No
 
 def ensure_permission_set(db: Session, role: OrgRole):
     """The role's permission set (a non-system RoleTemplate owned by the role), created EMPTY
-    the first time so that giving someone a role never widens their access by itself; an
+    the first time so that giving someone a role never widens what they may DO by itself; an
     admin then grants what the role should allow in the Role Templates editor. Keeps the
-    template's name and level in step with the role (authority reads the role's level).
-    Flushes; the caller commits."""
+    template's name and level in step with the role (authority reads the role's level), and
+    gives a C-level role (one with a designation) org-level visibility: it sees every business
+    unit. Removing a designation does not take org-level access away: that stays an admin's
+    choice in the Role Templates editor. Flushes; the caller commits."""
     from app.models.role_template import RoleTemplate
 
     template = db.get(RoleTemplate, role.role_template_id) if role.role_template_id else None
@@ -123,6 +133,11 @@ def ensure_permission_set(db: Session, role: OrgRole):
     elif template.display_name != role.name or template.hierarchy_level != role.hierarchy_level:
         template.name, template.display_name = f"{role.name} (role)", role.name
         template.hierarchy_level = role.hierarchy_level
+    if role.designation in DESIGNATION_LEVELS and not template.org_level_access:
+        template.org_level_access = True
+        from app.services.role_template_permission_service import invalidate_permissions
+        invalidate_permissions()
+        logger.info(f"[OrgRoles] {role.name}: C-level ({role.designation}) -- sees every business unit")
     db.flush()
     return template
 

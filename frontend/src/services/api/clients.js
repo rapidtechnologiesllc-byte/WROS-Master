@@ -35,6 +35,15 @@ export const updateClient = async (clientId, payload) => {
   return data;
 };
 
+// A meeting or conversation with the client; each next step becomes a task for its owner
+export const createClientUpdate = async (clientId, payload) => {
+  const { data } = await apiRequest(`/clients/${clientId}/updates`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return data;
+};
+
 // Every change and every logged email for the client, newest first
 export const getClientHistory = async (clientId) => {
   const { data } = await apiRequest(`/clients/${clientId}/history`, { method: "GET" });
