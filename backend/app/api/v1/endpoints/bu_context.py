@@ -1,31 +1,19 @@
 """
-S-205/HRMS-0107 -- Business Unit Entity & Context Switching.
-==================================================================
+Top-bar business unit selector (S-205/HRMS-0107, reworked CEO 2026-11-02: "the BU selection here is
+wrong, it has to be rolled up from user login ... me as the CEO shouldnt have any restriction but
+partner should only see their BU stuff & P&L").
+
 Prefix: /bu-context
-Tag:    bu-context
 
-GET  /bu-context/my-access   -- BUs this user can access (>1 = real
-                                 switcher; 1 = static label, per AC-1/BR-0107-03)
-POST /bu-context/switch      -- validates membership before "switching"
-                                 (this codebase has no server-side session
-                                 store -- the frontend persists the choice
-                                 and sends it back via X-Active-BU-Id on
-                                 every request; get_active_business_unit_id()
-                                 below re-validates it every single call,
-                                 per BR-0107-01 -- never trusted from
-                                 client state alone)
-POST /bu-context/all-bus     -- Director/Super-User-only unscoped view,
-                                 real audit_log entry per activation (BR-0107-02/AC-4)
+GET  /bu-context/my-access -- the BUs the user may look at, straight from their role template
+                              (app.core.visibility.scope_bu_ids): org-level -> every active BU;
+                              partner / BU head / member -> their BUs, with how they relate.
+POST /bu-context/switch    -- checks a choice is inside that scope before the browser sends it.
 
-get_active_business_unit_id() is the real integration point future BU-
-scoped endpoints should adopt (Step 5 of the spec) -- not retrofitted
-into every existing endpoint this pass, same honest-scope posture as
-the tenant-scoping sweep this session already flagged as separate,
-larger follow-up work.
+The browser sends the choice as X-Active-BU-Id; app.core.bu_view keeps it for the request and
+visibility.get_user_bu_ids narrows every screen to it. It can only narrow, never widen.
 """
-from typing import Optional
-
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -33,105 +21,68 @@ from app.core.dependencies import get_current_internal_user, require_resource_pe
 from app.models.business_unit import BusinessUnit
 from app.models.user import Users
 from app.schemas.bu_context import BUAccessItem, MyBUAccessResponse, SwitchBURequest
-from app.services.bu_context_service import (
-    NotAuthorizedForAllBUs, NotYourBusinessUnit, activate_all_bus_view,
-    ensure_default_bu_access, get_user_bu_access, switch_active_bu, validate_active_bu,
-)
 
 router = APIRouter(prefix="/bu-context", tags=["bu-context"])
 
-def _user_can_view_all_bus(db: Session, current_user: Users) -> bool:
-    """Check if user has permission to view all business units (not scoped to their BU)."""
-    from app.services.permission_helper import PermissionHelper
-    return PermissionHelper.has_any_permission(
-        current_user.UserID,
-        ["business-units.edit"],
-        db,
-        current_user.tenant_id
-    )
+def _scope(db: Session, user: Users):
+    from app.core.visibility import scope_bu_ids
+    return scope_bu_ids(db, user)
 
-async def get_active_business_unit_id(
-    x_active_bu_id: Optional[int] = Header(None),
-    current_user: Users = Depends(get_current_internal_user),
-    db: Session = Depends(get_db),
-) -> Optional[int]:
-    """Reusable dependency for any BU-scoped endpoint (Step 5's real
-    integration point). Re-validates the client-supplied header
-    against the user's real bu_access rows on every call (BR-0107-01)
-    -- a tampered/stale header is rejected with 403 (AC-3), never
-    silently trusted or silently ignored."""
-    if x_active_bu_id is None:
-        return None
-    try:
-        validate_active_bu(db, current_user.UserID, x_active_bu_id)
-    except NotYourBusinessUnit as exc:
-        raise HTTPException(status_code=403, detail=str(exc))
-    return x_active_bu_id
+
+def _roles(db: Session, user: Users) -> dict:
+    """bu_id -> how the user relates to it: Partner, BU Head (company), Member."""
+    from app.models.business_unit import BusinessUnitLocationHead
+    from app.models.location import Location
+
+    roles: dict = {}
+    for bu in db.query(BusinessUnit).filter(BusinessUnit.partner_user_id == user.UserID):
+        roles.setdefault(bu.id, []).append("Partner")
+    for bu_id, company in (db.query(BusinessUnitLocationHead.business_unit_id, Location.name)
+                           .outerjoin(Location, Location.id == BusinessUnitLocationHead.company_id)
+                           .filter(BusinessUnitLocationHead.head_user_id == user.UserID)):
+        roles.setdefault(bu_id, []).append(f"BU Head ({company})" if company else "BU Head")
+    if user.business_unit_id is not None and not roles.get(user.business_unit_id):
+        roles.setdefault(user.business_unit_id, []).append("Member")
+    return roles
+
 
 @router.get(
     "/my-access",
     response_model=MyBUAccessResponse,
     dependencies=[Depends(require_resource_permission("dashboard", "view"))]
 )
-async def my_bu_access(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
-    """
-    Get the business units this user has access to.
+def my_bu_access(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
+    """The business units this user may look at, from their role template (app.core.visibility):
+    org-level users every active BU (default view: all), partners the BUs they partner, BU heads
+    the BUs they head, anyone else their own BU."""
+    from app.core.bu_view import active_bu
 
-    BU Scoping Logic (User-Specified):
-    - User sees candidates assigned to their BU
-    - User sees org-wide candidates (those with NULL BU_ID)
-    - User's BU is mandatory and set at creation time
-    - Returns all accessible BUs with their metadata
-    """
-    ensure_default_bu_access(db, current_user)  # idempotent -- backfills users who predate this story
-    rows = get_user_bu_access(db, current_user.UserID)
-    bu_ids = [r.business_unit_id for r in rows]
-    bus_by_id = {b.id: b for b in db.query(BusinessUnit).filter(BusinessUnit.id.in_(bu_ids)).all()} if bu_ids else {}
+    scope = _scope(db, current_user)
+    query = db.query(BusinessUnit).filter(BusinessUnit.tenant_id == current_user.tenant_id)
+    query = query.filter(BusinessUnit.active.is_(True)) if scope is None else query.filter(BusinessUnit.id.in_(scope or {-1}))
+    roles = {} if scope is None else _roles(db, current_user)
+    items = [
+        BUAccessItem(business_unit_id=bu.id, name=bu.display_name or bu.name,
+                     continent=getattr(bu, "continent", None), region=getattr(bu, "region", None),
+                     is_default=bu.id == current_user.business_unit_id, roles=roles.get(bu.id, []))
+        for bu in query.order_by(BusinessUnit.name).all()
+    ]
+    chosen = active_bu()
+    in_scope = chosen is not None and any(item.business_unit_id == chosen for item in items)
+    return MyBUAccessResponse(access=items, can_view_all_bus=scope is None,
+                              active_business_unit_id=chosen if in_scope else None)
 
-    # Build response with safe field access (handle missing BU records gracefully)
-    access_items = []
-    for r in rows:
-        bu = bus_by_id.get(r.business_unit_id)
-
-        # Get BU name safely (fallback to unknown if BU doesn't exist)
-        bu_name = bu.name if bu else f"(BU #{r.business_unit_id})"
-
-        # Get optional BU fields safely (getattr with None default)
-        bu_continent = getattr(bu, 'continent', None) if bu else None
-        bu_region = getattr(bu, 'region', None) if bu else None
-
-        item = BUAccessItem(
-            business_unit_id=r.business_unit_id,
-            name=bu_name,
-            continent=bu_continent,
-            region=bu_region,
-            is_default=r.is_default,
-        )
-        access_items.append(item)
-
-    return MyBUAccessResponse(
-        access=access_items,
-        can_view_all_bus=_user_can_view_all_bus(db, current_user),
-    )
 
 @router.post(
     "/switch",
     dependencies=[Depends(require_resource_permission("dashboard", "view"))]
 )
 def switch_bu(body: SwitchBURequest, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
-    try:
-        switch_active_bu(db, current_user, body.business_unit_id)
-    except NotYourBusinessUnit as exc:
-        raise HTTPException(status_code=403, detail=str(exc))
-    return {"active_business_unit_id": body.business_unit_id}
-
-@router.post(
-    "/all-bus",
-    dependencies=[Depends(require_resource_permission("dashboard", "view"))]
-)
-def all_bus_view(current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
-    try:
-        entry = activate_all_bus_view(db, current_user)
-    except NotAuthorizedForAllBUs as exc:
-        raise HTTPException(status_code=403, detail=str(exc))
-    return {"activated": True, "audit_log_id": entry.id}
+    """Check a selector choice before the browser starts sending it: only a BU inside the user's
+    scope (any active BU for org-level users)."""
+    scope = _scope(db, current_user)
+    unit = db.query(BusinessUnit).filter(BusinessUnit.id == body.business_unit_id,
+                                         BusinessUnit.tenant_id == current_user.tenant_id).first()
+    if unit is None or (scope is not None and unit.id not in scope):
+        raise HTTPException(status_code=403, detail="That business unit is outside what you can see.")
+    return {"active_business_unit_id": unit.id}

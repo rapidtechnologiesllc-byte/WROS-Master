@@ -57,11 +57,11 @@ def get_user_bu_id(user: Users) -> int | None:
     return user.business_unit_id
 
 
-def get_user_bu_ids(db, user: Users) -> set[int] | None:
+def scope_bu_ids(db, user: Users) -> set[int] | None:
     """
-    The business units a BU-scoped user may see (CEO 2026-10-12: by business unit only,
-    never by location): the BUs they partner, the BUs they head in any company, and their
-    own BU. None = org-level (role template org_level_access) -- no filter.
+    The business units a BU-scoped user may see (CEO 2026-10-12): the BUs they partner, the
+    BUs they head in any company, and their own BU. None = org-level (role template
+    org_level_access) -- no filter. The top-bar selector never widens this.
     """
     from app.services.bu_leadership import led_business_units
 
@@ -70,6 +70,18 @@ def get_user_bu_ids(db, user: Users) -> set[int] | None:
     ids = led_business_units(db, user)
     if user.business_unit_id is not None:
         ids.add(user.business_unit_id)
+    return ids
+
+
+def get_user_bu_ids(db, user: Users) -> set[int] | None:
+    """What the user sees on this request: their scope (scope_bu_ids), narrowed to the business
+    unit chosen in the top-bar selector when it is inside that scope (app.core.bu_view)."""
+    from app.core.bu_view import active_bu
+
+    ids = scope_bu_ids(db, user)
+    chosen = active_bu()
+    if chosen is not None and (ids is None or chosen in ids):
+        return {chosen}
     return ids
 
 

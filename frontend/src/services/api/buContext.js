@@ -14,7 +14,3 @@ export const switchBU = async (businessUnitId) => {
   return data;
 };
 
-export const activateAllBUsView = async () => {
-  const { data } = await apiRequest("/bu-context/all-bus", { method: "POST" });
-  return data;
-};

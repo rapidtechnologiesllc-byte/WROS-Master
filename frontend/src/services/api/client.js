@@ -67,6 +67,7 @@ export const clearAuthSessionAndRedirectToLogin = () => {
     localStorage.removeItem("hrms_candidate_id");
     localStorage.removeItem("hrms_user_type");
     localStorage.removeItem("hrms_active_bu_id");
+    localStorage.removeItem("hrms_bu_view");
   } catch (_) {
     /* ignore */
   }
@@ -87,12 +88,9 @@ const withAuthHeaders = (headers = {}) => {
   if (token) {
     result.Authorization = `Bearer ${token}`;
   }
-  // S-205/HRMS-0107 -- no server-side session store in this app (JWT-
-  // only), so the active BU choice is persisted here and re-sent on
-  // every request. The backend re-validates it against the user's
-  // real bu_access rows every single call (BR-0107-01) -- this header
-  // is a hint, never trusted as-is.
-  const activeBuId = localStorage.getItem("hrms_active_bu_id");
+  // The business unit chosen in the top-bar selector (BUSwitcher). The backend only uses it to
+  // NARROW what the user's role already lets them see (app.core.bu_view); unset = their full scope.
+  const activeBuId = localStorage.getItem("hrms_bu_view");
   if (activeBuId) {
     result["X-Active-BU-Id"] = activeBuId;
   }
