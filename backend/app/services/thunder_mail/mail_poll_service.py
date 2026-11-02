@@ -4,7 +4,8 @@ Runs from the cron'd mail_sync_worker (every 15 min in prod). Matches, in order:
 1. conversationId of one of our outbound emails (a reply in our thread);
 2. one of our Message-IDs in In-Reply-To / References;
 3. a NEW email whose sender is a candidate already in a Thunder cadence.
-Anything else sent by an active staff member (a forward, usually) goes to the
+An email to or from a client's people (staff put the mailbox on CC/BCC) is logged on that client
+(client_email_log_service). Anything else sent by an active staff member (a forward, usually) goes to the
 mailbox intake (forward_intake_service): it becomes a candidate, a note or a
 task, never dropped. Other mail (ordinary HR mail from outside) is neither
 stored nor processed here.
@@ -21,6 +22,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.candidate import Candidate
 from app.models.thunder_email import ThunderCadenceState, ThunderEmailMessage, ThunderMailboxCursor
+from app.services.client_email_log_service import log_mailbox_email
 from app.services.delivery_errors import DeliveryDeferred
 from app.services.thunder_mail.cadence_service import INBOUND_TASK, enqueue_once
 from app.services.thunder_mail.forward_intake_service import forwarding_user, queue_forward, store_forward
@@ -82,7 +84,7 @@ def poll_thunder_mailbox(db: Session, mailbox: Optional[GraphMailbox] = None,
         logger.error(f"[ThunderPoll] Could not read {mailbox_address}: {exc}")
         return {"read": 0, "matched": 0, "error": str(exc)}
 
-    matched, newest, queued, forwards = 0, cursor.last_received_at, [], []
+    matched, clients_logged, newest, queued, forwards = 0, 0, cursor.last_received_at, [], []
     for message in messages:
         received = _parse_time(message["receivedDateTime"])
         newest = max(newest, received)
@@ -94,6 +96,9 @@ def poll_thunder_mailbox(db: Session, mailbox: Optional[GraphMailbox] = None,
             continue  # seen in an earlier, overlapping run
         headers = _headers(message)
         state = _match(db, message, headers, sender)
+        if state is None and log_mailbox_email(db, message, sender, received, mailbox_address):
+            clients_logged += 1
+            continue
         if state is None:
             staff = forwarding_user(db, sender) if settings.MAILBOX_INTAKE_ENABLED else None
             if staff is not None and not is_auto_message(message.get("subject") or "", headers):
@@ -129,8 +134,9 @@ def poll_thunder_mailbox(db: Session, mailbox: Optional[GraphMailbox] = None,
                       "has_attachments": has_attachments}, tenant_id)
     for intake_id, tenant_id in forwards:
         queue_forward(intake_id, tenant_id)
-    logger.info(f"[ThunderPoll] {mailbox_address}: read {len(messages)}, matched {matched}, forwarded {len(forwards)}")
-    return {"read": len(messages), "matched": matched, "forwarded": len(forwards)}
+    logger.info(f"[ThunderPoll] {mailbox_address}: read {len(messages)}, matched {matched}, "
+                f"client emails {clients_logged}, forwarded {len(forwards)}")
+    return {"read": len(messages), "matched": matched, "client_emails": clients_logged, "forwarded": len(forwards)}
 
 
 def run_cadence_sweep(db: Session, now: Optional[datetime] = None) -> Dict:

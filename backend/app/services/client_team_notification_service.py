@@ -41,8 +41,11 @@ def client_team(db: Session, client: Client) -> Dict[str, List[str]]:
 
 
 def _queue_team(db: Session, team: Dict[str, List[str]], *, actor_id: Optional[str], key: str,
-                subject: str, opening: str, details: List[str], link_path: str, link_label: str) -> int:
-    """Queue one email per team member except the actor; returns how many were queued."""
+                subject: str, opening: str, details: List[str], link_path: str, link_label: str,
+                client: Optional[Client] = None) -> int:
+    """Queue one email per team member except the actor; returns how many were queued. With a
+    client, each queued email is also logged on the client's History (client_emails, TEAM)."""
+    from app.services.client_email_log_service import log_team_email
     from app.services.staff_mail_service import queue_staff_email
 
     queued = 0
@@ -54,13 +57,19 @@ def _queue_team(db: Session, team: Dict[str, List[str]], *, actor_id: Optional[s
             logger.warning(f"[ClientTeamEmail] {key}: team member {user_id} is unknown or terminated; not emailed")
             continue
         try:
+            paragraphs = [opening, f"You are on it as: {', '.join(roles)}.", *details]
             if queue_staff_email(
                 user, key=f"{key}-{user_id}", subject=subject[:250], link_path=link_path, link_label=link_label,
-                paragraphs=[opening, f"You are on it as: {', '.join(roles)}.", *details],
+                paragraphs=paragraphs,
             ):
                 queued += 1
+                if client is not None:
+                    log_team_email(db, client, user, key=f"{key}-{user_id}", subject=subject,
+                                   summary=" ".join(paragraphs), actor_id=actor_id)
         except Exception as exc:
             logger.error(f"[ClientTeamEmail] {key}: email to {user_id} not queued: {exc}", exc_info=True)
+    if client is not None:
+        db.commit()
     logger.info(f"[ClientTeamEmail] {key}: {queued} email(s) queued for {len(team)} team member(s)")
     return queued
 
@@ -84,7 +93,7 @@ def notify_client_created(db: Session, client: Client, *, actor: Users) -> int:
             subject=f"New client: {client.company_name}",
             opening=f"{by} added the client {client.company_name}.",
             details=["Team: " + "; ".join(_team_lines(db, team)) + "."],
-            link_path=CLIENT_MANAGEMENT_PATH, link_label="Open Client Management",
+            link_path=CLIENT_MANAGEMENT_PATH, link_label="Open Client Management", client=client,
         )
     except Exception as exc:
         logger.error(f"[ClientTeamEmail] new-client email for {client.id} not queued: {exc}", exc_info=True)
@@ -100,7 +109,7 @@ def notify_client_owner_assigned(db: Session, client: Client, *, actor: Users) -
             key=f"client-owner-{client.id}-{client.client_owner_user_id}",
             subject=f"You are now the Client Owner of {client.company_name}",
             opening=f"{actor.UserName or actor.UserEmail} made you the Client Owner of {client.company_name}.",
-            details=[], link_path=CLIENT_MANAGEMENT_PATH, link_label="Open Client Management",
+            details=[], link_path=CLIENT_MANAGEMENT_PATH, link_label="Open Client Management", client=client,
         )
     except Exception as exc:
         logger.error(f"[ClientTeamEmail] client-owner email for {client.id} not queued: {exc}", exc_info=True)
@@ -141,9 +150,35 @@ def notify_opportunity_created(db: Session, opportunity, *, actor: Users) -> int
             subject=f"New opportunity: {client.company_name}",
             opening=f"{by} added an opportunity for {client.company_name}.",
             details=[". ".join(facts) + ".", "Team: " + "; ".join(_team_lines(db, team)) + "."],
-            link_path=OPPORTUNITY_PIPELINE_PATH, link_label="Open the pipeline",
+            link_path=OPPORTUNITY_PIPELINE_PATH, link_label="Open the pipeline", client=client,
         )
     except Exception as exc:
         logger.error(f"[ClientTeamEmail] new-opportunity email for {opportunity.id} not queued: {exc}",
                      exc_info=True)
+        return 0
+
+
+def notify_client_changes(db: Session, client: Client, *, actor: Users, key: str,
+                          changes: List[str], extra_team: Optional[Dict[str, List[str]]] = None) -> int:
+    """Queue one email per person on the client's team (Client Owner, Account Manager, BU head) plus
+    extra_team (e.g. the new BU's partner, a removed account manager) listing what changed on the
+    client in one save. Never raises (the change is already saved)."""
+    if not changes:
+        return 0
+    try:
+        team = client_team(db, client)
+        for user_id, roles in (extra_team or {}).items():
+            for role in roles:
+                _add(team, user_id, role)
+        by = actor.UserName or actor.UserEmail
+        return _queue_team(
+            db, team, actor_id=actor.UserID, key=key,
+            subject=f"{client.company_name}: {changes[0]}" if len(changes) == 1
+            else f"{client.company_name}: {len(changes)} changes",
+            opening=f"{by} changed the client {client.company_name}:",
+            details=[f"- {line}" for line in changes],
+            link_path=CLIENT_MANAGEMENT_PATH, link_label="Open Client Management", client=client,
+        )
+    except Exception as exc:
+        logger.error(f"[ClientTeamEmail] change email for {client.id} not queued: {exc}", exc_info=True)
         return 0

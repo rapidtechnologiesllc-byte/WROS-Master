@@ -35,6 +35,12 @@ export const updateClient = async (clientId, payload) => {
   return data;
 };
 
+// Every change and every logged email for the client, newest first
+export const getClientHistory = async (clientId) => {
+  const { data } = await apiRequest(`/clients/${clientId}/history`, { method: "GET" });
+  return data;
+};
+
 export const getClientContacts = async (clientId) => {
   const { data } = await apiRequest(`/clients/${clientId}/contacts`, { method: "GET" });
   return data;

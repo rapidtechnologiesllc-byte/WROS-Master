@@ -19,7 +19,8 @@ GRAPH = "https://graph.microsoft.com/v1.0"
 HTTP_TIMEOUT = 20
 INBOX_PAGE_SIZE = 50
 INBOX_SELECT = (
-    "id,conversationId,internetMessageId,from,subject,uniqueBody,receivedDateTime,internetMessageHeaders,hasAttachments"
+    "id,conversationId,internetMessageId,from,toRecipients,ccRecipients,subject,uniqueBody,receivedDateTime,"
+    "internetMessageHeaders,hasAttachments"
 )
 MESSAGE_SELECT = "id,subject,body,from,receivedDateTime,hasAttachments"
 TEXT_BODY = 'IdType="ImmutableId", outlook.body-content-type="text"'

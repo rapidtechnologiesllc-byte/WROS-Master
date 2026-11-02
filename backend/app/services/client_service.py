@@ -206,15 +206,43 @@ def _validated_business_unit_id(db: Session, business_unit_id: int, tenant_id: O
     return business_unit_id
 
 
-def set_client_business_unit(db: Session, client: Client, business_unit_id: int, tenant_id: Optional[int]) -> Client:
-    """Change a client's BU - chosen from the Business Units dropdown in the client detail panel."""
-    client.business_unit_id = _validated_business_unit_id(db, business_unit_id, tenant_id)
-    db.commit()
-    db.refresh(client)
-    return client
+def _history(db: Session, client: Client, change_type: str, old: dict, new: dict,
+             changed_by: Optional[str]) -> ClientHistory:
+    row = ClientHistory(tenant_id=client.tenant_id, client_id=client.id, change_type=change_type,
+                        old_value=json.dumps(old, default=str), new_value=json.dumps(new, default=str),
+                        changed_by=changed_by)
+    db.add(row)
+    return row
 
 
-def update_client_details(db: Session, client: Client, updates: dict) -> Client:
+def set_client_business_unit(db: Session, client: Client, business_unit_id: int, tenant_id: Optional[int],
+                             *, changed_by: Optional[str] = None) -> bool:
+    """Change a client's BU and write ClientHistory. Returns whether it changed.
+    Does not commit -- the caller owns the transaction."""
+    new_id = _validated_business_unit_id(db, business_unit_id, tenant_id)
+    if client.business_unit_id == new_id:
+        return False
+    _history(db, client, "BUSINESS_UNIT", {"business_unit_id": client.business_unit_id},
+             {"business_unit_id": new_id}, changed_by)
+    client.business_unit_id = new_id
+    db.add(client)
+    return True
+
+
+def set_client_contracting_company(db: Session, client: Client, company_id: Optional[str],
+                                   *, changed_by: Optional[str] = None) -> bool:
+    """Set (or clear, with None) which of our companies invoices the client, with ClientHistory.
+    The caller validates the company. Returns whether it changed; does not commit."""
+    if client.contracting_company_id == company_id:
+        return False
+    _history(db, client, "CONTRACTING_COMPANY", {"contracting_company_id": client.contracting_company_id},
+             {"contracting_company_id": company_id}, changed_by)
+    client.contracting_company_id = company_id
+    db.add(client)
+    return True
+
+
+def update_client_details(db: Session, client: Client, updates: dict, *, changed_by: Optional[str] = None) -> Client:
     """General "edit client details" path (the gap Avinash flagged
     2026-08-05: no client edit UI/API existed at all). Deliberately
     excludes `business_unit_id` (locked per the attribution rule in
@@ -250,11 +278,17 @@ def update_client_details(db: Session, client: Client, updates: dict) -> Client:
             raise DuplicateClientError(f"A client named {new_name!r} already exists.")
         updates = {**updates, "company_name": new_name}
 
+    before = {field: getattr(client, field) for field in updates}
     for field, value in updates.items():
         setattr(client, field, value)
     db.add(client)
-    db.commit()
-    db.refresh(client)
+    blank = lambda v: None if v == "" else v  # an emptied text field and a never-set one are the same
+    changed = [f for f in updates if blank(before[f]) != blank(getattr(client, f))]
+    if changed:
+        # one DETAILS row per save, every field that actually changed (blank -> blank is no change)
+        _history(db, client, "DETAILS", {f: before[f] for f in changed},
+                 {f: getattr(client, f) for f in changed}, changed_by)
+    db.flush()
     return client
 
 def set_client_status(
@@ -363,8 +397,8 @@ def assign_account_manager(
 
     return client
 
-def _notify_account_manager(db: Session, client: Client, recipient: Users, tenant_id: Optional[int]) -> None:
-    """Best-effort assignment email (HRMS-0709 BR-01); a failure is logged, never raised."""
+def account_manager_workload(db: Session, client: Client) -> str:
+    """HRMS-0709 BR-01: what a newly assigned account manager is told they are taking on."""
     active_demands = db.query(Demand).filter(
         Demand.client_id == client.id, Demand.status.in_(("OPEN", "IN_PROGRESS")),
     ).count()
@@ -372,6 +406,12 @@ def _notify_account_manager(db: Session, client: Client, recipient: Users, tenan
         Submission.client_id == client.id,
         Submission.status.in_(("SUBMITTED", "SHORTLISTED", "CLIENT_INTERVIEW_REQUESTED", "OFFER_EXTENDED")),
     ).count()
+    return f"{active_demands} active demand(s), {open_submissions} open submission(s)"
+
+
+def _notify_account_manager(db: Session, client: Client, recipient: Users, tenant_id: Optional[int]) -> None:
+    """Best-effort assignment email (HRMS-0709 BR-01); a failure is logged, never raised."""
+    workload = account_manager_workload(db, client)
     try:
         send_notification(
             db,
@@ -383,8 +423,7 @@ def _notify_account_manager(db: Session, client: Client, recipient: Users, tenan
             channel_preference="EMAIL",
             message=(
                 f"You have been assigned as account manager for "
-                f"<strong>{client.company_name}</strong>.<br><br>"
-                f"{active_demands} active demand(s), {open_submissions} open submission(s)."
+                f"<strong>{client.company_name}</strong>.<br><br>{workload}."
             ),
         )
     except Exception as exc:

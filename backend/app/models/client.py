@@ -49,7 +49,12 @@ PIPELINE_STATUSES = ("QUALIFICATION", "PROSPECT", "PROPOSAL", "NEGOTIATION", "CO
 CLIENT_STATUSES = PIPELINE_STATUSES  # Client.status uses same values as Opportunity.stage
 BILLING_CURRENCIES = ("USD", "INR", "GBP", "EUR", "CAD", "AUD")
 # CLIENT_OWNER (2026-10-30): the person who owns the relationship -- separate from the account manager
-CLIENT_CHANGE_TYPES = ("STATUS", "ACCOUNT_MANAGER", "CLIENT_OWNER", "TIER", "CONTRACT_TERMS")
+# DETAILS: any other field edit (old/new of each changed field). Emails live in client_emails.
+CLIENT_CHANGE_TYPES = ("CREATED", "STATUS", "ACCOUNT_MANAGER", "CLIENT_OWNER", "TIER", "CONTRACT_TERMS",
+                       "BUSINESS_UNIT", "CONTRACTING_COMPANY", "DETAILS")
+# OUT: staff -> client (helpdesk on CC/BCC); IN: client -> us (received in the helpdesk mailbox);
+# TEAM: the system's email to the client's internal team about a change on the client
+CLIENT_EMAIL_DIRECTIONS = ("OUT", "IN", "TEAM")
 CONTACT_ROLE_TYPES = ("HIRING_MANAGER", "TECHNICAL_PANEL", "PROCUREMENT", "ACCOUNTS", "PRIMARY", "TIMESHEET_APPROVER")
 
 # 2026-08-06, confirmed directly with Avinash while redesigning Client
@@ -185,3 +190,28 @@ class ClientHistory(Base):
     new_value = Column(Text, nullable=True)
     changed_by = Column(String(512), nullable=True)
     changed_at = Column(DateTime, server_default=func.now())
+
+
+class ClientEmail(Base):
+    """Every email about a client: sent by staff with the helpdesk mailbox on CC/BCC, received
+    from the client's people in that mailbox, or sent by the system to the client's internal team.
+    Insert-only; one row per client and message (a team email has no Graph id, its key is unique)."""
+    __tablename__ = "client_emails"
+    __table_args__ = (UniqueConstraint("client_id", "message_key", name="uq_client_email_message"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    client_id = Column(String(512), ForeignKey("clients.id"), nullable=False, index=True)
+    direction = Column(
+        Enum(*CLIENT_EMAIL_DIRECTIONS, name="client_email_direction", native_enum=False, create_constraint=True),
+        nullable=False,
+    )
+    # Graph message id (OUT / IN) or the staff-mail key (TEAM)
+    message_key = Column(String(512), nullable=False)
+    from_address = Column(String(320), nullable=True)
+    to_addresses = Column(Text, nullable=True)  # comma-separated
+    cc_addresses = Column(Text, nullable=True)
+    subject = Column(String(998), nullable=True)
+    snippet = Column(Text, nullable=True)
+    sent_by_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True, index=True)
+    sent_at = Column(DateTime, nullable=False, index=True)
