@@ -1,6 +1,7 @@
 """
 S-267/HRMS-0301 (BU Revenue Target) + S-241/HRMS-0212 (Executive Revenue Dashboard)
-+ S-244/HRMS-0215 (Pipeline Coverage).
++ S-244/HRMS-0215 (Pipeline Coverage, part of the dashboard: measured against the stored FY
+revenue targets, never a target typed in by the viewer).
 
 Gated behind revenue permissions; every figure is narrowed to the business units the caller
 may see (app.core.data_scope) -- org-level role templates see the whole firm.
@@ -15,11 +16,10 @@ from app.core.revenue_visibility_scope import get_revenue_scoped_client_ids
 from app.models.user import Users
 from app.schemas.revenue_target import (
     BUTargetCreateRequest, BUTargetVsActualResponse, ExecutiveRevenueDashboardResponse,
-    PipelineCoverageResponse,
 )
 from app.services.revenue_target_service import (
     RevenueTargetValidationError, get_bu_target_vs_actual, get_executive_revenue_dashboard,
-    get_pipeline_coverage, set_bu_revenue_target,
+    set_bu_revenue_target,
 )
 
 router = APIRouter(tags=["revenue-targets"])
@@ -73,20 +73,3 @@ def executive_dashboard(
 ):
     client_ids = get_revenue_scoped_client_ids(db, current_user)
     return get_executive_revenue_dashboard(db, client_ids=list(client_ids) if client_ids is not None else None)
-
-@router.get(
-    "/revenue-targets/pipeline-coverage",
-    response_model=PipelineCoverageResponse,
-    dependencies=[Depends(require_resource_permission("revenue", "view"))]
-)
-def pipeline_coverage(
-    revenue_target_usd_cents: int,
-    db: Session = Depends(get_db),
-    current_user: Users = Depends(require_resource_permission("revenue", "view")),
-):
-    client_ids = get_revenue_scoped_client_ids(db, current_user)
-    ratio = get_pipeline_coverage(
-        db, client_ids=list(client_ids) if client_ids is not None else None,
-        revenue_target_usd_cents=revenue_target_usd_cents,
-    )
-    return PipelineCoverageResponse(revenue_target_usd_cents=revenue_target_usd_cents, coverage_ratio=ratio)

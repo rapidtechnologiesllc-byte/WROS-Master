@@ -21,8 +21,10 @@ const formatValue = (value, unit) => {
 
 function TargetCell({ node, metric, onSave }) {
   const cell = node.metrics[metric.key] || {};
+  // A summed row's own typed figure is its plan; the target shown is the sum of the rows below
+  const typed = cell.rolled_up ? cell.plan : cell.target;
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(cell.target ?? "");
+  const [value, setValue] = useState(typed ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -39,7 +41,6 @@ function TargetCell({ node, metric, onSave }) {
     }
   };
 
-  const overAllocated = cell.allocated != null && cell.target != null && cell.allocated > cell.target;
   const pct = cell.progress_pct;
 
   if (editing) {
@@ -50,10 +51,10 @@ function TargetCell({ node, metric, onSave }) {
           <Button onClick={() => (Number(value) > 0 ? save(Number(value)) : setError("Enter a positive number"))} disabled={saving}>
             {saving ? "..." : "Save"}
           </Button>
-          {cell.target != null && (
+          {typed != null && (
             <Button variant="secondary" onClick={() => save(null)} disabled={saving}>Clear</Button>
           )}
-          <Button variant="ghost" onClick={() => { setEditing(false); setValue(cell.target ?? ""); setError(null); }} disabled={saving}>
+          <Button variant="ghost" onClick={() => { setEditing(false); setValue(typed ?? ""); setError(null); }} disabled={saving}>
             Cancel
           </Button>
         </div>
@@ -71,7 +72,8 @@ function TargetCell({ node, metric, onSave }) {
           {cell.target == null ? "no target" : formatValue(cell.target, metric.unit)}
         </span>
         {node.editable && (
-          <button className="ml-1 text-gray-400 hover:text-bx-orange" onClick={() => setEditing(true)} title="Set target">
+          <button className="ml-1 text-gray-400 hover:text-bx-orange" onClick={() => setEditing(true)}
+            title={cell.rolled_up ? "Set a plan for this row (the target is the sum below)" : "Set target"}>
             <Pencil className="h-3.5 w-3.5" />
           </button>
         )}
@@ -81,10 +83,20 @@ function TargetCell({ node, metric, onSave }) {
           <div className={`h-full rounded-full ${pct >= 90 ? "bg-green-500" : pct >= 60 ? "bg-blue-500" : "bg-amber-500"}`} style={{ width: `${Math.min(pct, 100)}%` }} />
         </div>
       )}
-      {cell.allocated != null && (
-        <div className={`mt-0.5 text-[11px] ${overAllocated ? "text-rose-600" : "text-gray-500"}`}>
-          allocated below: {formatValue(cell.allocated, metric.unit)}
-          {overAllocated && " (exceeds target)"}
+      {cell.rolled_up && (
+        <div className="mt-0.5 text-[11px] text-gray-500">sum of rows below</div>
+      )}
+      {cell.plan != null && cell.unassigned !== 0 && (
+        <div className={`text-[11px] ${cell.unassigned < 0 ? "text-rose-600" : "text-amber-700"}`}>
+          plan {formatValue(cell.plan, metric.unit)}:{" "}
+          {cell.unassigned > 0
+            ? `${formatValue(cell.unassigned, metric.unit)} not yet assigned below`
+            : `rows below exceed it by ${formatValue(-cell.unassigned, metric.unit)}`}
+        </div>
+      )}
+      {cell.companies_total != null && (
+        <div className="mt-0.5 text-[11px] text-gray-500">
+          companies add up to {formatValue(cell.companies_total, metric.unit)} (includes intercompany)
         </div>
       )}
     </div>
@@ -174,7 +186,8 @@ export default function GoalTree() {
             <Target className="h-4 w-4" /> FY Goals -- Organization, Company, Partner, Business Unit
           </div>
           <p className="text-xs text-gray-500">
-            Actual / target for each level. Click the pencil to set a target. The Organization row feeds the CEO Dashboard.
+            Actual / target for each level. Set targets on business units; partner, company and Organization rows add up
+            the rows below (Organization revenue is external client revenue, set on its own). The Organization row feeds the CEO Dashboard.
             {data ? ` ${Math.round(data.fy_progress_pct)}% of ${data.fy_label} elapsed.` : ""}
           </p>
         </div>

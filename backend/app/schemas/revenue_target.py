@@ -72,10 +72,12 @@ class ExecutiveRevenueDashboardResponse(BaseModel):
     total_revenue_usd_cents: int = 0
     unassigned_bu_revenue_usd_cents: int = 0
     bu_metrics: list[dict] = []
+    # S-244: open pipeline / FY revenue target (org target for org-level users, the sum of
+    # the caller's BU targets otherwise); status is HEALTHY / THIN / LOW / NO_TARGET
     pipeline_coverage: Optional[float] = None
+    pipeline_coverage_status: str = "NO_TARGET"
+    pipeline_coverage_target_usd_cents: Optional[int] = None
+    pipeline_coverage_pipeline_usd_cents: int = 0
+    pipeline_coverage_benchmark: Optional[float] = None
     team_capacity_utilization_pct: Optional[float] = None
     risks: list[dict] = []
-
-class PipelineCoverageResponse(BaseModel):
-    revenue_target_usd_cents: int
-    coverage_ratio: Optional[float]

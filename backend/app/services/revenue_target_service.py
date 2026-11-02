@@ -31,6 +31,11 @@ from app.services.permission_helper import PermissionHelper
 ON_TRACK_THRESHOLD = 0.95
 AT_RISK_THRESHOLD = 0.80
 
+# S-244 pipeline coverage bands: open pipeline as a multiple of the FY revenue target.
+# 3x is the common healthy-pipeline benchmark; under 2x the target is unlikely to be met.
+HEALTHY_COVERAGE = 3.0
+THIN_COVERAGE = 2.0
+
 logger = logging.getLogger(__name__)
 
 class RevenueTargetValidationError(Exception):
@@ -273,34 +278,41 @@ def _executive_extras(db: Session, *, client_ids, pipeline_by_bu: dict, total_pi
         revenue_query = revenue_query.filter(Invoice.client_id.in_(client_ids))
     revenue_by_bu = {bu_id: int(total or 0) for bu_id, total in revenue_query.group_by(Client.business_unit_id).all()}
 
-    bu_targets = {
-        row.entity_id: row.target
-        for row in db.query(GoalTarget).filter(GoalTarget.year == year, GoalTarget.level == "BU",
-                                               GoalTarget.metric == "revenue").all()
-    }
+    bu_targets = _annual_bu_targets_usd_cents(db, year)
     visible_bus = None if client_ids is None else {bu for bu in revenue_by_bu} | {bu for bu in pipeline_by_bu}
     bu_metrics = []
     for bu in db.query(BusinessUnit).filter(BusinessUnit.active.is_(True)).order_by(BusinessUnit.name).all():
         if visible_bus is not None and bu.id not in visible_bus:
             continue
-        target = bu_targets.get(str(bu.id))
+        target = bu_targets.get(bu.id)
         pipeline = pipeline_by_bu.get(bu.id, {})
+        coverage = _coverage(pipeline.get("pipeline_usd_cents", 0), target)
         bu_metrics.append({
             "business_unit_id": bu.id,
             "name": bu.display_name or bu.name,
             "revenue_usd_cents": revenue_by_bu.get(bu.id, 0),
-            "target_usd_cents": int(round(target * 100)) if target else None,
+            "target_usd_cents": target,
             "pipeline_usd_cents": pipeline.get("pipeline_usd_cents", 0),
             "won_usd_cents": pipeline.get("won_usd_cents", 0),
+            "pipeline_coverage": coverage,
+            "pipeline_coverage_status": coverage_status(coverage),
         })
     bu_metrics.sort(key=lambda b: b["revenue_usd_cents"], reverse=True)
     unassigned_revenue = revenue_by_bu.get(None, 0)
 
-    org_target = db.query(GoalTarget).filter(GoalTarget.year == year, GoalTarget.level == "ORG",
-                                             GoalTarget.metric == "revenue").first()
-    pipeline_coverage = (
-        round(total_pipeline_usd_cents / (org_target.target * 100), 2) if org_target and org_target.target else None
-    )
+    if client_ids is None:
+        # Org-level view: the whole open pipeline against the org FY revenue target
+        org_target = db.query(GoalTarget).filter(GoalTarget.year == year, GoalTarget.level == "ORG",
+                                                 GoalTarget.metric == "revenue").first()
+        coverage_target = int(round(org_target.target * 100)) if org_target and org_target.target else None
+        coverage_pipeline = total_pipeline_usd_cents
+    else:
+        # BU-scoped view: only the caller's BUs that have a target, so a BU with no target
+        # can't inflate the ratio and the org target never leaks into a partner's view
+        targeted = [b for b in bu_metrics if b["target_usd_cents"]]
+        coverage_target = sum(b["target_usd_cents"] for b in targeted) or None
+        coverage_pipeline = sum(b["pipeline_usd_cents"] for b in targeted)
+    pipeline_coverage = _coverage(coverage_pipeline, coverage_target)
 
     from app.services.bench_service import headcount_snapshot
 
@@ -322,6 +334,10 @@ def _executive_extras(db: Session, *, client_ids, pipeline_by_bu: dict, total_pi
         "unassigned_bu_revenue_usd_cents": unassigned_revenue,
         "bu_metrics": bu_metrics,
         "pipeline_coverage": pipeline_coverage,
+        "pipeline_coverage_status": coverage_status(pipeline_coverage),
+        "pipeline_coverage_target_usd_cents": coverage_target,
+        "pipeline_coverage_pipeline_usd_cents": coverage_pipeline,
+        "pipeline_coverage_benchmark": HEALTHY_COVERAGE,
         "team_capacity_utilization_pct": utilization,
         "risks": [
             {"key": "revenue_leakage", "label": "Revenue Leakage", "severity": "high", "value": leakage_flags,
@@ -335,11 +351,31 @@ def _executive_extras(db: Session, *, client_ids, pipeline_by_bu: dict, total_pi
         ],
     }
 
-def get_pipeline_coverage(db: Session, *, client_ids: Optional[List[str]], revenue_target_usd_cents: int) -> Optional[float]:
+def _annual_bu_targets_usd_cents(db: Session, fiscal_year: int) -> dict:
+    """Current ANNUAL revenue target per BU. Reads the BU target history (append-only, latest
+    row wins -- the Goals screen writes the BU's total across companies there), not the
+    per-company goal_targets rows, which are keyed "<company_id>:<bu_id>"."""
+    latest = (
+        db.query(func.max(BURevenueTarget.id))
+        .filter(BURevenueTarget.target_period == "ANNUAL", BURevenueTarget.fiscal_year == fiscal_year)
+        .group_by(BURevenueTarget.business_unit_id)
+    )
+    rows = db.query(BURevenueTarget).filter(BURevenueTarget.id.in_(latest)).all()
+    return {r.business_unit_id: r.target_amount_usd_cents for r in rows if r.target_amount_usd_cents > 0}
+
+
+def _coverage(pipeline_usd_cents: int, target_usd_cents: Optional[int]) -> Optional[float]:
     """S-244 -- reuses opportunity_service.calculate_pipeline_coverage_ratio(),
     never a second implementation."""
-    query = db.query(Opportunity).filter(Opportunity.stage.notin_(WON_STAGES + ("LOST",)))
-    if client_ids is not None:
-        query = query.filter(Opportunity.client_id.in_(client_ids))
-    total_pipeline = sum(o.revenue_value_usd_cents for o in query.all())
-    return calculate_pipeline_coverage_ratio(total_pipeline, revenue_target_usd_cents)
+    ratio = calculate_pipeline_coverage_ratio(pipeline_usd_cents, target_usd_cents or 0)
+    return round(ratio, 2) if ratio is not None else None
+
+
+def coverage_status(coverage: Optional[float]) -> str:
+    if coverage is None:
+        return "NO_TARGET"
+    if coverage >= HEALTHY_COVERAGE:
+        return "HEALTHY"
+    if coverage >= THIN_COVERAGE:
+        return "THIN"
+    return "LOW"

@@ -527,10 +527,10 @@ export default function CEOUnifiedDashboard() {
               </div>
 
               {/* Pipeline Coverage */}
-              {dashboard?.pipeline_coverage && (
+              {dashboard?.pipeline_coverage != null && (
                 <Card className="p-6 bg-gradient-to-r from-indigo-50 to-blue-50">
                   <h3 className="font-semibold mb-2">PIPELINE COVERAGE RATIO</h3>
-                  <div className="text-3xl font-bold text-gray-900">{dashboard.pipeline_coverage}x</div>
+                  <div className="text-3xl font-bold text-gray-900">{dashboard.pipeline_coverage.toFixed(2)}x</div>
                   <p className="mt-1 text-sm text-gray-600">
                     Open pipeline covers {dashboard.pipeline_coverage}x of annual revenue target
                   </p>
