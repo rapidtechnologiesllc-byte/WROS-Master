@@ -8,15 +8,6 @@ export const getExecutiveDashboard = async () => {
 };
 
 
-
-export const getPipelineCoverage = async (revenueTargetUsdCents) => {
-  const { data } = await apiRequest(
-    `/revenue-targets/pipeline-coverage?revenue_target_usd_cents=${revenueTargetUsdCents}`,
-    { method: "GET" },
-  );
-  return data;
-};
-
 export const createBuTarget = async (payload) => {
   const { data } = await apiRequest("/revenue-targets/bu", {
     method: "POST",

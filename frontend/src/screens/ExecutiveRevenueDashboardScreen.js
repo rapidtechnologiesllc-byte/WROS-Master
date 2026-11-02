@@ -3,19 +3,13 @@
 // read of the shared backend calculations (calculate_weighted_forecast
 // etc.) -- no local recalculation, per BR-0212-01.
 //
-// 2026-08-06: wired 2 previously-orphaned wrappers (working backend +
-// api/ function, never imported by any screen):
-//  - getBuTarget (GET /revenue-targets/bu/:id) -- auto-loads the
-//    currently-set target/actual/status for the selected BU + fiscal
-//    year the moment both are picked, instead of only showing a result
-//    after re-submitting a new target via createBuTarget.
-//  - getPipelineCoverage (GET /revenue-targets/pipeline-coverage) --
-//    new "Pipeline Coverage" widget: how many multiples of a revenue
-//    target the open (non-WON/LOST) pipeline currently covers.
+// Pipeline Coverage is read straight off the dashboard response: open
+// pipeline against the stored FY revenue target (org target, or the
+// viewer's BU targets), never a target typed in on this screen.
 import { useEffect, useState } from "react";
-import { LineChart, Plus, Target } from "lucide-react";
-import { Card, Button, Input } from "../components/ui";
-import { getExecutiveDashboard, getPipelineCoverage } from "../services/api/revenueTargets";
+import { LineChart, Plus } from "lucide-react";
+import { Card, Button } from "../components/ui";
+import { getExecutiveDashboard } from "../services/api/revenueTargets";
 import { listBusinessUnits } from "../services/api/rbac";
 import GoalTree from "../components/GoalTree";
 
@@ -24,67 +18,30 @@ const formatUsdCents = (cents) =>
     ? "—"
     : `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
-// S-244 Pipeline Coverage -- how many multiples of a chosen revenue
-// target the currently-open (non-WON/LOST) pipeline covers, scoped to
-// whatever BU/client visibility the logged-in user already has
-// (revenue.view -- same scope as the dashboard totals above).
-function PipelineCoverageWidget() {
-  const [targetAmount, setTargetAmount] = useState("");
-  const [coverage, setCoverage] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+// Colour for the backend's coverage band (HEALTHY / THIN / LOW / NO_TARGET).
+const COVERAGE_TONE = {
+  HEALTHY: "text-emerald-700",
+  THIN: "text-amber-700",
+  LOW: "text-rose-700",
+};
 
-  const handleCheck = async () => {
-    setError("");
-    const usdCents = Math.round(parseFloat(targetAmount || "0") * 100);
-    if (!usdCents || usdCents <= 0) {
-      setError("Enter a positive revenue target.");
-      return;
-    }
-    setLoading(true);
-    try {
-      const data = await getPipelineCoverage(usdCents);
-      setCoverage(data);
-    } catch (err) {
-      setError(err.message || "Failed to compute pipeline coverage.");
-    } finally {
-      setLoading(false);
-    }
-  };
+const formatCoverage = (ratio) => (ratio == null ? "—" : `${ratio.toFixed(2)}x`);
 
+// S-244 Pipeline Coverage -- open (non-WON/LOST) pipeline as a multiple
+// of the FY revenue target, in the same scope as the totals beside it.
+function PipelineCoverageTile({ dashboard }) {
+  const hasTarget = dashboard.pipeline_coverage_target_usd_cents != null;
   return (
-    <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-      <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-gray-900">
-        <Target className="h-4 w-4" /> Pipeline Coverage
+    <div className="rounded-xl border bg-white p-3">
+      <div className="text-xs text-gray-500">Pipeline Coverage</div>
+      <div className={`text-lg font-semibold ${COVERAGE_TONE[dashboard.pipeline_coverage_status] || "text-gray-900"}`}>
+        {formatCoverage(dashboard.pipeline_coverage)}
       </div>
-      <p className="mb-3 text-xs text-gray-500">
-        Open pipeline (excludes WON/LOST) as a multiple of a revenue target -- e.g. 3x coverage
-        against a quota is the common healthy-pipeline benchmark.
-      </p>
-      {error ? <div className="mb-2 text-xs text-rose-700">{error}</div> : null}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Input
-          label="Revenue Target (USD)"
-          value={targetAmount}
-          onChange={setTargetAmount}
-          placeholder="2000000"
-        />
-        <div className="flex items-end">
-          <Button onClick={handleCheck} disabled={loading}>
-            {loading ? "Checking…" : "Check Coverage"}
-          </Button>
-        </div>
+      <div className="text-xs text-gray-500">
+        {hasTarget
+          ? `of ${formatUsdCents(dashboard.pipeline_coverage_target_usd_cents)} FY target · ${dashboard.pipeline_coverage_benchmark}x is healthy`
+          : "No FY revenue target set (Goals)"}
       </div>
-      {coverage ? (
-        <div className="mt-3 rounded-lg border bg-white p-2 text-xs text-gray-700">
-          Target: <span className="font-semibold">{formatUsdCents(coverage.revenue_target_usd_cents)}</span>
-          {" · "}
-          Coverage Ratio:{" "}
-          <span className="font-semibold">
-            {coverage.coverage_ratio == null ? "—" : `${coverage.coverage_ratio.toFixed(2)}x`}
-          </span>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -128,7 +85,7 @@ export default function ExecutiveRevenueDashboardScreen() {
           <div className="py-8 text-center text-sm text-gray-500">Loading…</div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
               <div className="rounded-xl border bg-white p-3">
                 <div className="text-xs text-gray-500">Total Pipeline</div>
                 <div className="text-lg font-semibold text-gray-900">{formatUsdCents(dashboard.total_pipeline_usd_cents)}</div>
@@ -145,27 +102,32 @@ export default function ExecutiveRevenueDashboardScreen() {
                 <div className="text-xs text-gray-500">Weighted Forecast</div>
                 <div className="text-lg font-semibold text-gray-900">{formatUsdCents(dashboard.weighted_forecast_usd_cents)}</div>
               </div>
+              <PipelineCoverageTile dashboard={dashboard} />
             </div>
 
             <div className="mt-4">
               <div className="mb-2 text-xs font-semibold uppercase text-gray-500">By Business Unit</div>
               <div className="space-y-2">
-                {dashboard.by_business_unit.map((bu) => (
-                  <div key={bu.business_unit_id ?? "unassigned"} className="flex items-center justify-between rounded-xl border bg-white p-3 text-sm">
-                    <span className="font-medium text-gray-700">
-                      {bu.business_unit_id ? (businessUnitNames[bu.business_unit_id] || `BU #${bu.business_unit_id}`) : "Unassigned"}
-                    </span>
-                    <span className="text-gray-600">Pipeline: {formatUsdCents(bu.pipeline_usd_cents)}</span>
-                    <span className="text-emerald-700">Won: {formatUsdCents(bu.won_usd_cents)}</span>
-                    <span className="text-gray-600">Weighted: {formatUsdCents(bu.weighted_forecast_usd_cents)}</span>
-                  </div>
-                ))}
+                {dashboard.by_business_unit.map((bu) => {
+                  const metrics = (dashboard.bu_metrics || []).find((m) => m.business_unit_id === bu.business_unit_id);
+                  return (
+                    <div key={bu.business_unit_id ?? "unassigned"} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-white p-3 text-sm">
+                      <span className="font-medium text-gray-700">
+                        {bu.business_unit_id ? (businessUnitNames[bu.business_unit_id] || `BU #${bu.business_unit_id}`) : "Unassigned"}
+                      </span>
+                      <span className="text-gray-600">Pipeline: {formatUsdCents(bu.pipeline_usd_cents)}</span>
+                      <span className="text-emerald-700">Won: {formatUsdCents(bu.won_usd_cents)}</span>
+                      <span className="text-gray-600">Weighted: {formatUsdCents(bu.weighted_forecast_usd_cents)}</span>
+                      <span className={COVERAGE_TONE[metrics?.pipeline_coverage_status] || "text-gray-500"}>
+                        Coverage: {metrics?.target_usd_cents ? formatCoverage(metrics.pipeline_coverage) : "no target"}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </>
         )}
-
-        <PipelineCoverageWidget />
 
         <GoalTree />
 
