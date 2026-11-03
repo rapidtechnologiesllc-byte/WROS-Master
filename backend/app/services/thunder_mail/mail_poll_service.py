@@ -154,7 +154,7 @@ def poll_connected_mailboxes(db: Session, mailboxes: Optional[Dict[str, GraphMai
             headers = _headers(message)
             state = _our_thread(db, message, headers, address)
             if state is None:
-                _route_own_email(db, message, headers, sender, received, address, owner, result, intakes)
+                _route_own_email(db, message, headers, sender, received, address, owner, result, intakes, mailbox)
                 continue
             row = _reply_row(state, message, headers, sender, received, address)
             staff = staff_sender(db, sender)
@@ -188,14 +188,36 @@ def poll_connected_mailboxes(db: Session, mailboxes: Optional[Dict[str, GraphMai
     return result
 
 
+def _vendor_invoice(db: Session, mailbox, message: Dict, sender: str, received: datetime) -> bool:
+    """An email from a sub-vendor with attachments: their invoice is recorded and validated. True when the
+    sender is a sub-vendor and the email carried an invoice (handled here, never filed elsewhere)."""
+    from app.services import vendor_invoice_intake as intake
+    from app.services.thunder_mail.forward_classifier import read_attachments
+
+    vendor = intake.vendor_for_sender(db, sender)
+    if vendor is None or not message.get("hasAttachments"):
+        return False
+    try:
+        attachments, _ = read_attachments(mailbox.list_attachments(message["id"]))
+    except Exception as exc:
+        logger.error(f"[ThunderPoll] could not read the attachments of {vendor.company_name}'s email: {exc}", exc_info=True)
+        return False
+    if not any((a.text or "").strip() for a in attachments):
+        return False
+    intake.receive(db, vendor, message, attachments, received)
+    return True
+
+
 def _route_own_email(db: Session, message: Dict, headers: Dict[str, str], sender: str, received: datetime,
-                     address: str, owner, result: Dict, intakes: list) -> None:
+                     address: str, owner, result: Dict, intakes: list, mailbox=None) -> None:
     """An email in a person's own inbox that is not a reply in our threads (mailbox_signals)."""
     from app.services.client_email_log_service import match_clients
     from app.services.thunder_mail import mailbox_signals as signals
 
     if owner is None or is_auto_message(message.get("subject") or "", headers) or signals.is_bulk(headers) \
             or is_our_email(db, message.get("internetMessageId")):
+        return
+    if _vendor_invoice(db, mailbox, message, sender, received):
         return
     if log_mailbox_email(db, message, sender, received, address):
         result["client_emails"] += 1
@@ -270,6 +292,8 @@ def poll_thunder_mailbox(db: Session, mailbox: Optional[GraphMailbox] = None,
             continue  # seen in an earlier, overlapping run
         if _already_received(db, message):
             continue  # the same reply, already read from a person's own mailbox
+        if _vendor_invoice(db, mailbox, message, sender, received):
+            continue  # a sub-vendor's invoice: recorded and validated (vendor_invoice_intake)
         if is_our_email(db, message.get("internetMessageId")):
             # our own email, sent from a person's Outlook with the helpdesk copied: the repository copy
             if log_mailbox_email(db, message, sender, received, mailbox_address):

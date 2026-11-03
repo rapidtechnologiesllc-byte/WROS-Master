@@ -36,6 +36,9 @@ class EmployeeCreateRequest(BaseModel):
     employment_type: Optional[str] = None  # FULLTIME | CONTRACT (PERMANENT/FIXED_TERM read as FULLTIME)
     work_location: Optional[str] = None  # REMOTE | ONSITE | HYBRID
     billing_rate_usd_cents: Optional[int] = None
+    # Supplied by a sub-vendor (CEO 2026-11-03): who, and what they charge per hour (USD cents); no pay then
+    sub_vendor_id: Optional[str] = None
+    vendor_rate_usd_cents: Optional[int] = Field(None, ge=0)
     employee_code: Optional[str] = None
     reporting_manager_id: Optional[str] = Field(None, description="Users.UserID this employee reports to")
     role_template_id: Optional[int] = Field(None, description="Function add-on; blank = the tenant's Employee role")

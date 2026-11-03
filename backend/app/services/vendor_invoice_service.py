@@ -242,13 +242,20 @@ def on_client_invoice_paid(db: Session, client_invoice: Invoice) -> List[int]:
             continue
         vendor = db.get(SubVendorAccount, invoice.sub_vendor_id)
         action = "Pay" if invoice.status == "APPROVED" else "Approve and pay"
+        # CEO 2026-11-03: "asks me to initiate payment via task" -- the CEO pays an approved invoice; one
+        # still waiting for approval goes to Finance first
+        from app.services.vendor_invoice_intake import finance_owner, vendor_payer
+
+        owner = vendor_payer(db, invoice.tenant_id) if invoice.status == "APPROVED" else finance_owner(db, invoice.tenant_id)
         task = create_task(
             db, title=f"{action} {vendor.company_name} invoice {invoice.vendor_invoice_number}: the client has paid"[:300],
-            description=(f"The client paid for every timesheet on {vendor.company_name}'s invoice "
-                         f"{invoice.vendor_invoice_number} (${invoice.amount_usd_cents / 100:,.2f}). "
-                         "Initiate the vendor payment and record it on the Invoices screen, Sub-vendor invoices tab."),
+            description=(f"The client paid {client_invoice.invoice_number or 'their invoice'} for every timesheet on "
+                         f"{vendor.company_name}'s invoice {invoice.vendor_invoice_number}. Matched: "
+                         f"${invoice.amount_usd_cents / 100:,.2f} billed vs ${invoice.expected_usd_cents / 100:,.2f} "
+                         "approved hours x vendor rate. Initiate the payment, then record its reference on "
+                         "Invoices > Sub-vendor invoices."),
             priority="HIGH", tenant_id=invoice.tenant_id,
-            assigned_to_user_id=invoice.approved_by or invoice.created_by, category="FINANCE",
+            assigned_to_user_id=owner or invoice.approved_by or invoice.created_by, category="FINANCE",
             link="/invoices?tab=vendor", due_date=datetime.utcnow())
         task_ids.append(task.id)
     return task_ids

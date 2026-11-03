@@ -45,7 +45,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -85,6 +85,10 @@ IMPORT_COLUMNS: Tuple[Tuple[str, bool, str], ...] = (
     ("salary_currency", False, "Currency of pay (USD, INR, ...). Blank: the employee's country's currency."),
     ("monthly_salary", False, "Older files: monthly pay, used only when pay is blank."),
     ("bill_rate_usd_hour", False, "Hourly bill rate in USD. Blank: the job's rate."),
+    ("sub_vendor", False, "A contractor supplied by a sub-vendor: the sub-vendor's company name (Invoices > "
+                          "Sub-vendor invoices). They are then on Contract, get the Contractor access, need "
+                          "vendor_rate_usd_hour and no pay."),
+    ("vendor_rate_usd_hour", False, "With sub_vendor: what the vendor charges per hour in USD (their cost in the P&L)."),
     ("work_location", False, "REMOTE (default), ONSITE or HYBRID."),
     ("skills", False, "Skills separated by ';' or ','."),
     ("bench_since", False, "Not on a project: the day they came off their last one (YYYY-MM-DD). Blank: joining date."),
@@ -184,6 +188,9 @@ class Spec:
     pay_currency: Optional[str] = None
     pay_basis: Optional[str] = None
     bill_rate_cents: Optional[int] = None
+    # supplied by a sub-vendor (CEO 2026-11-03): paid through the vendor at this rate, no payroll
+    sub_vendor_id: Optional[str] = None
+    vendor_rate_cents: Optional[int] = None
     work_location: Optional[str] = None
     skills: Optional[List[str]] = None
     bench_since: Optional[date] = None
@@ -302,8 +309,11 @@ def _resolve(lk: _Lookups, row: Dict[str, str]) -> Spec:
         errors.append(f"Country '{country_text or ''}' is not one we hire in: set country (e.g. IN, US) "
                       "or a delivery center whose country is configured.")
 
-    employment_type = (row["employment_type"] or "FULLTIME").upper()
-    if employment_type not in EMPLOYMENT_TYPE_TO_MODEL:
+    via_vendor = _sub_vendor(db, lk, row, spec, errors)
+    employment_type = "CONTRACT" if via_vendor else (row["employment_type"] or "FULLTIME").upper()
+    if via_vendor:  # the vendor employs them: our country policy is about our own hires
+        spec.employment_type = "CONTRACT"
+    elif employment_type not in EMPLOYMENT_TYPE_TO_MODEL:
         errors.append(f"employment_type must be FULLTIME or CONTRACT, got '{row['employment_type']}'.")
     elif spec.country is not None and employment_type not in policy.accepted_types(spec.country):
         errors.append(f"{policy.label(employment_type, spec.country)} is not accepted in {spec.country}.")
@@ -325,7 +335,9 @@ def _resolve(lk: _Lookups, row: Dict[str, str]) -> Spec:
 
     from app.services import compensation
 
-    if row.get("pay"):
+    if via_vendor:  # their cost is the vendor's rate, never payroll
+        amount = None
+    elif row.get("pay"):
         amount = _money_cents(row["pay"], "pay", errors)
         basis = (row.get("pay_basis") or settings.PAY_BASIS_DEFAULT).upper()
     else:
@@ -461,6 +473,43 @@ def _display(spec: Spec) -> Dict[str, Any]:
     }
 
 
+def _sub_vendor(db: Session, lk, row: Dict[str, str], spec: Spec, errors: List[str]) -> bool:
+    """sub_vendor (company name or id) + vendor_rate_usd_hour: a contractor supplied by that vendor.
+    Their designation defaults to the Contractor role (limited access). False when not via a vendor."""
+    from app.models.sub_vendor import SubVendorAccount
+
+    value = (row.get("sub_vendor") or "").strip()
+    if not value:
+        if (row.get("vendor_rate_usd_hour") or "").strip():
+            errors.append("vendor_rate_usd_hour needs sub_vendor (who supplies the contractor).")
+        return False
+    vendor = db.query(SubVendorAccount).filter(
+        SubVendorAccount.tenant_id == lk.tenant_id,
+        or_(SubVendorAccount.id == value, func.lower(SubVendorAccount.company_name) == value.lower())).first()
+    if vendor is None:
+        errors.append(f"Sub-vendor '{value}' is not set up: add it under Invoices > Sub-vendor invoices first.")
+    elif vendor.status != "APPROVED":
+        errors.append(f"Sub-vendor {vendor.company_name} is {vendor.status.lower()}: approve it first.")
+    else:
+        spec.sub_vendor_id = vendor.id
+    spec.vendor_rate_cents = _money_cents(row.get("vendor_rate_usd_hour", ""), "vendor_rate_usd_hour", errors)
+    if not spec.vendor_rate_cents:
+        errors.append("vendor_rate_usd_hour is required for a contractor supplied by a sub-vendor.")
+    if not (row.get("designation") or "").strip():
+        spec.designation = "Contractor"
+    return True
+
+
+def _as_contractor(db: Session, employee: Employee, spec: Spec, uploader: Users) -> None:
+    """A vendor's contractor: their login takes the Contractor role (vendor_invoice_service.set_contractor)."""
+    if spec.sub_vendor_id:
+        from app.services.vendor_invoice_service import set_contractor
+
+        db.flush()
+        set_contractor(db, uploader, employee, sub_vendor_id=spec.sub_vendor_id,
+                       hourly_rate_usd_cents=spec.vendor_rate_cents)
+
+
 def _employee_fields(spec: Spec) -> Dict[str, Any]:
     """The Employee columns a row sets (None = the row leaves it unchanged on an update)."""
     return {
@@ -470,6 +519,7 @@ def _employee_fields(spec: Spec) -> Dict[str, Any]:
         "base_salary_usd_cents": spec.salary_cents, "billing_rate_usd_cents": spec.bill_rate_cents,
         "pay_amount_cents": spec.pay_amount_cents, "pay_currency": spec.pay_currency, "pay_basis": spec.pay_basis,
         "work_location": spec.work_location, "is_billable": spec.billable,
+        "sub_vendor_id": spec.sub_vendor_id, "vendor_hourly_rate_usd_cents": spec.vendor_rate_cents,
         "current_skills": json.dumps(spec.skills) if spec.skills is not None else None,
         "joining_date": spec.joining_date,
     }
@@ -784,6 +834,7 @@ def _apply_create(db: Session, spec: Spec, uploader: Users) -> Tuple[Employee, U
     from app.services.bench_service import sync_billing_classification
 
     sync_billing_classification(db, employee)
+    _as_contractor(db, employee, spec, uploader)
     return employee, user, created
 
 
@@ -812,6 +863,7 @@ def _apply_update(db: Session, employee: Employee, spec: Spec, uploader: Users) 
             EmployeeAllocation.status.in_(HOLDING_STATUSES)).first():
         _allocate(db, employee, spec, uploader)
     sync_billing_classification(db, employee)
+    _as_contractor(db, employee, spec, uploader)
     db.add(employee)
     return user, created
 
@@ -932,6 +984,8 @@ def row_from_request(db: Session, body) -> Dict[str, str]:
            {"monthly_salary": f"{body.base_salary_usd_cents / 100:.2f}", "salary_currency": "USD"}
            if body.base_salary_usd_cents is not None else {}),
         "bill_rate_usd_hour": f"{body.billing_rate_usd_cents / 100:.2f}" if body.billing_rate_usd_cents else "",
+        "sub_vendor": body.sub_vendor_id or "",
+        "vendor_rate_usd_hour": f"{body.vendor_rate_usd_cents / 100:.2f}" if body.vendor_rate_usd_cents else "",
         "work_location": body.work_location or "", "skills": ", ".join(body.current_skills or []),
         "bench_since": body.bench_since.isoformat() if body.bench_since else "",
     })
