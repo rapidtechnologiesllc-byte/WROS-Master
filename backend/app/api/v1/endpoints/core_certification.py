@@ -1,10 +1,10 @@
 """
-Core Certification -- API
+Direct Certification -- API
 =========================================================================
 Prefix: /core-certification
 Tag:    core-certification
 
-Approval of Core certification by the employee's BU Head (CEO 2026-10-14). Requests are raised
+Approval of Direct certification by the employee's BU Head (CEO 2026-10-14). Requests are raised
 by the daily core_certification_sweep job (app.services.core_certification_service). Deciding in
 Flash: the approval task opens the bubble on the request (flash workflow core_cert); a rejection
 is a short Flash discussion there that becomes follow-up tasks.
@@ -73,7 +73,7 @@ def _decide(fn, *args):
 
 
 @router.get("/requests", dependencies=VIEW, response_model=CoreCertificationListResponse,
-            summary="Core certification requests in the caller's business units")
+            summary="Direct certification requests in the caller's business units")
 def list_requests(status: Optional[str] = None, db: Session = Depends(get_db),
                   current_user: Users = Depends(get_current_internal_user)):
     if status and status not in REQUEST_STATUSES:
@@ -86,7 +86,7 @@ def list_requests(status: Optional[str] = None, db: Session = Depends(get_db),
 
 
 @router.get("/eligibility/{employee_id}", dependencies=VIEW, response_model=EligibilityResponse,
-            summary="Where an employee stands against the Core certification rules")
+            summary="Where an employee stands against the Direct certification rules")
 def get_eligibility(employee_id: str, db: Session = Depends(get_db),
                     current_user: Users = Depends(get_current_internal_user)):
     employee = (db.query(Employee).filter(Employee.id == employee_id, Employee.tenant_id == current_user.tenant_id,
@@ -98,7 +98,7 @@ def get_eligibility(employee_id: str, db: Session = Depends(get_db),
 
 
 @router.post("/requests/{request_id}/approve", dependencies=VIEW, response_model=CoreCertificationRequestItem,
-             summary="Approve: the employee becomes Core-certified")
+             summary="Approve: the employee becomes Direct-certified")
 def approve_request(request_id: str, db: Session = Depends(get_db),
                     current_user: Users = Depends(get_current_internal_user)):
     request, employee = _request_or_404(db, request_id, current_user)

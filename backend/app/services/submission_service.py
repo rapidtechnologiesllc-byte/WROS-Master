@@ -180,7 +180,7 @@ def check_job_experience(candidate: Candidate, demand: Demand) -> dict:
 def client_submission_blockers(db: Session, candidate: Candidate, demand: Optional[Demand] = None) -> List[dict]:
     """Every reason the candidate cannot be submitted to a client right now (HRMS-0711 BR-01: all
     of them, not the first). With a demand, the job's own gates too (its minimum experience, the
-    job's Core line, and which allocations hold the employee). The one rule set behind POST /submissions, readiness and the pickers.
+    job's Direct line, and which allocations hold the employee). The one rule set behind POST /submissions, readiness and the pickers.
     Blockers carrying violation_type are logged to SubmissionViolation on a blocked attempt."""
     blockers: List[dict] = []
 

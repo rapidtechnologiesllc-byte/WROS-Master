@@ -44,7 +44,7 @@ def _words(text: str) -> str:
 
 
 class CoreCertWorkflow:
-    """Decide a Core certification request in the bubble: approve, close (no longer eligible) or
+    """Decide a Direct certification request in the bubble: approve, close (no longer eligible) or
     reject through core_certification_service.reject_chat, whose state stays on the request."""
 
     kind = "core_cert"
@@ -58,10 +58,10 @@ class CoreCertWorkflow:
         from app.services import core_certification_service as service
 
         if not authority.has_permission(ctx.db, ctx.user, self.permission):
-            raise HTTPException(status_code=403, detail="You don't have permission to see Core certification requests.")
+            raise HTTPException(status_code=403, detail="You don't have permission to see Direct certification requests.")
         row = service.visible_request(ctx.db, ctx.user, ref or "")
         if row is None:
-            raise HTTPException(status_code=404, detail="That Core certification request was not found.")
+            raise HTTPException(status_code=404, detail="That Direct certification request was not found.")
         return row
 
     @staticmethod
@@ -74,19 +74,19 @@ class CoreCertWorkflow:
         request, employee = self._load(ctx, ref)
         name = self._name(employee)
         if request.status != "PENDING":
-            return {"reply": f"{name}'s Core certification request is already {request.status.lower()}.", "done": True}
+            return {"reply": f"{name}'s Direct certification request is already {request.status.lower()}.", "done": True}
         if not service.may_decide(ctx.db, request, ctx.user):
-            return {"reply": (f"{name}'s Core certification is waiting on their BU Head. Only the BU Head or another "
+            return {"reply": (f"{name}'s Direct certification is waiting on their BU Head. Only the BU Head or another "
                               "leader of that business unit can decide it."), "done": True}
         if request.chat_state:  # a rejection discussion was under way: pick it up
             turn = service.reject_chat(ctx.db, request, ctx.user, "")
             return {"reply": f"{turn['reply']} {CANCEL_HINT}", "done": turn["done"], "state": {"mode": "reject"}}
         check = service.eligibility(ctx.db, employee)
         if not check["eligible"]:
-            return {"reply": (f"{name} no longer qualifies for Core certification: {' '.join(check['reasons'])} "
+            return {"reply": (f"{name} no longer qualifies for Direct certification: {' '.join(check['reasons'])} "
                               f"Close the request? Reply yes, or cancel to leave it pending."),
                     "done": False, "state": {"mode": "close"}}
-        return {"reply": (f"{name} qualifies for Core certification: Buddy Program graduated and "
+        return {"reply": (f"{name} qualifies for Direct certification: Buddy Program graduated and "
                           f"{check['billable_days']} approved billable Staff Aug days with no escalation. "
                           f"Approve or reject? {CANCEL_HINT}"),
                 "done": False, "state": {"mode": "decide"}}
@@ -111,7 +111,7 @@ class CoreCertWorkflow:
                         "state": {"mode": "close"}}
             if said in self.APPROVE:
                 service.approve(ctx.db, request, ctx.user)
-                return {"reply": f"Approved: {name} is now Core-certified.", "done": True}
+                return {"reply": f"Approved: {name} is now Direct-certified.", "done": True}
             if said in self.REJECT:
                 turn = service.reject_chat(ctx.db, request, ctx.user, "")
                 return {"reply": turn["reply"], "done": turn["done"], "state": {"mode": "reject"}}

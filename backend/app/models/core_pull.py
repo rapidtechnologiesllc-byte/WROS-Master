@@ -1,13 +1,13 @@
 """
-S-353/HRMS-0514 -- Core-Pull Conflict Rule Engine ("Core Wins Policy") and
-S-373/HRMS-0529 -- Specialty Pool Minimum 40 Core-Certified Guard.
+S-353/HRMS-0514 -- Direct-Pull Conflict Rule Engine ("Direct Wins Policy") and
+S-373/HRMS-0529 -- Specialty Pool Minimum 40 Direct-Certified Guard.
 
 Both stories per docs/build-package/04-RESOURCE-MANAGEMENT.md Part A, built
 against `Requirements/S-353_HRMS-0514.docx` and `Requirements/S-373_HRMS-0529.docx`
 directly -- not the phase doc's own summary, which (like HRMS-1105's story
 doc) mislabels this engine "HRMS-0312". HRMS-0312 in the real 357-doc corpus
 is an unrelated story (Workforce Scenario Planning); the real, canonical
-Core-Pull ID is HRMS-0514/S-353, confirmed against
+Direct-Pull ID is HRMS-0514/S-353, confirmed against
 `WROS_Canonical_Backlog_S001-401.xlsx`. See CLAUDE.md's correction note.
 """
 import logging
@@ -27,8 +27,8 @@ CORE_PULL_EVENT_STATUSES = ("PENDING", "EXECUTED", "OVERRIDDEN")
 logger = logging.getLogger(__name__)
 
 class CorePullEvent(Base):
-    """One row per detected Core-vs-Speciality conflict for a single
-    Core-Certified employee. PENDING until execute_core_pull() runs (or
+    """One row per detected Direct-vs-Speciality conflict for a single
+    Direct-Certified employee. PENDING until execute_core_pull() runs (or
     override_core_pull() cancels it)."""
 
     __tablename__ = "core_pull_events"
@@ -55,8 +55,8 @@ class CorePullEvent(Base):
     overridden_at = Column(DateTime, nullable=True)
 
 class SpecialtyPoolReplacementPlan(Base):
-    """S-373/HRMS-0529 -- logged by a BU Head before a Core move that
-    would drop the Specialty Core-Certified pool below 40 is allowed to
+    """S-373/HRMS-0529 -- logged by a BU Head before a Direct move that
+    would drop the Specialty Direct-Certified pool below 40 is allowed to
     proceed. 'We will hire someone' is not a plan -- expected_date is
     required, per that story's own BR."""
 

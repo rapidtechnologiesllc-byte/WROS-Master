@@ -27,6 +27,7 @@ import EscalationsPanel from "../components/EmployeeEscalations";
 import { FeedbackSection, ReviewList } from "../components/PerformancePanel";
 import { getEmployeePerformance, getMyPerformance } from "../services/api/performance";
 import ActivityTimeline from "../components/timeline/ActivityTimeline";
+import { lineTypeLabel } from "../utils/lineType";
 
 const TABS = [
   ["about", "About"], ["profile", "Profile"], ["job", "Job"], ["documents", "Documents"],
@@ -447,7 +448,7 @@ function JobTab({ profile, save, reload, orgOptions, managers }) {
       <Section title="Deployment & programs" subtitle="Where they are deployed now; HTD and the Buddy Program come before deployment.">
         <div className="grid gap-x-6 gap-y-4 sm:grid-cols-3">
           <Field label="Deployment"><DeploymentStatus employee={profile} /></Field>
-          <Field label="Delivery engine">{statusLabel(profile.job.delivery_engine)}{profile.job.core_certified ? " · Core certified" : ""}</Field>
+          <Field label="Delivery engine">{lineTypeLabel(profile.job.delivery_engine)}{profile.job.core_certified ? " · Direct certified" : ""}</Field>
           <Field label="Buddy Program">
             {statusLabel(profile.programs.buddy_program_status)}
             {profile.programs.buddy_program_graduation_date ? ` · graduated ${profile.programs.buddy_program_graduation_date}` : ""}

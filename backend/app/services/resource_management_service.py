@@ -352,6 +352,6 @@ def is_staffing_eligible(employee: Employee, delivery_engine: str) -> Tuple[bool
         return False, f"Buddy Program not graduated (status={employee.buddy_program_status})"
 
     if delivery_engine == "CORE" and not employee.core_certified:
-        return False, "Not Core-certified"
+        return False, "Not Direct-certified"
 
     return True, None

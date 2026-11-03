@@ -1,5 +1,5 @@
 // Workforce Overview dashboard (CEO 2026-10-14): where every employee stands between the bench,
-// Staff Aug and Core. Each person is in exactly one group, so the groups add up to headcount.
+// Staff Aug and Direct. Each person is in exactly one group, so the groups add up to headcount.
 // Every number is a link to its own page (WorkforceSegmentScreen) listing exactly those people.
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -32,7 +32,7 @@ export default function WorkforceOverviewScreen() {
       const [overview, pending] = await Promise.all([
         getWorkforceOverview(),
         getCoreCertificationRequests("PENDING").catch((err) => {
-          console.error("[WorkforceOverview] Core certification requests unavailable:", err);
+          console.error("[WorkforceOverview] Direct certification requests unavailable:", err);
           return null;
         }),
       ]);
@@ -53,7 +53,7 @@ export default function WorkforceOverviewScreen() {
     <div className="grid gap-4">
       <Card
         title="Workforce Overview"
-        subtitle={`Every employee in one group: bench, Staff Aug or Core. Headcount ${data?.headcount ?? "—"}. Click a number to see the people.`}
+        subtitle={`Every employee in one group: bench, Staff Aug or Direct. Headcount ${data?.headcount ?? "—"}. Click a number to see the people.`}
         icon={<Users className="h-4 w-4" />}
         right={
           <Button variant="ghost" onClick={load} disabled={loading}>
@@ -72,7 +72,7 @@ export default function WorkforceOverviewScreen() {
       </Card>
 
       <Card
-        title="Core certification"
+        title="Direct certification"
         subtitle="Buddy graduated + 90 approved billable Staff Aug days with no escalation → BU Head approval."
         icon={<Award className="h-4 w-4" />}
       >

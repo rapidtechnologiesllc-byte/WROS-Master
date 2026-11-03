@@ -1,7 +1,7 @@
 """
 HRMS-0515 -- the generic performance-event store referenced as a
 prerequisite by S-364 (Buddy KPI scores), S-360 (HTD certification
-gates), and HRMS-0518 (Core Eligibility AI Assessor's input) -- none of
+gates), and HRMS-0518 (Direct Eligibility AI Assessor's input) -- none of
 which had it built until now. `02-DATA-MODEL.md`'s own Domain 3 sketch
 already specifies this exact shape: "employee_performance_events (id,
 employee_id, event_type, event_data, occurred_at) -- append-only,

@@ -1,4 +1,4 @@
-// Workforce Overview: every employee in one group between bench, Staff Aug and Core.
+// Workforce Overview: every employee in one group between bench, Staff Aug and Direct.
 import { apiRequest } from "./client";
 
 // counts for every group and flag (the dashboard)

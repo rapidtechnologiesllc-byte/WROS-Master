@@ -104,7 +104,7 @@ def employment_type_blockers(db: Session, employee: Employee) -> List[dict]:
 
 
 def _assert_placement_rules(db: Session, employee: Employee, demand) -> None:
-    """The client-submission gates (Buddy graduated, no open escalation, Core-certified for Core)
+    """The client-submission gates (Buddy graduated, no open escalation, Direct-certified for Direct)
     and the employment-type rule: every blocker at once."""
     from app.services.deployment_readiness_service import deployment_blockers
 
@@ -222,7 +222,7 @@ def apply_margin_guard(db: Session, allocation: EmployeeAllocation, employee: Em
     """The margin guard on a new allocation (status ACTIVE, not yet placed): records the CREATE
     history row with the check and, when the floor needs an approval, holds the allocation
     PENDING_MARGIN_APPROVAL with an approval task. Returns True when held. Every path that
-    creates a placement calls this (allocate_employee_to_project, Core Pull)."""
+    creates a placement calls this (allocate_employee_to_project, Direct Pull)."""
     result = margin_guard.evaluate(db, tenant_id=allocation.tenant_id, employee=employee,
                                    project_id=allocation.project_id, client_id=allocation.client_id,
                                    role=allocation.role, bill_rate_usd_cents=allocation.billing_rate_usd_cents,

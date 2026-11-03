@@ -49,7 +49,7 @@ def test_the_core_certification_rule_still_applies_to_a_core_project(api, world)
     assert world.project.delivery_engine == "CORE"
     response = api.post(world.admin, "/api/v1/allocations", json=_project_body(world))
     assert response.status_code == 409
-    assert "Core" in response.text
+    assert "Direct" in response.text
 
 
 def test_a_project_allocation_can_be_extended(api, world, db):

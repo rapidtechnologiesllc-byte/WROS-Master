@@ -3,7 +3,7 @@ import { Button } from "./ui";
 import cx from "../utils/cx";
 import { getEmployeeEscalations, raiseEmployeeEscalation, resolveEmployeeEscalation } from "../services/api/employees";
 
-// Escalations (CEO 2026-10-14): an open one keeps the employee away from every client, Core and
+// Escalations (CEO 2026-10-14): an open one keeps the employee away from every client, Direct and
 // Staff Aug alike, until a Director or above resolves it with a note. The API decides who may
 // resolve; a refusal is shown, not hidden.
 export default function EscalationsPanel({ employeeId }) {

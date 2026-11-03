@@ -99,7 +99,7 @@ export default function WorkforceSegmentScreen() {
                 <Th>Employee</Th>
                 {selection?.kind === "flag" ? <Th>Group</Th> : null}
                 <Th>Business Unit</Th>
-                <Th>Buddy / Core</Th>
+                <Th>Buddy / Direct</Th>
                 <Th>Client / Project</Th>
                 <Th>Allocation Ends</Th>
                 <Th>Flags</Th>
@@ -133,7 +133,7 @@ export default function WorkforceSegmentScreen() {
                     <td className="px-4 py-3 text-xs text-gray-700">{p.business_unit || "—"}</td>
                     <td className="px-4 py-3 text-xs text-gray-700">
                       Buddy {p.buddy_program_status.replace(/_/g, " ").toLowerCase()}
-                      <div>{p.core_certified ? "Core-certified" : "Not Core-certified"}</div>
+                      <div>{p.core_certified ? "Direct-certified" : "Not Direct-certified"}</div>
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-700">
                       <div className="font-semibold text-gray-900">{p.client || "—"}</div>

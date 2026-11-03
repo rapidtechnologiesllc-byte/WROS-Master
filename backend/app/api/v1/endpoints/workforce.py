@@ -4,7 +4,7 @@ Workforce Overview -- API
 Prefix: /workforce
 Tag:    workforce
 
-Where every employee stands between the bench, Staff Aug and Core (CEO 2026-10-14), grouped so
+Where every employee stands between the bench, Staff Aug and Direct (CEO 2026-10-14), grouped so
 the groups add up to headcount (app.services.workforce_report_service). Scoped like the
 Employees screen: the caller's tenant and business units.
 
@@ -39,7 +39,7 @@ router = APIRouter(prefix="/workforce", tags=["workforce"])
         Depends(get_current_internal_user),
     ],
     response_model=WorkforceOverviewResponse,
-    summary="Bench / Staff Aug / Core: every employee in exactly one group",
+    summary="Bench / Staff Aug / Direct: every employee in exactly one group",
 )
 def get_workforce_overview(
     group: Optional[str] = None,

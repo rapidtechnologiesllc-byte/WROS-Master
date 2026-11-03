@@ -4,7 +4,7 @@ HRMS-0507 -- Employee Allocation Records.
 This is deliberately the minimal "allocate employee to project" data
 primitive, not Phase 4's full Resource Management build
 (docs/build-package/04-RESOURCE-MANAGEMENT.md is explicit that HRMS-1105's
-agent, the Core-Pull engine HRMS-0312, and the 40-person Specialty floor
+agent, the Direct-Pull engine HRMS-0312, and the 40-person Specialty floor
 guard are Phase 4, "unlocked in parallel with Phase 3"). What IS built
 here -- the table itself, and the single human-driven allocate/end
 action -- is exactly what that same Phase 4 doc calls out as the

@@ -9,7 +9,7 @@
 // 2026-08-07: Added "Report Issue" button for production defect feedback.
 // 2026-10-15: the conversation lives on the server (one per user): loaded on mount, polled while
 // the bubble is closed (unread badge), opened on a record by a deep link (?flash=kind:ref, e.g.
-// a Core certification decision from its task), with chips for the decisions waiting.
+// a Direct certification decision from its task), with chips for the decisions waiting.
 // 2026-10-17: a tool-call event shows the one-line summary its tool chose (the message body);
 // internal steps are marked hidden by the server and not shown.
 import { useCallback, useEffect, useRef, useState } from "react";

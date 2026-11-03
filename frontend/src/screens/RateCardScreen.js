@@ -1,5 +1,5 @@
 // Rate card (CEO 2026-10-23): the margin floor a placement is checked against, by delivery engine
-// (Staff Aug / Core) and optionally delivery country and role. Below the minimum a BU Head
+// (Staff Aug / Direct) and optionally delivery country and role. Below the minimum a BU Head
 // approves the placement; below the hard floor a Partner does. No row = no floor (the placement
 // is allowed and flagged). Finance sets the numbers; nothing is pre-filled.
 import { useCallback, useEffect, useState } from "react";
@@ -10,6 +10,7 @@ import { confirmDialog } from "../utils/dialogs";
 import {
   createMarginPolicy, deleteMarginPolicy, getMarginPolicies, updateMarginPolicy,
 } from "../services/api/marginPolicies";
+import { lineTypeLabel } from "../utils/lineType";
 
 const EMPTY = { delivery_engine: "", country: "", role: "", min_margin_pct: "", hard_floor_pct: "", active: true };
 
@@ -39,7 +40,7 @@ export default function RateCardScreen() {
   const set = (key) => (value) => setForm((f) => ({ ...f, [key]: value }));
   const engines = data?.engines || [];
   const countries = data?.countries || [];
-  const engineName = (code) => engines.find((e) => e.code === code)?.name || code;
+  const engineName = (code) => lineTypeLabel(code) || engines.find((e) => e.code === code)?.name;
   const countryName = (code) => (code ? countries.find((c) => c.code === code)?.name || code : "Any country");
 
   const save = async () => {

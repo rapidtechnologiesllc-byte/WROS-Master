@@ -482,6 +482,6 @@ register(FlashTool(
     schema({}), None, _pending_decisions, "see decisions",
     summary=said(lambda a, o: f"Checked your decisions: {_count(o, 'decisions')} waiting.")))
 register(FlashTool(
-    "open_core_cert", "Open a Core certification request for the user to decide in this chat.",
+    "open_core_cert", "Open a Direct certification request for the user to decide in this chat.",
     schema({"request_id": {"type": "string"}}), "workforce-overview.view", _open_core_cert,
-    "see Core certification requests", summary=said(lambda a, o: "Opened the Core certification request.")))
+    "see Direct certification requests", summary=said(lambda a, o: "Opened the Direct certification request.")))

@@ -273,7 +273,7 @@ export default function CertificationManagementScreen() {
                   checked={certForm.is_core_certification}
                   onChange={(e) => setCertForm({ ...certForm, is_core_certification: e.target?.checked || false })}
                 />
-                <span>Core Certification</span>
+                <span>Direct Certification</span>
               </label>
               <div className="flex gap-2">
                 <Button variant="primary" onClick={handleCreateCertification}>
@@ -299,7 +299,7 @@ export default function CertificationManagementScreen() {
                     <div className="text-sm text-gray-600">{cert.cert_code}</div>
                     <div className="text-xs text-gray-500 mt-1">
                       Level: {cert.level} • Validity: {cert.validity_months || 24} months
-                      {cert.is_core_certification && " • Core Certification"}
+                      {cert.is_core_certification && " • Direct Certification"}
                       {cert.guidewire_level && ` • Guidewire ${cert.guidewire_level}`}
                     </div>
                   </div>

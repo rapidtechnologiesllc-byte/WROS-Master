@@ -1,5 +1,5 @@
 """
-S-353 (HRMS-0514) Core-Pull Engine + S-373 (HRMS-0529) Specialty Pool
+S-353 (HRMS-0514) Direct-Pull Engine + S-373 (HRMS-0529) Specialty Pool
 Minimum 40 Guard — API Endpoints
 =========================================================================
 Prefix: /core-pull
@@ -16,10 +16,10 @@ level or above (app.core.authority.is_bu_leader; 403 if not).
 
 Routes:
   GET    /core-pull/specialty-pool-status
-      Current Specialty Core-Certified pool size vs the 40-minimum floor.
+      Current Specialty Direct-Certified pool size vs the 40-minimum floor.
 
   GET    /core-pull/events
-      Pending Core-Pull events (detected conflicts awaiting execute or
+      Pending Direct-Pull events (detected conflicts awaiting execute or
       override), enriched with employee/demand names for display.
 
   POST   /core-pull/events/{event_id}/execute
@@ -92,7 +92,7 @@ def _to_item(db: Session, event: CorePullEvent) -> CorePullEventItem:
 def _get_event_or_404(db: Session, event_id: str) -> CorePullEvent:
     event = db.query(CorePullEvent).filter(CorePullEvent.id == event_id).first()
     if event is None:
-        raise HTTPException(status_code=404, detail="Core-Pull event not found.")
+        raise HTTPException(status_code=404, detail="Direct-Pull event not found.")
     return event
 
 @router.get(
@@ -102,7 +102,7 @@ def _get_event_or_404(db: Session, event_id: str) -> CorePullEvent:
         Depends(get_current_internal_user),
     ],
     response_model=SpecialtyPoolStatusResponse,
-    summary="Get the current Specialty Core-Certified pool size vs the 40-minimum floor",
+    summary="Get the current Specialty Direct-Certified pool size vs the 40-minimum floor",
 )
 def get_pool_status(
     db: Session = Depends(get_db),
@@ -118,7 +118,7 @@ def get_pool_status(
         Depends(get_current_internal_user),
     ],
     response_model=CorePullEventQueueResponse,
-    summary="Get pending Core-Pull events",
+    summary="Get pending Direct-Pull events",
 )
 def get_pending_events(
     db: Session = Depends(get_db),
@@ -142,7 +142,7 @@ def get_pending_events(
         Depends(get_current_internal_user),
     ],
     response_model=ExecuteCorePullResponse,
-    summary="Execute a pending Core-Pull event (same-day forced transfer)",
+    summary="Execute a pending Direct-Pull event (same-day forced transfer)",
 )
 def execute_event(
     event_id: str,
@@ -158,7 +158,7 @@ def execute_event(
     except SpecialtyPoolBelowMinimum as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except EmployeeNotDeployable as exc:
-        raise HTTPException(status_code=409, detail=f"Cannot Core-Pull: {exc}")
+        raise HTTPException(status_code=409, detail=f"Cannot Direct-Pull: {exc}")
     except (ActionBlocked, ActionDelayed) as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except ValueError as exc:
@@ -168,7 +168,7 @@ def execute_event(
 
     guard = check_specialty_pool_guard(db, employee) if employee else {"pool_size_after_move": None}
     return ExecuteCorePullResponse(
-        message="Core-Pull executed.",
+        message="Direct-Pull executed.",
         event=_to_item(db, event),
         specialty_pool_size_after=guard["pool_size_after_move"],
     )
@@ -180,7 +180,7 @@ def execute_event(
         Depends(get_current_internal_user),
     ],
     response_model=OverrideCorePullResponse,
-    summary="Override a pending Core-Pull event (BU Head only)",
+    summary="Override a pending Direct-Pull event (BU Head only)",
 )
 def override_event(
     event_id: str,
@@ -205,7 +205,7 @@ def override_event(
         raise HTTPException(status_code=409, detail=str(exc))
     db.commit()
     db.refresh(event)
-    return OverrideCorePullResponse(message="Core-Pull event overridden.", event=_to_item(db, event))
+    return OverrideCorePullResponse(message="Direct-Pull event overridden.", event=_to_item(db, event))
 
 @router.post(
     "/replacement-plans",

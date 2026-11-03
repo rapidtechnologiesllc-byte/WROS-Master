@@ -1,4 +1,4 @@
-"""Core certification (CEO 2026-10-14): Buddy graduated + 90 approved billable Staff Aug days with
+"""Direct certification (CEO 2026-10-14): Buddy graduated + 90 approved billable Staff Aug days with
 no escalation in them -> the daily sweep raises an approval task for the BU Head -> approve, or
 reject through a Flash discussion that becomes follow-up tasks (that discussion runs in the Flash
 bubble: tests/test_flash_conversation_api.py)."""
@@ -78,7 +78,7 @@ def org(db):
     db.add(BusinessUnitLocationHead(tenant_id=1, business_unit_id=unit.id, company_id=company.id,
                                     head_user_id=head.UserID))
     staff_aug = Client(tenant_id=1, company_name=f"SA {_uid()}", line_type="SPECIALITY")
-    core = Client(tenant_id=1, company_name=f"Core {_uid()}", line_type="CORE")
+    core = Client(tenant_id=1, company_name=f"Direct {_uid()}", line_type="CORE")
     db.add_all([staff_aug, core])
     db.flush()
     db.commit()

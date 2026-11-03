@@ -153,7 +153,7 @@ def trigger_specialty_client_release(
     built for real: confirmation_status=CONFIRMED AND both fit
     confirmations are True, no partial sequence, no exceptions. WROS does
     not notify Specialty clients directly (same posture already
-    established for Core-Pull in S-353's own BR) -- this notifies the
+    established for Direct-Pull in S-353's own BR) -- this notifies the
     Speciality RM (caller-supplied, same roster-resolution-deferred
     posture as everywhere else in this codebase), who coordinates the
     actual client communication.

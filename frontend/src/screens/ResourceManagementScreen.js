@@ -148,7 +148,7 @@ export default function ResourceManagementScreen() {
       const res = await triggerBenchScan();
       setNotice(
         `Scan complete: ${res.recommendations_created} new recommendation(s), ` +
-          `${res.core_pull_events_triggered} Core-Pull event(s) triggered.`,
+          `${res.core_pull_events_triggered} Direct-Pull event(s) triggered.`,
       );
       await load();
     } catch (err) {

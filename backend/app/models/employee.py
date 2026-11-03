@@ -246,7 +246,7 @@ class EmployeeDocuments(Base):
 class EmployeeEngineHistory(Base):
     """HRMS-0101-REV step 4 -- insert-only history of SPECIALITY/CORE
     engine transitions, independent of the general employment history
-    table since Core-Pull has its own audit trail requirement."""
+    table since Direct-Pull has its own audit trail requirement."""
     __tablename__ = "employee_engine_history"
 
     id = Column(Integer, primary_key=True, autoincrement=True)

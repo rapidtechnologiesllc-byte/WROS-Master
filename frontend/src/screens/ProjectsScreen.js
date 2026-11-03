@@ -21,6 +21,7 @@ import {
 } from "../services/api/projects";
 import { listClients } from "../services/api/clients";
 import { searchUsers } from "../services/api/users";
+import { lineTypeLabel } from "../utils/lineType";
 
 const STATUS_STYLES = {
   PLANNING: "border-gray-200 bg-gray-50 text-gray-800",
@@ -108,7 +109,7 @@ function CreateProjectForm({ options, onCreated }) {
   const currencyOptions = currenciesFor(options, deliveryEngine || "CORE");
 
   // Selecting a client fully determines Delivery Engine from that
-  // client's own Line Type -- Core or Specialty, no manual choice.
+  // client's own Line Type -- Direct or Specialty, no manual choice.
   const handleClientChange = (value) => {
     setClientId(value);
     const matchedClient = clientList.find((c) => c.id === value);
@@ -220,7 +221,7 @@ function CreateProjectForm({ options, onCreated }) {
         ) : (
           <>
             <Select
-              label="Business Type (required for Core)"
+              label="Business Type (required for Direct)"
               value={businessType || businessTypes[0] || ""}
               onChange={setBusinessType}
               options={businessTypes.map((b) => ({ value: b, label: humanize(b) }))}
@@ -522,7 +523,7 @@ function ProjectCard({ project, options, onChanged, focused = false }) {
         <div>
           <div className="font-semibold text-gray-900">{project.name}</div>
           <div className="text-xs text-gray-500">
-            {project.delivery_engine}
+            {lineTypeLabel(project.delivery_engine)}
             {project.si_partner ? ` · ${project.si_partner}` : ""}
             {project.business_type ? ` · ${humanize(project.business_type)}` : ""} · {humanize(project.billing_type)} · {project.currency}
           </div>

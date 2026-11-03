@@ -4,7 +4,7 @@ Structure. `employees.htd_phase`/`htd_track`/`htd_start_date` already
 existed (built proactively in HRMS-0101-REV); htd_phase_gates is the
 one new table this revision actually needs.
 
-The Core Eligibility Review phase is owned by the BU head ("BU_HEAD"): the
+The Direct Eligibility Review phase is owned by the BU head ("BU_HEAD"): the
 source doc named a person, but a role enum holds roles, never people -- the
 BU head is whoever BusinessUnitLocationHead names for the employee's BU and
 company. Rows written earlier may still read "HEMANT_BU_HEAD"; that legacy

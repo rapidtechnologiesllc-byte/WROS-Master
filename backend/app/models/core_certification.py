@@ -1,4 +1,4 @@
-"""Core certification requests (CEO 2026-10-14). An employee is Core-certified once their BU Head
+"""Direct certification requests (CEO 2026-10-14). An employee is Direct-certified once their BU Head
 approves: Buddy Program graduated, CORE_CERT_BILLABLE_DAYS approved billable days on Staff Aug
 with no escalation raised since. The daily sweep raises a request and an approval task; a
 rejection is discussed with Flash and turns into follow-up tasks (follow_up_plan)."""

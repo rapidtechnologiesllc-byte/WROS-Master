@@ -1,6 +1,6 @@
 """
-S-353/HRMS-0514 -- Core-Pull Conflict Rule Engine ("Core Wins Policy") and
-S-373/HRMS-0529 -- Specialty Pool Minimum 40 Core-Certified Guard.
+S-353/HRMS-0514 -- Direct-Pull Conflict Rule Engine ("Direct Wins Policy") and
+S-373/HRMS-0529 -- Specialty Pool Minimum 40 Direct-Certified Guard.
 
 Built directly from `Requirements/S-353_HRMS-0514.docx` and
 `Requirements/S-373_HRMS-0529.docx` -- see app.models.core_pull's module
@@ -12,11 +12,11 @@ S-372's Confirmed/Potential Demand Workflow, and any future manual
 transfer) -- same "closely-coupled pieces share a module" convention as
 thunder_service.py's A1 send-governance + test-chat mode.
 
-The one rule this whole module exists to protect: Core-Pull decision
-logic ("does this employee's Core demand win over their Speciality
+The one rule this whole module exists to protect: Direct-Pull decision
+logic ("does this employee's Direct demand win over their Speciality
 allocation") lives in exactly one place -- detect_core_pull_conflict()
 below. HRMS-1105 (Part A, not yet built) and S-372 (Part A, not yet
-built) must call this, never reimplement "Core wins" themselves.
+built) must call this, never reimplement "Direct wins" themselves.
 """
 import logging
 from datetime import date, datetime, timedelta
@@ -43,12 +43,12 @@ OVERRIDE_ALERT_WINDOW_DAYS = 30
 logger = logging.getLogger(__name__)
 
 class SpecialtyPoolBelowMinimum(Exception):
-    """S-373: a Core move that would drop the Specialty Core-Certified
+    """S-373: a Direct move that would drop the Specialty Direct-Certified
     pool below SPECIALTY_POOL_MINIMUM is blocked until a replacement
     plan is logged for this employee."""
 
 class CorePullOverrideForbidden(Exception):
-    """S-353: only a BU Head may override a pending Core-Pull."""
+    """S-353: only a BU Head may override a pending Direct-Pull."""
 
 class InvalidReplacementPlan(Exception):
     pass
@@ -62,7 +62,7 @@ class InvalidOverrideJustification(Exception):
 
 def check_specialty_pool_guard(db: Session, employee_being_moved: Employee) -> Dict:
     """
-    SpecialtyPoolGuard.check() -- counts Core-Certified employees
+    SpecialtyPoolGuard.check() -- counts Direct-Certified employees
     currently deployed in Specialty (excluding exited staff), simulates
     the pool size if employee_being_moved left it.
 
@@ -120,7 +120,7 @@ def log_replacement_plan(
     expected_replacement_date: date,
     logged_by: Optional[str] = None,
 ) -> SpecialtyPoolReplacementPlan:
-    """BU Head logs this to unblock a Core move that would breach the
+    """BU Head logs this to unblock a Direct move that would breach the
     40-minimum floor. 'We will hire someone' is not a plan -- both a
     100+ char strategy and an expected date are required."""
     if len(replacement_strategy or "") < REPLACEMENT_STRATEGY_MIN_CHARS:
@@ -168,14 +168,14 @@ def detect_core_pull_conflict(
 ) -> Optional[CorePullEvent]:
     """
     CorePullEngine.detect() -- the single place "does this employee have
-    a genuine Core-vs-Speciality conflict" gets decided. Called per-
-    candidate by whoever is proposing the Core move (HRMS-1105's scan,
+    a genuine Direct-vs-Speciality conflict" gets decided. Called per-
+    candidate by whoever is proposing the Direct move (HRMS-1105's scan,
     S-372's Confirmed/Potential Demand Workflow, a manual transfer) --
     not a standalone cron this module owns; the phase doc's own caller
     list is all per-employee-per-demand invocations, not a sweep.
 
     Returns None when there's no conflict (core_demand isn't CORE, the
-    employee isn't Core-Certified, or they have no active Speciality
+    employee isn't Direct-Certified, or they have no active Speciality
     allocation to pull from) -- a None return means "nothing to do",
     not an error. Idempotent: a second call for the same employee+demand
     while a PENDING event already exists returns that same event rather
@@ -243,8 +243,8 @@ def execute_core_pull(
     allocate_employee_to_project(): EmployeeAlreadyAllocated doesn't apply
     (holding an active Speciality allocation is the very thing being
     transferred, not a conflict to block on). The deployment gates do (CEO
-    2026-10-14: Core Pull is not exempt): Buddy graduated, no open
-    escalation, Core-certified for the Core client -- EmployeeNotDeployable.
+    2026-10-14: Direct Pull is not exempt): Buddy graduated, no open
+    escalation, Direct-certified for the Direct client -- EmployeeNotDeployable.
 
     speciality_rm/bu_head: caller-supplied, best-effort notifications --
     this codebase has no RM/BU-Head roster resolution built (same posture
@@ -270,7 +270,7 @@ def execute_core_pull(
     guard = check_specialty_pool_guard(db, employee)
     if guard["below_minimum"] and not _has_replacement_plan_since(db, employee.id, since=event.detected_at):
         raise SpecialtyPoolBelowMinimum(
-            f"Moving {employee.id} to Core would drop the Specialty Core-Certified pool to "
+            f"Moving {employee.id} to Direct would drop the Specialty Direct-Certified pool to "
             f"{guard['pool_size_after_move']} (below the {SPECIALTY_POOL_MINIMUM} minimum). "
             f"Log a replacement plan before this move can proceed."
         )
@@ -303,7 +303,7 @@ def execute_core_pull(
     # timesheet until then) -- Core Pull is not exempt from the rate card (CEO 2026-10-23)
     from app.services.employee_allocation_service import apply_margin_guard
 
-    apply_margin_guard(db, new_allocation, employee, core_demand, changed_by=None, reason=f"Core-Pull {event.id}")
+    apply_margin_guard(db, new_allocation, employee, core_demand, changed_by=None, reason=f"Direct-Pull {event.id}")
 
     if employee.delivery_engine != "CORE":
         employee.delivery_engine = "CORE"
@@ -311,7 +311,7 @@ def execute_core_pull(
 
     db.add(EmployeeEngineHistory(
         tenant_id=tenant_id, employee_id=employee.id, from_engine="SPECIALITY", to_engine="CORE",
-        reason="Core-Pull", approval_reference=event.id,
+        reason="Direct-Pull", approval_reference=event.id,
     ))
 
     event.status = "EXECUTED"
@@ -324,7 +324,7 @@ def execute_core_pull(
             send_notification(
                 db, calling_context_tenant_id=tenant_id, recipient=speciality_rm, priority_tier="P0",
                 message=(
-                    f"CORE PULL: {employee_name} reallocated to Core demand {core_demand.id}. "
+                    f"CORE PULL: {employee_name} reallocated to Direct demand {core_demand.id}. "
                     f"Effective today. Please plan replacement sourcing."
                 ),
             )
@@ -335,8 +335,8 @@ def execute_core_pull(
             send_notification(
                 db, calling_context_tenant_id=tenant_id, recipient=bu_head, priority_tier="P1",
                 message=(
-                    f"Core-Pull executed: {employee_name} moved to Core demand {core_demand.id}. "
-                    f"Specialty pool now at {guard['pool_size_after_move']} Core-Certified."
+                    f"Direct-Pull executed: {employee_name} moved to Direct demand {core_demand.id}. "
+                    f"Specialty pool now at {guard['pool_size_after_move']} Direct-Certified."
                 ),
             )
         except Exception as exc:  # best-effort, logged
@@ -355,7 +355,7 @@ def override_core_pull(
 ) -> CorePullEvent:
     """
     BU Head override path. Specialty allocation is never touched --
-    it simply continues; the Core demand stays open for alternative
+    it simply continues; the Direct demand stays open for alternative
     sourcing. More than OVERRIDE_ALERT_THRESHOLD overrides in
     OVERRIDE_ALERT_WINDOW_DAYS days pages the Director (best-effort,
     caller-supplied recipient, same posture as every other roster-
@@ -364,7 +364,7 @@ def override_core_pull(
     from app.core import authority
 
     if not authority.is_bu_leader(db, actor):
-        raise CorePullOverrideForbidden("Core-Pull override requires a BU Head (or more senior) role.")
+        raise CorePullOverrideForbidden("Direct-Pull override requires a BU Head (or more senior) role.")
     actor_user_id = actor.UserID
     if event.status != "PENDING":
         raise ValueError(f"CorePullEvent {event.id} is not PENDING (status={event.status}).")
@@ -395,8 +395,8 @@ def override_core_pull(
             send_notification(
                 db, calling_context_tenant_id=tenant_id, recipient=director, priority_tier="P1",
                 message=(
-                    f"Core-Pull override pattern: {recent_overrides} overrides in the last "
-                    f"{OVERRIDE_ALERT_WINDOW_DAYS} days. Core pool may be insufficient."
+                    f"Direct-Pull override pattern: {recent_overrides} overrides in the last "
+                    f"{OVERRIDE_ALERT_WINDOW_DAYS} days. Direct pool may be insufficient."
                 ),
             )
         except Exception as exc:  # best-effort, logged

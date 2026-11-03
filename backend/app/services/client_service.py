@@ -75,7 +75,7 @@ def create_client(
     never guessed.
 
     2026-08-06 redesign, confirmed directly with Avinash while testing
-    live: line_type (Core/Specialty) is the real classification now,
+    live: line_type (Direct/Specialty) is the real classification now,
     client_type kept only for legacy rows -- not required here, callers
     that don't pass it get the same "CORE" default every existing
     fixture/test already got via client_type="DIRECT" before this.

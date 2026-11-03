@@ -172,7 +172,7 @@ def create_project_endpoint(
     # Speciality -- same "enforced at the API boundary, not inside
     # create_project()" posture as si_partner above.
     if delivery_engine == "CORE" and not body.business_type:
-        raise HTTPException(status_code=400, detail="Business Type is required for Core Engine projects.")
+        raise HTTPException(status_code=400, detail="Business Type is required for Direct Engine projects.")
 
     # Currency-by-delivery_engine: Speciality allows INR or USD, Core is
     # USD-only at this point -- Avinash's own words.
@@ -184,7 +184,7 @@ def create_project_endpoint(
     if delivery_engine == "CORE" and body.currency not in CORE_CURRENCIES:
         raise HTTPException(
             status_code=400,
-            detail=f"Core Engine projects must be billed in {' or '.join(CORE_CURRENCIES)}.",
+            detail=f"Direct Engine projects must be billed in {' or '.join(CORE_CURRENCIES)}.",
         )
 
     try:

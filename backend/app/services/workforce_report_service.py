@@ -1,19 +1,19 @@
 """Workforce Overview (CEO 2026-10-14): where every employee stands between the bench, Staff
-Aug and Core. Not recruitment: people already employed.
+Aug and Direct. Not recruitment: people already employed.
 
 Each employee is in exactly one group, so the groups add up to headcount:
 
   NON_BILLABLE              internal staff (not billable): never bench, their cost is overhead
   BENCH_IN_BUDDY            no active allocation, Buddy Program not graduated
-  BENCH_READY               no active allocation, graduated, not Core-certified (Staff Aug next)
-  BENCH_CORE_READY          no active allocation, graduated and Core-certified (Core now)
-  STAFF_AUG                 on a Staff Aug project, not Core-certified (proving themselves)
-  STAFF_AUG_CORE_CERTIFIED  on a Staff Aug project and Core-certified (move to Core)
-  CORE                      on a Core project (held until released)
-  UNCLASSIFIED              allocated, but neither the project nor the client says Core or
+  BENCH_READY               no active allocation, graduated, not Direct-certified (Staff Aug next)
+  BENCH_CORE_READY          no active allocation, graduated and Direct-certified (Direct now)
+  STAFF_AUG                 on a Staff Aug project, not Direct-certified (proving themselves)
+  STAFF_AUG_CORE_CERTIFIED  on a Staff Aug project and Direct-certified (move to Direct)
+  CORE                      on a Direct project (held until released)
+  UNCLASSIFIED              allocated, but neither the project nor the client says Direct or
                             Staff Aug: fix the data, the report cannot place them
 
-A Core allocation wins over a Staff Aug one. Flags ride along: rolling off (an active
+A Direct allocation wins over a Staff Aug one. Flags ride along: rolling off (an active
 allocation ending within ROLL_OFF_WINDOW_DAYS), open escalations, notice period. Former
 (EXITED) and not-yet-joined (PRE_JOINING) employees are not headcount.
 
@@ -45,12 +45,12 @@ NOT_HEADCOUNT = ("EXITED", "PRE_JOINING")
 GROUPS = (
     ("NON_BILLABLE", "Non-billable (internal)", "Internal staff: never bench; their cost is overhead in the P&L."),
     ("BENCH_IN_BUDDY", "Bench: in Buddy Program", "Not allocated; Buddy not graduated, so no client yet."),
-    ("BENCH_READY", "Bench: ready for Staff Aug", "Not allocated; graduated, not Core-certified."),
-    ("BENCH_CORE_READY", "Bench: ready for Core", "Not allocated; graduated and Core-certified."),
-    ("STAFF_AUG", "Staff Aug", "On a Staff Aug project, not Core-certified."),
-    ("STAFF_AUG_CORE_CERTIFIED", "Staff Aug, Core-certified", "On Staff Aug and qualified for Core: move to Core."),
-    ("CORE", "Core (direct client)", "On a Core project; held until released."),
-    ("UNCLASSIFIED", "Allocated, unclassified", "The project and client have no Core / Staff Aug type set."),
+    ("BENCH_READY", "Bench: ready for Staff Aug", "Not allocated; graduated, not Direct-certified."),
+    ("BENCH_CORE_READY", "Bench: ready for Direct", "Not allocated; graduated and Direct-certified."),
+    ("STAFF_AUG", "Staff Aug", "On a Staff Aug project, not Direct-certified."),
+    ("STAFF_AUG_CORE_CERTIFIED", "Staff Aug, Direct-certified", "On Staff Aug and qualified for Direct: move to Direct."),
+    ("CORE", "Direct (to the client)", "On a Direct project; held until released."),
+    ("UNCLASSIFIED", "Allocated, unclassified", "The project and client have no Direct / Staff Aug type set."),
 )
 FLAGS = (
     ("rolling_off", "Rolling off", "An active allocation ends within the roll-off window."),

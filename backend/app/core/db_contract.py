@@ -1747,6 +1747,12 @@ def _apply_schema_migrations(db: Session):
                     "ALTER TABLE IF EXISTS app_schema.thunder_email_messages "
                     "ADD COLUMN IF NOT EXISTS intent_evidence VARCHAR(255) NULL")
 
+    # Line Type: Core is called Direct everywhere (CEO 2026-11-03); stored menu names follow. The stored
+    # line type value stays CORE. Idempotent: only names still saying Core change.
+    _migration_step(db, "resources.display_name Core -> Direct",
+                    r"UPDATE app_schema.resources SET display_name = regexp_replace(display_name, '\mCore\M', 'Direct', 'g') "
+                    r"WHERE display_name ~ '\mCore\M' AND display_name !~* 'guidewire'")
+
     # Migration 2: candidate_status.thunder_assigned_at (when Thunder was assigned)
     _migration_step(db, "candidate_status.thunder_assigned_at",
                     "ALTER TABLE IF EXISTS app_schema.candidate_status "

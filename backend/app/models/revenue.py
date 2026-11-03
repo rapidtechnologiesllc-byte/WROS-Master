@@ -4,11 +4,11 @@ Revenue Recognition & P&L Attribution Model.
 Tracks revenue flows through the system:
 - Invoice → Revenue Recognition (when PAID)
 - Revenue attribution by Client Owner + Opportunity
-- Partner revenue share calculation (Core business only)
+- Partner revenue share calculation (Direct business only)
 
 Revenue is recognized (recorded) when Invoice.status = PAID, not when SENT.
 All revenue flows to Client Owner (opportunity owner at time of creation).
-Partner revenue share applies to Core business type only.
+Partner revenue share applies to Direct business type only.
 """
 import logging
 import uuid

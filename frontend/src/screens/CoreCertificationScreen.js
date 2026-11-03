@@ -1,4 +1,4 @@
-// Core certification approvals (CEO 2026-10-14). The daily job raises a request when an employee
+// Direct certification approvals (CEO 2026-10-14). The daily job raises a request when an employee
 // has graduated Buddy and has 90 approved billable Staff Aug days with no escalation; the BU Head
 // (or another leader of that business unit) decides in Flash: Approve / Reject open the Flash
 // bubble on the request (?flash=core_cert:<id>), where a rejection is a short discussion that
@@ -93,7 +93,7 @@ export default function CoreCertificationScreen() {
       const data = await getCoreCertificationRequests();
       setRequests(data?.requests || []);
     } catch (err) {
-      setError(err.message || "Failed to load Core certification requests.");
+      setError(err.message || "Failed to load Direct certification requests.");
     } finally {
       setLoading(false);
     }
@@ -121,7 +121,7 @@ export default function CoreCertificationScreen() {
         <ArrowLeft className="h-4 w-4" /> Workforce Overview
       </Link>
       <Card
-        title={`Core certification: awaiting decision (${pending.length})`}
+        title={`Direct certification: awaiting decision (${pending.length})`}
         subtitle="Buddy graduated, 90 approved billable Staff Aug days, no escalation in them. The BU Head decides in Flash: approve, or tell Flash why not."
         icon={<Award className="h-4 w-4" />}
         right={

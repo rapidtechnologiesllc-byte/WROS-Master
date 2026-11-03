@@ -1,6 +1,6 @@
 """Flash conversations (flash spec B). One ACTIVE conversation per user, kept server-side, so the
 bubble resumes after a reload or on another screen. Every Flash discussion lives here: questions,
-workflows opened from a deep link (e.g. a Core certification decision) and events Flash posts on
+workflows opened from a deep link (e.g. a Direct certification decision) and events Flash posts on
 its own (decisions waiting, progress)."""
 import uuid
 

@@ -1,5 +1,5 @@
-// S-353 (HRMS-0514) Core-Pull Engine + S-373 (HRMS-0529) Specialty Pool
-// Minimum 40 Guard -- pending Core-Pull conflicts, execute/override, and
+// S-353 (HRMS-0514) Direct-Pull Engine + S-373 (HRMS-0529) Specialty Pool
+// Minimum 40 Guard -- pending Direct-Pull conflicts, execute/override, and
 // the replacement-plan form that unblocks an execute the guard is
 // holding back.
 import { useEffect, useState } from "react";
@@ -28,7 +28,7 @@ function PoolStatusBanner({ status }) {
       : "Healthy -- above the 40-minimum floor.";
   return (
     <div className={cx("mx-5 mt-4 rounded-lg border px-3 py-2 text-sm", tone)}>
-      <span className="font-semibold">Specialty pool: {status.pool_size} Core-Certified.</span>{" "}
+      <span className="font-semibold">Specialty pool: {status.pool_size} Direct-Certified.</span>{" "}
       {label}
     </div>
   );
@@ -116,7 +116,7 @@ function OverrideForm({ onSubmit, onCancel, submitting }) {
       <TextArea
         value={justification}
         onChange={setJustification}
-        placeholder="Why should this Core-Pull be overridden?"
+        placeholder="Why should this Direct-Pull be overridden?"
         rows={3}
       />
       <div className="mt-2 flex items-center gap-2">
@@ -152,7 +152,7 @@ export default function CorePullScreen() {
       setPoolStatus(status);
       setEvents(queue?.events || []);
     } catch (err) {
-      setError(err.message || "Failed to load Core-Pull data.");
+      setError(err.message || "Failed to load Direct-Pull data.");
     } finally {
       setLoading(false);
     }
@@ -168,7 +168,7 @@ export default function CorePullScreen() {
     setNotice("");
     try {
       await executeCorePullEvent(eventId);
-      setNotice("Core-Pull executed.");
+      setNotice("Direct-Pull executed.");
       setPlanFormForId("");
       await load();
     } catch (err) {
@@ -188,7 +188,7 @@ export default function CorePullScreen() {
     setNotice("");
     try {
       await overrideCorePullEvent(eventId, justification);
-      setNotice("Core-Pull event overridden.");
+      setNotice("Direct-Pull event overridden.");
       setOverrideFormForId("");
       await load();
     } catch (err) {
@@ -201,8 +201,8 @@ export default function CorePullScreen() {
   return (
     <div className="grid gap-4">
       <Card
-        title="Core-Pull Engine & Specialty Pool Guard"
-        subtitle="Core-Certified employees deployed in Specialty who match an open Core demand. Executing pulls them onto Core the same day; the guard blocks a move that would drop the Specialty pool below 40 unless a replacement plan is logged."
+        title="Direct-Pull Engine & Specialty Pool Guard"
+        subtitle="Direct-Certified employees deployed in Specialty who match an open Direct demand. Executing pulls them onto Direct the same day; the guard blocks a move that would drop the Specialty pool below 40 unless a replacement plan is logged."
         icon={<ShieldAlert className="h-4 w-4" />}
         right={
           <Button variant="secondary" onClick={load} disabled={loading}>
@@ -229,7 +229,7 @@ export default function CorePullScreen() {
             <div className="py-8 text-center text-sm text-gray-500">Loading…</div>
           ) : events.length === 0 ? (
             <div className="py-8 text-center text-sm text-gray-500">
-              No pending Core-Pull conflicts.
+              No pending Direct-Pull conflicts.
             </div>
           ) : (
             <div className="grid gap-3">
