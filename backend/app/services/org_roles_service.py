@@ -122,7 +122,8 @@ def ensure_permission_set(db: Session, role: OrgRole):
 
     template = db.get(RoleTemplate, role.role_template_id) if role.role_template_id else None
     if template is None:
-        template = RoleTemplate(name=f"{role.name} (role)", display_name=role.name,
+        # named after the role itself (CEO 2026-11-03: drop the " (role)" suffix)
+        template = RoleTemplate(name=role.name, display_name=role.name,
                                 description=f"What every {role.name} may see and do",
                                 hierarchy_level=role.hierarchy_level, specialization="General",
                                 org_level_access=False, is_system=False, enabled=True,
@@ -130,8 +131,9 @@ def ensure_permission_set(db: Session, role: OrgRole):
         db.add(template)
         db.flush()
         role.role_template_id = template.id
-    elif template.display_name != role.name or template.hierarchy_level != role.hierarchy_level:
-        template.name, template.display_name = f"{role.name} (role)", role.name
+    elif (template.name != role.name or template.display_name != role.name
+          or template.hierarchy_level != role.hierarchy_level):
+        template.name, template.display_name = role.name, role.name
         template.hierarchy_level = role.hierarchy_level
     if role.designation in DESIGNATION_LEVELS and not template.org_level_access:
         template.org_level_access = True
