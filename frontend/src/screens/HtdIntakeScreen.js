@@ -67,7 +67,6 @@ export default function HtdIntakeScreen() {
   const [status, setStatus] = useState(null);
   const [pauseLog, setPauseLog] = useState([]);
   const [month, setMonth] = useState("");
-  const [lastMetric, setLastMetric] = useState(null);
   const [showResumeForm, setShowResumeForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -100,7 +99,6 @@ export default function HtdIntakeScreen() {
     setNotice("");
     try {
       const metric = await calculateMonthlyMetric(`${month}-01`);
-      setLastMetric(metric);
       setNotice(`Calculated: ${metric.cohort_size} cohort, ${metric.converted} converted${metric.conversion_rate != null ? ` (${(metric.conversion_rate * 100).toFixed(1)}%)` : " -- insufficient data"}.`);
     } catch (err) {
       setError(err.message || "Failed to calculate metric.");
@@ -121,7 +119,7 @@ export default function HtdIntakeScreen() {
     <div className="grid gap-4">
       <Card
         title="HTD Intake Pause Engine"
-        subtitle="Monthly HTD-to-Core conversion rate monitor. Two consecutive months below 50% auto-pauses new intake until BU Head resumes with a documented audit."
+        subtitle="Monthly HTD-to-Direct conversion rate monitor. Two consecutive months below 50% auto-pauses new intake until BU Head resumes with a documented audit."
         icon={<AlertOctagon className="h-4 w-4" />}
         right={
           <Button variant="ghost" onClick={load} disabled={loading}>

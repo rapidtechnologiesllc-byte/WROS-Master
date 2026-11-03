@@ -1,5 +1,5 @@
 // Submissions, two tabs (CEO 2026-10-14):
-// - External: bench employees submitted to a client, Core (direct client) or Staff Aug. The
+// - External: bench employees submitted to a client, Direct (to the client) or Staff Aug. The
 //   pickers come from GET /submissions/options; the selected pair is checked by GET
 //   /submissions/readiness, the same gates POST /submissions enforces.
 // - Internal: market candidates put on a job, moving through the hiring pipeline to the bench.
@@ -100,7 +100,7 @@ function ExternalRow({ submission, onChanged }) {
   );
 }
 
-// Sub-tabs by delivery model (Core / Staff Aug), built from the types the jobs and submissions
+// Sub-tabs by delivery model (Direct / Staff Aug), built from the types the jobs and submissions
 // actually carry; rows whose client has no type set get their own "Not set" tab.
 const NOT_SET = "__none__";
 const lineKey = (row) => row.delivery_line || NOT_SET;
@@ -318,7 +318,7 @@ export default function SubmissionsScreen() {
         title="Submissions"
         subtitle={
           tab === "external"
-            ? "Bench employees to a client: Core (direct client) needs Core certification; both models need Buddy graduated, no open escalation, 5+ years and the job's minimum."
+            ? "Bench employees to a client: Direct (to the client) needs Direct certification; both models need Buddy graduated, no open escalation, 5+ years and the job's minimum."
             : "Market candidates on jobs, on their way to the bench: Screen → L1 → L2 → Offer → Onboarding → BGV → Bench."
         }
         icon={<Send className="h-4 w-4" />}

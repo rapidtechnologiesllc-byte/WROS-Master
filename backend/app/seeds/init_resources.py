@@ -89,6 +89,9 @@ RESOURCE_ROUTES = {
 # Menu labels where title-casing the resource name reads wrong
 NAV_LABELS = {
     "dashboard": "Home",
+    # Line Type: Core is called Direct everywhere (CEO 2026-11-03)
+    "core-pull": "Direct Pull",
+    "core-certification": "Direct Certification",
     "my-tasks": "My Tasks",
     "submissions": "Pipeline & Submissions",
     "convert-to-employee": "Pipeline & Submissions",

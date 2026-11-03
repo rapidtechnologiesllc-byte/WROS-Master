@@ -1,6 +1,6 @@
 """A task can carry its own in-app link, which My Tasks opens first: the column is added on
 startup by the schema contract, only same-site paths are accepted, and the API returns it.
-The Core certification approval task links to the review screen."""
+The Direct certification approval task links to the review screen."""
 import uuid
 from datetime import datetime, timedelta
 

@@ -1,6 +1,6 @@
 """Flash keeps one conversation per user on the server (flash spec B): it resumes after a reload,
 can be reset, opens a workflow from a deep link (?flash=kind:ref), and lists the decisions
-waiting for the user. The Core certification decision -- approve, or reject through the
+waiting for the user. The Direct certification decision -- approve, or reject through the
 discussion that becomes follow-up tasks -- runs entirely inside the bubble (it moved here from
 the screen's own chat and the removed /reject-chat endpoint)."""
 from datetime import timedelta
@@ -128,7 +128,7 @@ def test_deep_link_opens_the_decision_and_approve_certifies(db, org, api):
     assert opened.status_code == 200, opened.text
     body = opened.json()
     assert body["active_workflow"] == "core_cert"
-    assert "qualifies for Core certification" in body["reply"] and "Approve or reject?" in body["reply"]
+    assert "qualifies for Direct certification" in body["reply"] and "Approve or reject?" in body["reply"]
     assert "Type cancel" in body["reply"]
 
     done = _ask(api, org.head, "approve")
@@ -249,7 +249,7 @@ def test_pending_decisions_list_core_certification_for_the_head_only(db, org, ap
     db.commit()
     mine = [d for d in _conversation(api, org.head)["pending_decisions"] if d["ref"] == request.id]
     assert mine == [{"kind": "core_cert", "ref": request.id, "workflow": True,
-                     "text": f"Approve Core certification: Ravi {e.last_name}",
+                     "text": f"Approve Direct certification: Ravi {e.last_name}",
                      "link": f"/my-tasks?flash=core_cert:{request.id}"}]
     assert not [d for d in _conversation(api, outsider)["pending_decisions"] if d["ref"] == request.id]
 

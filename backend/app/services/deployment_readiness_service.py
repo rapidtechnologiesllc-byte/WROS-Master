@@ -1,17 +1,17 @@
 """Whether an employee may go to a client (CEO 2026-10-14). One rule set, checked at every step
-that puts someone in front of a client: client submission, PLACED, direct allocation, Core Pull.
+that puts someone in front of a client: client submission, PLACED, direct allocation, Direct Pull.
 
-Two delivery models: Staff Augmentation (SPECIALITY) and Core (direct client, CORE). Every new
-hire proves themselves on Staff Aug first, then is Core-certified and moved to a Core client.
+Two delivery models: Staff Augmentation (SPECIALITY) and Direct (direct client, CORE). Every new
+hire proves themselves on Staff Aug first, then is Direct-certified and moved to a Direct client.
 
 - Buddy Program GRADUATED, for both models (no exception for employees from before the
   hiring pipeline);
 - no OPEN escalation (app.models.employee_escalation);
-- Core-certified when the job is Core.
+- Direct-certified when the job is Direct.
 
-For a client submission the employee must also be free (allocation_blockers): an active Core
+For a client submission the employee must also be free (allocation_blockers): an active Direct
 allocation holds them until they are released, and an active Staff Aug allocation holds them
-from another Staff Aug job but not from a Core one (moving Staff Aug people to Core is the
+from another Staff Aug job but not from a Direct one (moving Staff Aug people to Direct is the
 goal). An allocation ending within ROLL_OFF_WINDOW_DAYS is rolling off and holds no one.
 
 Each blocker is {"error", "message", "violation_type"}: the shape create_submission() returns
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 DEPLOYABLE_BUDDY_STATUS = "GRADUATED"
 CORE = "CORE"
-DELIVERY_LINE_LABELS = {"CORE": "Core (direct client)", "SPECIALITY": "Staff Aug"}
+DELIVERY_LINE_LABELS = {"CORE": "Direct (to the client)", "SPECIALITY": "Staff Aug"}
 
 
 class EmployeeNotDeployable(Exception):
@@ -68,7 +68,7 @@ def job_line(db: Session, job) -> Optional[str]:
 
 
 def deployment_blockers(db: Session, employee: Employee, job=None) -> List[dict]:
-    """Buddy, escalation and (for a Core job) Core certification. Job-independent when job is None."""
+    """Buddy, escalation and (for a Direct job) Direct certification. Job-independent when job is None."""
     blockers = []
     if employee.buddy_program_status != DEPLOYABLE_BUDDY_STATUS:
         blockers.append(_blocker(
@@ -87,7 +87,7 @@ def deployment_blockers(db: Session, employee: Employee, job=None) -> List[dict]
     if job is not None and job_line(db, job) == CORE and not employee.core_certified:
         blockers.append(_blocker(
             "CORE_CERTIFICATION_REQUIRED",
-            "This is a Core (direct client) job; the employee is not Core-certified.",
+            "This is a Direct (to the client) job; the employee is not Direct-certified.",
         ))
     return blockers
 
@@ -109,9 +109,9 @@ def allocation_blockers(db: Session, employee: Employee, job=None) -> List[dict]
             continue
         line = delivery_line(db, project_id=allocation.project_id, client_id=allocation.client_id)
         if line == CORE:
-            held.append("a Core project (until released)")
+            held.append("a Direct project (until released)")
         elif job is not None and target != CORE:
-            held.append("a Staff Aug project (only a move to Core is allowed)")
+            held.append("a Staff Aug project (only a move to Direct is allowed)")
     if not held:
         return []
     return [_blocker("NOT_ON_BENCH", f"Allocated to {', '.join(sorted(set(held)))}; rolling off means an "

@@ -1,5 +1,5 @@
 """Workforce Overview (CEO 2026-10-14): every employee in exactly one of bench / Staff Aug /
-Core groups, so the groups add up to headcount; scoped to the caller's business units."""
+Direct groups, so the groups add up to headcount; scoped to the caller's business units."""
 import uuid
 from datetime import date, timedelta
 from unittest.mock import patch
@@ -96,7 +96,7 @@ def test_every_employee_lands_in_exactly_one_group(db, api):
     _allocate(db, staff_aug, line="SPECIALITY")
     staff_aug_cert = _employee(db, "StaffAugCert", certified=True, status="ALLOCATED")
     _allocate(db, staff_aug_cert, line="SPECIALITY", end_date=date.today() + timedelta(days=10))
-    core = _employee(db, "Core", certified=True, status="ALLOCATED")
+    core = _employee(db, "Direct", certified=True, status="ALLOCATED")
     _allocate(db, core, line="CORE", via_project=True)  # the project's engine decides
     both = _employee(db, "Both", certified=True, status="ALLOCATED")
     _allocate(db, both, line="SPECIALITY")
@@ -133,7 +133,7 @@ def test_every_employee_lands_in_exactly_one_group(db, api):
 
     rolling, _ = people(flag="rolling_off")
     assert staff_aug_cert.id in rolling and staff_aug.id not in rolling
-    assert rolling[staff_aug_cert.id]["group_label"] == "Staff Aug, Core-certified"
+    assert rolling[staff_aug_cert.id]["group_label"] == "Staff Aug, Direct-certified"
     escalated, _ = people(flag="open_escalations")
     assert escalated[ready.id]["open_escalations"] == 1
     flag_counts = {f["key"]: f["count"] for f in dashboard["flags"]}

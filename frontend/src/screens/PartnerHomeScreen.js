@@ -345,7 +345,7 @@ export default function PartnerHomeScreen() {
                 <Stat label="Pre-onboarding" value={ops.pre_onboarding_pipeline?.in_pre_onboarding || 0} icon={TrendingUp} tone="text-purple-500" />
                 <Stat label="Certified" value={ops.certifications?.total_active || 0} icon={Award} tone="text-green-500" />
                 <Stat label="Buddy program" value={ops.buddy_program?.total_in_program || 0} icon={Users} tone="text-indigo-500" />
-                <Stat label="Core certified" value={ops.core_certified_employees?.length || 0} icon={Award} tone="text-yellow-500" />
+                <Stat label="Direct certified" value={ops.core_certified_employees?.length || 0} icon={Award} tone="text-yellow-500" />
               </div>
 
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -373,7 +373,7 @@ export default function PartnerHomeScreen() {
                 </Card>
               </div>
 
-              <Card title="Core certified employees">
+              <Card title="Direct certified employees">
                 {ops.core_certified_employees?.length > 0 ? (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">

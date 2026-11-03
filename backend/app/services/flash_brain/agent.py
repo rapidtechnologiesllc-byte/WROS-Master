@@ -1,7 +1,7 @@
 """One Flash turn on the user's server-side conversation (flash spec C, "turn function").
 
 1. The user's message is stored.
-2. An open workflow (a Core certification decision, a job being drafted) takes the message.
+2. An open workflow (a Direct certification decision, a job being drafted) takes the message.
 3. Otherwise:
    - finance questions (P&L, overdue invoices) are answered from the database by the rules --
      no figure ever goes to a model (CEO 2026-10-15);

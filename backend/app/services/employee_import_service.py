@@ -321,7 +321,7 @@ def _resolve(lk: _Lookups, row: Dict[str, str]) -> Spec:
             errors.append("core_certified needs existing_staff=yes (the Buddy Program comes first).")
         if spec.unit is not None and spec.unit.id not in led_business_units(db, lk.uploader):
             errors.append("Only a leader of this business unit (its Partner or a BU Head) can import someone "
-                          "as Core-certified; leave core_certified=no and approve it on Core certification.")
+                          "as Direct-certified; leave core_certified=no and approve it on Direct certification.")
 
     from app.services import compensation
 
@@ -437,7 +437,7 @@ def _resolve_allocation(lk: _Lookups, row: Dict[str, str], spec: Spec) -> None:
         if not spec.existing_staff:
             errors.append("Allocation needs existing_staff=yes: a new hire's Buddy Program must be graduated first.")
         if job_line(lk.db, spec.job) == CORE and not spec.core_certified:
-            errors.append("This is a Core (direct client) job: the employee must be Core-certified.")
+            errors.append("This is a Direct (to the client) job: the employee must be Direct-certified.")
     if spec.bench_since:
         errors.append("bench_since is for employees not on a project; drop it or the allocation.")
 
@@ -696,7 +696,7 @@ def _certify_core(db: Session, employee: Employee, uploader: Users) -> None:
     write_audit_log(db, entity_type="employee", entity_id=employee.id, action="core_certified_on_import",
                     tenant_id=employee.tenant_id, user_id=uploader.UserID,
                     new_value=json.dumps({"core_certified": True,
-                                          "reason": f"Existing Core-certified employee imported by {uploader.UserID}"}))
+                                          "reason": f"Existing Direct-certified employee imported by {uploader.UserID}"}))
 
 
 def _login_for(db: Session, spec: Spec, uploader: Users) -> Tuple[Users, bool]:

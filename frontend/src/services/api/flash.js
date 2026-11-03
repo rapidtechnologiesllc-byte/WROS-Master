@@ -1,7 +1,7 @@
 // Flash -- internal assistant API (authenticated). See app/api/v1/endpoints/flash.py.
 // Since 2026-10-15 the conversation lives on the server (one per user): the bubble loads it
 // on any screen, polls it while closed, and opens a discussion on a record from a deep link
-// (?flash=kind:ref), e.g. a Core certification decision.
+// (?flash=kind:ref), e.g. a Direct certification decision.
 import { apiRequest } from "./client";
 
 // Window event FlashWidget fires when a discussion ends ({detail: {kind}}), so the screen that

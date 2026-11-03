@@ -171,8 +171,8 @@ def convert_candidate_to_employee(
     """
     if employee_fields.get("delivery_engine") not in (None, "SPECIALITY"):
         raise CoreAssignmentNotAllowed(
-            "New hires must enter SPECIALITY delivery engine. Core assignment "
-            "requires the Core Eligibility Gate (HRMS-0513) via set_core_delivery_engine()."
+            "New hires must enter SPECIALITY delivery engine. Direct assignment "
+            "requires the Direct Eligibility Gate (HRMS-0513) via set_core_delivery_engine()."
         )
     employee_fields.pop("delivery_engine", None)
 
@@ -214,7 +214,7 @@ def set_core_delivery_engine(
     Requires the employee to already be core_certified (the DB CHECK
     constraint enforces this independently, at the row level, even
     against a raw SQL UPDATE bypassing this function entirely) and a
-    real approval_reference -- the Core Eligibility Gate ID this
+    real approval_reference -- the Direct Eligibility Gate ID this
     session's HRMS-0513 build (not yet implemented) would produce.
     Absent that full gate workflow, this function is the real, callable
     mutation a future HRMS-0513 build wires its BU Head approval step
@@ -223,10 +223,10 @@ def set_core_delivery_engine(
     if not employee.core_certified:
         raise CoreAssignmentNotAllowed(
             f"Employee {employee.id} is not core_certified -- CORE can only be "
-            f"assigned via the Core Eligibility Gate (HRMS-0513) after BU Head approval."
+            f"assigned via the Direct Eligibility Gate (HRMS-0513) after BU Head approval."
         )
     if not approval_reference:
-        raise CoreAssignmentNotAllowed("approval_reference (Core Eligibility Gate ID) is required.")
+        raise CoreAssignmentNotAllowed("approval_reference (Direct Eligibility Gate ID) is required.")
 
     previous_engine = employee.delivery_engine
     employee.delivery_engine = "CORE"
@@ -279,8 +279,8 @@ def create_employee_profile(
 
     if employee_fields.get("delivery_engine") not in (None, "SPECIALITY"):
         raise CoreAssignmentNotAllowed(
-            "New hires must enter SPECIALITY delivery engine. Core assignment "
-            "requires the Core Eligibility Gate (HRMS-0513) via set_core_delivery_engine()."
+            "New hires must enter SPECIALITY delivery engine. Direct assignment "
+            "requires the Direct Eligibility Gate (HRMS-0513) via set_core_delivery_engine()."
         )
     employee_fields.pop("delivery_engine", None)
 

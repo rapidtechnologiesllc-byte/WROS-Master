@@ -8,6 +8,7 @@ import { ROUTES } from "../utils/Routes";
 import { listClients } from "../services/api/clients";
 import { searchUsers } from "../services/api/users";
 import ActivityTimeline from "../components/timeline/ActivityTimeline";
+import { lineTypeLabel } from "../utils/lineType";
 
 const getContactPersonName = (job) => {
   if (!job) return "-";
@@ -235,7 +236,7 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
                 })) || []),
               ]}
             />
-            <Input label="Company Type (Line Type)" value={companyType} onChange={setCompanyType} disabled />
+            <Input label="Company Type (Line Type)" value={lineTypeLabel(companyType)} onChange={setCompanyType} disabled />
             <Select
               label="Contact Person"
               value={contactPerson}
@@ -257,7 +258,7 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
           <div>
             <div className="grid gap-3 md:grid-cols-2">
               <Info label="Company / Client" value={job.companyClient} />
-              <Info label="Company Type (Line Type)" value={job.companyType} />
+              <Info label="Company Type (Line Type)" value={lineTypeLabel(job.companyType)} />
               <Info label="Contact Person" value={getContactPersonName(job)} />
             </div>
             {mode !== "view" && (

@@ -135,9 +135,9 @@ def calculate_revenue_share_payout(
     """EPIC-16 Partner Incentive Calculator. REVENUE_SHARE payout = the
     partner's own BU revenue for the period x rule.revenue_share_pct.
 
-    Core-only, per the Specialty-vs-Partner revenue attribution
+    Direct-only, per the Specialty-vs-Partner revenue attribution
     decision already made this session ("Specialty revenue counts
-    toward BU Head's operational score only; Core and direct-onsite
+    toward BU Head's operational score only; Direct and direct-onsite
     revenue counts toward the Partner's own revenue-attainment
     number") -- Client.line_type='SPECIALITY' clients are excluded.
 

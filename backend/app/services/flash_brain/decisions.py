@@ -27,7 +27,7 @@ class Decision:
 
 
 def core_cert_pending(db: Session, user: Users) -> List[Decision]:
-    """PENDING Core certification requests this user may decide (BU Head or a leader of the BU)."""
+    """PENDING Direct certification requests this user may decide (BU Head or a leader of the BU)."""
     from app.core import authority
     from app.services import core_certification_service as service
 
@@ -37,7 +37,7 @@ def core_cert_pending(db: Session, user: Users) -> List[Decision]:
             .filter(service.CoreCertificationRequest.status == "PENDING")
             .order_by(service.CoreCertificationRequest.created_at).all())
     return [Decision(service.FLASH_WORKFLOW, request.id,
-                     f"Approve Core certification: {employee.first_name} {employee.last_name}".strip(),
+                     f"Approve Direct certification: {employee.first_name} {employee.last_name}".strip(),
                      service.decision_link(request.id))
             for request, employee in rows if service.may_decide(db, request, user)]
 

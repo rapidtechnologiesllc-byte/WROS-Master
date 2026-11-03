@@ -1,5 +1,5 @@
-"""Core certification (CEO 2026-10-14). Employee.core_certified is the one meaning of "Core-
-certified" in the system: it gates Core (direct client) jobs (deployment_readiness_service) and
+"""Direct certification (CEO 2026-10-14). Employee.core_certified is the one meaning of "Direct-
+certified" in the system: it gates Direct (to the client) jobs (deployment_readiness_service) and
 is what reports count. It is set only by the employee's BU Head approving a request:
 
 1. Buddy Program GRADUATED (Employee.buddy_program_status, as deployment_readiness_service);
@@ -16,7 +16,7 @@ is what reports count. It is set only by the employee's BU Head approving a requ
 Who decides: the request's BU Head, or anyone who leads that business unit (its Partner or a
 head in another company) -- so a request never waits on one absent person. No super-user
 bypass (CEO 2026-10-11). An escalation raised after certification does not revoke it (the
-rules make none; revoking would also break ck_core_requires_certification for people on Core).
+rules make none; revoking would also break ck_core_requires_certification for people on Direct).
 """
 import copy
 import logging
@@ -105,7 +105,7 @@ def eligibility(db: Session, employee: Employee, counted: Optional[Tuple[int, Op
     days, counted_from = counted or billable_days(db, [employee.id])[employee.id]
     reasons = []
     if employee.core_certified:
-        reasons.append("Already Core-certified.")
+        reasons.append("Already Direct-certified.")
     if employee.buddy_program_status != DEPLOYABLE_BUDDY_STATUS:
         reasons.append(f"Buddy Program is {employee.buddy_program_status.replace('_', ' ').lower()}, not graduated.")
     if days < settings.CORE_CERT_BILLABLE_DAYS:
@@ -146,7 +146,7 @@ def _approval_task(db: Session, employee: Employee, head_user_id: str, counted: 
     from app.services.task_service import create_task
 
     return create_task(
-        db, title=f"Approve Core certification: {_employee_name(employee)}",
+        db, title=f"Approve Direct certification: {_employee_name(employee)}",
         description=(f"{_employee_name(employee)} has graduated the Buddy Program and has {counted} approved "
                      f"billable Staff Aug days with no escalation. Open this task to approve or reject with "
                      f"Flash, or use {REVIEW_PATH}."),
@@ -287,7 +287,7 @@ def approve(db: Session, request: CoreCertificationRequest, user: Users) -> Core
     _close_task(db, request)
     db.commit()
     logger.info(f"[CoreCertification] {employee.id} certified by {user.UserID} (request {request.id})")
-    _notify(db, employee, f"Congratulations: you are now Core-certified (approved by your BU Head on {date.today()}).")
+    _notify(db, employee, f"Congratulations: you are now Direct-certified (approved by your BU Head on {date.today()}).")
     return request
 
 
@@ -402,7 +402,7 @@ def reject_chat(db: Session, request: CoreCertificationRequest, user: Users, mes
         return reply("Picking up where we left off. " + _current_question(state, name))
     if step is None:
         state = {"step": "reason"}
-        return reply(f"Why are you not approving {name}'s Core certification?")
+        return reply(f"Why are you not approving {name}'s Direct certification?")
     if step == "reason":
         if len(text) < 5:
             return reply("Please give the reason in a sentence, so it can be acted on.")
@@ -443,7 +443,7 @@ def reject_chat(db: Session, request: CoreCertificationRequest, user: Users, mes
 def _current_question(state: Dict, name: str) -> str:
     step = state.get("step")
     if step == "reason":
-        return f"Why are you not approving {name}'s Core certification?"
+        return f"Why are you not approving {name}'s Direct certification?"
     recap = f"Reason: \"{state['reason']}\". "
     if step == "criteria":
         return recap + ("What needs to be checked again before the next review, and in how many days "
@@ -464,8 +464,8 @@ def _finalize(db: Session, request: CoreCertificationRequest, employee: Employee
     for item in state["items"]:
         owner_id, _ = _owner_user_id(db, employee, item["owner"] or "me", user)
         task = create_task(
-            db, title=f"Core certification follow-up: {item['criterion']} ({_employee_name(employee)})",
-            description=(f"BU Head did not approve {_employee_name(employee)}'s Core certification: {state['reason']}. "
+            db, title=f"Direct certification follow-up: {item['criterion']} ({_employee_name(employee)})",
+            description=(f"BU Head did not approve {_employee_name(employee)}'s Direct certification: {state['reason']}. "
                          f"Re-check '{item['criterion']}' within {item['days']} days. The next review is raised "
                          "automatically once every follow-up is closed."),
             priority="MEDIUM", tenant_id=request.tenant_id, assigned_to_user_id=owner_id,

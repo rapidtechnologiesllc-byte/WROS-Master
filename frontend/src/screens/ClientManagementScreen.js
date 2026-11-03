@@ -5,7 +5,7 @@
 // creating user's own BU server-side, see POST /clients).
 //
 // 2026-08-06 redesign, confirmed directly with Avinash while testing
-// live: Line Type (Core/Specialty) replaces Client Type on create;
+// live: Line Type (Direct/Specialty) replaces Client Type on create;
 // Industry dropped; Country is a dropdown; Website is a required dedup
 // key.
 //
@@ -27,6 +27,7 @@ import { listBusinessUnits } from "../services/api/rbac";
 import { getHrMe } from "../services/api/users";
 import { apiRequest } from "../services/api/client";
 import { BillingSetupPanel, WorkOrdersPanel } from "../components/ClientBillingTabs";
+import { LINE_TYPE_OPTIONS, lineTypeLabel } from "../utils/lineType";
 
 // Our companies (Users & Access Control > Companies): BX-US, BX-IN
 const COMPANIES_PATH = "/api/v1/api/admin/users-access-control/delivery-centers";
@@ -40,7 +41,6 @@ const formatUsdCents = (cents) =>
     ? "—"
     : `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
-const LINE_TYPES = ["CORE", "SPECIALITY"];
 const CLIENT_TIERS = ["PLATINUM", "GOLD", "SILVER", "STANDARD"];
 // Shared with Opportunity.stage - single source of truth
 // Must match backend PIPELINE_STATUSES in app/models/opportunity.py and app/models/client.py
@@ -197,7 +197,7 @@ function ClientForm({ mode, initial, onCancel, onSaved, businessUnits = [], comp
         <Input label="Short Name" value={form.company_short_name || ""} onChange={set("company_short_name")} />
         <Input label="Website" value={form.website || ""} onChange={set("website")} placeholder="e.g. builders.com (optional)" />
         <Select label="Country" value={form.country} onChange={set("country")} options={COUNTRIES} />
-        <Select label="Line Type *" value={form.line_type} onChange={set("line_type")} options={LINE_TYPES} />
+        <Select label="Line Type *" value={form.line_type} onChange={set("line_type")} options={LINE_TYPE_OPTIONS} />
         <Select label="Business Unit *" value={form.business_unit_id} onChange={set("business_unit_id")} options={[
           { label: "Select Business Unit", value: "", disabled: true },
           ...businessUnits.map(bu => ({
@@ -701,7 +701,7 @@ function ClientDetailModal({
                 <FieldRow label="Short Name" value={client.company_short_name} />
                 <FieldRow label="Website" value={client.website} />
                 <FieldRow label="Country" value={client.country} />
-                <FieldRow label="Line Type" value={client.line_type} />
+                <FieldRow label="Line Type" value={lineTypeLabel(client.line_type)} />
                 <FieldRow label="Contracting Company" value={client.contracting_company_name} />
                 <FieldRow label="Client Owner" value={client.client_owner_name} />
                 <div>

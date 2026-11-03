@@ -1,4 +1,4 @@
-"""Pydantic schemas -- Core certification (app.services.core_certification_service)."""
+"""Pydantic schemas -- Direct certification (app.services.core_certification_service)."""
 from datetime import date, datetime
 from typing import Dict, List, Optional
 

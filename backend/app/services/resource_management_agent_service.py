@@ -12,7 +12,7 @@ other cron-shaped story here, e.g. HRMS-0901's weekly draft job) --
 run_bench_scan() is a plain, directly-callable, idempotent function, not a
 self-scheduling loop.
 
-Scope decision on "Core-vs-Speciality simultaneous eligibility", flagged
+Scope decision on "Direct-vs-Speciality simultaneous eligibility", flagged
 rather than silently narrowed: the story doc frames this purely in terms
 of the *bench* pool ("query current bench pool... for each bench
 employee..."), but detect_core_pull_conflict() (S-353) only ever finds a
@@ -20,10 +20,10 @@ conflict for an employee who currently HOLDS an active Speciality
 allocation -- which a bench employee, by definition, does not. Scanning
 literally only the bench pool would make AC-1 ("a bench employee matching
 both a CORE and SPECIALITY demand triggers HRMS-0514") structurally
-unreachable. This module therefore also checks every Core-Certified
+unreachable. This module therefore also checks every Direct-Certified
 employee who *does* hold an active Speciality allocation against open
-CORE demands -- the real Core-Pull scenario -- using the exact same
-detect_core_pull_conflict() call, never a second copy of "Core wins".
+CORE demands -- the real Direct-Pull scenario -- using the exact same
+detect_core_pull_conflict() call, never a second copy of "Direct wins".
 Bench employees still only ever get ranked, never pulled (there is
 nothing active to pull them from).
 
@@ -196,10 +196,10 @@ def detect_core_pull_triggers(
     db: Session, *, tenant_id: Optional[int] = None, bu_head: Optional[Users] = None,
 ) -> List[CorePullEvent]:
     """
-    BR-1105-01/AC-1: for every Core-Certified employee currently deployed
+    BR-1105-01/AC-1: for every Direct-Certified employee currently deployed
     in Speciality, checks every open CORE demand via the SAME
     detect_core_pull_conflict() S-353 already exposes -- never a local
-    "Core wins" conditional. AC-6: a detection failure for one employee
+    "Direct wins" conditional. AC-6: a detection failure for one employee
     alerts bu_head (if given) and does not abort the rest of the scan.
     """
     triggered: List[CorePullEvent] = []
@@ -221,13 +221,13 @@ def detect_core_pull_triggers(
                 event = detect_core_pull_conflict(db, employee, core_demand)
             except Exception as exc:
                 logger.error(f"Error: {str(exc)}", exc_info=True)
-                logger.error(f"[ResourceAgent] Core-Pull detection failed for employee {employee.id}: {exc}")
+                logger.error(f"[ResourceAgent] Direct-Pull detection failed for employee {employee.id}: {exc}")
                 if bu_head is not None:
                     try:
                         send_notification(
                             db, calling_context_tenant_id=tenant_id, recipient=bu_head, priority_tier="P0",
                             message=(
-                                f"Resource Management Agent: Core-Pull detection failed for employee "
+                                f"Resource Management Agent: Direct-Pull detection failed for employee "
                                 f"{employee.id} -- {exc}"
                             ),
                         )
@@ -245,7 +245,7 @@ def detect_core_pull_triggers(
 
 def rank_bench_candidate(employee: Employee, matches: List[Tuple[Demand, float]]) -> List[Dict]:
     """
-    LLM call, advisory only (BR-1105-02) -- never called for Core-Pull
+    LLM call, advisory only (BR-1105-02) -- never called for Direct-Pull
     detection, only for ranking a bench employee's non-conflicting
     matches. Returns [{demand_id, confidence_pct, rationale}, ...],
     highest confidence first. Falls back to the raw skill-match score
@@ -334,7 +334,7 @@ def run_bench_scan(
 ) -> Dict:
     """
     One full HRMS-1105 scan cycle:
-      1. detect_core_pull_triggers() -- Speciality-deployed Core-Certified
+      1. detect_core_pull_triggers() -- Speciality-deployed Direct-Certified
          employees vs open CORE demands, delegated entirely to S-353.
       2. For the current bench pool, rank non-conflicting matches via the
          LLM and store PENDING_RM_REVIEW recommendations (BR-1105-02: this

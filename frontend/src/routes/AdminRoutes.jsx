@@ -17,7 +17,7 @@ export const adminRoutes = [
   <Route key="admin-slm-training" path="admin/slm-training" element={<Navigate to="/admin/slm?view=training" replace />} />,
   <Route key="admin-slm-dashboard" path="admin/slm-dashboard" element={<Navigate to="/admin/slm?view=dashboard" replace />} />,
   <Route key="admin-slm-learning-transcript" path="admin/slm-learning-transcript" element={<Navigate to="/admin/slm?view=transcript" replace />} />,
-  // Workforce Overview (bench / Staff Aug / Core) + Utilization & Bench Cost, a tab each
+  // Workforce Overview (bench / Staff Aug / Direct) + Utilization & Bench Cost, a tab each
   <Route key="workforce" path="workforce" element={<WorkforceScreen />} />,
   <Route key="workforce-flag" path="workforce/flags/:flagSlug" element={<WorkforceSegmentScreen />} />,
   <Route key="workforce-core-cert" path="workforce/core-certification" element={<CoreCertificationScreen />} />,

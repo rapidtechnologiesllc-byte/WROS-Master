@@ -153,9 +153,9 @@ def get_open_positions(db: Session, business_unit_id: int = None) -> int:
 
 
 def get_core_certified_employees(db: Session, business_unit_id: int = None) -> list:
-    """Core-certified employees: Employee.core_certified, set when their BU Head approves (CEO
-    2026-10-14, app.services.core_certification_service). The same flag that gates Core jobs,
-    so this list and who can be submitted to a Core client never disagree. Technical
+    """Direct-certified employees: Employee.core_certified, set when their BU Head approves (CEO
+    2026-10-14, app.services.core_certification_service). The same flag that gates Direct jobs,
+    so this list and who can be submitted to a Direct client never disagree. Technical
     certificates flagged is_core_certification are tracked separately (get_next_training_steps)."""
     rows = (_bu_employees(db, business_unit_id)
             .filter(Employee.core_certified.is_(True), Employee.status != "EXITED")
@@ -163,7 +163,7 @@ def get_core_certified_employees(db: Session, business_unit_id: int = None) -> l
     return [
         {
             "name": _employee_name(employee),
-            "certification": "Core (BU Head approved)",
+            "certification": "Direct (BU Head approved)",
             "earned_date": employee.core_certified_date.isoformat() if employee.core_certified_date else None,
         }
         for employee in rows

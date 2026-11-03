@@ -17,7 +17,7 @@ RBAC story, not part of S-320.
 
 Routes:
   POST   /resource-management/scan
-      Trigger one bench-scan cycle (Core-Pull detection + LLM ranking of
+      Trigger one bench-scan cycle (Direct-Pull detection + LLM ranking of
       bench matches). No scheduler exists yet -- manually triggered,
       same "idempotent function exists, wiring is follow-up" posture as
       every other cron-shaped story in this codebase.

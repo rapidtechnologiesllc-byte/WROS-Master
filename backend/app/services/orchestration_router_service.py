@@ -10,7 +10,7 @@ CLASSIFICATION of a brand-new, never-seen conflict pattern -- and even
 then it can only ESCALATE_ONLY, never BLOCK or DELAY (BR-1101-03).
 
 Two concrete conflict_rules rows are actually specified in the story
-doc's Business Rules section (BR-1101-01 outreach-vs-Core-Pull,
+doc's Business Rules section (BR-1101-01 outreach-vs-Direct-Pull,
 BR-1101-02 Thunder ownership lock) -- `03-THUNDER-AGENTIC-LAYER.md`'s
 summary calls this "six seeded conflict rules," but BR-1101-03 through
 -06 are platform behaviors (novel patterns escalate-only, HIGH pages

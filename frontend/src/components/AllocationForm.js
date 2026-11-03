@@ -221,7 +221,7 @@ export default function AllocationForm({ presetEmployeeId, presetProjectId, onCa
       )}
       {project && (
         <div className="mt-2 text-xs text-gray-600">
-          Client: {project.client_name || "—"} · {project.delivery_engine === "CORE" ? "Core project (needs a Core-certified consultant)" : "Speciality project"}
+          Client: {project.client_name || "—"} · {project.delivery_engine === "CORE" ? "Direct project (needs a Direct-certified consultant)" : "Speciality project"}
         </div>
       )}
       <MarginLine margin={margin} error={marginError} />

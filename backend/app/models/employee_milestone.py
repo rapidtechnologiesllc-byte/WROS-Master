@@ -11,7 +11,7 @@ entities: ProjectMilestone is project-scoped only, a binary PENDING/
 COMPLETE, and has no performance-store integration. This story is a
 three-tier PERSONAL/PROJECT/ORG tracker whose completions and overdue
 detections auto-write to employee_performance_events (HRMS-0515) and
-feed the Core Eligibility AI Assessor (HRMS-0518). Extending the
+feed the Direct Eligibility AI Assessor (HRMS-0518). Extending the
 existing table to match this doc's richer schema would mean migrating
 two enum-shaped columns (is_complete -> status) on a table the
 already-shipped Projects API (POST/GET /projects/{id}/milestones) is

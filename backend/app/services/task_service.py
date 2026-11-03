@@ -209,7 +209,7 @@ def get_scheduled_tasks(db: Session, *, assigned_to_user_id: str, now: Optional[
                         days: Optional[int] = None) -> List[Task]:
     """Open non-urgent tasks due after today, soonest first, so the next actions are visible
     before their day. No horizon by default: an open task its owner cannot see anywhere is lost
-    (a 45-day Core certification follow-up was hidden by the old 30-day window); `days` limits it."""
+    (a 45-day Direct certification follow-up was hidden by the old 30-day window); `days` limits it."""
     now = now or datetime.utcnow()
     tomorrow_start = _start_of_today(now) + timedelta(days=1)
     query = db.query(Task).filter(

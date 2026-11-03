@@ -1,4 +1,4 @@
-// Workforce Overview (CEO 2026-10-17): where every employee stands (bench / Staff Aug / Core) and,
+// Workforce Overview (CEO 2026-10-17): where every employee stands (bench / Staff Aug / Direct) and,
 // in the same screen, utilization and bench cost. Each tab keeps its screen and permission.
 import TabbedScreen from "../components/TabbedScreen";
 import WorkforceOverviewScreen from "./WorkforceOverviewScreen";
