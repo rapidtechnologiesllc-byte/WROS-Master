@@ -58,6 +58,9 @@ class FakeMailbox:
     def list_inbox(self, since, page_cap=10):
         return self.inbox
 
+    def list_folder(self, folder, since, page_cap=10):
+        return self.inbox if folder == "inbox" else getattr(self, "sent_items", [])
+
 
 class FakeHttp:
     def __init__(self):
@@ -200,7 +203,7 @@ def test_the_helpdesk_copy_of_our_own_email_is_never_a_forward(db, people):
     assert db.query(ThunderEmailMessage).filter_by(graph_message_id=copy["id"]).count() == 0
 
 
-def test_a_persons_mailbox_is_read_only_for_replies_in_our_threads(db, people, candidate):
+def test_every_email_in_a_persons_mailbox_is_read_and_thread_replies_go_to_thunder(db, people, candidate):
     address = people.recruiter.UserEmail.lower()
     db.add(ThunderEmailMessage(id=str(uuid.uuid4()), tenant_id=1, candidate_id=candidate.candidate.candidateID,
                                direction="OUT", status="SENT", cadence_seq=1, step="1", mailbox=address,
@@ -211,10 +214,14 @@ def test_a_persons_mailbox_is_read_only_for_replies_in_our_threads(db, people, c
     private = _inbox_message("friend@example.com", conversation="conv-private", subject="Dinner?")
     with patch("app.services.thunder_mail.mail_poll_service.enqueue_once") as queued:
         result = poll_connected_mailboxes(db, mailboxes={address: FakeMailbox(address, [reply, private])})
-    assert result["matched"] == 1 and queued.call_count == 1
+    assert result["matched"] == 1 and result["intake"] == 1
     stored = db.query(ThunderEmailMessage).filter_by(graph_message_id=reply["id"]).one()
     assert (stored.direction, stored.mailbox) == ("IN", address)
     assert db.query(ThunderEmailMessage).filter_by(graph_message_id=private["id"]).count() == 0
+    # every other email goes to the mailbox intake, read as if forwarded by the mailbox's owner
+    intake = db.query(MailboxIntakeMessage).filter_by(graph_message_id=private["id"]).one()
+    assert intake.direct and intake.forwarded_by_user_id == people.recruiter.UserID
+    assert intake.from_address == "friend@example.com"
     # the same reply, also reaching the helpdesk (reply-all), is not stored twice
     with patch("app.services.thunder_mail.mail_poll_service.enqueue_once"):
         poll_thunder_mailbox(db, mailbox=FakeMailbox(HELPDESK, [dict(reply, id=f"in-{uid()}")]))
@@ -243,3 +250,91 @@ def test_a_new_user_gets_a_set_your_password_link_not_a_password(db, people):
     task_name, _, payload = queued.call_args.args[:3]
     assert task_name == "send_account_email" and payload == {"user_id": user.UserID, "purpose": "ACTIVATE"}
     assert "user_password" not in message.payload
+
+
+@pytest.fixture
+def client(db, people):
+    from app.models.client import Client, ClientContact
+
+    account = Client(tenant_id=1, company_name=f"CompSource {uid()}", account_manager_user_id=people.colleague.UserID)
+    db.add(account)
+    db.flush()
+    db.add(ClientContact(tenant_id=1, client_id=account.id, name="Pat Buyer", email=f"pat{uid()}@compsource.example",
+                         role_type="HIRING_MANAGER", is_primary=True))
+    db.commit()
+    return account
+
+
+def _client_contact(db, client):
+    from app.models.client import ClientContact
+
+    return db.query(ClientContact).filter_by(client_id=client.id).one().email
+
+
+def test_a_client_escalation_in_someones_inbox_is_a_high_task_for_the_account_manager(db, people, client):
+    from app.models.client import ClientEmail
+    from app.models.task import Task
+
+    address = people.recruiter.UserEmail.lower()
+    email = dict(_inbox_message(_client_contact(db, client), subject="Concern about the consultant"),
+                 uniqueBody={"content": "We are not happy with the delivery and want to escalate this."})
+    poll_connected_mailboxes(db, mailboxes={address: FakeMailbox(address, [email])})
+    assert db.query(ClientEmail).filter_by(client_id=client.id).count() == 1
+    task = db.query(Task).filter(Task.category == "CLIENT_ESCALATION").one()
+    assert task.priority == "HIGH" and task.assigned_to_user_id == people.colleague.UserID
+    # the same email in a second person's inbox raises no second task
+    other = people.colleague.UserEmail.lower()
+    poll_connected_mailboxes(db, mailboxes={other: FakeMailbox(other, [dict(email, id=f"in-{uid()}")])})
+    assert db.query(Task).filter(Task.category == "CLIENT_ESCALATION").count() == 1
+
+
+def test_a_clients_request_to_hire_is_a_task_to_create_the_job(db, people, client):
+    from app.models.task import Task
+
+    address = people.recruiter.UserEmail.lower()
+    email = dict(_inbox_message(_client_contact(db, client), subject="BillingCenter"),
+                 uniqueBody={"content": "We have a new requirement for a BillingCenter developer starting next month."})
+    poll_connected_mailboxes(db, mailboxes={address: FakeMailbox(address, [email])})
+    assert db.query(Task).filter(Task.category == "CLIENT_JOB_REQUEST").count() == 1
+
+
+def test_newsletters_and_automatic_emails_are_skipped(db, people):
+    address = people.recruiter.UserEmail.lower()
+    newsletter = dict(_inbox_message("news@vendor.example", subject="This week in insurance"),
+                      internetMessageHeaders=[{"name": "List-Unsubscribe", "value": "<mailto:x@y>"}])
+    out_of_office = _inbox_message("someone@example.com", subject="Automatic reply: away")
+    result = poll_connected_mailboxes(db, mailboxes={address: FakeMailbox(address, [newsletter, out_of_office])})
+    assert result["intake"] == 0
+    assert db.query(MailboxIntakeMessage).filter(
+        MailboxIntakeMessage.graph_message_id.in_([newsletter["id"], out_of_office["id"]])).count() == 0
+
+
+def test_what_a_person_sends_a_client_from_outlook_goes_on_the_clients_history(db, people, client):
+    from app.models.client import ClientEmail
+
+    address = people.recruiter.UserEmail.lower()
+    sent = dict(_inbox_message(address, subject="Profiles for your BillingCenter role"),
+                toRecipients=[{"emailAddress": {"address": _client_contact(db, client)}}])
+    mailbox = FakeMailbox(address, [])
+    mailbox.sent_items = [sent]
+    result = poll_connected_mailboxes(db, mailboxes={address: mailbox})
+    assert result["sent_logged"] == 1
+    logged = db.query(ClientEmail).filter_by(client_id=client.id).one()
+    assert (logged.direction, logged.sent_by_user_id) == ("OUT", people.recruiter.UserID)
+
+
+def test_an_own_email_about_no_one_we_know_is_set_aside_not_a_task(db, people):
+    from app.models.task import Task
+    from app.services.thunder_mail.forward_intake_service import process_intake, store_direct
+
+    address = people.recruiter.UserEmail.lower()
+    message = _inbox_message("friend@example.com", subject="Dinner?")
+    intake_id = store_direct(db, message, people.recruiter, address, "friend@example.com", datetime.utcnow())
+    db.commit()
+    mailbox = SimpleNamespace(get_message=lambda mid: {"subject": "Dinner?", "body": {"content": "Free on Friday?"},
+                                                       "from": {"emailAddress": {"name": "Friend"}}},
+                              list_attachments=lambda mid: [])
+    result = process_intake(db, intake_id, mailbox, llm_call=lambda *a, **k: "not json")
+    assert result["status"] == "ignored"
+    assert db.query(MailboxIntakeMessage).filter_by(id=intake_id).one().status == "IGNORED"
+    assert db.query(Task).filter(Task.title.like("%Dinner?%")).count() == 0

@@ -230,9 +230,9 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
   const employmentTypes = country ? country.employment_types
     : ((template?.countries || [])[0]?.employment_types || []);
   // The manager is recorded in the org chart: the new seat goes under the manager's seat, which the
-  // org rules allow one or two levels above the designation's level (same rule as the backend).
+  // org rules allow anyone above the designation's level (same rule as the backend).
   const roleLevel = (template?.org_roles || []).find((r) => r.name === form.current_title)?.level;
-  const managers = (template?.managers || []).filter((m) => !roleLevel || (m.level > roleLevel && m.level <= roleLevel + 2));
+  const managers = (template?.managers || []).filter((m) => !roleLevel || m.level > roleLevel);
 
   const submit = async () => {
     if (!form.first_name || !form.last_name || !form.email || !form.joining_date || !form.business_unit_id
@@ -304,7 +304,7 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
             <option value="">None: their BU head</option>
             {managers.map((m) => <option key={m.user_id} value={m.user_id}>{m.name} ({m.title || `level ${m.level}`})</option>)}
           </select>
-          {roleLevel && !managers.length ? <span className="text-xs text-amber-700">Nobody is seated one or two levels above {form.current_title}: seat their manager under Organizational Hierarchy first.</span> : null}
+          {roleLevel && !managers.length ? <span className="text-xs text-amber-700">Nobody is seated above {form.current_title}: seat their manager under Organizational Hierarchy first.</span> : null}
         </label>
         <label><span className={label}>Billable? *</span>
           <select className={field} value={form.billable} onChange={set("billable")}>

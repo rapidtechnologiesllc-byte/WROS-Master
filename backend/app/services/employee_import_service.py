@@ -560,7 +560,7 @@ def _check_reporting_line(lk: _Lookups, spec: Spec, user: Optional[Users], emplo
     """A row naming a manager puts the employee's seat under the manager's seat, so before
     anything is written: the employee needs a level (seat or org-role designation), the manager
     needs a seat (or is placed by another row of this file), and the levels must be a reporting
-    line the org chart accepts (OrgHierarchyValidator: one or two levels up)."""
+    line the org chart accepts (OrgHierarchyValidator: anyone at a higher level)."""
     from app.models.org_structure import OrgNode
     from app.services.org_hierarchy_validator import get_valid_parent_levels
     from app.services.org_structure_service import manager_user_for

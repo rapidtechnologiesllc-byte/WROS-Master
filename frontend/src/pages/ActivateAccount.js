@@ -36,8 +36,8 @@ export default function ActivateAccount() {
     setBusy(true);
     try {
       const res = await post("/auth/activate", { token, new_password: password });
-      setStatus(`Your password is set. Sign in as ${res.email}. You'll then be asked to connect your Outlook, so the `
-        + "emails you send from HRMS go from your own mailbox.");
+      setStatus(`Your password is set. Sign in as ${res.email}. Next you connect your Outlook (required): `
+        + "your HRMS emails go from your own mailbox and HRMS picks up the jobs, candidates and client updates in your email.");
     } catch (err) {
       setError(err.message || "Could not set the password.");
     } finally {

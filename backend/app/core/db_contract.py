@@ -1990,6 +1990,10 @@ def _apply_schema_migrations(db: Session):
             ("sub_vendor_id", "VARCHAR(512) NULL REFERENCES app_schema.sub_vendor_accounts(id) ON DELETE SET NULL"),
             ("vendor_hourly_rate_usd_cents", "INTEGER NULL"),
         ],
+        # An email read straight from a person's connected Outlook (mailbox_signals)
+        "mailbox_intake_messages": [
+            ("direct", "BOOLEAN NOT NULL DEFAULT false"),
+        ],
         "candidate_education_forms": [
             ("education_level", "VARCHAR(100) NULL"),
         ],

@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useState } from "react";
-import ConnectOutlookBanner from "../components/ConnectOutlookBanner";
+import OutlookGate from "../components/OutlookGate";
 import {
   BadgeDollarSign,
   Briefcase,
@@ -362,10 +362,11 @@ export default function Shell({
             setSelectedJobId={setSelectedJobId}
           />
           <div className="mt-4">
-            <ConnectOutlookBanner />
-            <Suspense fallback={<div className="py-10 text-center text-sm text-gray-500">Loading...</div>}>
-              <Outlet />
-            </Suspense>
+            <OutlookGate>
+              <Suspense fallback={<div className="py-10 text-center text-sm text-gray-500">Loading...</div>}>
+                <Outlet />
+              </Suspense>
+            </OutlookGate>
           </div>
         </main>
       </div>

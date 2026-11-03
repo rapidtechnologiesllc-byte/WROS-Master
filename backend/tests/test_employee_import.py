@@ -397,11 +397,12 @@ def test_a_manager_without_a_seat_or_a_non_role_designation_is_refused_in_the_dr
                                                   _row_for(world, f"d{_uid()}@bx.test", world.manager.UserEmail,
                                                            designation="Ninja"),
                                                   _row_for(world, f"g{_uid()}@bx.test", world.manager.UserEmail,
-                                                           designation="Associate")))
-    no_seat, no_role, too_far = preview["rows"]
+                                                           designation="Director")))
+    no_seat, no_role, below = preview["rows"]
     assert any("has no seat in the org chart" in e for e in no_seat["errors"])
     assert any("is not an org role" in e for e in no_role["errors"])
-    assert any("can't report to a level 8 manager" in e for e in too_far["errors"])  # Associate is level 2
+    # anyone higher may be the manager (CEO 2026-11-03), never someone lower: a Director (11) under level 8
+    assert any("can't report to a level 8 manager" in e for e in below["errors"])
 
 
 def test_a_manager_listed_later_in_the_same_file_is_seated_first(db, world, mail):
