@@ -142,7 +142,9 @@ export default function UserFormPage() {
 
   const handleBusinessUnitChange = (e) => {
     // Departments and eligible supervisors are both scoped to the business unit
-    setFormData(prev => ({ ...prev, business_unit_id: e.target.value, department_id: '', parent_node_id: '' }));
+    const keep = departments.find(d => String(d.id) === String(formData.department_id) && !d.business_unit_id);
+    setFormData(prev => ({ ...prev, business_unit_id: e.target.value, department_id: keep ? prev.department_id : '',
+      parent_node_id: '' }));
   };
 
   // Org-wide departments (HR, Recruitment, Finance ...) plus any team that
@@ -160,19 +162,35 @@ export default function UserFormPage() {
       });
   }, [formData.business_unit_id]);
 
-  // The add-on for a department's function (Recruitment department -> the Recruitment add-on),
-  // when exactly one enabled add-on is for that function
-  const suggestedAddon = (departmentId) => {
+  // One field (CEO 2026-11-03: "we have 2 fields function and function access -> i dont need 2
+  // fields"): the Function decides the access -- the enabled add-on for that function (Finance ->
+  // Finance Manager, Sales -> Sales) when exactly one exists, else the Employee add-on (own work
+  // only), the same default as candidate conversion. Editing someone keeps their current access
+  // (e.g. Super Admin) until their Function is changed.
+  const addonForFunction = useCallback((departmentId) => {
     const fn = departments.find(d => String(d.id) === String(departmentId))?.name;
-    if (!fn) return null;
-    const matches = roleTemplates.filter(t => (t.specialization || '').toLowerCase() === fn.toLowerCase());
-    return matches.length === 1 ? { fn, template: matches[0] } : null;
-  };
-  const suggestion = suggestedAddon(formData.department_id);
+    const matches = fn ? roleTemplates.filter(t => (t.specialization || '').toLowerCase() === fn.toLowerCase()) : [];
+    if (matches.length === 1) return matches[0];
+    return roleTemplates.find(t => (t.name || '').toLowerCase() === 'employee') || null;
+  }, [departments, roleTemplates]);
 
-  const handleRoleTemplateChange = async (e) => {
-    const templateId = e.target.value;
-    setFormData(prev => ({ ...prev, role_template_id: templateId }));
+  const handleFunctionChange = (departmentId) => {
+    const addon = addonForFunction(departmentId);
+    setFormData(prev => ({ ...prev, department_id: departmentId, role_template_id: addon ? String(addon.id) : '' }));
+    loadTemplatePermissions(addon ? addon.id : '');
+  };
+
+  // a new user starts with the access of "no function" (Employee) once the lists are loaded
+  useEffect(() => {
+    if (mode !== 'create' || !roleTemplates.length) return;
+    setFormData(prev => {
+      if (prev.role_template_id) return prev;
+      const addon = addonForFunction(prev.department_id);
+      return addon ? { ...prev, role_template_id: String(addon.id) } : prev;
+    });
+  }, [mode, roleTemplates, addonForFunction]);
+
+  const loadTemplatePermissions = async (templateId) => {
 
     // Fetch permissions for the selected template
     if (templateId) {
@@ -202,7 +220,7 @@ export default function UserFormPage() {
   // add-on, never from the Business Unit field: that is only where the person sits in the org chart.
   const selectedAddon = roleTemplates.find(t => String(t.id) === String(formData.role_template_id));
   const orgWide = Boolean(selectedRole?.org_level_access || selectedAddon?.org_level_access);
-  const orgWideSource = selectedAddon?.org_level_access ? `the ${selectedAddon.name} add-on`
+  const orgWideSource = selectedAddon?.org_level_access ? `their ${selectedAddon.name} access`
     : selectedRole?.org_level_access ? `the ${selectedRole.name} role` : null;
   const titleChanged = normalise(formData.job_title) !== normalise(originalTitle);
   const seatLevel = (mode === 'edit' && hasSeat && !titleChanged)
@@ -251,7 +269,7 @@ export default function UserFormPage() {
       return;
     }
     if (!formData.role_template_id) {
-      setActionError('Role Template is required');
+      setActionError('Pick their function: it sets their access');
       return;
     }
     if (mode === 'create' && !selectedRole) {
@@ -494,7 +512,7 @@ export default function UserFormPage() {
             <p className="text-xs text-gray-500 mt-1">
               {orgWide
                 ? `Where they sit in the org chart. Through ${orgWideSource} they see every business unit and every company.`
-                : 'What they see is this business unit. To give someone every business unit and company (e.g. an accountant), pick an add-on marked "all business units", such as Finance Manager.'}
+                : 'What they see is this business unit. Every business unit and company comes with a function whose access is marked so (e.g. Finance, for an accountant) or a C-level role.'}
             </p>
           </div>
 
@@ -503,21 +521,27 @@ export default function UserFormPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Function</label>
                 <select
                   value={formData.department_id || ''}
-                  onChange={(e) => {
-                    const departmentId = e.target.value;
-                    const next = suggestedAddon(departmentId);
-                    // New users: pre-fill the add-on from the department's function (still changeable)
-                    setFormData(prev => ({ ...prev, department_id: departmentId,
-                      ...(mode === 'create' && next ? { role_template_id: next.template.id } : {}) }));
-                  }}
-                  disabled={saving}
+                  onChange={(e) => handleFunctionChange(e.target.value)}
+                  disabled={saving || isSelf}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
                 >
-                  <option value="">No function</option>
-                  {departments.map(dept => (
-                    <option key={dept.id} value={dept.id}>{dept.business_unit_name ? `${dept.name} · ${dept.business_unit_name}` : dept.name}</option>
-                  ))}
+                  <option value="">{mode === 'create' ? 'No function (own work only)' : 'No function'}</option>
+                  {departments.map(dept => {
+                    const addon = addonForFunction(dept.id);
+                    const label = dept.business_unit_name ? `${dept.name} · ${dept.business_unit_name}` : dept.name;
+                    return (
+                      <option key={dept.id} value={dept.id}>
+                        {addon?.org_level_access ? `${label} (all business units & companies)` : label}
+                      </option>
+                    );
+                  })}
                 </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {selectedAddon
+                    ? `Access: ${selectedAddon.name}${selectedAddon.org_level_access ? ' -- every business unit and company' : ''}${
+                        selectedAddon.description ? ` (${selectedAddon.description})` : ''}. Plus their role's permissions and any personal overrides.`
+                    : 'Pick their function: it sets what they may do, together with their role.'}
+                </p>
                 {departments.length === 0 && (
                   <p className="text-xs text-gray-500 mt-1">No functions yet - add them under Organizational Hierarchy → Manage Functions.</p>
                 )}
@@ -537,40 +561,6 @@ export default function UserFormPage() {
                 </select>
               </div>
             </div>
-
-          {/* Role Template */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Function access (add-on) *
-            </label>
-            <select
-              value={String(formData.role_template_id || '')}
-              onChange={handleRoleTemplateChange}
-              disabled={saving || isSelf}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
-              required
-            >
-              <option value="">Select function access</option>
-              {roleTemplates.map(template => {
-                const templateId = String(template.id || template.TemplateID);
-                const templateName = template.name || template.TemplateName || template.template_name;
-                return (
-                  <option key={templateId} value={templateId}>
-                    {template.org_level_access ? `${templateName} (all business units & companies)` : templateName}
-                  </option>
-                );
-              })}
-            </select>
-            <p className="text-xs text-gray-500 mt-1">
-              What they may do = their role's permissions + this add-on + any personal overrides.
-              {selectedAddon?.description ? ` ${selectedAddon.name}: ${selectedAddon.description}.` : ''}
-            </p>
-            {suggestion && String(suggestion.template.id) !== String(formData.role_template_id) && (
-              <p className="text-xs text-amber-700 mt-1">
-                Their function is {suggestion.fn}; the {suggestion.fn} add-on is "{suggestion.template.name}".
-              </p>
-            )}
-          </div>
 
           {mode === 'edit' && !hasSeat && (
             <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
