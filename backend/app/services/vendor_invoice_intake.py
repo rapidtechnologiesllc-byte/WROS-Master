@@ -6,7 +6,10 @@ An email from a sub-vendor (its accounts address, or any address at that address
 attached, in the HRMS mailbox or a person's connected Outlook, is read by rules (no model):
 - invoice number ("Invoice #/No./Number"), total ("Total / Amount due / Balance due") and the work period
   (a "period / from ... to ..." pair of dates; else the calendar month before the invoice date);
-- recorded against the vendor's contractors' approved timesheets in that period (vendor_invoice_service);
+- mapped to the employee it is for (CEO 2026-11-03: "system should map it to an employee"): the contractor
+  named on it, else the vendor's only contractor, else the one whose approved hours x vendor rate equal the
+  total; ambiguous -> a Finance task naming the candidates;
+- recorded against that employee's approved timesheets in the period (vendor_invoice_service);
 - validated: the total equals approved hours x vendor rate -> approved by the system; otherwise Finance
   gets one task with the difference to approve or reject;
 - an invoice that cannot be read or matched -> one Finance task saying exactly what is missing.
@@ -79,6 +82,27 @@ def read_invoice(text: str, received: date) -> Dict:
             "period_start": start, "period_end": end, "problems": problems}
 
 
+def map_employees(db: Session, vendor: SubVendorAccount, text: str, amount_cents: int, start: date,
+                  end: date) -> Tuple[Optional[List[str]], str]:
+    """(employee ids the invoice is for, how they were found) -- None when it cannot be told."""
+    from app.models.employee import Employee
+    from app.services.vendor_invoice_service import billable_timesheets
+
+    contractors = db.query(Employee).filter(Employee.sub_vendor_id == vendor.id, Employee.status != "EXITED").all()
+    flat = " ".join((text or "").lower().split())
+    named = [e for e in contractors if e.first_name and e.last_name
+             and f"{e.first_name} {e.last_name}".lower() in flat]
+    if named:
+        return [e.id for e in named], "named on the invoice"
+    if len(contractors) == 1:
+        return [contractors[0].id], "the vendor's only contractor"
+    matches = [e for e in contractors
+               if sum(l["amount_usd_cents"] for l in billable_timesheets(db, vendor.id, start, end, [e.id])) == amount_cents]
+    if len(matches) == 1:
+        return [matches[0].id], "the only contractor whose approved hours x rate equal the total"
+    return None, ", ".join(f"{e.first_name} {e.last_name}" for e in (matches or contractors)) or "no contractors"
+
+
 def _finance_task(db: Session, vendor: SubVendorAccount, title: str, description: str) -> None:
     """One task for Finance: the person who leads the Finance function, else the CEO."""
     from app.models.task import Task
@@ -139,13 +163,21 @@ def receive(db: Session, vendor: SubVendorAccount, message: Dict, attachments: L
     if db.query(VendorInvoice.id).filter(VendorInvoice.sub_vendor_id == vendor.id,
                                          VendorInvoice.vendor_invoice_number == reading["number"]).first():
         return None
+    employee_ids, how = map_employees(db, vendor, invoice_file.text, reading["amount_cents"],
+                                      reading["period_start"], reading["period_end"])
+    if employee_ids is None:
+        _finance_task(db, vendor, f"Vendor invoice {reading['number']} from {vendor.company_name}: which employee?",
+                      f"No contractor is named on it and the total ${reading['amount_cents'] / 100:,.2f} does not "
+                      f"single one out. It could be: {how}. Record it on Invoices > Sub-vendor invoices.")
+        db.commit()
+        return None
     system = SimpleNamespace(tenant_id=vendor.tenant_id, UserID=None)
     try:
         invoice = service.create_vendor_invoice(
             db, system, sub_vendor_id=vendor.id, vendor_invoice_number=reading["number"],
             invoice_date=min(received.date(), date.today()), period_start=reading["period_start"],
-            period_end=reading["period_end"], amount_usd_cents=reading["amount_cents"],
-            note=f"Read from {vendor.company_name}'s email \"{subject}\" ({invoice_file.name}).")
+            period_end=reading["period_end"], amount_usd_cents=reading["amount_cents"], employee_ids=employee_ids,
+            note=f"Read from {vendor.company_name}'s email \"{subject}\" ({invoice_file.name}); employee {how}.")
     except service.VendorInvoiceError as exc:
         db.rollback()
         _finance_task(db, vendor, f"Vendor invoice {reading['number']} from {vendor.company_name} needs you",

@@ -282,3 +282,37 @@ def test_a_vendor_invoice_that_differs_goes_to_finance_not_approved(db, w):
     invoice = db.query(VendorInvoice).filter_by(vendor_invoice_number="NIM-302").one()
     assert invoice.status == "RECEIVED"
     assert db.query(Task).filter(Task.title.like("Vendor invoice NIM-302 from % differs by%")).count() == 1
+
+
+def test_an_emailed_invoice_is_mapped_to_the_employee_it_is_for(db, w):
+    """CEO 2026-11-03: "i want sub vendor to email invoice and system should map it to an employee"."""
+    from app.models.vendor_invoice import VendorInvoice, VendorInvoiceLine
+    from app.services.thunder_mail.mail_poll_service import poll_thunder_mailbox
+
+    _ceo(db)
+    second = Employee(tenant_id=1, first_name="Meena", last_name="Shah", email=f"meena{_uid()}@x.com",
+                      joining_date=date(2025, 1, 1), status="ALLOCATED")
+    db.add(second)
+    db.flush()
+    vendors.set_contractor(db, w.finance, second, sub_vendor_id=w.vendor.id, hourly_rate_usd_cents=VENDOR_RATE)
+    allocation = db.query(EmployeeAllocation).filter_by(employee_id=w.worker.id).first()
+    db.add(Timesheet(tenant_id=1, employee_id=second.id, allocation_id=allocation.id, week_starting_date=date(2026, 9, 7),
+                     total_hours=20, billable_hours=20, non_billable_hours=0, status="APPROVED"))
+    db.commit()
+
+    def poll(text):
+        _, mailbox = _vendor_email(w, text)
+        with patch("app.services.thunder_mail.mail_poll_service.enqueue_once"):
+            poll_thunder_mailbox(db, mailbox=mailbox)
+
+    def employees_on(number):
+        invoice = db.query(VendorInvoice).filter_by(vendor_invoice_number=number).one()
+        return {l.employee_id for l in db.query(VendorInvoiceLine).filter_by(vendor_invoice_id=invoice.id)}
+
+    poll(f"Invoice #: NIM-401 Consultant: Ravi Kumar Period 09/01/2026 to 09/30/2026 Total: ${80 * VENDOR_RATE / 100:,.2f}")
+    assert employees_on("NIM-401") == {w.worker.id}  # named on the invoice: only his weeks
+    poll(f"Invoice #: NIM-402 Period 09/01/2026 to 09/30/2026 Total: ${20 * VENDOR_RATE / 100:,.2f}")
+    assert employees_on("NIM-402") == {second.id}  # no name: the one whose hours x rate equal the total
+    poll("Invoice #: NIM-403 Period 09/01/2026 to 09/30/2026 Total: $123.00")
+    assert db.query(VendorInvoice).filter_by(vendor_invoice_number="NIM-403").count() == 0
+    assert db.query(Task).filter(Task.title.like("Vendor invoice NIM-403 from %: which employee?")).count() == 1
