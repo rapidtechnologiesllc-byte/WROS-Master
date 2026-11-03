@@ -163,6 +163,8 @@ def list_role_templates(
             "enabled": template.enabled,
             "hierarchy_level": template.hierarchy_level,
             "specialization": template.specialization,
+            # sees every business unit and company (app.core.authority.is_org_level)
+            "org_level_access": bool(template.org_level_access),
             "owner_role": _owner_role(db, template.id),
             "permissions": perm_list,
         })
