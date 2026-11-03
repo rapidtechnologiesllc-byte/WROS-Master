@@ -89,15 +89,21 @@ def test_india_head_reporting_to_us_partner_sees_the_bu_not_another_bu(db, api, 
     assert firm.client_a.id in clients and firm.client_b.id not in clients
 
 
-def test_level_gap_rule_applies_across_companies(db, api, firm):
-    """An AVP (13) cannot report straight to a partner (16): at most two levels up."""
+def test_anyone_at_a_higher_level_can_be_the_manager(db, api, firm):
+    """CEO 2026-11-03: an L6 may report to anyone at L7 or above -- here an AVP (13) straight to a
+    partner (16), across companies; never to someone at their own level or below."""
     avp = person(db, firm.partner_role, "AVP")
     db.commit()
     response = api.put(firm.org_user, f"/api/v1/hr/users/{avp.UserID}", json={
         "hierarchy_level": 13, "specialization": "General",
         "parent_node_id": firm.partner_seat.id, "location_id": firm.india.id})
+    assert response.status_code == 200, response.text
+    assert seat_of(db, avp).parent_id == firm.partner_seat.id
+    peer = person(db, firm.partner_role, "Peer partner")
+    db.commit()
+    response = api.put(firm.org_user, f"/api/v1/hr/users/{peer.UserID}", json={
+        "hierarchy_level": 16, "specialization": "General", "parent_node_id": firm.partner_seat.id})
     assert response.status_code == 422 and "cannot report to" in response.json()["detail"]
-    assert seat_of(db, avp) is None
 
 
 def test_no_one_reports_to_themselves_or_their_own_report(db, api, firm):

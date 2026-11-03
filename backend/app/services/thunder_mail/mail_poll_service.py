@@ -13,8 +13,9 @@ stored nor processed here.
 
 Since emails go from people's own Outlook (mail_sender, helpdesk copied): the helpdesk copy of an
 email we sent is ours -- logged on the client when it is a client's email, never a forward or a
-reply. poll_connected_mailboxes() reads each connected person's inbox for replies in OUR threads
-started from their mailbox, and nothing else: no other email of theirs is stored or processed.
+reply. poll_connected_mailboxes() reads every email in each connected person's inbox and sent items (CEO
+2026-11-03: "we need to read and process every email to find new jobs, new candidate, client updates
+and escalations"): replies in our threads go to Thunder, the rest to mailbox_signals.
 A reply that reached two mailboxes (reply-all with the helpdesk on copy) is stored once.
 """
 import logging
@@ -33,7 +34,8 @@ from app.services.client_email_log_service import log_mailbox_email
 from app.services.delivery_errors import DeliveryDeferred
 from app.services.mail_sender import is_our_email
 from app.services.thunder_mail.cadence_service import INBOUND_TASK, enqueue_once
-from app.services.thunder_mail.forward_intake_service import forwarding_user, queue_forward, store_forward
+from app.models.user import Users
+from app.services.thunder_mail.forward_intake_service import forwarding_user, queue_forward, store_direct, store_forward
 from app.services.thunder_mail.graph_mailbox import GraphMailbox
 from app.services.thunder_mail.reply_classifier import is_auto_message
 from app.services.thunder_mail.staff_email_service import handle_staff_email, staff_sender
@@ -107,8 +109,10 @@ def _our_thread(db: Session, message: Dict, headers: Dict[str, str], mailbox_add
 
 def poll_connected_mailboxes(db: Session, mailboxes: Optional[Dict[str, GraphMailbox]] = None,
                              now: Optional[datetime] = None) -> Dict:
-    """Replies to our emails that went from people's own Outlook. mailboxes: {address: mailbox}
-    (tests); default every connected user (mail_sender.connected_mailbox)."""
+    """Every email in each connected person's Outlook, once: replies in our threads go to Thunder;
+    the rest to mailbox_signals (client History + escalations + role requests, employee escalations,
+    the mailbox intake for candidates and notes); sent items to clients go on the client's History.
+    mailboxes: {address: mailbox} (tests); default every connected user (mail_sender.connected_mailbox)."""
     from app.core.msgraph_session_store import active_user_ids
     from app.services.mail_sender import connected_mailbox
 
@@ -119,7 +123,8 @@ def poll_connected_mailboxes(db: Session, mailboxes: Optional[Dict[str, GraphMai
             mailbox = connected_mailbox(db, user_id)
             if mailbox is not None:
                 mailboxes[mailbox.mailbox.lower()] = mailbox
-    result = {"mailboxes": len(mailboxes), "matched": 0, "errors": 0}
+    result = {"mailboxes": len(mailboxes), "matched": 0, "client_emails": 0, "intake": 0, "signals": 0,
+              "sent_logged": 0, "errors": 0}
     for address, mailbox in mailboxes.items():
         address = address.lower()
         cursor = db.query(ThunderMailboxCursor).filter_by(mailbox=address).first()
@@ -136,7 +141,8 @@ def poll_connected_mailboxes(db: Session, mailboxes: Optional[Dict[str, GraphMai
             result["errors"] += 1
             logger.error(f"[ThunderPoll] Could not read {address}: {exc}")
             continue
-        newest, queued, staff_rows = cursor.last_received_at, [], []
+        newest, queued, staff_rows, intakes = cursor.last_received_at, [], [], []
+        owner = db.query(Users).filter(func.lower(Users.UserEmail) == address).first()
         for message in messages:
             received = _parse_time(message["receivedDateTime"])
             newest = max(newest, received)
@@ -148,7 +154,8 @@ def poll_connected_mailboxes(db: Session, mailboxes: Optional[Dict[str, GraphMai
             headers = _headers(message)
             state = _our_thread(db, message, headers, address)
             if state is None:
-                continue  # not a reply in one of our threads: their own mail, never read further
+                _route_own_email(db, message, headers, sender, received, address, owner, result, intakes)
+                continue
             row = _reply_row(state, message, headers, sender, received, address)
             staff = staff_sender(db, sender)
             if staff is not None:
@@ -172,10 +179,63 @@ def poll_connected_mailboxes(db: Session, mailboxes: Optional[Dict[str, GraphMai
             enqueue_once(INBOUND_TASK, f"thunder_inbound:{row_id}",
                          {"thunder_message_id": row_id, "headers": classifier_headers,
                           "has_attachments": has_attachments}, tenant_id)
+        for intake_id, tenant_id in intakes:
+            queue_forward(intake_id, tenant_id)
         for row_id, staff in staff_rows:
             handle_staff_email(db, db.query(ThunderEmailMessage).filter_by(id=row_id).one(), staff)
+        _log_sent_items(db, mailbox, address, now, result)
     logger.info(f"[ThunderPoll] connected mailboxes: {result}")
     return result
+
+
+def _route_own_email(db: Session, message: Dict, headers: Dict[str, str], sender: str, received: datetime,
+                     address: str, owner, result: Dict, intakes: list) -> None:
+    """An email in a person's own inbox that is not a reply in our threads (mailbox_signals)."""
+    from app.services.client_email_log_service import match_clients
+    from app.services.thunder_mail import mailbox_signals as signals
+
+    if owner is None or is_auto_message(message.get("subject") or "", headers) or signals.is_bulk(headers) \
+            or is_our_email(db, message.get("internetMessageId")):
+        return
+    if log_mailbox_email(db, message, sender, received, address):
+        result["client_emails"] += 1
+        result["signals"] += len(signals.client_signals(db, message, sender, match_clients(db, [sender]), owner))
+        return
+    if signals.employee_escalation(db, message, sender, owner):
+        result["signals"] += 1
+    intake_id = store_direct(db, message, owner, address, sender, received)
+    if intake_id:
+        intakes.append((intake_id, owner.tenant_id))
+        result["intake"] += 1
+
+
+def _log_sent_items(db: Session, mailbox: GraphMailbox, address: str, now: datetime, result: Dict) -> None:
+    """What the person sent to clients from Outlook goes on the client's History (HRMS's own emails
+    are logged from the helpdesk copy)."""
+    key = f"{address}#sent"
+    cursor = db.query(ThunderMailboxCursor).filter_by(mailbox=key).first()
+    if cursor is None:
+        cursor = ThunderMailboxCursor(mailbox=key, last_received_at=now - FIRST_RUN_LOOKBACK)
+        db.add(cursor)
+        db.commit()
+    try:
+        messages = mailbox.list_folder("sentitems", cursor.last_received_at - OVERLAP)
+    except (DeliveryDeferred, RuntimeError) as exc:
+        cursor.last_error = str(exc)[:2000]
+        db.commit()
+        result["errors"] += 1
+        logger.error(f"[ThunderPoll] Could not read the sent items of {address}: {exc}")
+        return
+    newest = cursor.last_received_at
+    for message in messages:
+        sent = _parse_time(message["receivedDateTime"])
+        newest = max(newest, sent)
+        if is_our_email(db, message.get("internetMessageId")):
+            continue
+        if log_mailbox_email(db, message, address, sent, ""):  # "": the person is the sender, kept
+            result["sent_logged"] += 1
+    cursor.last_received_at, cursor.last_error, cursor.last_run_at = newest, None, now
+    db.commit()
 
 
 def poll_thunder_mailbox(db: Session, mailbox: Optional[GraphMailbox] = None,

@@ -5,11 +5,12 @@ twice, however often the poll overlaps. app.services.thunder_mail.forward_intake
 moves it RECEIVED -> CANDIDATE_QUEUED (a new candidate is being created) ->
 PROCESSED, or to NEEDS_REVIEW (a task was opened for a person).
 """
-from sqlalchemy import JSON, Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import JSON, Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func
 
 from app.models.base import Base
 
-INTAKE_STATUSES = ("RECEIVED", "CANDIDATE_QUEUED", "PROCESSED", "NEEDS_REVIEW")
+# IGNORED: an email read from a person's own mailbox that is about no one we know (their own mail)
+INTAKE_STATUSES = ("RECEIVED", "CANDIDATE_QUEUED", "PROCESSED", "NEEDS_REVIEW", "IGNORED")
 INTAKE_KINDS = ("NEW_CANDIDATE", "CANDIDATE_UPDATE", "JOB_REQUIREMENT", "EMPLOYEE_NOTE", "OTHER")
 
 
@@ -24,6 +25,9 @@ class MailboxIntakeMessage(Base):
     internet_message_id = Column(String(998), nullable=True)
     from_address = Column(String(320), nullable=False)
     forwarded_by_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=False, index=True)
+    # Read straight from forwarded_by_user_id's own Outlook (mailbox_signals), not forwarded: from_address
+    # is then the real sender, and an email about no one we know is IGNORED, never a task
+    direct = Column(Boolean, nullable=False, default=False, server_default="false")
     subject = Column(String(998), nullable=True)
     received_at = Column(DateTime, nullable=True)
 

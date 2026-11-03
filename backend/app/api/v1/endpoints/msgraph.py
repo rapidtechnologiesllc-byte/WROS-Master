@@ -104,7 +104,7 @@ def link_status(current_user: Users = Depends(get_current_internal_user), db: Se
     if row is None:
         from app.models.msgraph_session import MsgraphSession
         old = db.query(MsgraphSession).filter(MsgraphSession.user_id == current_user.UserID).first()
-        return {"linked": False, "last_error": old.last_error if old else None}
+        return {"linked": False, "last_error": old.last_error if old else None, **_requirement(db, current_user)}
     synced = current_user.msgraph_mail_last_synced_at
     return {
         "linked": True,
@@ -113,6 +113,19 @@ def link_status(current_user: Users = Depends(get_current_internal_user), db: Se
         "last_error": row.last_error,
         "last_synced_at": synced.isoformat() if synced else None,
     }
+
+def _requirement(db: Session, user: Users) -> dict:
+    """Connect Outlook is mandatory (CEO 2026-11-03: "this is mandatory and not optional. we need to read
+    and process every email") for a login with a company mailbox. can_defer: an admin of users and
+    access may carry on without it, so a Microsoft setup problem never locks every account out."""
+    from app.core import authority
+    from app.core.config import settings as app_settings
+
+    domains = {d.strip().lower() for d in (app_settings.OUTLOOK_REQUIRED_DOMAINS or "").split(",") if d.strip()}         or {app_settings.THUNDER_MAILBOX.split("@")[-1].lower()}
+    email = (user.UserEmail or "").lower()
+    return {"required": "@" in email and email.split("@")[-1] in domains,
+            "can_defer": authority.has_permission(db, user, "users-access-control.edit")}
+
 
 @router.post(
     "/unlink",

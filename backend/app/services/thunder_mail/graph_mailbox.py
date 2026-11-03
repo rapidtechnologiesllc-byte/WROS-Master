@@ -115,6 +115,10 @@ class GraphMailbox:
         return bool(self._call("GET", f"/messages/{message_id}", params={"$select": "isDraft"}).get("isDraft"))
 
     def list_inbox(self, since: datetime, page_cap: int = 10) -> List[Dict]:
+        return self.list_folder("inbox", since, page_cap)
+
+    def list_folder(self, folder: str, since: datetime, page_cap: int = 10) -> List[Dict]:
+        """Messages of a well-known folder (inbox, sentitems) received/sent since `since`, oldest first."""
         params = {
             "$filter": f"receivedDateTime ge {since.strftime('%Y-%m-%dT%H:%M:%SZ')}",
             "$orderby": "receivedDateTime asc",
@@ -122,7 +126,7 @@ class GraphMailbox:
             "$top": INBOX_PAGE_SIZE,
         }
         headers = {"Prefer": TEXT_BODY}
-        messages, data = [], self._call("GET", "/mailFolders/inbox/messages", params=params, headers=headers)
+        messages, data = [], self._call("GET", f"/mailFolders/{folder}/messages", params=params, headers=headers)
         for _ in range(page_cap):
             messages.extend(data.get("value", []))
             next_link = data.get("@odata.nextLink")

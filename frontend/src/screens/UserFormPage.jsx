@@ -410,7 +410,7 @@ export default function UserFormPage() {
           {mode === 'create' && (
             <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3">
               They'll get an email to set their own password (the link works once, for 7 days). After they sign
-              in, HRMS asks them to connect their Outlook so the emails they send go from their own mailbox.
+              in, they must connect their Outlook before using HRMS: their emails then go from their own mailbox and HRMS reads their email for new jobs, candidates, client updates and escalations.
             </p>
           )}
 
@@ -569,7 +569,7 @@ export default function UserFormPage() {
               </select>
               {validSupervisors.length === 0 && (
                 <p className="text-xs text-amber-600 mt-1">
-                  No eligible supervisors yet. Level {Number(seatLevel)} reports to a Level {Number(seatLevel) + 1}-{Math.min(Number(seatLevel) + 2, 17)} seat in this business unit (or a Level 16+ leader) - add one under Organizational Hierarchy.
+                  No eligible supervisors yet. Level {Number(seatLevel)} reports to anyone at Level {Number(seatLevel) + 1} or above in this business unit (or a Level 16+ leader) - add one under Organizational Hierarchy.
                 </p>
               )}
             </div>

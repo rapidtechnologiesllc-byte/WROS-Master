@@ -24,7 +24,7 @@ Hierarchy Levels (1-17):
 Specializations: Recruitment, Development, HR, Finance, Project Management, QA, Business Analysis
 
 Rules:
-1. Cannot skip more than 2 levels (Intern → Associate/Senior Associate OK, but not Intern → Consultant)
+1. A person reports to anyone at a higher level (no maximum gap; CEO 2026-11-03)
 2. Parent must be at higher level (lower hierarchy_level number)
 3. (Removed 2026-10-12) Reporting is not restricted by specialization: a person's function
    comes from their department, and anyone may report to an eligible-level seat in their BU
@@ -72,8 +72,8 @@ SPECIALIZATIONS = [
     "General"  # For roles without specific specialization
 ]
 
-# Define which levels can report to which levels (no more than 2 level gap)
-# Example: Level 1 can report to 2, 3; Level 4 can report to 6, 7, 8
+# Reporting: anyone at a higher level (CEO 2026-11-03: "anyone over the L7 mark can be his reporting
+# manager" for a Level 6 -- there is no maximum gap). Same business unit unless the manager is org-wide.
 # Words in a department name that name a function (whole words only: "Key Accounts" is a
 # sales team, not Finance; "Three Rivers" is not HR)
 FUNCTION_WORDS = {
@@ -109,15 +109,10 @@ def specialization_for_department(session: Session, department_id: Optional[str]
 
 
 def get_valid_parent_levels(employee_level: int) -> list:
-    """Get valid parent hierarchy levels for an employee at a given level"""
+    """The levels a person at this level may report to: every higher level, up to the CEO (17)."""
     if employee_level >= 17:
         return []  # CEO reports to nobody
-
-    # Can report to: next level up, or up to 2 levels up
-    valid_levels = []
-    for i in range(employee_level + 1, min(employee_level + 3, 18)):
-        valid_levels.append(i)
-    return valid_levels
+    return list(range(employee_level + 1, 18))
 
 class OrgHierarchyValidator:
     """Validates organizational hierarchy with 17 levels and specialization enforcement"""

@@ -323,6 +323,9 @@ class Settings:
 
     # Finance: invoices are emailed from this mailbox (same Graph app permissions as Thunder)
     FINANCE_MAILBOX: str = os.getenv("FINANCE_MAILBOX", "") or THUNDER_MAILBOX
+    # Connect Outlook is mandatory (CEO 2026-11-03) for logins with a company mailbox: comma-separated
+    # domains; blank = the HRMS mailbox's domain. Anyone else (e.g. a sub-vendor contractor) is not asked.
+    OUTLOOK_REQUIRED_DOMAINS: str = os.getenv("OUTLOOK_REQUIRED_DOMAINS", "")
     # Rupees per US dollar, to turn an accepted offer letter's annual CTC (INR) into the
     # employee's monthly USD cost. Unset = cost stays unknown (flagged in the P&L), never guessed.
     # Authority thresholds on RoleTemplate.hierarchy_level (1 Intern .. 17 CEO; see

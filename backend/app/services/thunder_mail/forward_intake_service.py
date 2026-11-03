@@ -75,6 +75,28 @@ def store_forward(db: Session, message: Dict, user: Users, mailbox_address: str,
     return row.id
 
 
+def store_direct(db: Session, message: Dict, owner: Users, mailbox_address: str, sender: str,
+                 received: datetime) -> Optional[str]:
+    """An email in the owner's own Outlook, read as if they had forwarded it (mailbox_signals). None if
+    already stored. Caller commits and queues THUNDER_FORWARD_TASK after the commit."""
+    if db.query(MailboxIntakeMessage.id).filter_by(mailbox=mailbox_address, graph_message_id=message["id"]).first():
+        return None
+    row = MailboxIntakeMessage(
+        id=str(uuid.uuid4()), tenant_id=owner.tenant_id, mailbox=mailbox_address, direct=True,
+        graph_message_id=message["id"], internet_message_id=message.get("internetMessageId"),
+        from_address=sender.lower(), forwarded_by_user_id=owner.UserID,
+        subject=(message.get("subject") or "")[:998], received_at=received, status="RECEIVED",
+    )
+    savepoint = db.begin_nested()
+    try:
+        db.add(row)
+        savepoint.commit()
+    except IntegrityError:
+        savepoint.rollback()
+        return None
+    return row.id
+
+
 def queue_forward(intake_id: str, tenant_id: Optional[int], stage: str = "read", delay_seconds: int = 0) -> bool:
     from app.services.thunder_mail.cadence_service import enqueue_once
 
@@ -103,9 +125,9 @@ def process_intake(db: Session, intake_id: str, mailbox=None, *, llm_call: Optio
     forwarder = db.query(Users).filter(Users.UserID == row.forwarded_by_user_id).first()
     if forwarder is None:
         raise ValueError(f"Forwarding user {row.forwarded_by_user_id} of intake {intake_id} not found")
-    if mailbox is None:
-        from app.services.thunder_mail.graph_mailbox import GraphMailbox
-        mailbox = GraphMailbox(row.mailbox)
+    if mailbox is None:  # the HRMS mailbox, or the person's own Outlook the email was read from
+        from app.services.mail_sender import mailbox_for_address
+        mailbox = mailbox_for_address(db, row.mailbox)
 
     if row.status == "CANDIDATE_QUEUED":
         return _attach_to_candidate(db, row, forwarder, mailbox)
@@ -116,8 +138,13 @@ def process_intake(db: Session, intake_id: str, mailbox=None, *, llm_call: Optio
     if cert_alert.is_certification_alert(row.subject or message.get("subject") or "", text):
         return _certification_alert(db, row, forwarder, mailbox)
     attachments = mailbox.list_attachments(row.graph_message_id) if message.get("hasAttachments") else []
-    reading = read_forward(db, row.tenant_id, row.subject or message.get("subject") or "",
-                           (message.get("body") or {}).get("content") or "", attachments,
+    body = (message.get("body") or {}).get("content") or ""
+    if row.direct and forwarding_user(db, row.from_address) is None:
+        # read from someone's own mailbox, from outside: the real sender is who it is from (a colleague's
+        # email is read like a forward: the person it is about is in the forwarded part)
+        sender = (message.get("from") or {}).get("emailAddress") or {}
+        body = f"From: {sender.get('name') or ''} <{row.from_address}>\n\n{body}"
+    reading = read_forward(db, row.tenant_id, row.subject or message.get("subject") or "", body, attachments,
                            [forwarder.UserEmail, row.mailbox], llm_call=llm_call)
     row.kind, row.confidence, row.classifier_source = reading.kind, reading.confidence, reading.source
     row.extracted = _extracted(reading)
@@ -439,8 +466,17 @@ def _name(candidate: Candidate) -> str:
 
 
 def _needs_review(db: Session, row, forwarder: Users, reason: str, candidate_id: Optional[str] = None) -> Dict:
-    """One task for the person who forwarded the email (they know what it was for)."""
+    """One task for the person who forwarded the email (they know what it was for). An email read
+    straight from someone's own Outlook is their own mail: set aside quietly, never a task."""
     from app.services.task_service import create_task
+
+    if row.direct:
+        row.status, row.review_reason, row.processed_at = "IGNORED", reason, datetime.utcnow()
+        if candidate_id:
+            row.candidate_id = candidate_id
+        db.commit()
+        logger.info(f"[ForwardIntake] intake={row.id} (own mailbox) set aside: {reason}")
+        return {"status": "ignored", "intake_id": row.id, "reason": reason}
 
     extracted = row.extracted or {}
     details = extracted.get("candidate") or {}
