@@ -505,9 +505,6 @@ def _initialize_rbac():
         role_template_configs = [
             ('Super Admin', 'Super Administrator', 'Super admin role with full system access'),
             ('Admin', 'Administrator', 'Admin role with full access'),
-            ('Manager', 'Manager', 'Manager role with team management access'),
-            ('User', 'Regular User', 'Regular user role with basic access'),
-            ('Ops', 'Operations', 'Operations team - receives system alerts and diagnostics'),
         ]
 
         for (tenant_id,) in db.query(Tenant.id).all():  # every parent company gets the system roles
@@ -603,42 +600,6 @@ def _place_contract_resources(db, modules) -> int:
 # with every permission); created once with this starting set, after which
 # the Role Templates editor owns them. "v" = view, "vce" = view/create/edit.
 LEADERSHIP_ROLES = {
-    "Partner": {
-        "display_name": "Partner",
-        "description": "Owns one or more business units across companies; revenue and headcount targets",
-        "hierarchy_level": 16,
-        "org_level_access": False,
-        "permissions": {
-            "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
-                    "activity-feed", "ask-flash", "candidates", "jobs", "submissions", "interviews", "clients",
-                    "opportunities", "pipeline-management", "demand-confirmation", "goals"],
-            # LinkedIn Pipeline is a sub-page of the candidates resource (init_resources), not a resource
-            "v": ["offer-letters", "employees", "allocations", "utilization-dashboard", "resource-forecast",
-                  "workforce-overview", "projects", "resources", "invoices", "forecasts", "revenue",
-                  "partner-dashboard",
-                  "bu-head-dashboard", "business-units",
-                  "delivery-centers", "organizational-hierarchy", "ask-thunder"],
-        },
-    },
-    "BU Head": {
-        "display_name": "BU Head",
-        "description": "Runs one business unit: hiring, delivery, utilization and BU targets",
-        "hierarchy_level": 14,
-        "org_level_access": False,
-        "permissions": {
-            "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
-                    "activity-feed", "ask-flash", "candidates", "jobs", "submissions", "interviews",
-                    "allocations", "timesheets", "projects", "resources", "opportunities", "demand-confirmation",
-                    "pipeline-management", "clients"],
-            "v": ["offer-letters", "employees", "utilization-dashboard", "resource-forecast",
-                  "workforce-overview", "invoices", "forecasts", "revenue", "goals",
-                  "bu-head-dashboard", "business-units", "delivery-centers",
-                  "organizational-hierarchy", "ask-thunder"],
-        },
-    },
-    # Finance at Senior Manager level: reviews and approves invoices (CEO 2026-10-10: only
-    # Finance at Senior Manager or above may approve). Assign it (or a more senior Finance
-    # role -- Director 11, VP 14, CFO 16) to the people who approve what clients are billed.
     "Finance Manager": {
         "display_name": "Finance Manager",
         "description": "Finance, Senior Manager level: reviews and approves invoices, payments, revenue",
@@ -729,7 +690,7 @@ def ensure_role(db, name: str, spec: dict, tenant_id: int) -> bool:
 
 
 def _initialize_leadership_roles():
-    """Create the Partner, BU Head, Finance Manager and Employee role templates if missing (idempotent)."""
+    """Create the Finance Manager, Sales, Employee and Contractor add-ons if missing (idempotent)."""
     db = SessionLocal()
     try:
         for (tenant_id,) in db.query(Tenant.id).all():
@@ -742,6 +703,7 @@ def _initialize_leadership_roles():
         _initialize_org_roles(db)
         _initialize_contractor_role(db)
         _initialize_manage_role_permission_sets(db)
+        _retire_legacy_role_templates(db)
         _initialize_canonical_resources(db)
         _initialize_contract_catalog_only(db)
         _initialize_thunder_conversation_owner(db)
@@ -917,6 +879,45 @@ def _initialize_contractor_role(db):
         db.add(OrgRole(tenant_id=tenant_id, name="Contractor", hierarchy_level=1, role_template_id=template.id))
         db.commit()
         logger.info(f"[Contract] Contractor role created for tenant {tenant_id}")
+
+
+# Function add-ons retired 2026-11-03 (CEO): Manager / User / Ops were seeded with every permission
+# under "basic access" names; Partner / BU Head duplicated the job-title roles of the same name.
+RETIRED_TEMPLATES = ("Manager", "User", "Ops", "Partner", "BU Head")
+
+
+def _retire_legacy_role_templates(db):
+    """Delete the retired function add-ons (idempotent). A Manage Role's own permission set is never
+    touched (it has an owner role). A login still on one moves to the Employee add-on; a job-title
+    mapping to one is removed. Nothing else references them."""
+    from app.models.org_structure import OrgRole
+    from app.models.permission import JobTitleRole
+    from app.services.role_template_permission_service import invalidate_permissions
+
+    owned = {t for (t,) in db.query(OrgRole.role_template_id).filter(OrgRole.role_template_id.isnot(None))}
+    retired = 0
+    for template in db.query(RoleTemplate).filter(RoleTemplate.name.in_(RETIRED_TEMPLATES)).all():
+        if template.id in owned:
+            continue
+        holders = db.query(Users).filter(Users.role_template_id == template.id)
+        if holders.first() is not None:
+            employee = db.query(RoleTemplate).filter(RoleTemplate.name == "Employee",
+                                                     RoleTemplate.tenant_id == template.tenant_id).first()
+            if employee is None:
+                logger.warning(f"[Contract] Kept role template {template.name} (tenant {template.tenant_id}): "
+                               "users hold it and there is no Employee role to move them to")
+                continue
+            moved = holders.update({Users.role_template_id: employee.id}, synchronize_session=False)
+            logger.warning(f"[Contract] Moved {moved} user(s) from retired {template.name} to Employee")
+        db.query(JobTitleRole).filter(JobTitleRole.role_id == template.id).delete(synchronize_session=False)
+        db.query(RoleTemplatePermission).filter(RoleTemplatePermission.role_template_id == template.id) \
+            .delete(synchronize_session=False)
+        db.delete(template)
+        retired += 1
+    db.commit()
+    if retired:
+        invalidate_permissions()
+        logger.info(f"[Contract] Retired {retired} legacy role template(s): {', '.join(RETIRED_TEMPLATES)}")
 
 
 def _initialize_org_roles(db):
