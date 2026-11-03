@@ -21,6 +21,8 @@ const MONEY_COLUMNS = [
   { key: "collected", header: "Collected", cell: (r) => usd(r.collected_usd_cents) },
   { key: "unbilled", header: "Not yet billed", cell: (r) => usd(r.unbilled_usd_cents) },
   { key: "delivery", header: "Delivery cost", cell: (r) => usd(r.delivery_cost_usd_cents ?? r.cost_usd_cents) },
+  // of which contractors supplied by sub-vendors (their vendor invoice, else hours x vendor rate)
+  { key: "vendor", header: "of which sub-vendors", cell: (r) => usd(r.vendor_cost_usd_cents) },
   { key: "bench", header: "Bench cost", cell: (r) => usd(r.bench_cost_usd_cents) },
   { key: "overhead", header: "Internal staff (overhead)", cell: (r) => usd(r.overhead_cost_usd_cents) },
   { key: "htd", header: "HTD training", cell: (r) => usd(r.htd_cost_usd_cents) },
@@ -124,7 +126,7 @@ export default function PnlScreen() {
               <Tile
                 label="Total cost"
                 value={usd(report.total_cost_usd_cents)}
-                hint={`delivery ${usd(report.delivery_cost_usd_cents)} · bench ${usd(report.bench_cost_usd_cents)} · internal staff ${usd(report.overhead_cost_usd_cents)} · HTD training ${usd(report.htd_cost_usd_cents)} · expenses ${usd(report.expense_cost_usd_cents)}`}
+                hint={`delivery ${usd(report.delivery_cost_usd_cents)} (sub-vendors ${usd(report.vendor_cost_usd_cents)}, ${usd(report.vendor_paid_usd_cents)} paid) · bench ${usd(report.bench_cost_usd_cents)} · internal staff ${usd(report.overhead_cost_usd_cents)} · HTD training ${usd(report.htd_cost_usd_cents)} · expenses ${usd(report.expense_cost_usd_cents)}`}
               />
               <Tile label="Margin" value={usd(report.margin_usd_cents)} hint={pct(report.margin_pct)} />
               <Tile

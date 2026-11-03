@@ -53,3 +53,67 @@ export const getArAging = async () => {
   if (!data || !Array.isArray(data.clients)) throw new Error("Unexpected response: no AR aging.");
   return data;
 };
+
+// Auto-invoicing (what the daily job does): drafts every invoice that is due from approved timesheets
+export const runAutoInvoicing = async () => {
+  const { data } = await apiRequest("/invoices/run-automation", { method: "POST" });
+  return data;
+};
+
+// Sub-vendor invoices: contractors' approved timesheets, paid only after the client pays
+export const getSubVendors = async () => {
+  const { data } = await apiRequest("/vendor-invoices/sub-vendors", { method: "GET" });
+  return data;
+};
+
+export const addSubVendor = async (vendor) => {
+  const { data } = await apiRequest("/vendor-invoices/sub-vendors", { method: "POST", body: JSON.stringify(vendor) });
+  return data;
+};
+
+export const getContractors = async () => {
+  const { data } = await apiRequest("/vendor-invoices/contractors", { method: "GET" });
+  return data;
+};
+
+export const setContractor = async (employeeId, subVendorId, hourlyRateUsdCents) => {
+  const { data } = await apiRequest("/vendor-invoices/contractors", {
+    method: "POST",
+    body: JSON.stringify({ employee_id: employeeId, sub_vendor_id: subVendorId, hourly_rate_usd_cents: hourlyRateUsdCents }),
+  });
+  return data;
+};
+
+export const getEligibleVendorTimesheets = async (subVendorId, periodStart, periodEnd) => {
+  const params = new URLSearchParams({ sub_vendor_id: subVendorId, period_start: periodStart, period_end: periodEnd });
+  const { data } = await apiRequest(`/vendor-invoices/eligible-timesheets?${params}`, { method: "GET" });
+  return data;
+};
+
+export const getVendorInvoices = async () => {
+  const { data } = await apiRequest("/vendor-invoices", { method: "GET" });
+  return data;
+};
+
+export const addVendorInvoice = async (invoice) => {
+  const { data } = await apiRequest("/vendor-invoices", { method: "POST", body: JSON.stringify(invoice) });
+  return data;
+};
+
+export const approveVendorInvoice = async (id, note) => {
+  const { data } = await apiRequest(`/vendor-invoices/${id}/approve`, { method: "POST", body: JSON.stringify({ note }) });
+  return data;
+};
+
+export const rejectVendorInvoice = async (id, reason) => {
+  const { data } = await apiRequest(`/vendor-invoices/${id}/reject`, { method: "POST", body: JSON.stringify({ reason }) });
+  return data;
+};
+
+export const payVendorInvoice = async (id, paidOn, reference) => {
+  const { data } = await apiRequest(`/vendor-invoices/${id}/pay`, {
+    method: "POST",
+    body: JSON.stringify({ paid_on: paidOn, reference }),
+  });
+  return data;
+};

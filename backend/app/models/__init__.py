@@ -117,6 +117,7 @@ from app.models.sub_vendor import SubVendorAccount, SubVendorRequest, SubVendorU
 from app.models.sub_vendor_submission import SubVendorSubmission, SubVendorViolation, SubVendorDedupRejection
 from app.models.project import Project, ProjectMilestone
 from app.models.invoice import Invoice, InvoiceLineItem
+from app.models.vendor_invoice import VendorInvoice, VendorInvoiceLine
 from app.models.revenue_leakage import RevenueLeakageFlag, ReconciliationAlert
 from app.models.pipeline_leakage import PipelineLeakageFlag
 from app.models.cost_rate_config import CostRateConfig

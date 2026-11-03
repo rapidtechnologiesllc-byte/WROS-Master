@@ -679,6 +679,17 @@ LEADERSHIP_ROLES = {
                     "activity-feed", "ask-flash"],
         },
     },
+    # A contractor supplied by a sub-vendor (CEO 2026-11-02: "they will still be filling timesheet
+    # but only have limited access"): their timesheet, their tasks, notifications. Nothing else.
+    "Contractor": {
+        "display_name": "Contractor",
+        "description": "Sub-vendor contractor: own timesheets, own tasks, notifications",
+        "hierarchy_level": 1,
+        "org_level_access": False,
+        "permissions": {
+            "vce": ["dashboard", "my-tasks", "my-timesheet", "notifications"],
+        },
+    },
 }
 
 
@@ -729,6 +740,7 @@ def _initialize_leadership_roles():
         _initialize_bu_location_heads(db)
         _initialize_org_positions(db)
         _initialize_org_roles(db)
+        _initialize_contractor_role(db)
         _initialize_manage_role_permission_sets(db)
         _initialize_canonical_resources(db)
         _initialize_contract_catalog_only(db)
@@ -888,6 +900,23 @@ def _initialize_org_positions(db):
         db.add_all(missing)
         db.commit()
         logger.info(f"[Contract] Seeded {len(missing)} org positions")
+
+
+def _initialize_contractor_role(db):
+    """The Contractor Manage Role (level 1) per tenant, its permission set the Contractor template
+    (LEADERSHIP_ROLES): a sub-vendor contractor's login points at it, so their access is that set
+    and nothing more (vendor_invoice_service.set_contractor). Creates it once; an admin owns it after."""
+    from app.models.org_structure import OrgRole
+
+    for (tenant_id,) in db.query(Tenant.id).all():
+        template = db.query(RoleTemplate).filter(RoleTemplate.name == "Contractor",
+                                                 RoleTemplate.tenant_id == tenant_id).first()
+        if template is None or db.query(OrgRole.id).filter(OrgRole.tenant_id == tenant_id,
+                                                           OrgRole.name == "Contractor").first():
+            continue
+        db.add(OrgRole(tenant_id=tenant_id, name="Contractor", hierarchy_level=1, role_template_id=template.id))
+        db.commit()
+        logger.info(f"[Contract] Contractor role created for tenant {tenant_id}")
 
 
 def _initialize_org_roles(db):
@@ -1951,6 +1980,9 @@ def _apply_schema_migrations(db: Session):
             ("pay_amount_cents", "BIGINT NULL"),
             ("pay_currency", "VARCHAR(3) NULL"),
             ("pay_basis", "VARCHAR(10) NULL"),
+            # Contractor supplied by a sub-vendor, paid through the vendor at an hourly rate
+            ("sub_vendor_id", "VARCHAR(512) NULL REFERENCES app_schema.sub_vendor_accounts(id) ON DELETE SET NULL"),
+            ("vendor_hourly_rate_usd_cents", "INTEGER NULL"),
         ],
         "candidate_education_forms": [
             ("education_level", "VARCHAR(100) NULL"),

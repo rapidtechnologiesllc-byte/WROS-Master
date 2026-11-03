@@ -158,6 +158,10 @@ class Employee(Base):
     bank_routing_encrypted = Column(Text, nullable=True)
 
     wros_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True)
+    # A contractor supplied by a sub-vendor (CEO 2026-11-02): paid through the vendor at this hourly
+    # rate (vendor_invoice_service), which is their delivery cost in the P&L instead of payroll
+    sub_vendor_id = Column(String(512), ForeignKey("sub_vendor_accounts.id"), nullable=True, index=True)
+    vendor_hourly_rate_usd_cents = Column(Integer, nullable=True)
 
     # HRMS-0101-REV -- delivery engine + buddy program + HTD fields,
     # built in from the start (see module docstring).

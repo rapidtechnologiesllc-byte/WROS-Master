@@ -58,6 +58,16 @@ class RecordPaymentRequest(BaseModel):
     amount_usd_cents: int
     reference: str  # bank / UTR / cheque reference
 
+class AutoInvoicingRun(BaseModel):
+    """One run of auto-invoicing (invoice_automation_service.run_auto_invoicing), by outcome."""
+    period: str
+    awaiting: int  # drafts waiting for Finance review
+    held: int  # stopped: a Finance task says what to fix
+    waiting: int  # timesheets not yet approved (re-checked daily)
+    skipped: int  # already decided for that period
+    failed: int
+    unlinked: int  # approved hours on an allocation with no project
+
 class MarkPaidRequest(BaseModel):
     paid_on: Optional[date] = None  # defaults to today
 
