@@ -172,8 +172,13 @@ def oauth_callback(request: Request, background_tasks: BackgroundTasks, db: Sess
     account_id = claims.get("oid")
     if not account_id:
         return _link_redirect("error", "Microsoft did not return an account id")
-    store_session(user.UserID, account_id, token_result,
-                  account_email=claims.get("preferred_username") or claims.get("email"))
+    account_email = claims.get("preferred_username") or claims.get("email")
+    # HRMS sends email AS this person from now on (mail_sender): it must be their own work mailbox
+    if (account_email or "").strip().lower() != (user.UserEmail or "").strip().lower():
+        logger.warning(f"[msgraph] {user.UserID} signed in to Microsoft as {account_email}, not {user.UserEmail}")
+        return _link_redirect("error", f"Sign in to Microsoft as {user.UserEmail}, your work account, "
+                                       f"not {account_email or 'another account'}")
+    store_session(user.UserID, account_id, token_result, account_email=account_email)
 
     # First sync right away (last 24h), so the user sees results without waiting for the timer
     from app.services.msgraph_mail_sync_service import sync_user_by_id

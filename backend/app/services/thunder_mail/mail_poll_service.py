@@ -10,6 +10,12 @@ never the candidate's reply (staff_email_service). Anything else sent by an acti
 mailbox intake (forward_intake_service): it becomes a candidate, a note or a
 task, never dropped. Other mail (ordinary HR mail from outside) is neither
 stored nor processed here.
+
+Since emails go from people's own Outlook (mail_sender, helpdesk copied): the helpdesk copy of an
+email we sent is ours -- logged on the client when it is a client's email, never a forward or a
+reply. poll_connected_mailboxes() reads each connected person's inbox for replies in OUR threads
+started from their mailbox, and nothing else: no other email of theirs is stored or processed.
+A reply that reached two mailboxes (reply-all with the helpdesk on copy) is stored once.
 """
 import logging
 import uuid
@@ -25,6 +31,7 @@ from app.models.candidate import Candidate
 from app.models.thunder_email import ThunderCadenceState, ThunderEmailMessage, ThunderMailboxCursor
 from app.services.client_email_log_service import log_mailbox_email
 from app.services.delivery_errors import DeliveryDeferred
+from app.services.mail_sender import is_our_email
 from app.services.thunder_mail.cadence_service import INBOUND_TASK, enqueue_once
 from app.services.thunder_mail.forward_intake_service import forwarding_user, queue_forward, store_forward
 from app.services.thunder_mail.graph_mailbox import GraphMailbox
@@ -66,6 +73,111 @@ def _match(db: Session, message: Dict, headers: Dict[str, str], sender: str) -> 
     return db.query(ThunderCadenceState).filter_by(candidate_id=candidate.candidateID).first()
 
 
+def _already_received(db: Session, message: Dict) -> bool:
+    internet_id = message.get("internetMessageId")
+    return bool(internet_id) and db.query(ThunderEmailMessage.id).filter(
+        ThunderEmailMessage.internet_message_id == internet_id,
+        ThunderEmailMessage.direction == "IN").first() is not None
+
+
+def _reply_row(state: ThunderCadenceState, message: Dict, headers: Dict[str, str], sender: str,
+               received: datetime, mailbox_address: str) -> ThunderEmailMessage:
+    return ThunderEmailMessage(
+        id=str(uuid.uuid4()), tenant_id=state.tenant_id, candidate_id=state.candidate_id,
+        direction="IN", status="RECEIVED", cadence_seq=state.cadence_seq, mailbox=mailbox_address,
+        graph_message_id=message.get("id"), conversation_id=message.get("conversationId"),
+        internet_message_id=message.get("internetMessageId"), in_reply_to=headers.get("in-reply-to"),
+        from_address=sender, subject=(message.get("subject") or "")[:998],
+        body_text=((message.get("uniqueBody") or {}).get("content") or "")[:MAX_BODY_CHARS],
+        received_at=received,
+    )
+
+
+def _our_thread(db: Session, message: Dict, headers: Dict[str, str], mailbox_address: str):
+    """The cadence of OUR email this message answers, among emails sent from this mailbox only."""
+    ours = db.query(ThunderEmailMessage).filter(ThunderEmailMessage.direction == "OUT",
+                                                func.lower(ThunderEmailMessage.mailbox) == mailbox_address)
+    out = ours.filter(ThunderEmailMessage.conversation_id == message["conversationId"]).first() \
+        if message.get("conversationId") else None
+    if out is None:
+        referenced = f"{headers.get('in-reply-to', '')} {headers.get('references', '')}".split()
+        out = ours.filter(ThunderEmailMessage.internet_message_id.in_(referenced)).first() if referenced else None
+    return db.query(ThunderCadenceState).filter_by(candidate_id=out.candidate_id).first() if out else None
+
+
+def poll_connected_mailboxes(db: Session, mailboxes: Optional[Dict[str, GraphMailbox]] = None,
+                             now: Optional[datetime] = None) -> Dict:
+    """Replies to our emails that went from people's own Outlook. mailboxes: {address: mailbox}
+    (tests); default every connected user (mail_sender.connected_mailbox)."""
+    from app.core.msgraph_session_store import active_user_ids
+    from app.services.mail_sender import connected_mailbox
+
+    now = now or datetime.utcnow()
+    if mailboxes is None:
+        mailboxes = {}
+        for user_id in active_user_ids(db):
+            mailbox = connected_mailbox(db, user_id)
+            if mailbox is not None:
+                mailboxes[mailbox.mailbox.lower()] = mailbox
+    result = {"mailboxes": len(mailboxes), "matched": 0, "errors": 0}
+    for address, mailbox in mailboxes.items():
+        address = address.lower()
+        cursor = db.query(ThunderMailboxCursor).filter_by(mailbox=address).first()
+        if cursor is None:
+            cursor = ThunderMailboxCursor(mailbox=address, last_received_at=now - FIRST_RUN_LOOKBACK)
+            db.add(cursor)
+            db.commit()
+        cursor.last_run_at = now
+        try:
+            messages = mailbox.list_inbox(cursor.last_received_at - OVERLAP)
+        except (DeliveryDeferred, RuntimeError) as exc:
+            cursor.last_error = str(exc)[:2000]
+            db.commit()
+            result["errors"] += 1
+            logger.error(f"[ThunderPoll] Could not read {address}: {exc}")
+            continue
+        newest, queued, staff_rows = cursor.last_received_at, [], []
+        for message in messages:
+            received = _parse_time(message["receivedDateTime"])
+            newest = max(newest, received)
+            sender = ((message.get("from") or {}).get("emailAddress") or {}).get("address", "").lower()
+            if not sender or sender == address or _already_received(db, message):
+                continue
+            if db.query(ThunderEmailMessage.id).filter_by(mailbox=address, graph_message_id=message.get("id")).first():
+                continue
+            headers = _headers(message)
+            state = _our_thread(db, message, headers, address)
+            if state is None:
+                continue  # not a reply in one of our threads: their own mail, never read further
+            row = _reply_row(state, message, headers, sender, received, address)
+            staff = staff_sender(db, sender)
+            if staff is not None:
+                row.direction, row.status, row.sent_at, row.received_at = "OUT", "SENT", received, None
+            savepoint = db.begin_nested()
+            try:
+                db.add(row)
+                savepoint.commit()
+            except IntegrityError:
+                savepoint.rollback()
+                continue
+            if staff is not None:
+                staff_rows.append((row.id, staff))
+                continue
+            result["matched"] += 1
+            queued.append((row.id, state.tenant_id, {k: headers[k] for k in CLASSIFIER_HEADERS if k in headers},
+                           bool(message.get("hasAttachments"))))
+        cursor.last_received_at, cursor.last_error = newest, None
+        db.commit()
+        for row_id, tenant_id, classifier_headers, has_attachments in queued:
+            enqueue_once(INBOUND_TASK, f"thunder_inbound:{row_id}",
+                         {"thunder_message_id": row_id, "headers": classifier_headers,
+                          "has_attachments": has_attachments}, tenant_id)
+        for row_id, staff in staff_rows:
+            handle_staff_email(db, db.query(ThunderEmailMessage).filter_by(id=row_id).one(), staff)
+    logger.info(f"[ThunderPoll] connected mailboxes: {result}")
+    return result
+
+
 def poll_thunder_mailbox(db: Session, mailbox: Optional[GraphMailbox] = None,
                          now: Optional[datetime] = None) -> Dict:
     now = now or datetime.utcnow()
@@ -96,6 +208,13 @@ def poll_thunder_mailbox(db: Session, mailbox: Optional[GraphMailbox] = None,
         if db.query(ThunderEmailMessage.id).filter_by(
                 mailbox=mailbox_address, graph_message_id=message.get("id")).first():
             continue  # seen in an earlier, overlapping run
+        if _already_received(db, message):
+            continue  # the same reply, already read from a person's own mailbox
+        if is_our_email(db, message.get("internetMessageId")):
+            # our own email, sent from a person's Outlook with the helpdesk copied: the repository copy
+            if log_mailbox_email(db, message, sender, received, mailbox_address):
+                clients_logged += 1
+            continue
         headers = _headers(message)
         state = _match(db, message, headers, sender)
         if state is None and log_mailbox_email(db, message, sender, received, mailbox_address):
@@ -108,15 +227,7 @@ def poll_thunder_mailbox(db: Session, mailbox: Optional[GraphMailbox] = None,
                 if intake_id:
                     forwards.append((intake_id, staff.tenant_id))
             continue
-        row = ThunderEmailMessage(
-            id=str(uuid.uuid4()), tenant_id=state.tenant_id, candidate_id=state.candidate_id,
-            direction="IN", status="RECEIVED", cadence_seq=state.cadence_seq, mailbox=mailbox_address,
-            graph_message_id=message.get("id"), conversation_id=message.get("conversationId"),
-            internet_message_id=message.get("internetMessageId"), in_reply_to=headers.get("in-reply-to"),
-            from_address=sender, subject=(message.get("subject") or "")[:998],
-            body_text=((message.get("uniqueBody") or {}).get("content") or "")[:MAX_BODY_CHARS],
-            received_at=received,
-        )
+        row = _reply_row(state, message, headers, sender, received, mailbox_address)
         staff = staff_sender(db, sender)
         if staff is not None:
             # one of our people wrote in the candidate's thread: ours, never the candidate's reply

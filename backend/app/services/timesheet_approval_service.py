@@ -319,7 +319,7 @@ def send_notices(db: Session, review: TimesheetReview) -> None:
                 paragraphs.append(f"Their response: {review.employee_response}")
         queue_staff_email(approver, key=f"ts-review-{review.id}-pending", subject=f"Approve timesheet: {_name(employee)} week of {week}",
                           paragraphs=paragraphs, link_path=APPROVAL_PATH.format(timesheet_id=timesheet.id),
-                          link_label="Review the timesheet")
+                          link_label="Review the timesheet", sender_user_id=employee.wros_user_id)
         return
     from app.services.client_timesheet_approval_service import CLIENT_PENDING, queue_email
 
@@ -340,7 +340,8 @@ def send_notices(db: Session, review: TimesheetReview) -> None:
         queue_staff_email(login, key=f"ts-review-{review.id}-approved", subject=f"Timesheet approved: week of {week}",
                           paragraphs=[f"Your timesheet for the week of {week} was approved by {by}."]
                           + ([f"Comment: {review.decision_note}"] if review.decision_note else []) + client_note,
-                          link_path="/my-timesheet", link_label="Open My Timesheet")
+                          link_path="/my-timesheet", link_label="Open My Timesheet",
+                          sender_user_id=review.decided_by_user_id)
     else:
         flagged = f"Days to fix: {', '.join(review.flagged_dates)}." if review.flagged_dates else ""
         queue_staff_email(login, key=f"ts-review-{review.id}-rejected", subject=f"Timesheet rejected: week of {week}",
@@ -348,7 +349,7 @@ def send_notices(db: Session, review: TimesheetReview) -> None:
                                       f"Reason: {review.decision_note}", flagged,
                                       "Change the entries, or answer the reason in your response, then submit again."],
                           link_path=MY_TIMESHEET_PATH.format(week=week, allocation=timesheet.allocation_id),
-                          link_label="Fix and resubmit")
+                          link_label="Fix and resubmit", sender_user_id=review.decided_by_user_id)
 
 
 def review_view(db: Session, timesheet: Timesheet, user: Users) -> Dict:

@@ -1,4 +1,6 @@
-"""Microsoft Graph client for the single Thunder mailbox (app-only token).
+"""Microsoft Graph client for a mailbox: the shared HRMS mailbox (app-only token), or a person's own
+Outlook they connected (delegated token, delegated=True; app.services.mail_sender picks which).
+An email drafted in a person's mailbox copies `cc` (the helpdesk mailbox: the repository).
 
 Needs application permissions Mail.ReadWrite + Mail.Send, scoped to the
 mailbox (reading the inbox and attachments of forwarded emails needs the read half). Drafts are created then sent (instead of /sendMail, which returns no
@@ -35,10 +37,17 @@ class GraphTransientError(RuntimeError):
 
 
 class GraphMailbox:
-    def __init__(self, mailbox: str, http=None, token_provider=None):
+    def __init__(self, mailbox: str, http=None, token_provider=None, cc: Optional[List[str]] = None,
+                 delegated: bool = False):
         self.mailbox = mailbox
         self.http = http or requests
         self.token_provider = token_provider or GraphServiceAuth.get_access_token
+        self.cc = [a for a in (cc or []) if a and a.lower() != mailbox.lower()]
+        self.delegated = delegated
+
+    def _cc_recipients(self, existing: Optional[List[Dict]] = None) -> List[Dict]:
+        have = {((r.get("emailAddress") or {}).get("address") or "").lower() for r in existing or []}
+        return list(existing or []) + [{"emailAddress": {"address": a}} for a in self.cc if a.lower() not in have]
 
     def _headers(self, extra: Optional[Dict] = None) -> Dict:
         if not GraphServiceAuth.is_configured() and self.token_provider is GraphServiceAuth.get_access_token:
@@ -55,6 +64,11 @@ class GraphMailbox:
             method, url or f"{GRAPH}/users/{self.mailbox}{path}",
             json=json, params=params, headers=self._headers(headers), timeout=HTTP_TIMEOUT,
         )
+        if response.status_code in (401, 403) and self.delegated:
+            raise DeliveryDeferred(
+                f"Graph denied {method} on {self.mailbox}'s own mailbox (HTTP {response.status_code}); "
+                "they must reconnect Outlook (Mail.Send + Mail.ReadWrite consent)"
+            )
         if response.status_code in (401, 403):
             raise DeliveryDeferred(
                 f"Graph denied {method} {path or 'nextLink'} on {self.mailbox} (HTTP {response.status_code}); "
@@ -75,18 +89,23 @@ class GraphMailbox:
         return data["id"], data.get("conversationId"), data.get("internetMessageId")
 
     def create_draft(self, to: str, subject: str, html: str, ref: str) -> Tuple[str, Optional[str], Optional[str]]:
-        data = self._call("POST", "/messages", json={
+        message = {
             "subject": subject,
             "body": {"contentType": "HTML", "content": html},
             "toRecipients": [{"emailAddress": {"address": to}}],
             "internetMessageHeaders": [{"name": "X-Thunder-Ref", "value": ref}],
-        })
-        return self._ids(data)
+        }
+        if self.cc:
+            message["ccRecipients"] = self._cc_recipients()
+        return self._ids(self._call("POST", "/messages", json=message))
 
     def create_reply_draft(self, message_id: str, html: str) -> Tuple[str, Optional[str], Optional[str]]:
         """Reply in the same thread as an earlier message (ours or the candidate's)."""
         draft = self._call("POST", f"/messages/{message_id}/createReply", json={})
-        data = self._call("PATCH", f"/messages/{draft['id']}", json={"body": {"contentType": "HTML", "content": html}})
+        patch = {"body": {"contentType": "HTML", "content": html}}
+        if self.cc:
+            patch["ccRecipients"] = self._cc_recipients(draft.get("ccRecipients"))
+        data = self._call("PATCH", f"/messages/{draft['id']}", json=patch)
         return self._ids({**draft, **data, "id": draft["id"]})
 
     def send(self, message_id: str) -> None:

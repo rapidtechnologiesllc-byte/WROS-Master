@@ -566,8 +566,6 @@ def create_user(
         raise HTTPException(status_code=400, detail="User name is required")
     if not request.user_email or not request.user_email.strip():
         raise HTTPException(status_code=400, detail="User email is required")
-    if not request.user_password or not request.user_password.strip():
-        raise HTTPException(status_code=400, detail="Password is required")
     if not request.user_role or not request.user_role.strip():
         raise HTTPException(status_code=400, detail="User role is required")
     if not request.role_template_id:
@@ -606,7 +604,6 @@ def create_user(
             data={
                 'user_email': request.user_email,
                 'user_name': request.user_name,
-                'user_password': request.user_password,
                 'business_unit_id': None,  # Not provided in basic create
                 'role_ids': [request.role_template_id],
                 'created_by_user_id': current_user.UserID,
@@ -688,8 +685,6 @@ def create_user_with_roles(
         raise HTTPException(status_code=400, detail="User name is required")
     if not request.user_email or not request.user_email.strip():
         raise HTTPException(status_code=400, detail="User email is required")
-    if not request.user_password or not request.user_password.strip():
-        raise HTTPException(status_code=400, detail="Password is required")
     if not request.role_template_id:
         raise HTTPException(status_code=400, detail="Role template is required")
     # The Job Title names a managed role, and the role sets the org level
@@ -787,7 +782,6 @@ def create_user_with_roles(
             data={
                 'user_email': request.user_email,
                 'user_name': request.user_name,
-                'user_password': request.user_password,
                 'business_unit_id': request.business_unit_id,
                 'department_id': request.department_id,
                 'location_id': request.location_id,

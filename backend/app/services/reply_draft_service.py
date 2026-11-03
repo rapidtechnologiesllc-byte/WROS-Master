@@ -213,12 +213,13 @@ def ready_to_send(personal) -> bool:
     return personal.status == ("APPROVED" if isinstance(personal, ReplyDraft) else "QUEUED")
 
 
-def thread_parent_of(db: Session, personal) -> Optional[str]:
-    """A reply is threaded under the candidate's email; a role email starts its own thread."""
+def thread_parent_of(db: Session, personal) -> Optional[ThunderEmailMessage]:
+    """A reply is threaded under the candidate's email (the row, with the mailbox it came to); a
+    role email starts its own thread."""
     if not isinstance(personal, ReplyDraft):
         return None
     row = db.query(ThunderEmailMessage).filter(ThunderEmailMessage.id == personal.in_message_id).first()
-    return row.graph_message_id if row is not None else None
+    return row if row is not None and row.graph_message_id else None
 
 
 def mark_personal_sent(db: Session, personal, thunder_message_id: str, now: datetime) -> None:

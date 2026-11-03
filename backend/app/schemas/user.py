@@ -515,7 +515,6 @@ class CreateUserWithRolesRequest(BaseModel):
     Required Fields:
     - user_name: User's display name (required)
     - user_email: User's email address (required, unique within tenant)
-    - user_password: Initial password (required, min 8 chars)
     - role_template_id: RBAC role template ID (required)
     - hierarchy_level: not used -- the Job Title's role (org_roles) sets the level
     - specialization: not used -- a person's function comes from their department
@@ -538,7 +537,6 @@ class CreateUserWithRolesRequest(BaseModel):
         {
             "user_name": "John Doe",
             "user_email": "john@example.com",
-            "user_password": "SecurePassword123!",
             "job_title": "Senior Consultant",
             "role_template_id": 3,
             "business_unit_id": 1,
@@ -549,7 +547,8 @@ class CreateUserWithRolesRequest(BaseModel):
     """
     user_name: str = Field(..., min_length=1, max_length=255, description="User's display name")
     user_email: str = Field(..., max_length=255, description="User's unique email within tenant")
-    user_password: str = Field(..., min_length=8, max_length=255, description="Initial password (min 8 chars)")
+    # Ignored, never stored or sent: the person sets their own password from the emailed link
+    user_password: Optional[str] = Field(None, max_length=255, description="Ignored: the user sets their own password")
     role_template_id: int = Field(..., gt=0, description="RBAC role template ID (e.g., 1=SuperUser, 3=Recruiter)")
     hierarchy_level: Optional[int] = Field(None, ge=1, le=17, description="Ignored: the org level comes from the Job Title's role")
     specialization: Optional[str] = Field(None, max_length=100, description="Ignored: a person's function comes from their department")

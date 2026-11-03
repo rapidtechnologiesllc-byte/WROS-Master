@@ -25,6 +25,7 @@ from app.models.thunder_email import ThunderCadenceState, ThunderEmailMessage, T
 from app.models.user import Jobs
 from app.services.candidate_contact_policy import is_contactable, rejection_cooldown_until
 from app.services.delivery_errors import DeliveryDeferred
+from app.services.mail_sender import connected_mailbox, mailbox_for_address
 from app.services.message_handlers.base_message_handler import time_bound
 from app.services.thunder_mail import cadence_service as cadence
 from app.services.thunder_mail.graph_mailbox import GraphMailbox
@@ -176,15 +177,18 @@ class ThunderSendEmailHandler:
         cadence plan as it was and marks its RoleOutreach sent."""
         candidate_id = candidate.candidateID
         seq = out.cadence_seq
-        mailbox = mailbox or GraphMailbox(settings.THUNDER_MAILBOX)
         if out.graph_message_id is None:
             if role_outreach is not None:
                 from app.services.reply_draft_service import thread_parent_of
-                thread_parent = thread_parent_of(db, role_outreach)
+                parent = thread_parent_of(db, role_outreach)
             else:
-                thread_parent = ThunderSendEmailHandler._thread_parent(db, candidate_id, seq, step)
-            if thread_parent:
-                ids = mailbox.create_reply_draft(thread_parent, body)
+                parent = ThunderSendEmailHandler._thread_parent(db, candidate_id, seq, step)
+            mailbox = mailbox or ThunderSendEmailHandler._sender(db, candidate, parent)
+            out.mailbox = getattr(mailbox, "mailbox", None) or settings.THUNDER_MAILBOX
+            # a reply goes in the thread, which lives in the mailbox it started in
+            in_thread = parent is not None and (parent.mailbox or "").lower() == out.mailbox.lower()
+            if in_thread:
+                ids = mailbox.create_reply_draft(parent.graph_message_id, body)
             else:
                 ids = mailbox.create_draft(candidate.candidateEmail, subject, body, out.id)
             out.graph_message_id, out.conversation_id, out.internet_message_id = ids
@@ -192,6 +196,8 @@ class ThunderSendEmailHandler:
             db.commit()
             logger.info(f"[ThunderSend] drafted candidate={candidate_id} step={step} graph_id={out.graph_message_id}")
 
+        else:
+            mailbox = mailbox or mailbox_for_address(db, out.mailbox or settings.THUNDER_MAILBOX)
         if mailbox.is_draft(out.graph_message_id):
             mailbox.send(out.graph_message_id)
 
@@ -215,7 +221,7 @@ class ThunderSendEmailHandler:
             from app.services.candidate_activity_service import log_thunder_operation
             log_thunder_operation(db, candidate_id, "MESSAGE_SENT", metadata={
                 "channel": "email", "step": step, "variant": variant.key if variant else "personal",
-                "thunder_message_id": out.id, "mailbox": settings.THUNDER_MAILBOX,
+                "thunder_message_id": out.id, "mailbox": out.mailbox,
             })
             db.commit()
         except Exception as exc:
@@ -226,7 +232,19 @@ class ThunderSendEmailHandler:
                      message_sent=True, delivery_confirmed=True)
 
     @staticmethod
-    def _thread_parent(db: Session, candidate_id: str, seq: int, step: str) -> Optional[str]:
+    def _sender(db: Session, candidate: Candidate, parent: Optional[ThunderEmailMessage]) -> GraphMailbox:
+        """The thread's own mailbox when it can still be reached; else (a new thread) the
+        candidate's recruiter's Outlook when connected, helpdesk copied; else the HRMS mailbox."""
+        if parent is not None and parent.mailbox:
+            try:
+                return mailbox_for_address(db, parent.mailbox)
+            except DeliveryDeferred as exc:  # that person disconnected Outlook: a new thread instead
+                logger.warning(f"[ThunderSend] {candidate.candidateID}: thread mailbox unavailable ({exc}); "
+                               "starting a new thread")
+        return connected_mailbox(db, candidate.assigned_recruiter_id) or GraphMailbox(settings.THUNDER_MAILBOX)
+
+    @staticmethod
+    def _thread_parent(db: Session, candidate_id: str, seq: int, step: str) -> Optional[ThunderEmailMessage]:
         """Follow-ups reply in our thread; acks and details reminders reply to the candidate's email."""
         if step.startswith("ACK_") or step.startswith(cadence.DETAILS):
             direction = "IN"
@@ -239,4 +257,4 @@ class ThunderSendEmailHandler:
             ThunderEmailMessage.direction == direction, ThunderEmailMessage.graph_message_id.isnot(None),
             ThunderEmailMessage.status.in_(("SENT", "RECEIVED", "PROCESSED")),
         ).order_by(ThunderEmailMessage.created_at.desc()).first()
-        return latest.graph_message_id if latest else None
+        return latest

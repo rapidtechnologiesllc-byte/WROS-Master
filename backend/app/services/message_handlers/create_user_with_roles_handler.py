@@ -9,10 +9,10 @@ from typing import Any, Dict
 
 from sqlalchemy.orm import Session
 
-from app.core.security import get_password_hash
 from app.models.user import Users
 from app.services.org_structure_service import create_org_node
 from app.utils.uniq_id_generator import user_id_generator
+from app.services.account_activation_service import prepare_new_account, queue_account_email
 
 logger = logging.getLogger(__name__)
 
@@ -26,17 +26,15 @@ def handle_create_user_with_roles(message: Any, db: Session) -> Dict[str, Any]:
 
     user_email = payload.get("user_email")
     user_name = payload.get("user_name")
-    user_password = payload.get("user_password")
     role_ids = payload.get("role_ids") or []
     tenant_id = payload.get("tenant_id")
     if not tenant_id:
         raise ValueError("create_user_with_roles payload missing tenant_id")
 
-    if not user_email or not user_name or not user_password:
+    if not user_email or not user_name:
         raise ValueError(
             f"create_user_with_roles payload missing required field(s): "
-            f"user_email={bool(user_email)}, user_name={bool(user_name)}, "
-            f"user_password={bool(user_password)}"
+            f"user_email={bool(user_email)}, user_name={bool(user_name)}"
         )
     if not role_ids:
         raise ValueError("create_user_with_roles payload missing role_ids")
@@ -70,7 +68,6 @@ def handle_create_user_with_roles(message: Any, db: Session) -> Dict[str, Any]:
             UserID=user_id_generator(),
             UserEmail=user_email,
             UserName=user_name,
-            UserPassword=get_password_hash(user_password),
             UserRole=role_template.name,
             role_template_id=role_template.id,
             business_unit_id=payload.get("business_unit_id"),
@@ -79,9 +76,10 @@ def handle_create_user_with_roles(message: Any, db: Session) -> Dict[str, Any]:
             org_node_id=org_node.id,
             job_title=payload.get("job_title"),
             tenant_id=tenant_id,
-            password_reset_required=True,
         )
-        db.add(user)
+        # No password is typed by an admin or emailed (CEO 2026-11-03): the person sets their own from
+        # a single-use link, then is asked to connect Outlook (account_activation_service)
+        prepare_new_account(db, user)
         db.commit()
     except Exception:
         db.rollback()
@@ -92,22 +90,8 @@ def handle_create_user_with_roles(message: Any, db: Session) -> Dict[str, Any]:
         f"role_template_id={role_template.id} org_node_id={org_node.id} tenant_id={tenant_id}"
     )
 
-    # Welcome email (login link + temporary password). The account exists
-    # either way; a failed email is logged and reported in the result.
-    try:
-        from app.services.email_service import EmailService
-        sent = EmailService.send_user_welcome(
-            to_email=user_email, user_name=user_name, temporary_password=user_password,
-            role_name=role_template.display_name or role_template.name,
-        )
-        welcome_email = sent.get("status", "unknown")
-    except Exception as email_error:
-        logger.error(f"[CreateUserWithRoles] Welcome email to {user_email} failed: {email_error}", exc_info=True)
-        welcome_email = f"failed: {email_error}"
-
-    # The queue row keeps its payload: don't leave the password in it
-    if isinstance(getattr(message, "payload", None), dict) and "user_password" in message.payload:
-        message.payload = {k: v for k, v in message.payload.items() if k != "user_password"}
+    # The set-your-password email: once per created account (the activation link is made when it is sent)
+    welcome_email = "queued" if queue_account_email(user, "ACTIVATE", once_key="created") else "already_queued"
 
     return {
         "status": "user_created",

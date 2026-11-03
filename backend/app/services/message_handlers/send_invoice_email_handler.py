@@ -29,6 +29,7 @@ from app.models.location import Location
 from app.models.tenant import Tenant
 from app.services.invoice_service import mark_invoice_sent
 from app.services.message_handlers.base_message_handler import time_bound
+from app.services.mail_sender import mailbox_for_address, record_sent, sender_for
 from app.services.thunder_mail.graph_mailbox import GraphMailbox
 
 logger = logging.getLogger(__name__)
@@ -127,11 +128,17 @@ class SendInvoiceEmailHandler:
 
         # validation 4: content renders from real data
         content = render_invoice_email(db, invoice)
-        mailbox = mailbox or GraphMailbox(delivery.mailbox or settings.FINANCE_MAILBOX)
+        key = f"invoice:{invoice_id}"
+        if mailbox is None:
+            # from whoever sent it to the client (else its approver), in their own Outlook when
+            # connected with the helpdesk copied; else the Finance mailbox (mail_sender)
+            mailbox = mailbox_for_address(db, delivery.mailbox) if delivery.graph_message_id else                 sender_for(db, key, [delivery.requested_by, invoice.approved_by],
+                           fallback=delivery.mailbox or settings.FINANCE_MAILBOX, tenant_id=invoice.tenant_id)
         if delivery.graph_message_id is None:
-            graph_id, _, _ = mailbox.create_draft(delivery.to_address, content["subject"], content["html"],
-                                                  f"invoice:{invoice_id}")
+            graph_id, _, internet_id = mailbox.create_draft(delivery.to_address, content["subject"], content["html"], key)
             delivery.graph_message_id, delivery.status = graph_id, "DRAFTED"
+            delivery.mailbox = getattr(mailbox, "mailbox", None) or delivery.mailbox
+            record_sent(db, key, internet_id)
             db.commit()
             logger.info(f"[InvoiceEmail] drafted invoice={invoice_id} graph_id={graph_id}")
             invoice = db.query(Invoice).filter(Invoice.id == invoice_id).with_for_update().one()

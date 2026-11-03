@@ -29,7 +29,6 @@ export default function UserFormPage() {
   const [formData, setFormData] = useState({
     user_name: '',
     user_email: '',
-    user_password: '',
     job_title: '',
     business_unit_id: '',
     role_template_id: '',
@@ -97,8 +96,7 @@ export default function UserFormPage() {
         ...prev,
         user_name: user.user_name || '',
         user_email: user.user_email || '',
-        user_password: '',
-        job_title: user.job_title || '',
+            job_title: user.job_title || '',
         business_unit_id: user.business_unit_id || '',
         department_id: user.department_id || '',
         role_template_id: user.role_template_id || '',
@@ -130,10 +128,6 @@ export default function UserFormPage() {
 
   const handleEmailChange = (value) => {
     setFormData(prev => ({ ...prev, user_email: value }));
-  };
-
-  const handlePasswordChange = (value) => {
-    setFormData(prev => ({ ...prev, user_password: value }));
   };
 
   const handleWhatsappChange = (value) => {
@@ -260,10 +254,6 @@ export default function UserFormPage() {
       setActionError('Email is required');
       return;
     }
-    if (mode === 'create' && !formData.user_password.trim()) {
-      setActionError('Password is required');
-      return;
-    }
     if (!formData.business_unit_id) {
       setActionError('Business Unit is required');
       return;
@@ -294,7 +284,6 @@ export default function UserFormPage() {
           parent_node_id: isCeo ? null : (formData.parent_node_id || null),
           department_id: formData.department_id || null,
           location_id: formData.location_id || null,
-          user_password: formData.user_password
         };
         const { data: queued } = await apiRequest('/hr/users/create-with-roles', {
           method: 'POST',
@@ -416,21 +405,13 @@ export default function UserFormPage() {
             />
           </div>
 
-          {/* Password (create mode only) */}
+          {/* No password here (CEO 2026-11-03): the person is emailed a link to set their own, then
+              asked to connect Outlook so HRMS emails go from their own mailbox */}
           {mode === 'create' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Password *
-              </label>
-              <Input
-                type="password"
-                value={formData.user_password}
-                onChange={handlePasswordChange}
-                placeholder="Enter secure password"
-                disabled={saving}
-                required
-              />
-            </div>
+            <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3">
+              They'll get an email to set their own password (the link works once, for 7 days). After they sign
+              in, HRMS asks them to connect their Outlook so the emails they send go from their own mailbox.
+            </p>
           )}
 
           {/* Job Title */}
