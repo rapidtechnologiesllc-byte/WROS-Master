@@ -305,6 +305,10 @@ class Settings:
     THUNDER_SEND_WINDOW: str = os.getenv("THUNDER_SEND_WINDOW", "09-18")  # candidate-local hours
     THUNDER_MIN_GAP_HOURS: int = int(os.getenv("THUNDER_MIN_GAP_HOURS", "48"))
     THUNDER_NURTURE_INTERVAL_DAYS: int = int(os.getenv("THUNDER_NURTURE_INTERVAL_DAYS", "30"))
+    # Days of silence before each follow-up: after email 1, 2 and 3 (CEO 2026-11-03: "after the cold email
+    # we give them atleast 1 week to 10 days before we send second one" -- a stranger's first email is
+    # easily missed or filtered, and too many too soon lands in junk)
+    THUNDER_FOLLOWUP_DAYS: str = os.getenv("THUNDER_FOLLOWUP_DAYS", "8,14,21")
     # A candidate who replied while profile details are missing is reminded every N days until the
     # profile is complete (cadence_service DETAILS steps), at most THUNDER_MAX_DETAILS_REMINDERS times
     THUNDER_DETAILS_REMINDER_DAYS: int = int(os.getenv("THUNDER_DETAILS_REMINDER_DAYS", "15"))

@@ -29,7 +29,21 @@ logger = logging.getLogger(__name__)
 SEND_TASK = "thunder_send_email"
 INBOUND_TASK = "thunder_process_inbound_email"
 # Silence after step N -> step N+1 after this many days; after step 4 -> NURTURE
-SILENCE_DELAY_DAYS = {"1": 3, "2": 7, "3": 14}
+MIN_FIRST_FOLLOWUP_DAYS = 7  # never sooner than a week after the first email, whatever the setting
+
+
+def silence_delay_days() -> Dict[str, int]:
+    """{sent step: days of silence before the next one} from settings.THUNDER_FOLLOWUP_DAYS."""
+    raw = settings.THUNDER_FOLLOWUP_DAYS or ""
+    try:
+        days = [int(part) for part in raw.split(",") if part.strip()]
+    except ValueError as exc:
+        raise ValueError(f"THUNDER_FOLLOWUP_DAYS must be three whole numbers of days (e.g. 8,14,21), got {raw!r}") from exc
+    if len(days) != 3 or any(d <= 0 for d in days):
+        raise ValueError(f"THUNDER_FOLLOWUP_DAYS must be three positive numbers of days (e.g. 8,14,21), got {raw!r}")
+    days[0] = max(days[0], MIN_FIRST_FOLLOWUP_DAYS)
+    return {"1": days[0], "2": days[1], "3": days[2]}
+
 NOT_NOW_PAUSE_DAYS = 90
 AUTO_REPLY_PUSH_DAYS = 3
 MAX_NURTURE_JOBS = 5
@@ -269,6 +283,10 @@ def personal_hook(db: Session, candidate: Candidate) -> str:
     headline = (data.get("headline") or {}).get("value")
     if headline:
         return f"Your experience as {html.escape(headline)} stood out. "
+    title = (candidate.candidateJobTitle or "").strip()
+    company = (getattr(candidate, "candidateCurrentCompany", None) or "").strip()
+    if title:  # what the profile says they do, never invented
+        return f"Your experience as {html.escape(title)}{' at ' + html.escape(company) if company else ''} stood out. "
     return ""
 
 
@@ -281,6 +299,7 @@ def render(variant: ThunderOutreachVariant, candidate: Candidate, job: Optional[
         "sender_name": html.escape(settings.OUTREACH_SENDER_NAME),
         "job_title": html.escape(job.jobTitle) if job else "",
         "job_location": html.escape(job.jobLocation or "") if job else "",
+        "job_location_phrase": f" ({html.escape(job.jobLocation)})" if job and job.jobLocation else "",
         "salary_range": html.escape(job.salaryRange or "") if job else "",
         **(extra or {}),
     })
@@ -299,9 +318,10 @@ def plain_text(body_html: str) -> str:
 
 def schedule_after_send(state: ThunderCadenceState, sent_step: str, now: datetime) -> None:
     family = step_family(sent_step)
-    if family in SILENCE_DELAY_DAYS:
+    delays = silence_delay_days()
+    if family in delays:
         state.next_step = str(int(family) + 1)
-        state.next_action_at = now + timedelta(days=SILENCE_DELAY_DAYS[family])
+        state.next_action_at = now + timedelta(days=delays[family])
     elif family in ("4", "NURTURE"):
         state.stage = "NURTURE"
         when = now + timedelta(days=settings.THUNDER_NURTURE_INTERVAL_DAYS)

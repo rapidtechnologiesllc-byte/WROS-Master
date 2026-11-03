@@ -9,6 +9,7 @@ import base64
 import io
 import json
 import logging
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Tuple
@@ -217,6 +218,39 @@ def _leading_name(text: str) -> Optional[str]:
     return " ".join(words[:3]) if 2 <= len(words) else None
 
 
+# A PDF's text layer often breaks an address apart ("jane.doe03 | @gmail.com"): rejoin it
+SPLIT_EMAIL_PATTERN = re.compile(r"([A-Za-z0-9._%+-]+)[\s|]+(@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})")
+
+
+def join_split_emails(text: str) -> str:
+    return SPLIT_EMAIL_PATTERN.sub(r"\1\2", text or "")
+
+
+def _name_from_file(name: Optional[str]) -> Optional[str]:
+    """"JanePriyaDoe-Resume.pdf" -> "JanePriya Doe": the CamelCase name a resume file starts with."""
+    stem = re.split(r"[-_.\s(]", os.path.basename(name or ""))[0]
+    words = re.findall(r"[A-Z][a-z]+(?:[A-Z][a-z]+)?", stem)
+    parts = re.findall(r"[A-Z][a-z]+", stem)
+    if len(parts) < 2 or "".join(parts) != stem:
+        return None
+    # JanePriyaDoe: the last capitalised part is the surname, the rest the given name
+    return f"{''.join(parts[:-1])} {parts[-1]}" if words else None
+
+
+def _name_in(text: str, candidates: List[str]) -> Optional[str]:
+    """The first candidate name that also appears in the text (case-insensitive)."""
+    flat = " ".join((text or "").split()).lower()
+    return next((c for c in candidates if c and c.lower() in flat), None)
+
+
+def _subject_names(subject: str, internal_names: List[str]) -> List[str]:
+    """A meeting or email subject like "Jane Doe | Sam Lee": its two-word name parts
+    that are not one of our own people."""
+    ours = {n.lower() for n in internal_names if n}
+    parts = [p.strip() for p in re.split(r"[|,/;:-]| and | with ", subject or "") if p.strip()]
+    return [p for p in parts if re.fullmatch(r"[A-Z][A-Za-z'.]+(?: [A-Z][A-Za-z'.]+){1,2}", p) and p.lower() not in ours]
+
+
 def _split_name(full: Optional[str]):
     parts = [p for p in re.split(r"\s+", (full or "").strip()) if p]
     if len(parts) < 2:
@@ -251,10 +285,15 @@ def _rule_kind(text: str, resume: Optional[Attachment]) -> str:
 
 
 def read_forward(db: Session, tenant_id: int, subject: str, body: str, raw_attachments: List[Dict],
-                 internal_emails: List[str], *, llm_call: Optional[Callable] = None) -> ForwardReading:
-    """internal_emails: addresses that are never the candidate (the forwarder, the mailbox)."""
+                 internal_emails: List[str], *, llm_call: Optional[Callable] = None,
+                 recipients: Optional[List[Dict]] = None, internal_names: Optional[List[str]] = None) -> ForwardReading:
+    """internal_emails: addresses that are never the candidate (the forwarder, the mailbox).
+    recipients: [{name, email}] the email went to; when one of our people wrote to exactly one outside
+    person (an invitation to talk), that person is the candidate. internal_names: our people's names."""
     attachments, unreadable = read_attachments(raw_attachments)
     resume = pick_resume(attachments)
+    if resume is not None:
+        resume.text = join_split_emails(resume.text)
 
     body = f"{body or ''}\n\n{attached_emails_text(raw_attachments)}".strip()
     resume_text = resume.text if resume else ""
@@ -265,11 +304,21 @@ def read_forward(db: Session, tenant_id: int, subject: str, body: str, raw_attac
     sender_name, sender_email = _forwarded_sender(body)
     if sender_email in internal:
         sender_name, sender_email = None, None
+    outside = [r for r in recipients or [] if r.get("email") and r["email"].lower() not in internal]
+    if sender_email is None and len(outside) == 1:  # we wrote to one outside person: them
+        sender_name, sender_email = outside[0].get("name") or None, outside[0]["email"].lower()
+        if sender_email not in emails:
+            emails.insert(0, sender_email)
 
     from app.services.resume_parser_slm import ResumeSLM
 
     parsed = ResumeSLM.parse_resume(resume_text) if resume_text else {}
-    first, last = _split_name(parsed.get("full_name") or _leading_name(resume_text) or sender_name)
+    # the name: the resume's own, else a name the email's subject or the resume's file name gives that
+    # the resume confirms, else the recipient's display name
+    hinted = _subject_names(subject, internal_names or []) + [_name_from_file(resume.name if resume else None)]
+    full_name = (parsed.get("full_name") or _leading_name(resume_text) or _name_in(resume_text or body, hinted)
+                 or (sender_name if sender_name and " " in sender_name.strip() else None))
+    first, last = _split_name(full_name)
     candidate = {
         "first_name": first, "last_name": last,
         "email": (parsed.get("email") or "").lower() or sender_email or (emails[0] if emails else None),

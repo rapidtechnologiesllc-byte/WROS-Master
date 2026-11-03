@@ -77,8 +77,12 @@ def world(db):
         db.add(Tenant(id=1, name="test-tenant"))
         db.flush()
     seed_thunder_variants(db)
+    job = Jobs(tenant_id=1, jobTitle="Guidewire Developer", jobDescription="d", jobSkills="Guidewire",
+               jobExperience="5", jobLocation="Remote")
+    db.add(job)
+    db.flush()
     candidate = Candidate(
-        tenant_id=1, candidateID=f"CAN-{uuid.uuid4().hex[:10]}", candidateEmail=f"ankur{uuid.uuid4().hex[:6]}@ankur.dev",
+        tenant_id=1, candidateID=f"CAN-{uuid.uuid4().hex[:10]}", candidateEmail=f"ankur{uuid.uuid4().hex[:6]}@ankur.dev", job_id=job.jobID,
         candidatePassword="h", candidateFirstName="Ankurjit", candidateLastName="Singh",
         candidateSkills="Python, Kafka", candidateCurrentLocation="Bengaluru", thunder_enabled=True,
         timezone="UTC",
@@ -719,3 +723,19 @@ def test_reading_a_decision_in_our_email(text, reason):
     from app.services.thunder_mail.staff_email_service import read_decision
     found = read_decision(text)
     assert (found or {}).get("reason") == reason
+
+
+def test_a_booked_interview_turns_thunder_to_collecting_the_missing_details(db, world):
+    """CEO 2026-11-03: with an interview booked Thunder stops selling the role but still asks for what
+    the profile is missing (it used to switch itself off)."""
+    from app.services.message_handler_registry import _pause_thunder_on_interview
+
+    message = SimpleNamespace(id="m-int", payload={"candidate_id": world.candidate.candidateID})
+    with patch(ENQUEUE, return_value={"message_id": "x", "task_id": "x"}) as enqueue:
+        result = _pause_thunder_on_interview(message, db)
+    db.refresh(world.state)
+    db.refresh(world.candidate)
+    assert result["thunder_paused"] is False and result["collecting_details"]
+    assert world.candidate.thunder_enabled is True and world.state.stage == "HANDOFF"
+    assert world.state.next_step.startswith(cadence.DETAILS)
+    assert enqueue.call_args.kwargs["data"]["step"] == world.state.next_step

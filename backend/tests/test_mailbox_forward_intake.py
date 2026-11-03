@@ -616,3 +616,59 @@ def test_a_certification_expiry_alert_is_recorded_on_the_employee_with_a_renewal
     renew = db.query(Task).filter(Task.title.like("Renew Ace Guidewire for Aniket Magar%")).one()
     assert renew.due_date == datetime(2027, 4, 30) - timedelta(days=60) and renew.link == f"/employees/{employee.id}"
     assert db.query(Task).filter(Task.title.like("Certification alert: 1 person%")).count() == 1
+
+
+# ---- a Teams meeting set up with a candidate (CEO 2026-11-03: "a meeting was setup but the system didnt
+# create a candidate and thunder didnt autonomously start working on mapping the interview") ----------
+
+class MeetingMailbox(FakeMailbox):
+    """A meeting request the CEO sent to the candidate and a partner, the helpdesk copied."""
+
+    def __init__(self, inbox, bodies, attachments, to, meeting):
+        super().__init__(inbox, bodies, attachments)
+        self.to, self.meeting = to, meeting
+
+    def get_message(self, message_id):
+        return {**super().get_message(message_id), "toRecipients": self.to}
+
+    def get_meeting(self, message_id):
+        return self.meeting
+
+
+def test_a_meeting_with_a_candidate_creates_the_candidate_and_the_scheduled_interview(db, ceo, storage):
+    from app.models.user import Interview, PanelMember
+
+    troy = staff(db, name="Troy Towsley")
+    # the PDF's text layer splits the address ("shivaprasadadluri03 | @gmail.com") and opens with "Email:"
+    resume = file_attachment("ShivaPrasadAdluri-Digital_Core_ACE_Certified.pdf",
+                             pdf_bytes("Email: shivaprasadadluri03 | @gmail.com ShivaPrasad Adluri Ph: 216-212-9887"))
+    body = ("Hello Shiva, Scheduling time to discuss with my partner Troy Towsley regarding the roles we discussed.\n"
+            "I am ShivaPrasad Adluri, Sr Guidewire Developer.\n"
+            "Microsoft Teams meeting Join: https://teams.microsoft.com/meet/473154335567838?p=wlJF8b2PGU")
+    row, plain = received_forward(db, ceo, body, [resume], subject="ShivaPrasad Adluri | Troy Towsley")
+    to = [{"emailAddress": {"name": "Shiva Adluri", "address": "shivaprasadadluri03@gmail.com"}},
+          {"emailAddress": {"name": "Troy Towsley", "address": troy.UserEmail}}]
+    mailbox = MeetingMailbox(plain.inbox, plain.bodies, plain.attachments, to,
+                             {"start": "2026-11-04T18:30:00.0000000", "end": "2026-11-04T19:00:00.0000000",
+                              "location": "Microsoft Teams Meeting", "type": "meetingRequest"})
+
+    result, queued = run_handler(db, row.id, mailbox)  # no model: rules only
+    assert result["status"] == "candidate_queued", result
+    create = next(q for q in queued if q["task_name"] == "create_candidate")["data"]
+    assert "shivaprasadadluri03@gmail.com" in json.dumps(create).lower()  # from the To line and the rejoined resume
+    created = run_creation(db, queued)
+    result, queued = run_handler(db, row.id, mailbox)
+    assert result["status"] == "processed", result
+    candidate = db.query(Candidate).filter_by(candidateID=created["candidate_id"]).one()
+    assert (candidate.candidateFirstName, candidate.candidateLastName) == ("ShivaPrasad", "Adluri")
+    interview = db.query(Interview).filter_by(candidate_id=candidate.candidateID).one()
+    assert (interview.status, interview.start_time) == ("Scheduled", datetime(2026, 11, 4, 18, 30))
+    assert interview.meeting_link.startswith("https://teams.microsoft.com/meet/")
+    assert {m.interviewer_id for m in db.query(PanelMember).filter_by(panel_id=interview.panel_id)} == \
+        {ceo.UserID, troy.UserID}
+    assert any(q["task_name"] == "interview_scheduled" for q in queued)  # Thunder and the pipeline follow
+    # the same meeting read again records nothing new
+    db.query(MailboxIntakeMessage).filter_by(id=row.id).update({"status": "CANDIDATE_QUEUED"})
+    db.commit()
+    run_handler(db, row.id, mailbox)
+    assert db.query(Interview).filter_by(candidate_id=candidate.candidateID).count() == 1

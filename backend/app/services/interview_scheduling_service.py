@@ -318,3 +318,60 @@ def mark_invite_sent(db: Session, interview: Interview) -> None:
         db.add(row)
     if row.sent_at is None:
         row.sent_at = datetime.utcnow()
+
+
+# --------------------------------------------------------------------------- a meeting set up in Outlook
+
+def record_outlook_meeting(db: Session, candidate: Candidate, organizer: Users, member_ids, *, start: datetime,
+                           end: datetime, meeting_link: Optional[str], outlook_ref: str,
+                           round_name: str = "Screening") -> Tuple[Interview, bool]:
+    """A meeting one of our people already set up with the candidate in Outlook (CEO 2026-11-03: "a
+    meeting was setup but the system didnt create a candidate"): recorded as the Scheduled interview it
+    is, the organizer and our other attendees as its panel. The invitation went from Outlook already,
+    so none is sent; Thunder, the pipeline and the feedback tasks follow as for any scheduled interview
+    (after_commit_outlook_meeting). Like a logged interview it is recorded even when the 5+ years are
+    not verified -- the meeting exists -- and the history says so; offers and submissions still check.
+    Idempotent by outlook_ref. Returns (interview, created). Flushes; the caller commits."""
+    existing = db.query(Interview).filter(Interview.outlook_event_id == outlook_ref).first()
+    if existing is not None:
+        return existing, False
+    start, end = to_naive_utc(start), to_naive_utc(end)
+    if end <= start:
+        raise ValueError("The meeting ends before it starts")
+    unverified = None
+    try:
+        require_experience(candidate)
+    except HTTPException as exc:
+        unverified = str(exc.detail)
+    members = list(dict.fromkeys([organizer.UserID, *[m for m in member_ids if m]]))
+    panel = InterviewPanel(candidate_id=candidate.candidateID, job_id=None, round_name=round_name[:50])
+    db.add(panel)
+    db.flush()
+    db.add_all(PanelMember(panel_id=panel.id, interviewer_id=m) for m in members)
+    interview = Interview(panel_id=panel.id, candidate_id=candidate.candidateID, start_time=start, end_time=end,
+                          meeting_link=meeting_link, outlook_event_id=outlook_ref, status="Scheduled")
+    db.add(interview)
+    db.flush()
+    from app.models.candidate_history import CandidateHistory
+
+    db.add(CandidateHistory(candidateID=candidate.candidateID, event_type="Interview Scheduled",
+                            note=f"{round_name} meeting on {start:%d %b %Y %H:%M} UTC set up in Outlook by "
+                                 f"{organizer.UserName or organizer.UserEmail}"
+                                 + (f" ({unverified})" if unverified else "") + "."))
+    return interview, True
+
+
+def after_commit_outlook_meeting(db: Session, interview: Interview) -> None:
+    """after_commit without the invitation (Outlook sent it)."""
+    from app.services.hiring_pipeline_service import notify
+    from app.services.interview_feedback_task_service import sync_pending_feedback_tasks_for_interview
+    from app.services.thunder_mail.cadence_service import enqueue_once
+
+    candidate = db.query(Candidate).filter(Candidate.candidateID == interview.candidate_id).first()
+    enqueue_once(INTERVIEW_SCHEDULED_TASK, f"interview-scheduled:{interview.id}", {
+        "interview_id": interview.id, "candidate_id": interview.candidate_id, "panel_id": interview.panel_id,
+        "start_time": interview.start_time.isoformat(), "end_time": interview.end_time.isoformat(),
+        "meeting_link": interview.meeting_link,
+    }, candidate.tenant_id if candidate else None)
+    notify(interview.candidate_id, "interview_scheduled", interview.id)
+    sync_pending_feedback_tasks_for_interview(db, interview)

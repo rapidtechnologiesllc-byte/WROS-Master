@@ -75,13 +75,16 @@ def _retire_opt_out_outliers(db: Session, variants: List[ThunderOutreachVariant]
 
 
 def choose_variant(db: Session, step_family: str, *, rng: Optional[random.Random] = None,
-                   job_available: bool = True) -> ThunderOutreachVariant:
+                   job_available: bool = True, role_first: bool = False) -> ThunderOutreachVariant:
+    """role_first: with a role on file, only the variants that name it (when any exist for the step)."""
     rng = rng or random.Random()
     query = db.query(ThunderOutreachVariant).filter(
         ThunderOutreachVariant.step == step_family, ThunderOutreachVariant.active.is_(True),
     )
     if not job_available:
         query = query.filter(ThunderOutreachVariant.requires_job.is_(False))
+    elif role_first and query.filter(ThunderOutreachVariant.requires_job.is_(True)).first() is not None:
+        query = query.filter(ThunderOutreachVariant.requires_job.is_(True))
     variants = query.order_by(ThunderOutreachVariant.id).all()
     if not variants:
         raise ValueError(f"No active approved variant for step {step_family}")

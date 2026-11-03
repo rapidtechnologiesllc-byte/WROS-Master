@@ -22,6 +22,14 @@ SEED_VARIANTS = [
     ("s1_direct", "1", "{first_name}, a quick question about your next move",
      "<p>Hi {first_name},</p><p>{hook}I'd like to share a role that I think fits where you're heading. "
      "A 15-minute conversation is all I'm asking for.</p><p>Would you be open to that?</p>"),
+    # CEO 2026-11-03 ("it didnt know what role im reaching out to about"): with a role on file the first
+    # email names it; the generic ones above are never used then
+    ("s1_role", "1", "{first_name}, the {job_title} role",
+     "<p>Hi {first_name},</p><p>{hook}I'm reaching out about a {job_title} role{job_location_phrase} that I "
+     "think fits where you're heading. Would a 15-minute call this week work to walk you through it?</p>"),
+    ("s1_role_next", "1", "{first_name}, a {job_title} opportunity",
+     "<p>Hi {first_name},</p><p>{hook}We're hiring a {job_title}{job_location_phrase}, and your background "
+     "is the kind we look for. Open to a short conversation about it?</p>"),
     ("s1_curiosity", "1", "{first_name}, are you open to hearing about something new?",
      "<p>Hi {first_name},</p><p>{hook}We're growing a team where people like you tend to do their best work. "
      "No pressure if you're happy where you are.</p><p>Worth a short chat this week?</p>"),
@@ -68,7 +76,7 @@ SEED_VARIANTS = [
      "<p>Hi {first_name},</p><p>Following up on our conversation: we are still missing a few details "
      "to put your profile forward for the right roles.</p>"),
 ]
-REQUIRES_JOB = {"ack_comp"}
+REQUIRES_JOB = {"ack_comp", "s1_role", "s1_role_next"}
 
 
 def seed_thunder_variants(db: Session) -> int:

@@ -140,7 +140,13 @@ def test_a_staff_email_goes_from_the_person_who_did_the_action(db, people):
 @pytest.fixture
 def candidate(db, people):
     seed_thunder_variants(db)
-    person = Candidate(tenant_id=1, candidateID=f"CAN-{uid()}", candidateEmail=f"ankur{uid()}@ankur.dev",
+    from app.models.user import Jobs
+
+    job = Jobs(tenant_id=1, jobTitle="Guidewire Developer", jobDescription="d", jobSkills="Guidewire",
+               jobExperience="5", jobLocation="Remote")
+    db.add(job)
+    db.flush()
+    person = Candidate(tenant_id=1, candidateID=f"CAN-{uid()}", candidateEmail=f"ankur{uid()}@ankur.dev", job_id=job.jobID,
                        candidatePassword="h", candidateFirstName="Ankurjit", candidateLastName="Singh",
                        candidateSkills="Guidewire", thunder_enabled=True, timezone="UTC",
                        assigned_recruiter_id=people.recruiter.UserID)
