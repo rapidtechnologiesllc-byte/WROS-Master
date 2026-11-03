@@ -42,6 +42,19 @@ class ResumeParseFeedback:
 
 logger = logging.getLogger(__name__)
 
+def feedback_session_for(source_id: str) -> str:
+    """An anonymised feedback session id for one correction of a record: a keyed hash of the record
+    (so its corrections group by prefix without the SLM data naming the candidate) plus a unique
+    suffix (slm_feedback.feedback_session_id is unique per row)."""
+    import hashlib
+    import uuid
+
+    from app.core.config import settings
+
+    group = hashlib.sha256(f"{settings.JWT_SECRET}:slm:{source_id}".encode()).hexdigest()[:24]
+    return f"{group}-{uuid.uuid4().hex[:12]}"
+
+
 class SLMFeedbackEngine:
     """
     Engine for collecting feedback and improving the SLM model.

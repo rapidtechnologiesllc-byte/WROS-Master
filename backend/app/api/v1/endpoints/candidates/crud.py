@@ -789,19 +789,20 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
     # Wire SLM: Record corrections for learning
     if corrections:
         try:
-            from app.services.slm_feedback_engine import SLMFeedbackEngine
+            from app.services.slm_feedback_engine import SLMFeedbackEngine, feedback_session_for
             for field_name, (parsed_value, corrected_value) in corrections.items():
                 SLMFeedbackEngine.record_correction(
                     db=db,
-                    candidate_id=candidate_id,
+                    feedback_session_id=feedback_session_for(candidate_id),  # anonymised, unique per row
                     field_name=field_name,
                     parsed_value=str(parsed_value) if parsed_value is not None else "",
                     corrected_value=str(corrected_value) if corrected_value is not None else "",
                     confidence_score=0.5  # Recruiter correction
                 )
+            db.commit()
             logger.info(f"[SLM] Recorded {len(corrections)} corrections for candidate: {candidate_id}")
         except Exception as e:
-            logger.error(f"Error: {str(e)}", exc_info=True)
+            db.rollback()
             logger.error(f"[SLM] Failed to record candidate corrections: {e}", exc_info=True)
             # Continue - SLM failure shouldn't block updates
 

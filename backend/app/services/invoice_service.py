@@ -405,4 +405,7 @@ def mark_invoice_paid(db: Session, invoice: Invoice, *, paid_at: Optional[dateti
     db.add(invoice)
     db.flush()
     recognize_revenue(db, invoice)
+    from app.services.vendor_invoice_service import on_client_invoice_paid
+
+    on_client_invoice_paid(db, invoice)  # pay-when-paid: vendor invoices this payment unblocks
     return invoice

@@ -46,6 +46,9 @@ def _legacy(section: dict) -> dict:
         "overhead_cost_usd_cents": section["overhead_cost_usd_cents"],
         "htd_cost_usd_cents": section["htd_cost_usd_cents"],
         "expense_cost_usd_cents": section["expense_cost_usd_cents"],
+        "vendor_cost_usd_cents": section["vendor_cost_usd_cents"],
+        "vendor_invoiced_usd_cents": section["vendor_invoiced_usd_cents"],
+        "vendor_paid_usd_cents": section["vendor_paid_usd_cents"],
     }
 
 

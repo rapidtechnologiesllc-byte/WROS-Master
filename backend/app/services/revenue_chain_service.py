@@ -19,6 +19,11 @@ never disagree:
   (CEO 2026-10-24). delivery + bench + overhead + HTD = every employee's loaded payroll for the period.
 - *Revenue* in the P&L is earned revenue (billed + approved-unbilled work in
   the period, by timesheet week). Cash collected is reported beside it.
+- *Contractor cost* (CEO 2026-11-02): a contractor supplied by a sub-vendor (Employee.sub_vendor_id)
+  has no payroll; their delivery cost is the vendor's invoice line for the timesheet, else (not yet
+  invoiced) billable hours x their vendor rate. They carry no bench or overhead. Lines report
+  vendor_cost / vendor_invoiced / vendor_paid, so the P&L shows what is owed to vendors beside cash
+  collected from clients (pay-when-paid: vendor_invoice_service).
 - *Expense cost* = manager-approved expenses dated in the period, attributed through
   the expense's client (else the business unit of whoever logged it).
 - *Partner* = the partner of the business unit that owns the client
@@ -203,6 +208,9 @@ def chain_lines(
         invoice_lines[item.timesheet_id].append(item)
     invoices = _by_id(db, Invoice, Invoice.id, (i.invoice_id for items in invoice_lines.values() for i in items))
     employees = _by_id(db, Employee, Employee.id, (ts.employee_id for ts, _ in rows))
+    from app.services.vendor_invoice_service import vendor_cost_by_timesheet
+
+    vendor_costs = vendor_cost_by_timesheet(db, timesheet_ids)
     jobs = _by_id(db, Jobs, Jobs.jobID, (a.demand_id for _, a in rows))
     projects = _by_id(db, Project, Project.id, (a.project_id for _, a in rows))
     clients = _by_id(db, Client, Client.id, (a.client_id for _, a in rows))
@@ -250,12 +258,25 @@ def chain_lines(
             flags.append("NO_BILL_RATE")
         if len(billed) > 1:
             flags.append("BILLED_MORE_THAN_ONCE")
-        hourly = costs.hourly(employee, ts.week_starting_date) if employee is not None else None
-        cost_bu_id, cost_company_id, cost_country = costs.object_on(employee, ts.week_starting_date) \
-            if employee is not None else (None, None, None)
-        if hourly is None and hours > 0:
-            flags.append("NO_COST_DATA")
-        cost = round(hourly * hours) if hourly is not None else (0 if hours == 0 else None)
+        cost_bu_id, cost_company_id, cost_country = costs.object_on(employee, ts.week_starting_date)             if employee is not None else (None, None, None)
+        vendor_invoiced = vendor_paid = 0
+        if employee is not None and employee.sub_vendor_id:  # contractor: the vendor's charge, not payroll
+            on_invoice = vendor_costs.get(ts.id)
+            if on_invoice is not None:
+                cost = vendor_invoiced = on_invoice["amount"]
+                vendor_paid = cost if on_invoice["paid"] else 0
+            elif employee.vendor_hourly_rate_usd_cents:
+                cost = round(employee.vendor_hourly_rate_usd_cents * hours)
+            else:
+                cost = 0 if hours == 0 else None
+                if hours > 0:
+                    flags.append("NO_VENDOR_RATE")
+        else:
+            hourly = costs.hourly(employee, ts.week_starting_date) if employee is not None else None
+            if hourly is None and hours > 0:
+                flags.append("NO_COST_DATA")
+            cost = round(hourly * hours) if hourly is not None else (0 if hours == 0 else None)
+        vendor_cost = (cost or 0) if employee is not None and employee.sub_vendor_id else 0
 
         lines.append({
             "timesheet_id": ts.id, "week_starting_date": ts.week_starting_date.isoformat(),
@@ -273,6 +294,8 @@ def chain_lines(
             "billed_usd_cents": billed_amount, "collected_usd_cents": collected,
             "unbilled_usd_cents": unbilled, "pending_approval_usd_cents": pending,
             "earned_usd_cents": earned, "cost_usd_cents": cost,
+            "vendor_cost_usd_cents": vendor_cost, "vendor_invoiced_usd_cents": vendor_invoiced,
+            "vendor_paid_usd_cents": vendor_paid, "sub_vendor_id": employee.sub_vendor_id if employee else None,
             "margin_usd_cents": earned - cost if cost is not None else None,
             # the cost object the delivery cost is charged to: where the employee sat that week
             "cost_business_unit_id": cost_bu_id, "cost_company_id": cost_company_id, "country": cost_country,
@@ -293,7 +316,9 @@ def earned_revenue(db: Session, *, start: date, end: date, tenant_id: Optional[i
 
 
 AMOUNTS = ("billable_hours", "billed_usd_cents", "collected_usd_cents", "unbilled_usd_cents",
-           "pending_approval_usd_cents", "earned_usd_cents")
+           "pending_approval_usd_cents", "earned_usd_cents",
+           # contractor cost (part of delivery cost), what vendors invoiced, and what we paid them
+           "vendor_cost_usd_cents", "vendor_invoiced_usd_cents", "vendor_paid_usd_cents")
 LABELS = {
     "employee": ("employee_id", "employee_name"), "candidate": ("candidate_id", "employee_name"),
     "job": ("job_id", "job_title"), "project": ("project_id", "project_name"),
@@ -375,6 +400,8 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
     company_staff_cost: Dict = defaultdict(lambda: {"bench": 0, "overhead": 0, "htd": 0, "complete": True})
     missing_cost = sorted({line["employee_id"] for line in lines if line["cost_usd_cents"] is None})
     for employee in staff:
+        if employee.sub_vendor_id:
+            continue  # a contractor has no payroll: their cost is on their timesheet lines
         # the part of the period this person was in HTD training, by cost object
         training = {}
         if employee.htd_start_date:

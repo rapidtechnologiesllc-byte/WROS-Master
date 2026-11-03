@@ -49,6 +49,7 @@ from app.models.project import Project
 from app.models.user import Users
 from app.models.invoice_delivery import InvoiceDelivery
 from app.schemas.invoice import (
+    AutoInvoicingRun,
     GenerateInvoiceRequest,
     MarkPaidRequest,
     RecordPaymentRequest,
@@ -122,6 +123,23 @@ def _get_invoice_or_404(db: Session, invoice_id: str, user: Users) -> Invoice:
     if invoice is None:
         raise HTTPException(status_code=404, detail="Invoice not found.")
     return invoice
+
+@router.post(
+    "/run-automation",
+    response_model=AutoInvoicingRun,
+    summary="Draft every invoice that is due now from approved timesheets (what the daily job does)",
+    dependencies=[Depends(require_resource_permission("invoices", "create"))]
+)
+def run_automation_endpoint(db: Session = Depends(get_db),
+                            current_user: Users = Depends(get_current_internal_user)):
+    """CEO 2026-11-02: invoicing "has to be automatic". The daily auto_invoicing job drafts each
+    project's invoice from approved timesheets; this runs it now. Every draft still waits for
+    Finance approval before the client is emailed, so running it early never sends anything."""
+    from app.services.invoice_automation_service import run_auto_invoicing
+
+    result = run_auto_invoicing(db)
+    logger.info(f"[Invoices] auto-invoicing run by {current_user.UserID}: {result}")
+    return AutoInvoicingRun(**result)
 
 @router.post(
     "/generate",

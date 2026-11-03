@@ -6,8 +6,9 @@ import { Fragment, useCallback, useEffect, useState } from "react";
 import { Receipt, RefreshCw, CheckCircle2, Send, DollarSign } from "lucide-react";
 import { Card, Button, Input } from "../components/ui";
 import cx from "../utils/cx";
+import VendorInvoicesTab from "../components/VendorInvoicesTab";
 import {
-  generateInvoice,
+  runAutoInvoicing,
   approveInvoice,
   sendInvoice,
   recordExternalDelivery,
@@ -28,63 +29,54 @@ function formatUsdCents(cents) {
   return `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function GenerateInvoiceForm({ onGenerated }) {
-  const [open, setOpen] = useState(false);
-  const [projectId, setProjectId] = useState("");
-  const [periodStart, setPeriodStart] = useState("");
-  const [periodEnd, setPeriodEnd] = useState("");
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
+// CEO 2026-11-02: invoicing "has to be automatic". The daily job drafts each project's invoice
+// from approved timesheets (last month first); Finance approves, then it is emailed to the client.
+// "Check now" runs the same job immediately -- nothing reaches a client before Finance approves.
+const RUN_OUTCOMES = [
+  ["awaiting", "draft(s) waiting for your review"],
+  ["waiting", "project(s) waiting for timesheet approval"],
+  ["held", "held -- see your Finance tasks"],
+  ["unlinked", "allocation(s) with approved hours but no project"],
+  ["failed", "failed (logged)"],
+];
 
-  const handleSubmit = async () => {
-    if (!projectId.trim() || !periodStart || !periodEnd) {
-      setError("Project ID and both period dates are required.");
-      return;
-    }
-    setSaving(true);
+function AutoInvoicingPanel({ onRan }) {
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+
+  const run = async () => {
+    setRunning(true);
     setError("");
     try {
-      await generateInvoice(projectId.trim(), periodStart, periodEnd);
-      setProjectId("");
-      setPeriodStart("");
-      setPeriodEnd("");
-      setOpen(false);
-      onGenerated();
+      const res = await runAutoInvoicing();
+      setResult(res);
+      onRan();
     } catch (err) {
-      setError(err.message || "Failed to generate invoice.");
+      setError(err.message || "Could not run invoicing.");
     } finally {
-      setSaving(false);
+      setRunning(false);
     }
   };
 
-  if (!open) {
-    return (
-      <Button variant="primary" onClick={() => setOpen(true)}>
-        <Receipt className="h-4 w-4" /> Generate Invoice
-      </Button>
-    );
-  }
-
+  const outcomes = result ? RUN_OUTCOMES.filter(([key]) => result[key]) : [];
   return (
-    <div className="rounded-2xl border p-4">
-      {error ? (
-        <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-          {error}
-        </div>
-      ) : null}
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Input label="Project ID" value={projectId} onChange={setProjectId} placeholder="project UUID" />
-        <Input label="Period start" type="date" value={periodStart} onChange={setPeriodStart} />
-        <Input label="Period end" type="date" value={periodEnd} onChange={setPeriodEnd} />
+    <div className="flex flex-1 flex-wrap items-center gap-3 rounded-2xl border bg-gray-50 px-4 py-3">
+      <div className="min-w-0 flex-1 text-xs text-gray-700">
+        Invoices draft themselves every day from approved timesheets, per project and month. You review and approve; the
+        client is then emailed automatically.
+        {result ? (
+          <div className="mt-1 font-semibold text-gray-900">
+            {outcomes.length
+              ? outcomes.map(([key, label]) => `${result[key]} ${label}`).join(" · ")
+              : `Nothing due for ${result.period}: no approved, uninvoiced timesheets.`}
+          </div>
+        ) : null}
+        {error ? <div className="mt-1 text-rose-700">{error}</div> : null}
       </div>
-      <div className="mt-3 flex gap-2">
-        <Button variant="primary" disabled={saving} onClick={handleSubmit}>
-          {saving ? "Generating…" : "Generate"}
-        </Button>
-        <Button variant="ghost" onClick={() => setOpen(false)}>
-          Cancel
-        </Button>
-      </div>
+      <Button variant="primary" onClick={run} disabled={running}>
+        <Receipt className="h-4 w-4" /> {running ? "Checking…" : "Check for due invoices now"}
+      </Button>
     </div>
   );
 }
@@ -261,7 +253,11 @@ function ArAgingTab() {
 export default function InvoicesScreen() {
   const [invoices, setInvoices] = useState([]);
   const [statusFilter, setStatusFilter] = useState("");
-  const [tab, setTab] = useState("invoices");
+  // a task link can open a tab directly (e.g. /invoices?tab=vendor from "Pay the vendor: the client has paid")
+  const [tab, setTab] = useState(() => {
+    const wanted = new URLSearchParams(window.location.search).get("tab");
+    return ["invoices", "aging", "vendor"].includes(wanted) ? wanted : "invoices";
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -286,7 +282,7 @@ export default function InvoicesScreen() {
     <div className="grid gap-4">
       <Card
         title="Invoices"
-        subtitle="Generated from approved, undisputed timesheets for a project+billing period. Draft → Approve → Send → Mark Paid, always explicit human actions."
+        subtitle="Client invoices draft themselves from approved timesheets; Finance approves and the client is emailed. Sub-vendors are paid only after the client pays."
         icon={<Receipt className="h-4 w-4" />}
         right={
           <Button variant="ghost" onClick={load} disabled={loading}>
@@ -295,7 +291,7 @@ export default function InvoicesScreen() {
         }
       >
         <div className="mb-4 flex gap-1">
-          {[["invoices", "Invoices"], ["aging", "AR aging"]].map(([key, label]) => (
+          {[["invoices", "Client invoices"], ["aging", "AR aging"], ["vendor", "Sub-vendor invoices"]].map(([key, label]) => (
             <button key={key} type="button" onClick={() => setTab(key)}
               className={cx("rounded-lg px-3 py-1.5 text-sm font-semibold",
                 tab === key ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100")}>
@@ -304,6 +300,7 @@ export default function InvoicesScreen() {
           ))}
         </div>
         {tab === "aging" ? <ArAgingTab /> : null}
+        {tab === "vendor" ? <VendorInvoicesTab /> : null}
 
         {tab === "invoices" && error ? (
           <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
@@ -314,7 +311,7 @@ export default function InvoicesScreen() {
         {tab === "invoices" ? (
         <>
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          <GenerateInvoiceForm onGenerated={load} />
+          <AutoInvoicingPanel onRan={load} />
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}

@@ -34,6 +34,7 @@ from app.api.v1.endpoints.allocations import router as allocations_router
 from app.api.v1.endpoints.timesheets import router as timesheets_router
 from app.api.v1.endpoints.resource_forecast import router as resource_forecast_router
 from app.api.v1.endpoints.invoices import router as invoices_router
+from app.api.v1.endpoints.vendor_invoices import router as vendor_invoices_router
 from app.api.v1.endpoints.revenue import router as revenue_router
 from app.api.v1.endpoints.tenants import router as tenants_router
 from app.api.v1.endpoints.projects import router as projects_router
@@ -181,6 +182,7 @@ router.include_router(router=allocations_router)
 router.include_router(router=timesheets_router)
 router.include_router(router=resource_forecast_router)
 router.include_router(router=invoices_router)
+router.include_router(router=vendor_invoices_router)
 router.include_router(router=revenue_router)
 router.include_router(router=tenants_router)
 router.include_router(router=projects_router)
