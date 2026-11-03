@@ -55,6 +55,7 @@ def _queue(db: Session, task: Task, kind: str, subject: str, opening: str) -> bo
         assignee, key=f"task-{kind}-{task.id}-{assignee.UserID}-{due_key}",
         subject=subject, link_path=task_path(task), link_label="Open the task",
         paragraphs=[opening, f"Priority: {task.priority.capitalize()}. {_due_text(task)}.", description or None],
+        sender_user_id=task.created_by_user_id,  # from the task's creator, in their Outlook when connected
     )
 
 

@@ -22,9 +22,11 @@ def app_link(path: str) -> str:
 
 
 def queue_staff_email(user: Users, *, key: str, subject: str, paragraphs, link_path: Optional[str] = None,
-                      link_label: str = "Open in WROS") -> bool:
+                      link_label: str = "Open in WROS", sender_user_id: Optional[str] = None) -> bool:
     """Queue one email to `user`. Returns False when this key was already queued. A user without
-    an email address is a data problem: raised, never skipped."""
+    an email address is a data problem: raised, never skipped. sender_user_id: the person it is
+    from (who did the action); sent from their own Outlook when connected (mail_sender), else the
+    HRMS mailbox."""
     from app.services.thunder_mail.cadence_service import enqueue_once
 
     if not user.UserEmail:
@@ -35,6 +37,8 @@ def queue_staff_email(user: Users, *, key: str, subject: str, paragraphs, link_p
         body += f"<p><a href=\"{html.escape(app_link(link_path), quote=True)}\">{html.escape(link_label)}</a></p>"
     task_id = f"staff-email-{key}"
     queued = enqueue_once(STAFF_EMAIL_TASK, task_id,
-                          {"user_id": user.UserID, "subject": subject, "html": body}, user.tenant_id)
+                          {"user_id": user.UserID, "subject": subject, "html": body,
+                           "sender_user_id": sender_user_id if sender_user_id != user.UserID else None},
+                          user.tenant_id)
     logger.info(f"[StaffEmail] {task_id} {'queued' if queued else 'already queued'} for {user.UserID}")
     return queued

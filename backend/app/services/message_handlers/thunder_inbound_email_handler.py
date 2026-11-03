@@ -185,9 +185,9 @@ class ThunderInboundEmailHandler:
         if intent in STOP_INTENTS or not payload.get("has_attachments") or not row.graph_message_id:
             return None, []
         try:
-            if mailbox is None:
-                from app.services.thunder_mail.graph_mailbox import GraphMailbox
-                mailbox = GraphMailbox(row.mailbox)
+            if mailbox is None:  # the mailbox the reply came to: HRMS's, or a person's connected Outlook
+                from app.services.mail_sender import mailbox_for_address
+                mailbox = mailbox_for_address(db, row.mailbox)
             attachments, unreadable = read_attachments(mailbox.list_attachments(row.graph_message_id))
         except Exception as exc:
             logger.error(f"[ThunderInbound] could not read the attachments of {row.id}: {exc}", exc_info=True)

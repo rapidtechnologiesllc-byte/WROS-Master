@@ -23,11 +23,15 @@ def main() -> int:
     from app.core.database import SessionLocal
     from app.services.msgraph_mail_sync_service import run_msgraph_mail_sync_job
 
-    from app.services.thunder_mail.mail_poll_service import poll_thunder_mailbox, run_cadence_sweep
+    from app.services.thunder_mail.mail_poll_service import (poll_connected_mailboxes, poll_thunder_mailbox,
+                                                             run_cadence_sweep)
 
     failed = False
     # Independent sessions: one job failing never blocks the others
     for name, job in (("Mail sync", run_msgraph_mail_sync_job),
+                      # people's own mailboxes first: a reply-all that also reached the helpdesk is
+                      # then answered from the mailbox the thread started in
+                      ("Connected mailboxes poll", poll_connected_mailboxes),
                       ("Thunder mailbox poll", poll_thunder_mailbox),
                       ("Thunder cadence sweep", run_cadence_sweep)):
         db = SessionLocal()

@@ -93,6 +93,7 @@ def send(db: Session, team: Team, *, actor_id: Optional[str], key: str, subject:
             if queue_staff_email(
                 user, key=f"{key}-{user_id}", subject=subject[:250], link_path=link_path, link_label=link_label,
                 paragraphs=[opening, f"You are on it as: {', '.join(roles)}.", *(details or [])],
+                sender_user_id=actor_id,
             ):
                 queued += 1
         except Exception as exc:

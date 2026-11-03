@@ -13,10 +13,10 @@ from typing import Any, Dict, Optional
 
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.models.staff_email import StaffEmail
 from app.models.user import Users
 from app.services.message_handlers.base_message_handler import time_bound
+from app.services.mail_sender import record_sent, sender_for
 from app.services.thunder_mail.graph_mailbox import GraphMailbox
 
 logger = logging.getLogger(__name__)
@@ -46,9 +46,12 @@ class SendStaffEmailHandler:
             db.flush()
         if row.sent_at is not None:
             return {"status": "already_sent", "user_id": user_id}
-        mailbox = mailbox or GraphMailbox(settings.THUNDER_MAILBOX)
+        key = f"staff:{message.id}"
+        # from the person who did the action, in their own Outlook when connected (mail_sender)
+        mailbox = mailbox or sender_for(db, key, [payload.get("sender_user_id")], tenant_id=user.tenant_id)
         if row.graph_id is None:
-            row.graph_id, _, _ = mailbox.create_draft(user.UserEmail, subject, body, f"staff:{message.id}")
+            row.graph_id, _, internet_id = mailbox.create_draft(user.UserEmail, subject, body, key)
+            record_sent(db, key, internet_id)
             db.commit()
         if mailbox.is_draft(row.graph_id):
             mailbox.send(row.graph_id)
