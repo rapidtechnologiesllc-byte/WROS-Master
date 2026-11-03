@@ -206,3 +206,15 @@ def test_role_rename_carries_only_exact_holders(db, api, firm):
 def test_role_names_fit_the_job_title_column(db, api, firm):
     response = api.post(firm.org_user, "/api/v1/org/roles", json={"name": "x" * 151, "hierarchy_level": 5})
     assert response.status_code == 422
+
+
+def test_the_user_form_can_tell_which_access_sees_every_business_unit(db, api, firm):
+    """CEO 2026-11-03: an accountant needs every BU and company -- the add-on list says which add-on
+    gives that (org-level access), so the Business Unit field is only their home in the org chart."""
+    templates = {t["id"]: t for t in api.get(firm.org_user, "/api/v1/admin/role-templates").json()["role_templates"]}
+    assert templates[firm.org_role.id]["org_level_access"] is True
+    assert templates[firm.partner_role.id]["org_level_access"] is False
+    created = api.post(firm.org_user, "/api/v1/org/roles", json={"name": f"Accountant {uid()}", "hierarchy_level": 5})
+    assert created.status_code in (200, 201), created.text
+    roles = api.get(firm.org_user, "/api/v1/org/roles").json()
+    assert roles and all(r["org_level_access"] is False for r in roles if r["name"].startswith("Accountant"))

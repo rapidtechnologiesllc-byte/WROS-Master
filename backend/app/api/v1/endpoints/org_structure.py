@@ -478,11 +478,16 @@ def _role_dict(db: Session, role) -> dict:
     from app.services.org_hierarchy_validator import HIERARCHY_LEVELS
     from app.services.org_roles_service import holders_count
 
+    from app.models.role_template import RoleTemplate
+
+    template = db.get(RoleTemplate, role.role_template_id) if role.role_template_id else None
     return {"id": role.id, "name": role.name, "hierarchy_level": role.hierarchy_level,
             "level_name": HIERARCHY_LEVELS.get(role.hierarchy_level), "designation": role.designation,
             "description": role.description, "active": role.active, "users": holders_count(db, role),
             # the role's permission set, edited in the Role Templates editor
-            "role_template_id": role.role_template_id}
+            "role_template_id": role.role_template_id,
+            # the role's set sees every business unit and company (C-level, or set in the editor)
+            "org_level_access": bool(template and template.org_level_access)}
 
 
 def _audit_role(action: str, role, user) -> None:

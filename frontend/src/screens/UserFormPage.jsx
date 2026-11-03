@@ -198,6 +198,12 @@ export default function UserFormPage() {
   const isSelf = mode === 'edit'
     && (localStorage.getItem('hrms_user_email') || '').toLowerCase() === (formData.user_email || '').toLowerCase();
   const selectedRole = roleFor(formData.job_title);
+  // Org-wide access (every business unit and company) comes from the role's permission set or the
+  // add-on, never from the Business Unit field: that is only where the person sits in the org chart.
+  const selectedAddon = roleTemplates.find(t => String(t.id) === String(formData.role_template_id));
+  const orgWide = Boolean(selectedRole?.org_level_access || selectedAddon?.org_level_access);
+  const orgWideSource = selectedAddon?.org_level_access ? `the ${selectedAddon.name} add-on`
+    : selectedRole?.org_level_access ? `the ${selectedRole.name} role` : null;
   const titleChanged = normalise(formData.job_title) !== normalise(originalTitle);
   const seatLevel = (mode === 'edit' && hasSeat && !titleChanged)
     ? formData.hierarchy_level
@@ -467,7 +473,7 @@ export default function UserFormPage() {
           {/* Business Unit */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Business Unit *
+              {orgWide ? 'Home Business Unit *' : 'Business Unit *'}
             </label>
             <select
               value={String(formData.business_unit_id || '')}
@@ -485,6 +491,11 @@ export default function UserFormPage() {
                 );
               })}
             </select>
+            <p className="text-xs text-gray-500 mt-1">
+              {orgWide
+                ? `Where they sit in the org chart. Through ${orgWideSource} they see every business unit and every company.`
+                : 'What they see is this business unit. To give someone every business unit and company (e.g. an accountant), pick an add-on marked "all business units", such as Finance Manager.'}
+            </p>
           </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -519,7 +530,7 @@ export default function UserFormPage() {
                   disabled={saving}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
                 >
-                  <option value="">Select company</option>
+                  <option value="">{orgWide ? 'Holding company (sees every company)' : 'Select company'}</option>
                   {deliveryCenters.map(dc => (
                     <option key={dc.id} value={dc.id}>{dc.name}</option>
                   ))}
@@ -544,12 +555,15 @@ export default function UserFormPage() {
                 const templateId = String(template.id || template.TemplateID);
                 const templateName = template.name || template.TemplateName || template.template_name;
                 return (
-                  <option key={templateId} value={templateId}>{templateName}</option>
+                  <option key={templateId} value={templateId}>
+                    {template.org_level_access ? `${templateName} (all business units & companies)` : templateName}
+                  </option>
                 );
               })}
             </select>
             <p className="text-xs text-gray-500 mt-1">
               What they may do = their role's permissions + this add-on + any personal overrides.
+              {selectedAddon?.description ? ` ${selectedAddon.name}: ${selectedAddon.description}.` : ''}
             </p>
             {suggestion && String(suggestion.template.id) !== String(formData.role_template_id) && (
               <p className="text-xs text-amber-700 mt-1">
