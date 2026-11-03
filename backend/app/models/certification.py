@@ -1,6 +1,6 @@
 """Certification and skill tracking for employees."""
 import uuid
-from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, Enum, func
+from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, Enum, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 import logging
 from app.models.base import Base
@@ -79,3 +79,21 @@ class EmployeeCertification(Base):
 
     def __repr__(self) -> str:
         return f"<EmployeeCertification emp={self.employee_id} cert={self.certification_id}>"
+
+
+class CertificationExpiryAlert(Base):
+    """One expiry alert per employee certificate, expiry date and threshold (days before expiry,
+    settings.CERT_EXPIRY_ALERT_DAYS; 0 = on expiry): the daily monitor never raises the same alert
+    twice. A renewed certificate (new expiry date) gets its own alerts."""
+    __tablename__ = "certification_expiry_alerts"
+    __table_args__ = (UniqueConstraint("employee_certification_id", "expires_date", "threshold_days",
+                                       name="uq_certification_expiry_alert"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    employee_certification_id = Column(String(512), ForeignKey("employee_certifications.id", ondelete="CASCADE"),
+                                       nullable=False, index=True)
+    expires_date = Column(DateTime, nullable=False)
+    threshold_days = Column(Integer, nullable=False)
+    task_id = Column(Integer, ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)

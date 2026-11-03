@@ -76,6 +76,10 @@ _JOBS = (
     # RENEWAL_ALERT_DAYS (60/30/15) days; never twice for the same allocation, term and threshold
     ScheduledJob("renewal_alerts", "app.services.allocation_renewal_service:run_renewal_alerts",
                  timedelta(days=1), timeout_s=300, daily_after_utc="06:00"),
+    # internal only: certificates expiring (CERT_EXPIRY_ALERT_DAYS before, and on the day) -- the
+    # employee and their reporting manager are emailed, one renewal task per certificate term
+    ScheduledJob("certification_expiry", "app.services.certification_expiry_monitor:run_expiry_monitor",
+                 timedelta(days=1), timeout_s=300, daily_after_utc="03:30"),
     # internal only: Finance gets one task per client PO (work order) ending within
     # PO_EXPIRY_ALERT_DAYS, so it is renewed before hours stop being invoiceable
     ScheduledJob("po_expiry_alerts", "app.services.work_order_service:run_po_expiry_alerts",
