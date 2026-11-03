@@ -330,6 +330,24 @@ def _pause_thunder_on_interview(message, db):
     candidate = db.query(Candidate).filter(Candidate.candidateID == message.payload.get("candidate_id")).first()
     if candidate is None:
         raise ValueError(f"Candidate {message.payload.get('candidate_id')} not found")
+    # CEO 2026-11-03: with an interview booked, Thunder stops selling the role but still collects what
+    # the profile is missing (DETAILS reminders, no cold follow-ups); nothing missing -> it pauses
+    from datetime import datetime as _dt
+
+    from app.services.ai_conversation_service import get_missing_fields
+    from app.services.thunder_mail import cadence_service as cadence
+
+    missing = get_missing_fields(candidate, db, include_documents=True) if candidate.candidateEmail else []
+    if missing and candidate.thunder_enabled:
+        now = _dt.utcnow()
+        state = cadence.start_cadence(db, candidate, now=now)
+        state.stage = "HANDOFF"  # a person owns the conversation now
+        cadence.plan_after_engagement(db, state, now, missing)
+        state.next_action_at = now  # ask for the missing details now
+        db.commit()
+        cadence.enqueue_send(state)
+        return {"status": "success", "candidate_id": candidate.candidateID, "thunder_paused": False,
+                "collecting_details": [f.get("field") or f.get("label") for f in missing]}
     paused = bool(candidate.thunder_enabled)
     if paused:
         candidate.thunder_enabled = False

@@ -28,6 +28,7 @@ from app.services.delivery_errors import DeliveryDeferred
 from app.services.mail_sender import connected_mailbox, mailbox_for_address
 from app.services.message_handlers.base_message_handler import time_bound
 from app.services.thunder_mail import cadence_service as cadence
+from app.services.thunder_mail import preflight
 from app.services.thunder_mail.graph_mailbox import GraphMailbox
 from app.services.thunder_mail.variant_selector import choose_variant
 
@@ -104,7 +105,20 @@ class ThunderSendEmailHandler:
         if cap_retry:
             raise DeliveryDeferred("mailbox send cap reached", cap_retry)
 
-        job = db.query(Jobs).filter(Jobs.jobID == state.job_id).first() if state.job_id else None
+        job_id = state.job_id or candidate.job_id
+        job = db.query(Jobs).filter(Jobs.jobID == job_id).first() if job_id else None
+        if role_outreach is None and preflight.is_cold(step):
+            # Thunder's check before a cold email: what do we already know about them? (preflight)
+            decision = preflight.check(db, candidate, step, job, now)
+            preflight.record(db, candidate, step, decision)
+            db.commit()
+            if decision.action == "WARM":
+                return ThunderSendEmailHandler._go_warm(db, state, candidate, step, now)
+            if decision.action == "WAIT":
+                raise DeliveryDeferred("; ".join(decision.reasons), decision.retry_at)
+            if decision.action == "NEED_ROLE":
+                ThunderSendEmailHandler._ask_for_brief(db, candidate)
+                raise DeliveryDeferred("waiting for the role before the first email", now + timedelta(hours=6))
         out = db.query(ThunderEmailMessage).filter_by(
             candidate_id=candidate_id, cadence_seq=seq, step=step, direction="OUT").first()
         if out is not None and out.status == "SENT":
@@ -147,7 +161,8 @@ class ThunderSendEmailHandler:
                 subject, body = role_outreach.subject, role_outreach.body_html
                 out.subject, out.body_text = subject, cadence.plain_text(body)
             elif out is None:
-                variant = choose_variant(db, cadence.step_family(step), rng=rng, job_available=job is not None)
+                variant = choose_variant(db, cadence.step_family(step), rng=rng, job_available=job is not None,
+                                         role_first=step == "1")
                 out = ThunderEmailMessage(
                     id=str(uuid.uuid4()), tenant_id=candidate.tenant_id, candidate_id=candidate_id,
                     direction="OUT", status="QUEUED", cadence_seq=seq, step=step, variant_id=variant.id,
@@ -230,6 +245,45 @@ class ThunderSendEmailHandler:
 
         return _done("sent", candidate_id, step, thunder_message_id=out.id, variant=variant.key if variant else "personal",
                      message_sent=True, delivery_confirmed=True)
+
+    @staticmethod
+    def _go_warm(db: Session, state: ThunderCadenceState, candidate: Candidate, step: str, now: datetime) -> Dict:
+        from app.services.ai_conversation_service import get_missing_fields
+
+        missing = get_missing_fields(candidate, db, include_documents=True)
+        state.stage = "HANDOFF"
+        if missing:
+            cadence.plan_after_engagement(db, state, now, missing)
+            state.next_action_at = now
+        else:
+            state.next_step, state.next_action_at = None, None
+        db.commit()
+        if missing:
+            cadence.enqueue_send(state)
+        logger.info(f"[ThunderSend] {candidate.candidateID}: in conversation, no cold {step}; "
+                    f"next {state.next_step or 'none'}")
+        return _done("skipped_in_conversation", candidate.candidateID, step, next_step=state.next_step)
+
+    @staticmethod
+    def _ask_for_brief(db: Session, candidate: Candidate) -> None:
+        """One request to the person who added the candidate (else their recruiter): the role and LinkedIn."""
+        from app.models.task import Task
+        from app.services.task_service import create_task
+
+        owner = candidate.assigned_recruiter_id or candidate.created_by_user_id
+        name = " ".join(filter(None, [candidate.candidateFirstName, candidate.candidateLastName])) or candidate.candidateID
+        title = f"Thunder is waiting to write to {name}: which role, and their LinkedIn?"[:300]
+        if db.query(Task.id).filter(Task.title == title, Task.status.in_(("NEW", "IN_PROGRESS", "ON_HOLD"))).first():
+            return
+        who = ", ".join(filter(None, [candidate.candidateJobTitle, getattr(candidate, "candidateCurrentCompany", None)]))
+        create_task(db, title=title, priority="MEDIUM", tenant_id=candidate.tenant_id, assigned_to_user_id=owner,
+                    description=(f"{name}{' (' + who + ')' if who else ''} has no role linked, so Thunder has not sent the "
+                                 "first email (a generic one would not fit). Link the job on their profile (and add their "
+                                 "LinkedIn URL if you have it): Thunder then writes about that role and sends it by itself."),
+                    category="THUNDER_BRIEF", link=f"/candidates/{candidate.candidateID}", due_date=datetime.utcnow(),
+                    candidate_id=candidate.candidateID,
+                    visibility_scope="ASSIGNEE_MANAGER_DEPARTMENT" if owner else "ORG_WIDE")
+        db.commit()
 
     @staticmethod
     def _sender(db: Session, candidate: Candidate, parent: Optional[ThunderEmailMessage]) -> GraphMailbox:

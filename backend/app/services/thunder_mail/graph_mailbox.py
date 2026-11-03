@@ -24,7 +24,7 @@ INBOX_SELECT = (
     "id,conversationId,internetMessageId,from,toRecipients,ccRecipients,subject,uniqueBody,receivedDateTime,"
     "internetMessageHeaders,hasAttachments"
 )
-MESSAGE_SELECT = "id,subject,body,from,receivedDateTime,hasAttachments"
+MESSAGE_SELECT = "id,subject,body,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments"
 TEXT_BODY = 'IdType="ImmutableId", outlook.body-content-type="text"'
 
 
@@ -139,6 +139,16 @@ class GraphMailbox:
         """The whole message as text: a forward's original email is in body, not uniqueBody."""
         return self._call("GET", f"/messages/{message_id}", params={"$select": MESSAGE_SELECT},
                           headers={"Prefer": TEXT_BODY})
+
+    def get_meeting(self, message_id: str) -> Optional[Dict]:
+        """A meeting request's time and place ({start, end, location} in UTC), or None for an ordinary email."""
+        data = self._call("GET", f"/messages/{message_id}", headers={"Prefer": 'outlook.timezone="UTC"'})
+        if "eventMessage" not in (data.get("@odata.type") or "") or not data.get("startDateTime"):
+            return None
+        return {"start": (data.get("startDateTime") or {}).get("dateTime"),
+                "end": (data.get("endDateTime") or {}).get("dateTime"),
+                "location": (data.get("location") or {}).get("displayName"),
+                "type": data.get("meetingMessageType")}
 
     def get_message_html(self, message_id: str) -> str:
         """The message body as HTML (tables kept), for emails read by their table."""

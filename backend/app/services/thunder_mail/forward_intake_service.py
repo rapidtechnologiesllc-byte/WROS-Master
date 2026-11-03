@@ -144,10 +144,20 @@ def process_intake(db: Session, intake_id: str, mailbox=None, *, llm_call: Optio
         # email is read like a forward: the person it is about is in the forwarded part)
         sender = (message.get("from") or {}).get("emailAddress") or {}
         body = f"From: {sender.get('name') or ''} <{row.from_address}>\n\n{body}"
+    recipients = [((r.get("emailAddress") or {}).get("name"), ((r.get("emailAddress") or {}).get("address") or "").lower())
+                  for r in (message.get("toRecipients") or []) + (message.get("ccRecipients") or [])]
+    ours = {u.UserEmail.lower(): u for u in db.query(Users).filter(
+        func.lower(Users.UserEmail).in_([e for _, e in recipients if e] + [row.from_address]),
+        Users.terminated_at.is_(None)).all()}
     reading = read_forward(db, row.tenant_id, row.subject or message.get("subject") or "", body, attachments,
-                           [forwarder.UserEmail, row.mailbox], llm_call=llm_call)
+                           [forwarder.UserEmail, row.mailbox, *ours.keys()], llm_call=llm_call,
+                           recipients=[{"name": n, "email": e} for n, e in recipients if e and e not in ours],
+                           internal_names=[u.UserName for u in ours.values()] + [forwarder.UserName])
+    meeting = _meeting(mailbox, row, body, forwarder, ours)
+    if meeting and reading.kind == "OTHER" and (reading.candidate or {}).get("email"):
+        reading.kind = "NEW_CANDIDATE"  # a meeting with one outside person and a profile: a candidate call
     row.kind, row.confidence, row.classifier_source = reading.kind, reading.confidence, reading.source
-    row.extracted = _extracted(reading)
+    row.extracted = {**_extracted(reading), **({"meeting": meeting} if meeting else {})}
     logger.info(f"[ForwardIntake] read intake={row.id} kind={reading.kind} source={reading.source} "
                 f"resume={'yes' if reading.resume else 'no'}")
 
@@ -158,6 +168,48 @@ def process_intake(db: Session, intake_id: str, mailbox=None, *, llm_call: Optio
     if reading.kind == "EMPLOYEE_NOTE":
         return _employee_email(db, row, forwarder, reading, mailbox)
     return _file_by_address(db, row, forwarder, reading, mailbox)
+
+
+TEAMS_LINK_PATTERN = __import__("re").compile(r"https://teams\.microsoft\.com/[^\s<>\"')]+")
+
+
+def _meeting(mailbox, row, body: str, forwarder: Users, ours: Dict) -> Optional[Dict]:
+    """A meeting request one of our people sent (Outlook / Teams): when, the join link, and our attendees."""
+    try:
+        found = mailbox.get_meeting(row.graph_message_id) if hasattr(mailbox, "get_meeting") else None
+    except Exception as exc:  # an ordinary email, or Graph refused: no meeting to record
+        logger.warning(f"[ForwardIntake] intake={row.id}: meeting details unavailable: {exc}")
+        return None
+    if not found or not found.get("start") or not found.get("end"):
+        return None
+    link = TEAMS_LINK_PATTERN.search(body or "")
+    organizer = ours.get(row.from_address) or forwarder
+    return {"start": found["start"], "end": found["end"], "location": found.get("location"),
+            "link": link.group(0) if link else None, "organizer_id": organizer.UserID,
+            "attendee_ids": [u.UserID for u in ours.values() if u.UserID != organizer.UserID]}
+
+
+def _record_meeting(db: Session, row, candidate: Candidate) -> Optional[int]:
+    """The meeting in the email becomes the candidate's Scheduled interview (once)."""
+    from app.services.interview_scheduling_service import after_commit_outlook_meeting, record_outlook_meeting
+
+    meeting = (row.extracted or {}).get("meeting")
+    if not meeting:
+        return None
+    organizer = db.query(Users).filter(Users.UserID == meeting["organizer_id"]).first()
+    if organizer is None:
+        return None
+    parse = lambda value: datetime.fromisoformat(value[:19])  # noqa: E731  Graph: UTC, 7 decimals
+    interview, created = record_outlook_meeting(
+        db, candidate, organizer, meeting.get("attendee_ids") or [], start=parse(meeting["start"]),
+        end=parse(meeting["end"]), meeting_link=meeting.get("link"),
+        outlook_ref=f"mail:{row.internet_message_id or row.graph_message_id}")
+    db.commit()
+    if created:
+        after_commit_outlook_meeting(db, interview)
+        db.commit()
+        logger.info(f"[ForwardIntake] intake={row.id}: meeting recorded as interview {interview.id}")
+    return interview.id
 
 
 def _certification_alert(db: Session, row, forwarder: Users, mailbox) -> Dict:
@@ -333,9 +385,10 @@ def _attach_to_candidate(db: Session, row, forwarder: Users, mailbox) -> Dict:
         if problem:
             return _needs_review(db, row, forwarder, problem, candidate_id=candidate.candidateID)
 
+    interview_id = _record_meeting(db, row, candidate)
     row.status, row.processed_at = "PROCESSED", datetime.utcnow()
     db.commit()
-    logger.info(f"[ForwardIntake] intake={row.id} processed: candidate={candidate.candidateID} "
+    logger.info(f"[ForwardIntake] intake={row.id} processed: candidate={candidate.candidateID} interview={interview_id} "
                 f"note={row.note_id} resume_document={row.document_id}")
     return {"status": "processed", "intake_id": row.id, "candidate_id": candidate.candidateID,
             "note_id": row.note_id, "document_id": row.document_id}
