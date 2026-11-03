@@ -702,8 +702,8 @@ def _initialize_leadership_roles():
         _initialize_org_positions(db)
         _initialize_org_roles(db)
         _initialize_contractor_role(db)
+        _retire_legacy_role_templates(db)  # first: the role sets then take these names
         _initialize_manage_role_permission_sets(db)
-        _retire_legacy_role_templates(db)
         _initialize_canonical_resources(db)
         _initialize_contract_catalog_only(db)
         _initialize_thunder_conversation_owner(db)

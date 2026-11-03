@@ -64,29 +64,48 @@ def test_the_five_go_and_nobody_elses_access_changes(db):
     db.add_all(resources)
     db.flush()
     ensure_role(db, "Employee", {**LEADERSHIP_ROLES["Employee"], "permissions": {}}, 1)
-    for name in RETIRED_TEMPLATES:  # what a long-running database still has
-        if not db.query(RoleTemplate).filter_by(name=name, tenant_id=1).first():
-            _template(db, name, resources, system=name in ("Manager", "User", "Ops"))
+    retired_ids = [_template(db, name, resources, system=name in ("Manager", "User", "Ops")).id
+                   for name in RETIRED_TEMPLATES]  # what a long-running database still has
     # the Partner job-title role keeps its own permission set; a partner holds that role + the Sales add-on
     partner_set = _template(db, f"Partner (role) {uid()}", resources[:1])
     db.add(OrgRole(tenant_id=1, name=f"Partner {uid()}", hierarchy_level=16, role_template_id=partner_set.id))
     sales = _template(db, f"Sales {uid()}", resources[1:2])
     partner = _user(db, "Partner", sales)
-    on_user_template = _user(db, "Legacy", db.query(RoleTemplate).filter_by(name="User", tenant_id=1).first())
+    on_user_template = _user(db, "Legacy", db.get(RoleTemplate, retired_ids[RETIRED_TEMPLATES.index("User")]))
     db.commit()
     before = _perms(db, partner)
 
     _retire_legacy_role_templates(db)
     _retire_legacy_role_templates(db)  # idempotent
 
-    assert db.query(RoleTemplate).filter(RoleTemplate.tenant_id == 1,
-                                         RoleTemplate.name.in_(RETIRED_TEMPLATES)).count() == 0
+    assert db.query(RoleTemplate).filter(RoleTemplate.id.in_(retired_ids)).count() == 0
     assert db.get(RoleTemplate, partner_set.id) is not None  # a job-title role's set is never touched
     assert _perms(db, partner) == before  # nobody else's access changes
     db.refresh(on_user_template)
-    employee = db.query(RoleTemplate).filter_by(name="Employee", tenant_id=1).one()
-    assert on_user_template.role_template_id == employee.id  # off the full-access template, never more access
+    employee_ids = {t.id for t in db.query(RoleTemplate).filter_by(name="Employee", tenant_id=1)}
+    assert on_user_template.role_template_id in employee_ids  # off the full-access template, never more access
 
 
 def test_startup_no_longer_creates_them():
     assert not set(RETIRED_TEMPLATES) & set(LEADERSHIP_ROLES)
+
+
+def test_job_title_permission_sets_are_named_after_the_role(db):
+    """CEO 2026-11-03: "update the names by removing the (role)"."""
+    from app.core.db_contract import _initialize_manage_role_permission_sets
+
+    if db.query(Tenant).filter_by(id=1).first() is None:
+        db.add(Tenant(id=1, name="test-tenant"))
+        db.flush()
+    name = f"Director {uid()}"
+    old = RoleTemplate(tenant_id=1, name=f"{name} (role)", display_name=name, hierarchy_level=11)
+    db.add(old)
+    db.flush()
+    role = OrgRole(tenant_id=1, name=name, hierarchy_level=11, role_template_id=old.id)
+    fresh = OrgRole(tenant_id=1, name=f"Associate {uid()}", hierarchy_level=2)
+    db.add_all([role, fresh])
+    db.commit()
+    _initialize_manage_role_permission_sets(db)
+    assert db.get(RoleTemplate, old.id).name == name  # same set, same permissions, plain name
+    db.refresh(fresh)
+    assert db.get(RoleTemplate, fresh.role_template_id).name == fresh.name
