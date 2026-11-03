@@ -65,6 +65,12 @@ class DepartmentResponse(BaseModel):
     # The function the name stands for (Recruitment, HR, Finance ... or General):
     # org_hierarchy_validator.function_of_department_name
     function: Optional[str] = None
+    # The access everyone with this function gets: the function's add-on template (matched by
+    # specialization, the same rule as the user form), edited from Manage Functions > Permissions
+    access_template_id: Optional[int] = None
+    access_template_name: Optional[str] = None
+    access_org_level: bool = False
+    access_note: Optional[str] = None
 
     class Config:
         from_attributes = True

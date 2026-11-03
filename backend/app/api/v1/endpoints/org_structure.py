@@ -196,7 +196,7 @@ def list_departments(
         dept_dict['tenant_name'] = tenant_name
         dept_dict['business_unit_name'] = dept.business_unit.name if dept.business_unit else None
         dept_dict['function'] = function_of_department_name(dept.name)
-        result.append(DepartmentResponse(**dept_dict))
+        result.append(DepartmentResponse(**_with_access(db, tenant_id, dept, dept_dict)))
 
     return result
 
@@ -320,12 +320,35 @@ class DepartmentRequest(BaseModel):
     cost_center_code: Optional[str] = None
     active: Optional[bool] = None  # False retires the function, True restores it
 
+def _function_templates(db: Session, tenant_id: int, name: str) -> list:
+    """The enabled function add-ons for this function (specialization = its name), never a job-title
+    role's own permission set -- the same rule the user form uses to give a function its access."""
+    from app.models.org_structure import OrgRole
+    from app.models.role_template import RoleTemplate
+
+    owned = db.query(OrgRole.role_template_id).filter(OrgRole.role_template_id.isnot(None))
+    return (db.query(RoleTemplate).filter(RoleTemplate.tenant_id == tenant_id, RoleTemplate.enabled.is_(True),
+                                          func.lower(RoleTemplate.specialization) == name.lower(),
+                                          RoleTemplate.id.notin_(owned)).order_by(RoleTemplate.id).all())
+
+
+def _with_access(db: Session, tenant_id: int, dept: Department, data: dict) -> dict:
+    templates = _function_templates(db, tenant_id, dept.name)
+    if len(templates) == 1:
+        data.update(access_template_id=templates[0].id, access_template_name=templates[0].name,
+                    access_org_level=bool(templates[0].org_level_access))
+    elif len(templates) > 1:
+        data["access_note"] = (f"{len(templates)} access templates are for {dept.name} "
+                               f"({', '.join(t.name for t in templates)}): keep one")
+    return data
+
+
 def _department_response(dept: Department, tenant_id: int, db: Session) -> DepartmentResponse:
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     data = DepartmentResponse.from_orm(dept).dict()
     data["tenant_name"] = tenant.name if tenant else None
     data["business_unit_name"] = dept.business_unit.name if dept.business_unit else None
-    return DepartmentResponse(**data)
+    return DepartmentResponse(**_with_access(db, tenant_id, dept, data))
 
 def _tenant_business_unit(db: Session, business_unit_id: int, tenant_id: int) -> BusinessUnit:
     bu = db.query(BusinessUnit).filter(BusinessUnit.id == business_unit_id, BusinessUnit.tenant_id == tenant_id).first()
@@ -430,6 +453,39 @@ def update_department_endpoint(
     invalidate_permissions()
     db.refresh(dept)
     return _department_response(dept, tenant_id, db)
+
+@router.post(
+    "/departments/{department_id}/access-template",
+    response_model=DepartmentResponse,
+    summary="Give a function its own access (an empty function add-on template) if it has none",
+    dependencies=[Depends(require_resource_permission("role-templates", "edit"))],
+)
+def create_function_access(
+    department_id: str,
+    current_user = Depends(get_current_internal_user),
+    db: Session = Depends(get_db),
+) -> DepartmentResponse:
+    """Manage Functions > Permissions on a function without access of its own: create it EMPTY (nobody's
+    access changes until permissions are switched on), named after the function and for it
+    (specialization), so the user form gives it to everyone with this function. Idempotent."""
+    from app.models.role_template import RoleTemplate
+    from app.services.role_template_permission_service import invalidate_permissions
+
+    tenant_id = current_user.tenant_id
+    dept = db.query(Department).filter(Department.id == department_id, Department.tenant_id == tenant_id).first()
+    if not dept:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Function not found")
+    if not _function_templates(db, tenant_id, dept.name):
+        db.add(RoleTemplate(name=dept.name, display_name=dept.name, specialization=dept.name,
+                            description=f"What everyone in {dept.name} may do, at any level",
+                            hierarchy_level=2, org_level_access=False, is_system=False, enabled=True,
+                            tenant_id=tenant_id))
+        db.commit()
+        invalidate_permissions()
+        logger.info(f"[OrgStructure] {current_user.UserID} gave the {dept.name} function its own access")
+    db.refresh(dept)
+    return _department_response(dept, tenant_id, db)
+
 
 @router.delete(
     "/departments/{department_id}",

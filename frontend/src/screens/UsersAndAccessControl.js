@@ -906,6 +906,31 @@ function OrganizationalHierarchySection() {
   const [permissionsRole, setPermissionsRole] = useState(null);
   const [permissionModules, setPermissionModules] = useState([]);
   const canManageRoles = hasPermission("org-roles", "edit");
+  const canEditAccess = hasPermission("role-templates", "edit");
+
+  // Manage Functions > Permissions (CEO 2026-11-03): a function's access is its add-on template, edited
+  // in the same editor as a role's; a function without one gets an empty one first (nobody's access
+  // changes until permissions are switched on)
+  const openFunctionPermissions = async (dept) => {
+    setActionError(null);
+    if (dept.access_note) {
+      setActionError(dept.access_note);
+      return;
+    }
+    try {
+      let templateId = dept.access_template_id;
+      if (!templateId) {
+        const { data } = await apiRequest(`/org/departments/${dept.id}/access-template`, { method: "POST" });
+        templateId = data?.access_template_id;
+        setDepartments((list) => list.map((d) => (d.id === dept.id ? { ...d, ...data } : d)));
+      }
+      if (!templateId) throw new Error("the function has no access template");
+      await openRolePermissions({ name: dept.name, role_template_id: templateId });
+    } catch (err) {
+      console.error("[ManageFunctions] Failed to open permissions:", err);
+      setActionError(`Failed to open ${dept.name} permissions: ${err.message}`);
+    }
+  };
 
   const openRolePermissions = async (role) => {
     setActionError(null);
@@ -1431,8 +1456,20 @@ function OrganizationalHierarchySection() {
                   <div>
                     <span className="text-sm font-medium text-gray-900">{dept.name}</span>
                     {dept.active === false && <span className="ml-2 text-xs text-gray-500">Retired</span>}
+                    <div className="text-[11px] text-gray-500">
+                      {dept.access_note
+                        ? dept.access_note
+                        : dept.access_template_id
+                          ? `Access: ${dept.access_template_name}${dept.access_org_level ? " · every business unit & company" : ""}`
+                          : "No access of its own yet (basic Employee access)"}
+                    </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 items-center">
+                    {canEditAccess && dept.active !== false && (
+                      <button onClick={() => openFunctionPermissions(dept)} className="text-xs text-blue-600 hover:underline">
+                        Permissions
+                      </button>
+                    )}
                     <button onClick={() => handleFunctionActive(dept, dept.active === false)} className="text-xs text-gray-600 hover:underline">
                       {dept.active === false ? "Restore" : "Retire"}
                     </button>
