@@ -86,7 +86,7 @@ class EmployeeItem(BaseModel):
     is_on_bench: bool = False
     bench_days: Optional[int] = None
     # where the employee stands (app.services.employee_standing): employment, and for people on
-    # the payroll the deployment (BUDDY / BENCH / PROJECT / PROJECT_ENDING) with its date and days
+    # the payroll the deployment (BUDDY / BENCH / NON_BILLABLE / PROJECT / PROJECT_ENDING) with its date and days
     employment_status: str = "EMPLOYED"
     employment_actions: List[str] = []  # the employment changes this status allows now
     deployment_status: Optional[str] = None

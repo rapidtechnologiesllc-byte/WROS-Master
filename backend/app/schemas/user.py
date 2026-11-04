@@ -73,10 +73,10 @@ class InterviewFeedbackResponse(BaseModel):
     id: int
     interview_id: int
     interviewer_id: str
-    technical_score: int
-    communication_score: int
-    problem_solving_score: int
-    culture_fit_score: int
+    technical_score: Optional[int] = None
+    communication_score: Optional[int] = None
+    problem_solving_score: Optional[int] = None
+    culture_fit_score: Optional[int] = None
     comments: str | None = None
     recommendation: str
     submitted_at: datetime

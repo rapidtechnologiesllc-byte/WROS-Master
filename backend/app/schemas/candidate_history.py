@@ -38,6 +38,11 @@ VALID_EVENT_TYPES = {
     "Onboarded",
     "Rejected",
     "Activity Logged",
+    # what a recruiter logs by hand on the candidate's profile and Interview tab
+    "Call",
+    "LinkedIn Message",
+    "WhatsApp Message",
+    "Meeting",
     "Email Sent",
     "Email Received",
     "Custom",

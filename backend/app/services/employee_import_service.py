@@ -356,6 +356,8 @@ def _resolve(lk: _Lookups, row: Dict[str, str]) -> Spec:
             if spec.salary_cents is None:
                 errors.append(f"No exchange rate for {currency} (FX_RATES_PER_USD_JSON): the cost would be unknown.")
     spec.bill_rate_cents = _money_cents(row["bill_rate_usd_hour"], "bill_rate_usd_hour", errors)
+    if not spec.billable:
+        spec.bill_rate_cents = None  # internal staff bill nothing
 
     if row["work_location"]:
         if row["work_location"].upper() not in WORK_LOCATIONS:

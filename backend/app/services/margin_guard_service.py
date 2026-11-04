@@ -21,6 +21,7 @@ settings.PARTNER_MIN_LEVEL via app.core.authority), for the business unit that o
 partners it) or sees every BU (org-level template). Nobody approves their own placement.
 """
 import logging
+import math
 from dataclasses import dataclass, field
 from datetime import date
 from typing import List, Optional
@@ -163,6 +164,43 @@ def evaluate(db: Session, *, tenant_id: Optional[int], employee, project_id: Opt
     elif margin < float(result.policy.min_margin_pct):
         result.check = BELOW_MIN
     return result
+
+
+def minimum_bill_rate(db: Session, *, tenant_id: Optional[int], business_unit_id: Optional[int], country: Optional[str],
+                      role: Optional[str] = None, monthly_usd_cents: Optional[int] = None,
+                      vendor_rate_usd_cents: Optional[int] = None) -> dict:
+    """The lowest hourly rate this person can bill at (CEO 2026-11-04: "minimum billrate based on the location +
+    expenses"): their hourly cost -- pay + the statutory and overhead rate of their BU x country, or a sub-vendor's
+    rate -- grossed up by each line's margin floor. Nothing is guessed: a missing rate is named in `missing`."""
+    from app.models.employee import DELIVERY_ENGINES
+    from app.services.cost_rate_service import get_active_cost_rate_config
+
+    missing, statutory, overhead = [], None, None
+    pay_hourly = hourly = None
+    hours = settings.STANDARD_MONTHLY_HOURS
+    if vendor_rate_usd_cents:
+        pay_hourly = hourly = vendor_rate_usd_cents  # the vendor's rate is the whole cost (revenue_chain_service)
+    elif monthly_usd_cents:
+        pay_hourly = monthly_usd_cents / hours
+        config = get_active_cost_rate_config(db, business_unit_id=business_unit_id, country=country)
+        if config is None:
+            missing.append(f"statutory and overhead % for {country or 'this location'}")
+        else:
+            statutory, overhead = float(config.statutory_pct), float(config.overhead_pct)
+            hourly = pay_hourly * (1 + (statutory + overhead) / 100)
+    lines = []
+    for engine in DELIVERY_ENGINES:
+        policy = policy_for(db, tenant_id, engine, country, role)
+        if policy is None:
+            missing.append(f"margin floor for {engine}")
+            continue
+        margin, hard = float(policy.min_margin_pct), float(policy.hard_floor_pct)
+        lines.append({"delivery_engine": engine, "min_margin_pct": margin, "hard_floor_pct": hard,
+                      "minimum_usd_cents": None if hourly is None else math.ceil(hourly / (1 - margin / 100)),
+                      "hard_floor_usd_cents": None if hourly is None else math.ceil(hourly / (1 - hard / 100))})
+    return {"country": country, "pay_hourly_usd_cents": None if pay_hourly is None else round(pay_hourly),
+            "statutory_pct": statutory, "overhead_pct": overhead,
+            "break_even_usd_cents": None if hourly is None else math.ceil(hourly), "lines": lines, "missing": missing}
 
 
 def revenue_business_unit(db: Session, *, client_id: Optional[str], demand=None, employee=None) -> Optional[int]:

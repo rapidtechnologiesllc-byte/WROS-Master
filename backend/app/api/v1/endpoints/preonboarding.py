@@ -20,7 +20,7 @@ from app.core.dependencies import get_current_internal_user, require_resource_pe
 from app.core.logging import logger
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.candidate_history import CandidateHistory
-from app.models.user import CandidateAssignment, Jobs, Users
+from app.models.user import CandidateAssignment, Jobs, Users, average_feedback_score
 from app.models.checklist import ChecklistTemplate, CandidateChecklist, CandidateChecklistItem
 from app.models import (
     Interview, InterviewPanel, InterviewFeedback, PanelMember,
@@ -443,12 +443,6 @@ def get_hm_candidate_review(
                     .filter(Users.UserID == fb.interviewer_id)
                     .first()
                 )
-                avg = (
-                    fb.technical_score
-                    + fb.communication_score
-                    + fb.problem_solving_score
-                    + fb.culture_fit_score
-                ) / 4.0
                 hm_feedbacks.append(
                     HMFeedbackDetail(
                         feedback_id=fb.id,
@@ -461,7 +455,7 @@ def get_hm_candidate_review(
                         communication_score=fb.communication_score,
                         problem_solving_score=fb.problem_solving_score,
                         culture_fit_score=fb.culture_fit_score,
-                        average_score=round(avg, 2),
+                        average_score=average_feedback_score(fb),
                         comments=fb.comments,
                         recommendation=fb.recommendation,
                         submitted_at=fb.submitted_at,

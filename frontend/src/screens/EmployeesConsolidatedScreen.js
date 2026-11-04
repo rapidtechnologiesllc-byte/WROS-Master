@@ -103,7 +103,7 @@ function downloadCsv(rows, org, past) {
     ...(past ? [["Exit Date", (e) => e.exit_date]] : [
       ["Employment", (e) => (EMPLOYMENT[e.employment_status] || [e.employment_status])[0]],
       ["Deployment", (e) => (DEPLOYMENT[e.deployment_status] || [e.deployment_status || ""])[0]],
-      ["Billable", (e) => (e.is_billable ? "Billable" : "Internal")], ["Allocated %", (e) => e.allocated_pct],
+      ["Billable", (e) => (e.is_billable ? "Billable" : "Non-billable")], ["Allocated %", (e) => e.allocated_pct],
     ]),
   ];
   const cell = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
@@ -172,7 +172,7 @@ function EmployeeListTab({ past = false }) {
   const population = useMemo(() => employees.filter((e) => isPast(e) === past), [employees, past]);
 
   const counts = useMemo(() => {
-    const out = { headcount: 0, joining: 0, BENCH: 0, PROJECT: 0, PROJECT_ENDING: 0, HTD: 0, BUDDY: 0 };
+    const out = { headcount: 0, joining: 0, BENCH: 0, NON_BILLABLE: 0, PROJECT: 0, PROJECT_ENDING: 0, HTD: 0, BUDDY: 0 };
     population.forEach((e) => {
       if (ON_PAYROLL.has(e.employment_status)) out.headcount += 1;
       if (e.employment_status === "JOINING") out.joining += 1;
@@ -218,7 +218,7 @@ function EmployeeListTab({ past = false }) {
     .map(([key, [text]]) => [key, text]);
   const chips = past ? [] : [
     ["BENCH", counts.BENCH], ["PROJECT", counts.PROJECT], ["PROJECT_ENDING", counts.PROJECT_ENDING], ["HTD", counts.HTD],
-    ["BUDDY", counts.BUDDY],
+    ["BUDDY", counts.BUDDY], ["NON_BILLABLE", counts.NON_BILLABLE],
   ];
 
   return (
@@ -280,7 +280,7 @@ function EmployeeListTab({ past = false }) {
           options={orgOptions.businessUnits.map((b) => [String(b.id), b.name])} />
         {!past && (
           <FilterSelect label="Billing" value={billable} onChange={setBillable}
-            options={[["billable", "Billable"], ["internal", "Internal"]]} />
+            options={[["billable", "Billable"], ["internal", "Non-billable"]]} />
         )}
         <span className="text-xs text-gray-500">
           {rows.length} of {population.length} {past ? "past employees" : "employees"}
@@ -365,7 +365,7 @@ function EmployeeListTab({ past = false }) {
                       {!emp.has_login ? <div className="text-xs text-amber-700">no login</div> : null}
                     </td>
                     <td className="px-4 py-2"><DeploymentStatus employee={emp} /></td>
-                    <td className="px-4 py-2">{emp.is_billable ? "Billable" : "Internal"}</td>
+                    <td className="px-4 py-2">{emp.is_billable ? "Billable" : "Non-billable"}</td>
                     <td className="px-4 py-2">{emp.allocated_pct}%</td>
                   </>
                 )}
