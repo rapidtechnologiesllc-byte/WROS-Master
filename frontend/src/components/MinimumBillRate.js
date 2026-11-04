@@ -12,6 +12,7 @@ const usd = (cents) => `$${(cents / 100).toFixed(2)}`;
 export default function MinimumBillRate({ result, billRateCents }) {
   if (!result) return null;
   const minimums = result.lines.map((l) => l.minimum_usd_cents).filter((v) => v != null);
+  const notSet = [...result.missing, ...(result.missing_margin_lines || []).map((line) => `margin floor for ${lineTypeLabel(line)}`)];
   const below = billRateCents != null && minimums.length > 0 && billRateCents < Math.min(...minimums);
   return (
     <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
@@ -29,9 +30,9 @@ export default function MinimumBillRate({ result, billRateCents }) {
           {` for the ${l.min_margin_pct}% margin floor (below ${usd(l.hard_floor_usd_cents)} a Partner must approve)`}
         </div>
       ))}
-      {result.missing.length ? (
+      {notSet.length ? (
         <div className="mt-1 text-amber-800">
-          Not set yet: {result.missing.join(", ")}. Statutory and overhead are set on{" "}
+          Not set yet: {notSet.join(", ")}. Statutory and overhead are set on{" "}
           <Link className="underline" to="/finance-operations">Finance Operations</Link>, margin floors on{" "}
           <Link className="underline" to="/pnl?view=rate-card">P&amp;L &gt; Rate Card</Link>.
         </div>

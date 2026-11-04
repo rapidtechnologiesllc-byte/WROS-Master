@@ -175,7 +175,7 @@ def minimum_bill_rate(db: Session, *, tenant_id: Optional[int], business_unit_id
     from app.models.employee import DELIVERY_ENGINES
     from app.services.cost_rate_service import get_active_cost_rate_config
 
-    missing, statutory, overhead = [], None, None
+    missing, missing_lines, statutory, overhead = [], [], None, None
     pay_hourly = hourly = None
     hours = settings.STANDARD_MONTHLY_HOURS
     if vendor_rate_usd_cents:
@@ -192,7 +192,7 @@ def minimum_bill_rate(db: Session, *, tenant_id: Optional[int], business_unit_id
     for engine in DELIVERY_ENGINES:
         policy = policy_for(db, tenant_id, engine, country, role)
         if policy is None:
-            missing.append(f"margin floor for {engine}")
+            missing_lines.append(engine)
             continue
         margin, hard = float(policy.min_margin_pct), float(policy.hard_floor_pct)
         lines.append({"delivery_engine": engine, "min_margin_pct": margin, "hard_floor_pct": hard,
@@ -200,7 +200,7 @@ def minimum_bill_rate(db: Session, *, tenant_id: Optional[int], business_unit_id
                       "hard_floor_usd_cents": None if hourly is None else math.ceil(hourly / (1 - hard / 100))})
     return {"country": country, "pay_hourly_usd_cents": None if pay_hourly is None else round(pay_hourly),
             "statutory_pct": statutory, "overhead_pct": overhead,
-            "break_even_usd_cents": None if hourly is None else math.ceil(hourly), "lines": lines, "missing": missing}
+            "break_even_usd_cents": None if hourly is None else math.ceil(hourly), "lines": lines, "missing": missing, "missing_margin_lines": missing_lines}
 
 
 def revenue_business_unit(db: Session, *, client_id: Optional[str], demand=None, employee=None) -> Optional[int]:

@@ -6,9 +6,13 @@ import TabbedScreen from "../components/TabbedScreen";
 import PnlScreen from "./PnlScreen";
 import FinanceOperationsScreen from "./FinanceOperationsScreen";
 import RateCardScreen from "./RateCardScreen";
+import ForecastVsActualScreen from "./ForecastVsActualScreen";
+import RevenueScreen from "./RevenueScreen";
 
 const TABS = [
   { key: "pnl", label: "P&L", resource: "revenue", render: () => <PnlScreen /> },
+  { key: "forecast", label: "Forecast vs Actual", resource: "forecasts", render: () => <ForecastVsActualScreen /> },
+  { key: "revenue-health", label: "Revenue Health", resource: "sales-ops", render: () => <RevenueScreen /> },
   { key: "operations", label: "Finance Operations", resource: "finance-operations", render: () => <FinanceOperationsScreen /> },
   { key: "rate-card", label: "Rate Card", resource: "finance-operations", render: () => <RateCardScreen /> },
 ];

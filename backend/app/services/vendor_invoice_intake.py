@@ -112,7 +112,7 @@ def _finance_task(db: Session, vendor: SubVendorAccount, title: str, description
         return
     create_task(db, title=title[:300], description=description[:8000], priority="HIGH", tenant_id=vendor.tenant_id,
                 assigned_to_user_id=finance_owner(db, vendor.tenant_id), category="FINANCE",
-                link="/invoices?tab=vendor", due_date=datetime.utcnow())
+                link="/sub-vendors?view=bills", due_date=datetime.utcnow())
 
 
 def finance_owner(db: Session, tenant_id: Optional[int]) -> Optional[str]:

@@ -18,7 +18,7 @@ Rules (rules only, no model):
 """
 import logging
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Dict, Iterable, List, Optional
 
@@ -259,7 +259,7 @@ def on_client_invoice_paid(db: Session, client_invoice: Invoice) -> List[int]:
                          "Invoices > Sub-vendor invoices."),
             priority="HIGH", tenant_id=invoice.tenant_id,
             assigned_to_user_id=owner or invoice.approved_by or invoice.created_by, category="FINANCE",
-            link="/invoices?tab=vendor", due_date=datetime.utcnow())
+            link="/sub-vendors?view=bills", due_date=datetime.utcnow())
         task_ids.append(task.id)
     return task_ids
 
@@ -276,6 +276,24 @@ def vendor_cost_by_timesheet(db: Session, timesheet_ids: Iterable[str]) -> Dict[
     return out
 
 
+def vendor_summaries(db: Session, tenant_id: Optional[int]) -> Dict[str, Dict]:
+    """Per vendor: last payment, unpaid bills, open balance, and paid this calendar year (for the 1099)."""
+    out: Dict[str, Dict] = {}
+    year = date.today().year
+    for invoice in db.query(VendorInvoice).filter(VendorInvoice.tenant_id == tenant_id).all():
+        row = out.setdefault(invoice.sub_vendor_id, {"last_paid_on": None, "unpaid_bills": 0, "open_balance_usd_cents": 0,
+                                                     "paid_this_year_usd_cents": 0})
+        if invoice.status in ("RECEIVED", "APPROVED"):
+            row["unpaid_bills"] += 1
+            row["open_balance_usd_cents"] += invoice.amount_usd_cents
+        elif invoice.status == "PAID" and invoice.paid_at:
+            paid = invoice.paid_at.date().isoformat()
+            row["last_paid_on"] = max(row["last_paid_on"] or paid, paid)
+            if invoice.paid_at.year == year:
+                row["paid_this_year_usd_cents"] += invoice.amount_usd_cents
+    return out
+
+
 def to_item(db: Session, invoice: VendorInvoice) -> Dict:
     vendor = db.get(SubVendorAccount, invoice.sub_vendor_id)
     lines = (db.query(VendorInvoiceLine, Employee, Timesheet)
@@ -289,6 +307,7 @@ def to_item(db: Session, invoice: VendorInvoice) -> Dict:
         "vendor_invoice_number": invoice.vendor_invoice_number, "invoice_date": invoice.invoice_date.isoformat(),
         "period_start": invoice.period_start.isoformat(), "period_end": invoice.period_end.isoformat(),
         "status": invoice.status, "amount_usd_cents": invoice.amount_usd_cents,
+        "due_date": (invoice.invoice_date + timedelta(days=vendor.payment_terms_days or 0)).isoformat() if vendor else None,
         "expected_usd_cents": invoice.expected_usd_cents,
         "variance_usd_cents": invoice.amount_usd_cents - invoice.expected_usd_cents, "note": invoice.note,
         "approved_at": invoice.approved_at.isoformat() if invoice.approved_at else None,

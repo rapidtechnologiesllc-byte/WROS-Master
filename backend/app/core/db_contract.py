@@ -1953,6 +1953,7 @@ def _apply_schema_migrations(db: Session):
             ("tenant_id", "INTEGER NOT NULL DEFAULT 1 REFERENCES app_schema.tenants(id)"),
         ],
         "candidates": [
+            ("merged_into_id", "VARCHAR(512) NULL REFERENCES app_schema.candidates(\"candidateID\") ON DELETE SET NULL"),
             ("thunder_enabled", "BOOLEAN NOT NULL DEFAULT true"),
             ("status_changed_at", "TIMESTAMP NULL"),
             ("previous_status", "VARCHAR(100) NULL"),
@@ -1990,6 +1991,21 @@ def _apply_schema_migrations(db: Session):
             # Contractor supplied by a sub-vendor, paid through the vendor at an hourly rate
             ("sub_vendor_id", "VARCHAR(512) NULL REFERENCES app_schema.sub_vendor_accounts(id) ON DELETE SET NULL"),
             ("vendor_hourly_rate_usd_cents", "INTEGER NULL"),
+        ],
+        "sub_vendor_accounts": [
+            ("payment_terms_days", "INTEGER NOT NULL DEFAULT 30"),
+            ("w9_status", "VARCHAR(20) NOT NULL DEFAULT 'NOT_REQUESTED'"),
+            ("is_1099", "BOOLEAN NOT NULL DEFAULT true"),
+            ("receives_new_roles", "BOOLEAN NOT NULL DEFAULT true"),
+        ],
+        "sub_vendor_requests": [
+            ("notified_at", "TIMESTAMP NULL"),
+        ],
+        "sub_vendor_submissions": [
+            ("source_mailbox", "VARCHAR(300) NULL"),
+            ("graph_message_id", "VARCHAR(1024) NULL"),
+            ("attachment_id", "VARCHAR(1024) NULL"),
+            ("resume_name", "VARCHAR(300) NULL"),
         ],
         # An email read straight from a person's connected Outlook (mailbox_signals)
         "mailbox_intake_messages": [

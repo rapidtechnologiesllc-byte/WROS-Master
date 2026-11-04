@@ -49,7 +49,7 @@ from app.models.candidate_ownership import CandidateOwnership
 
 from app.core.dependencies import get_current_user, require_role_template_permission
 
-from app.schemas.candidate import (HrEducationItem, HrExperienceItem, HrSkillItem, HrCertificationItem, CandidateCompleteResponse,
+from app.schemas.candidate import ( CandidateMergeRequest, HrEducationItem, HrExperienceItem, HrSkillItem, HrCertificationItem, CandidateCompleteResponse,
 CandidateEducationResponse, CandidateExperienceResponse,
 CandidateInfoResponse, CandidatePanResponse,
 CandidateAadharResponse, DeleteResponse,
@@ -123,6 +123,7 @@ def _build_candidate_response(
 
     return CandidateCompleteResponse(
         candidate_id=candidate.candidateID,
+        merged_into_id=candidate.merged_into_id,
         candidate_name=candidate_name,
         candidate_first_name=candidate.candidateFirstName,
         candidate_middle_name=candidate.candidateMiddleName,
@@ -308,6 +309,41 @@ def get_all_candidates(db: Session = Depends(get_db), user=Depends(get_current_u
     except Exception as e:
         logger.error(f"Error in get_all_candidates: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@router.get(
+    "/{candidate_id}/possible-duplicates",
+    dependencies=[Depends(require_role_template_permission("candidates", "can_edit"))],
+)
+def possible_duplicates(candidate_id: str, q: Optional[str] = None, db: Session = Depends(get_db),
+                        user = Depends(get_current_user)):
+    """Likely the same person: same phone, LinkedIn or email name, or the name or email searched for."""
+    from app.services.candidate_merge_service import possible_duplicates as find
+
+    candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, user)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found.")
+    return find(db, candidate, q)
+
+
+@router.post(
+    "/{candidate_id}/merge",
+    dependencies=[Depends(require_role_template_permission("candidates", "can_edit"))],
+)
+def merge_candidate(candidate_id: str, body: CandidateMergeRequest, db: Session = Depends(get_db),
+                    user = Depends(get_current_user)):
+    """Merge this record into another: everything moves there, this one is archived and leads there."""
+    from app.services.candidate_merge_service import CandidateMergeError, merge_candidates
+
+    source = get_candidate_by_id_with_bu_scope(db, candidate_id, user)
+    target = get_candidate_by_id_with_bu_scope(db, body.into_candidate_id, user)
+    if not source or not target:
+        raise HTTPException(status_code=404, detail="Candidate not found.")
+    try:
+        return merge_candidates(db, source, target, merged_by=user.UserID, merged_by_name=user.UserName or user.UserEmail)
+    except CandidateMergeError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+
 
 @router.get(
     "/{candidate_id}",

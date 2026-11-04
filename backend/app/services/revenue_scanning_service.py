@@ -159,6 +159,19 @@ def run_daily_revenue_scan_job(db: Session) -> Dict:
             "timestamp": datetime.utcnow(),
         }
 
+def run_reconciliation_scan_job(db: Session) -> Dict:
+    """Every approved timesheet past the grace period with no invoice line gets an alert (Revenue Health), without
+    anyone pressing Scan. Alerts already open are not raised twice (create_reconciliation_alert)."""
+    from app.services.revenue_leakage_service import create_reconciliation_alert, find_reconciliation_gaps
+
+    gaps = find_reconciliation_gaps(db)
+    for timesheet in gaps:
+        create_reconciliation_alert(db, timesheet, tenant_id=timesheet.tenant_id)
+    db.commit()
+    logger.info(f"[RevenueScan] {len(gaps)} reconciliation gap(s)")
+    return {"gaps": len(gaps)}
+
+
 def get_recent_scan_results(db: Session, *, tenant_id: Optional[int] = None, limit: int = 50) -> List[Dict]:
     """
     Get recent revenue leakage scan results (cached from background job).

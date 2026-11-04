@@ -83,7 +83,9 @@ def normalize_e164(phone: str) -> str:
     return f"+{digits}" if digits else ""
 
 def _find_candidate_by_phone(db: Session, phone_e164: str) -> Optional[Candidate]:
-    return db.query(Candidate).filter(Candidate.candidateMobile == phone_e164).first()
+    from app.services.candidate_service import find_duplicate_candidate
+
+    return find_duplicate_candidate(db, mobile=phone_e164)[0]
 
 def _find_active_conversation(db: Session, candidate_id: str) -> Optional[CandidateConversation]:
     return (

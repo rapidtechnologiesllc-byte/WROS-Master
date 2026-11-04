@@ -54,6 +54,11 @@ class SubVendorSubmission(Base):
     expected_salary = Column(String(512), nullable=True)
     notice_period = Column(String(512), nullable=True)
     resume_url = Column(Text, nullable=True)
+    # Where the emailed resume sits until the candidate is accepted (sub_vendor_roles_service)
+    source_mailbox = Column(String(300), nullable=True)
+    graph_message_id = Column(String(1024), nullable=True, index=True)
+    attachment_id = Column(String(1024), nullable=True)
+    resume_name = Column(String(300), nullable=True)
 
     # HRMS-P806: server-validated regardless of what the vendor UI's
     # dropdown allows -- reuses the same allowed-value set as the

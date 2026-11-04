@@ -136,7 +136,12 @@ class CandidateInfoResponse(BaseModel):
     permanent_address: str | None = None
     submitted_at: date | None = None
 
+class CandidateMergeRequest(BaseModel):
+    into_candidate_id: str
+
+
 class CandidateCompleteResponse(BaseModel):
+    merged_into_id: str | None = None  # this record is a merged duplicate: open that one
     # ── Core identity ────────────────────────────────────────────────────────
     candidate_id: str
     candidate_name: str

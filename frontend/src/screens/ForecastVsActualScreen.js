@@ -1,6 +1,6 @@
 // S-242 (HRMS-0902) - Forecast vs Actual Revenue Tracking
 // Shows projected revenue vs invoiced actual for each client, by month
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { TrendingUp, RefreshCw, AlertCircle } from "lucide-react";
 import { Card, Button, Select } from "../components/ui";
 import cx from "../utils/cx";
@@ -73,11 +73,10 @@ export default function ForecastVsActualScreen() {
     value: year - i,
   }));
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const params = { year, month };
       const fvaRes = businessUnitId
         ? await forecastVsActual(year, month, businessUnitId)
         : await forecastVsActual(year, month);
@@ -89,11 +88,11 @@ export default function ForecastVsActualScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [businessUnitId, year, month]);
 
   useEffect(() => {
     load();
-  }, [businessUnitId, year, month]);
+  }, [load]);
 
   const summaryRows = data
     ? [
@@ -116,7 +115,7 @@ export default function ForecastVsActualScreen() {
     <div className="grid gap-4">
       <Card
         title="Forecast vs Actual Revenue"
-        subtitle="Monthly revenue forecast vs actual invoiced amount by client"
+        subtitle="Monthly revenue forecast (open and won opportunities) vs actual earned revenue, the same revenue as the P&L, by client"
         icon={<TrendingUp className="h-4 w-4" />}
         right={
           <div className="flex items-center gap-2">

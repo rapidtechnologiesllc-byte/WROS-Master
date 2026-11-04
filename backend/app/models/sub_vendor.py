@@ -65,6 +65,13 @@ class SubVendorAccount(Base):
     approved_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     approved_at = Column(DateTime, nullable=True)
 
+    # Manage Sub-vendors (CEO 2026-11-03): when a bill falls due, the W-9 on file, whether they get a 1099,
+    # and whether new client roles are emailed to them
+    payment_terms_days = Column(Integer, nullable=False, default=30, server_default="30")
+    w9_status = Column(String(20), nullable=False, default="NOT_REQUESTED", server_default="NOT_REQUESTED")
+    is_1099 = Column(Boolean, nullable=False, default=True, server_default="true")
+    receives_new_roles = Column(Boolean, nullable=False, default=True, server_default="true")
+
     created_at = Column(DateTime, server_default=func.now())
 
 class SubVendorRequest(Base):
@@ -88,6 +95,7 @@ class SubVendorRequest(Base):
     assigned_at = Column(DateTime, server_default=func.now())
     deadline = Column(DateTime, nullable=True)
     max_candidates = Column(Integer, nullable=True)
+    notified_at = Column(DateTime, nullable=True)  # the new-role email went out (sub_vendor_roles_service)
 
     # HRMS-P811 BR-0811-01: auto-closes at deadline, no approval gate --
     # a low-risk, reversible administrative action.

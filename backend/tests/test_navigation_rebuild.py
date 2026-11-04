@@ -97,7 +97,7 @@ SEEDED_ROLES = {**{name: BEFORE_RESOURCES for name in SYSTEM_ROLES}, **BEFORE_LE
 # the Employees > Allocations tab, Ask Thunder is a QA simulator. "Forecasts" now opens Forecast vs Actual
 # (its API checks forecasts), so a role holding only forecasts swaps /forecast for /forecast-vs-actual.
 INTENDED_REMOVALS = {"/ceo-fy-progress", "/cfo-dashboard", "/bu-head-dashboard", "/allocations", "/thunder", "/"}
-INTENDED_ADDITIONS = {"/forecast-vs-actual": "forecasts", "/my-performance": "my-tasks"}  # route -> resource whose view grant adds it
+INTENDED_ADDITIONS = {"/sub-vendors": "invoices", "/my-performance": "my-tasks"}  # route -> resource whose view grant adds it
 # Decision 3: merged screens. The old route redirects to the merged screen's tab; every role that
 # reached any of the parts reaches the merged screen (its tabs follow the same permissions).
 ROUTE_MOVES = {
@@ -105,7 +105,7 @@ ROUTE_MOVES = {
     "/recruiter/intervention-queue": "/recruiter/watch", "/recruiter/risk-dashboard": "/recruiter/watch",
     "/recruiter/thunder-analytics": "/recruiter/watch",
     "/hm-candidate-review": "/hm-review", "/recruiter/rehire-approvals": "/hm-review",
-    "/utilization-dashboard": "/workforce", "/forecast": "/demand-vs-bench", "/finance-operations": "/pnl",
+    "/utilization-dashboard": "/workforce", "/forecast": "/demand-vs-bench", "/finance-operations": "/pnl", "/revenue": "/pnl", "/forecast-vs-actual": "/pnl",
     "/admin/agent-state-dashboard": "/admin/agent-health", "/admin/weekly-recap": "/admin/agent-health",
     "/admin/slm-dashboard": "/admin/slm", "/admin/slm-training": "/admin/slm",
 }
@@ -205,9 +205,8 @@ def test_renamed_labels(db):
     assert "/" not in labels  # Home is the logo / top-bar icon (CEO 2026-10-24)
     assert labels["/offers-listing"] == "Offers"
     assert labels["/admin/users-access-control/users"] == "Users & Access"
-    assert labels["/revenue"] == "Revenue Health"
     assert labels["/pnl"] == "P&L"
-    assert labels["/forecast-vs-actual"] == "Forecast vs Actual"
+    assert labels["/sub-vendors"] == "Sub-vendors"
     assert labels["/checklist-templates"] == "Templates & Checklists"
 
 

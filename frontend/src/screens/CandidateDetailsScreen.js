@@ -36,6 +36,7 @@ import {
 } from "../utils/interviewEmailTemplates";
 import { Mail, MessageCircle, Phone } from "lucide-react";
 import CandidateAssignJobModal from "./CandidateAssignJobModal";
+import MergeCandidateModal from "../components/MergeCandidateModal";
 import StatusDropdown from "../components/ui/StatusDropdown";
 import PreonboardingModal from "./PreonboardingModal";
 import { getCandidateNotes, createCandidateNote } from "../services/api/notes";
@@ -318,6 +319,7 @@ export default function CandidateDetailsScreen({
   const [noteText, setNoteText] = useState("");
   const [savingNote, setSavingNote] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
+  const [showMergeModal, setShowMergeModal] = useState(false);
   const [selectedActivityType, setSelectedActivityType] = useState("");
   const [activityNote, setActivityNote] = useState("");
   const [activityLogging, setActivityLogging] = useState(false);
@@ -1528,6 +1530,16 @@ ${formattedJD}
                           type="button"
                           onClick={() => {
                             setShowNotesMenu(false);
+                            setShowMergeModal(true);
+                          }}
+                          className="w-full px-4 py-3 text-sm text-left text-gray-700 hover:bg-gray-50 border-b"
+                        >
+                          Merge candidate
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowNotesMenu(false);
                             setSelectedActivityType("email");
                             setShowActivityModal(true);
                           }}
@@ -1728,6 +1740,7 @@ ${formattedJD}
             </div>
           )}
         </div>
+        {showMergeModal && <MergeCandidateModal candidate={candidate} onClose={() => setShowMergeModal(false)} />}
         {showNoteModal && (
           <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center px-4 py-6">
             <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-gray-200 overflow-hidden">

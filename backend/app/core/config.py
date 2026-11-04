@@ -429,12 +429,14 @@ class Settings:
     # Background jobs (app/core/scheduled_jobs.py): comma-separated names. Unset = every
     # registered job (all internal: drafts, staff reminders, AR tasks, metrics); set it to ""
     # in .env to switch them all off, or to a shorter list
+    # Only client jobs opened this recently go to sub-vendors, so older open jobs are never sent in one blast
+    SUB_VENDOR_ROLE_WINDOW_DAYS: int = int(os.getenv("SUB_VENDOR_ROLE_WINDOW_DAYS", "7"))
     SCHEDULED_JOBS_ENABLED: str = os.getenv(
         "SCHEDULED_JOBS_ENABLED",
         "timesheet_draft_creation,timesheet_reminders,ar_follow_up,expire_bu_ownerships,"
         "daily_revenue_scan,engagement_metrics,birthday_drafts,hiring_pipeline_sweep,client_start_date,auto_invoicing,"
         "utilization_snapshot,renewal_alerts,po_expiry_alerts,performance_reviews,task_due_reminders,"
-        "notification_release,certification_expiry",
+        "notification_release,certification_expiry,reconciliation_scan,sub_vendor_new_roles",
     )
     SCHEDULED_JOB_LEASE_GRACE_SECONDS: int = int(os.getenv("SCHEDULED_JOB_LEASE_GRACE_SECONDS", "120"))
 
