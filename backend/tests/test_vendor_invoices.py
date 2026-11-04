@@ -203,3 +203,116 @@ def test_the_api_records_and_refuses_with_the_reason(db, w):
         assert listing["owed_usd_cents"] == 2 * 40 * VENDOR_RATE and listing["payable_now_usd_cents"] == 0
     finally:
         api.close()
+
+
+# ---- end to end (CEO 2026-11-03): the vendor emails its invoice -> validated -> the client pays -> the CEO pays
+
+def _pdf(text):
+    from tests.test_mailbox_forward_intake import pdf_bytes
+
+    return pdf_bytes(text)
+
+
+def _vendor_email(w, text, sender=None):
+    import base64
+
+    message = {"id": f"g-{_uid()}", "conversationId": f"c-{_uid()}", "internetMessageId": f"<{_uid()}@nimbus>",
+               "from": {"emailAddress": {"address": sender or w.vendor.contact_email}}, "toRecipients": [],
+               "subject": "Invoice for September", "uniqueBody": {"content": "Please find our invoice attached."},
+               "receivedDateTime": "2026-10-02T10:00:00Z", "internetMessageHeaders": [], "hasAttachments": True}
+    content = _pdf(text)
+    attachment = {"@odata.type": "#microsoft.graph.fileAttachment", "id": f"a-{_uid()}", "name": "invoice.pdf",
+                  "size": len(content), "isInline": False, "contentBytes": base64.b64encode(content).decode()}
+    mailbox = SimpleNamespace(mailbox="helpdesk_hrms@blitzenx.com", list_inbox=lambda since, page_cap=10: [message],
+                              list_attachments=lambda mid: [attachment])
+    return message, mailbox
+
+
+def _ceo(db):
+    from app.models.org_structure import OrgRole
+
+    role = db.query(OrgRole).filter_by(tenant_id=1, designation="ceo").first()
+    if role is None:
+        role = OrgRole(tenant_id=1, name=f"CEO {_uid()}", hierarchy_level=17, designation="ceo")
+        db.add(role)
+        db.flush()
+    ceo = db.query(Users).filter(Users.job_title == role.name).first()
+    if ceo is None:
+        ceo = Users(UserID=f"CEO-{_uid()}", UserName="The CEO", UserEmail=f"ceo{_uid()}@blitzenx.com", UserPassword="h",
+                    UserRole="x", tenant_id=1, job_title=role.name,
+                    role_template_id=db.query(RoleTemplate.id).filter_by(tenant_id=1).first()[0])
+        db.add(ceo)
+    db.commit()
+    return ceo
+
+
+def _uid():
+    return uuid.uuid4().hex[:8]
+
+
+def test_an_emailed_vendor_invoice_is_validated_and_the_ceo_is_asked_to_pay_once_the_client_pays(db, w):
+    from app.models.vendor_invoice import VendorInvoice
+    from app.services.thunder_mail.mail_poll_service import poll_thunder_mailbox
+
+    ceo = _ceo(db)
+    w.vendor = db.get(type(w.vendor), w.vendor.id)
+    _, mailbox = _vendor_email(w, f"INVOICE Invoice #: NIM-301 Period 09/01/2026 to 09/30/2026 "
+                                  f"Total Due: ${2 * 40 * VENDOR_RATE / 100:,.2f}")
+    with patch("app.services.thunder_mail.mail_poll_service.enqueue_once"):
+        poll_thunder_mailbox(db, mailbox=mailbox)
+    invoice = db.query(VendorInvoice).filter_by(sub_vendor_id=w.vendor.id, vendor_invoice_number="NIM-301").one()
+    assert invoice.status == "APPROVED"  # billed = approved hours x vendor rate: validated by the system
+
+    client_invoice = _client_invoice(db, w)
+    invoices.mark_invoice_paid(db, client_invoice)
+    db.commit()
+    task = db.query(Task).filter(Task.title.like(f"Pay {w.vendor.company_name} invoice NIM-301%")).one()
+    assert task.assigned_to_user_id == ceo.UserID and "Matched" in task.description
+
+
+def test_a_vendor_invoice_that_differs_goes_to_finance_not_approved(db, w):
+    from app.models.vendor_invoice import VendorInvoice
+    from app.services.thunder_mail.mail_poll_service import poll_thunder_mailbox
+
+    _ceo(db)
+    _, mailbox = _vendor_email(w, "Invoice No. NIM-302 Period 09/01/2026 to 09/30/2026 Total: $9,999.00",
+                               sender=f"billing@{w.vendor.contact_email.split('@')[1]}")  # another address, same company
+    with patch("app.services.thunder_mail.mail_poll_service.enqueue_once"):
+        poll_thunder_mailbox(db, mailbox=mailbox)
+    invoice = db.query(VendorInvoice).filter_by(vendor_invoice_number="NIM-302").one()
+    assert invoice.status == "RECEIVED"
+    assert db.query(Task).filter(Task.title.like("Vendor invoice NIM-302 from % differs by%")).count() == 1
+
+
+def test_an_emailed_invoice_is_mapped_to_the_employee_it_is_for(db, w):
+    """CEO 2026-11-03: "i want sub vendor to email invoice and system should map it to an employee"."""
+    from app.models.vendor_invoice import VendorInvoice, VendorInvoiceLine
+    from app.services.thunder_mail.mail_poll_service import poll_thunder_mailbox
+
+    _ceo(db)
+    second = Employee(tenant_id=1, first_name="Meena", last_name="Shah", email=f"meena{_uid()}@x.com",
+                      joining_date=date(2025, 1, 1), status="ALLOCATED")
+    db.add(second)
+    db.flush()
+    vendors.set_contractor(db, w.finance, second, sub_vendor_id=w.vendor.id, hourly_rate_usd_cents=VENDOR_RATE)
+    allocation = db.query(EmployeeAllocation).filter_by(employee_id=w.worker.id).first()
+    db.add(Timesheet(tenant_id=1, employee_id=second.id, allocation_id=allocation.id, week_starting_date=date(2026, 9, 7),
+                     total_hours=20, billable_hours=20, non_billable_hours=0, status="APPROVED"))
+    db.commit()
+
+    def poll(text):
+        _, mailbox = _vendor_email(w, text)
+        with patch("app.services.thunder_mail.mail_poll_service.enqueue_once"):
+            poll_thunder_mailbox(db, mailbox=mailbox)
+
+    def employees_on(number):
+        invoice = db.query(VendorInvoice).filter_by(vendor_invoice_number=number).one()
+        return {l.employee_id for l in db.query(VendorInvoiceLine).filter_by(vendor_invoice_id=invoice.id)}
+
+    poll(f"Invoice #: NIM-401 Consultant: Ravi Kumar Period 09/01/2026 to 09/30/2026 Total: ${80 * VENDOR_RATE / 100:,.2f}")
+    assert employees_on("NIM-401") == {w.worker.id}  # named on the invoice: only his weeks
+    poll(f"Invoice #: NIM-402 Period 09/01/2026 to 09/30/2026 Total: ${20 * VENDOR_RATE / 100:,.2f}")
+    assert employees_on("NIM-402") == {second.id}  # no name: the one whose hours x rate equal the total
+    poll("Invoice #: NIM-403 Period 09/01/2026 to 09/30/2026 Total: $123.00")
+    assert db.query(VendorInvoice).filter_by(vendor_invoice_number="NIM-403").count() == 0
+    assert db.query(Task).filter(Task.title.like("Vendor invoice NIM-403 from %: which employee?")).count() == 1

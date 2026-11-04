@@ -100,13 +100,16 @@ def _invoiced_timesheets(db: Session, timesheet_ids: Iterable[str], *, exclude: 
     return {t for (t,) in query}
 
 
-def billable_timesheets(db: Session, sub_vendor_id: str, start: date, end: date) -> List[Dict]:
-    """Approved timesheets of the vendor's contractors with a week in [start, end] that no live
-    vendor invoice covers yet, each with the amount it should be invoiced at."""
-    rows = (db.query(Timesheet, Employee).join(Employee, Employee.id == Timesheet.employee_id)
-            .filter(Employee.sub_vendor_id == sub_vendor_id, Timesheet.status == "APPROVED",
-                    Timesheet.week_starting_date >= start, Timesheet.week_starting_date <= end)
-            .order_by(Timesheet.week_starting_date).all())
+def billable_timesheets(db: Session, sub_vendor_id: str, start: date, end: date,
+                        employee_ids: Optional[List[str]] = None) -> List[Dict]:
+    """Approved timesheets of the vendor's contractors (employee_ids: only these) with a week in
+    [start, end] that no live vendor invoice covers yet, each with the amount it should be invoiced at."""
+    query = (db.query(Timesheet, Employee).join(Employee, Employee.id == Timesheet.employee_id)
+             .filter(Employee.sub_vendor_id == sub_vendor_id, Timesheet.status == "APPROVED",
+                     Timesheet.week_starting_date >= start, Timesheet.week_starting_date <= end))
+    if employee_ids is not None:
+        query = query.filter(Employee.id.in_(employee_ids))
+    rows = query.order_by(Timesheet.week_starting_date).all()
     taken = _invoiced_timesheets(db, (t.id for t, _ in rows))
     out = []
     for ts, employee in rows:
@@ -124,7 +127,7 @@ def billable_timesheets(db: Session, sub_vendor_id: str, start: date, end: date)
 
 def create_vendor_invoice(db: Session, user: Users, *, sub_vendor_id: str, vendor_invoice_number: str,
                           invoice_date: date, period_start: date, period_end: date, amount_usd_cents: int,
-                          note: Optional[str] = None) -> VendorInvoice:
+                          note: Optional[str] = None, employee_ids: Optional[List[str]] = None) -> VendorInvoice:
     """Record the vendor's invoice against the approved timesheets it covers. Flushes."""
     vendor = db.query(SubVendorAccount).filter(SubVendorAccount.id == sub_vendor_id,
                                                SubVendorAccount.tenant_id == user.tenant_id).first()
@@ -142,7 +145,7 @@ def create_vendor_invoice(db: Session, user: Users, *, sub_vendor_id: str, vendo
     if db.query(VendorInvoice.id).filter(VendorInvoice.sub_vendor_id == vendor.id,
                                          VendorInvoice.vendor_invoice_number == number).first():
         raise VendorInvoiceError(f"{vendor.company_name} invoice {number} is already recorded.")
-    lines = billable_timesheets(db, vendor.id, period_start, period_end)
+    lines = billable_timesheets(db, vendor.id, period_start, period_end, employee_ids)
     if not lines:
         raise VendorInvoiceError(f"No approved, not yet invoiced timesheets of {vendor.company_name}'s contractors "
                                  f"between {period_start:%d %b %Y} and {period_end:%d %b %Y}.")
@@ -242,13 +245,20 @@ def on_client_invoice_paid(db: Session, client_invoice: Invoice) -> List[int]:
             continue
         vendor = db.get(SubVendorAccount, invoice.sub_vendor_id)
         action = "Pay" if invoice.status == "APPROVED" else "Approve and pay"
+        # CEO 2026-11-03: "asks me to initiate payment via task" -- the CEO pays an approved invoice; one
+        # still waiting for approval goes to Finance first
+        from app.services.vendor_invoice_intake import finance_owner, vendor_payer
+
+        owner = vendor_payer(db, invoice.tenant_id) if invoice.status == "APPROVED" else finance_owner(db, invoice.tenant_id)
         task = create_task(
             db, title=f"{action} {vendor.company_name} invoice {invoice.vendor_invoice_number}: the client has paid"[:300],
-            description=(f"The client paid for every timesheet on {vendor.company_name}'s invoice "
-                         f"{invoice.vendor_invoice_number} (${invoice.amount_usd_cents / 100:,.2f}). "
-                         "Initiate the vendor payment and record it on the Invoices screen, Sub-vendor invoices tab."),
+            description=(f"The client paid {client_invoice.invoice_number or 'their invoice'} for every timesheet on "
+                         f"{vendor.company_name}'s invoice {invoice.vendor_invoice_number}. Matched: "
+                         f"${invoice.amount_usd_cents / 100:,.2f} billed vs ${invoice.expected_usd_cents / 100:,.2f} "
+                         "approved hours x vendor rate. Initiate the payment, then record its reference on "
+                         "Invoices > Sub-vendor invoices."),
             priority="HIGH", tenant_id=invoice.tenant_id,
-            assigned_to_user_id=invoice.approved_by or invoice.created_by, category="FINANCE",
+            assigned_to_user_id=owner or invoice.approved_by or invoice.created_by, category="FINANCE",
             link="/invoices?tab=vendor", due_date=datetime.utcnow())
         task_ids.append(task.id)
     return task_ids

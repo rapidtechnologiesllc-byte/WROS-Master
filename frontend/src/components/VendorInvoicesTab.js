@@ -64,11 +64,23 @@ function SubVendorsPanel({ vendors, contractors, employees, onChanged }) {
     <div className="grid gap-3 rounded-2xl border p-4">
       <div className="text-sm font-semibold text-gray-900">Sub-vendors and their contractors</div>
       <Notice>{error}</Notice>
+      {vendors.length ? (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {vendors.map((v) => (
+            <div key={v.id} className="rounded-xl border bg-gray-50 px-3 py-2 text-sm">
+              <div className="font-semibold text-gray-900">{v.company_name}</div>
+              <div className="text-xs text-gray-600">{v.contact_email} · {v.contractors} contractor(s) · {v.status.toLowerCase()}</div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-xs text-gray-600">No sub-vendors yet: add the first one below, or while adding an employee.</div>
+      )}
       <div className="grid gap-3 sm:grid-cols-3">
         <Input label="Sub-vendor company" value={vendor.company_name} onChange={(v) => setVendor((s) => ({ ...s, company_name: v }))} />
         <Input label="Accounts email" value={vendor.contact_email} onChange={(v) => setVendor((s) => ({ ...s, contact_email: v }))} />
         <div className="flex items-end">
-          <Button variant="ghost" disabled={saving || !vendor.company_name || !vendor.contact_email}
+          <Button variant="primary" disabled={saving || !vendor.company_name || !vendor.contact_email}
             onClick={() => run(async () => { await addSubVendor(vendor); setVendor({ company_name: "", contact_email: "" }); })}>
             Add sub-vendor
           </Button>
@@ -81,7 +93,7 @@ function SubVendorsPanel({ vendors, contractors, employees, onChanged }) {
           options={[{ value: "", label: "Select…" }, ...approved.map((v) => ({ value: v.id, label: v.company_name }))]} />
         <Input label="Vendor rate ($/hour)" value={assign.rate} onChange={(v) => setAssign((s) => ({ ...s, rate: v }))} placeholder="70" />
         <div className="flex items-end">
-          <Button variant="ghost" disabled={saving || !assign.employee_id || !assign.sub_vendor_id || !assign.rate}
+          <Button variant="secondary" disabled={saving || !assign.employee_id || !assign.sub_vendor_id || !assign.rate}
             onClick={() => run(async () => {
               await setContractor(assign.employee_id, assign.sub_vendor_id, toCents(assign.rate));
               setAssign({ employee_id: "", sub_vendor_id: "", rate: "" });

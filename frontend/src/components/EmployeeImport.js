@@ -10,6 +10,7 @@ import cx from "../utils/cx";
 import {
   applyEmployeeImport, createEmployee, dryRunEmployeeImport, getEmployeeImportTemplate,
 } from "../services/api/employees";
+import { addSubVendor, getSubVendors } from "../services/api/invoices";
 
 const STATUS_STYLES = {
   applied: "bg-emerald-50 text-emerald-800",
@@ -203,6 +204,7 @@ const EMPTY_FORM = {
   first_name: "", last_name: "", email: "", joining_date: "", business_unit_id: "", company_id: "", country: "",
   current_title: "", reporting_manager_id: "", employment_type: "", billable: "", existing_staff: true, hired_for_htd: false,
   pay: "", pay_basis: "", pay_currency: "", bill_rate_usd: "",
+  via_vendor: "", sub_vendor_id: "", vendor_rate_usd: "", new_vendor_name: "", new_vendor_email: "",
 };
 
 const PAY_BASIS_LABEL = { ANNUAL: "Annual", MONTHLY: "Monthly", HOURLY: "Hourly" };
@@ -213,9 +215,25 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  const [vendors, setVendors] = useState([]);
   useEffect(() => {
     getEmployeeImportTemplate().then(setTemplate).catch((err) => setError(`Could not load the form options: ${err.message}`));
+    getSubVendors()
+      .then((list) => setVendors((list || []).filter((v) => v.status === "APPROVED")))
+      .catch((err) => console.warn("[AddEmployee] sub-vendors unavailable:", err?.message || err));
   }, []);
+  // A contractor supplied by a sub-vendor (CEO 2026-11-03): the vendor employs and is paid for them
+  const viaVendor = form.via_vendor === "yes";
+  const addVendor = async () => {
+    setError("");
+    try {
+      const created = await addSubVendor({ company_name: form.new_vendor_name, contact_email: form.new_vendor_email });
+      setVendors((list) => [...list, created]);
+      setForm((f) => ({ ...f, sub_vendor_id: created.id, new_vendor_name: "", new_vendor_email: "" }));
+    } catch (err) {
+      setError(`Could not add the sub-vendor: ${err.message}`);
+    }
+  };
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
   const country = (template?.countries || []).find((c) => c.code === form.country);
@@ -236,8 +254,12 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
 
   const submit = async () => {
     if (!form.first_name || !form.last_name || !form.email || !form.joining_date || !form.business_unit_id
-      || form.billable === "" || form.pay === "") {
+      || form.billable === "" || (!viaVendor && form.pay === "")) {
       setError("Name, email, joining date, business unit, billable and pay are required.");
+      return;
+    }
+    if (viaVendor && (!form.sub_vendor_id || !form.vendor_rate_usd)) {
+      setError("Pick the sub-vendor and enter what they charge per hour.");
       return;
     }
     setBusy(true);
@@ -247,9 +269,12 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
         first_name: form.first_name, last_name: form.last_name, email: form.email, joining_date: form.joining_date,
         business_unit_id: Number(form.business_unit_id), company_id: form.company_id || null,
         country: form.country || null, current_title: form.current_title || null,
-        reporting_manager_id: form.reporting_manager_id || null, employment_type: form.employment_type || null,
+        reporting_manager_id: form.reporting_manager_id || null,
+        employment_type: viaVendor ? "CONTRACT" : (form.employment_type || null),
         billable: form.billable === "yes", existing_staff: form.existing_staff, hired_for_htd: form.hired_for_htd,
-        pay_amount_cents: Math.round(Number(form.pay) * 100), pay_currency: payCurrency, pay_basis: payBasis,
+        ...(viaVendor
+          ? { sub_vendor_id: form.sub_vendor_id, vendor_rate_usd_cents: Math.round(Number(form.vendor_rate_usd) * 100) }
+          : { pay_amount_cents: Math.round(Number(form.pay) * 100), pay_currency: payCurrency, pay_basis: payBasis }),
         billing_rate_usd_cents: form.bill_rate_usd ? Math.round(Number(form.bill_rate_usd) * 100) : null,
       });
       onCreated(created);
@@ -287,12 +312,43 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
             {(template?.countries || []).map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
           </select>
         </label>
-        <label><span className={label}>Employment type</span>
-          <select className={field} value={form.employment_type} onChange={set("employment_type")}>
-            <option value="">{employmentTypes[0] ? `${employmentTypes[0].label} (default)` : "Default"}</option>
-            {employmentTypes.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+        <label><span className={label}>Supplied by a sub-vendor?</span>
+          <select className={field} value={form.via_vendor}
+            onChange={(e) => setForm((f) => ({ ...f, via_vendor: e.target.value,
+              current_title: e.target.value === "yes" && !f.current_title ? "Contractor" : f.current_title }))}>
+            <option value="">No: our own employee</option>
+            <option value="yes">Yes: a contractor through a sub-vendor</option>
           </select>
         </label>
+        {viaVendor ? (
+          <>
+            <label><span className={label}>Sub-vendor *</span>
+              <select className={field} value={form.sub_vendor_id} onChange={set("sub_vendor_id")}>
+                <option value="">Pick the sub-vendor</option>
+                {vendors.map((v) => <option key={v.id} value={v.id}>{v.company_name}</option>)}
+              </select>
+            </label>
+            <label><span className={label}>Vendor rate (USD / hour) *</span>
+              <input className={field} type="number" min="0" value={form.vendor_rate_usd} onChange={set("vendor_rate_usd")} />
+            </label>
+            <div className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 sm:col-span-2">
+              <label><span className={label}>Or add a new sub-vendor</span>
+                <input className={field} placeholder="Company name" value={form.new_vendor_name} onChange={set("new_vendor_name")} />
+              </label>
+              <label><span className={label}>Accounts email</span>
+                <input className={field} type="email" placeholder="invoices@vendor.com" value={form.new_vendor_email} onChange={set("new_vendor_email")} />
+              </label>
+              <Button variant="secondary" disabled={!form.new_vendor_name || !form.new_vendor_email} onClick={addVendor}>Add sub-vendor</Button>
+            </div>
+          </>
+        ) : (
+          <label><span className={label}>Employment type</span>
+            <select className={field} value={form.employment_type} onChange={set("employment_type")}>
+              <option value="">{employmentTypes[0] ? `${employmentTypes[0].label} (default)` : "Default"}</option>
+              {employmentTypes.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </label>
+        )}
         <label><span className={label}>Designation (org role)</span>
           <select className={field} value={form.current_title} onChange={set("current_title")}>
             <option value="">Pick a role</option>
@@ -313,6 +369,12 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
             <option value="no">Non-billable: internal staff, cost is overhead</option>
           </select>
         </label>
+        {viaVendor ? (
+          <div className="text-xs text-gray-600 sm:col-span-2">
+            Paid through the sub-vendor: their cost in the P&amp;L is the vendor rate (or the vendor&apos;s invoice), so no
+            pay is needed. They get the limited Contractor access (their timesheets and tasks).
+          </div>
+        ) : (
         <div className="grid grid-cols-[1fr_auto_auto] items-end gap-2 sm:col-span-2">
           <label><span className={label}>{PAY_BASIS_LABEL[payBasis] || payBasis} pay ({payCurrency}) *</span>
             <input className={field} type="number" min="0" value={form.pay} onChange={set("pay")} />
@@ -329,6 +391,7 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
             </select>
           </label>
         </div>
+        )}
         <label><span className={label}>Bill rate (USD / hour)</span><input className={field} type="number" min="0" value={form.bill_rate_usd} onChange={set("bill_rate_usd")} /></label>
         <label className="flex items-center gap-2 text-sm sm:col-span-2">
           <input type="checkbox" checked={form.existing_staff} onChange={set("existing_staff")} />

@@ -549,3 +549,42 @@ def test_existing_salaries_become_monthly_usd_pay(db, world):
     assert _pay_from_monthly_usd(db) >= 1
     assert (legacy.pay_amount_cents, legacy.pay_currency, legacy.pay_basis, legacy.base_salary_usd_cents) == \
         (300_000, "USD", "MONTHLY", 300_000)
+
+
+def test_a_contractor_supplied_by_a_sub_vendor_needs_no_pay_and_gets_contractor_access(db, world, mail):
+    """CEO 2026-11-03: "the add employee doesnt ask if this employee is a sub vendor then who is the sub vendor"."""
+    from app.models.org_structure import OrgRole
+    from app.models.role_template import RoleTemplate
+    from app.services import vendor_invoice_service as vendors
+
+    if not db.query(OrgRole).filter_by(tenant_id=1, name="Contractor").first():
+        template = RoleTemplate(tenant_id=1, name=f"Contractor {_uid()}", display_name="Contractor", hierarchy_level=1)
+        db.add(template)
+        db.flush()
+        db.add(OrgRole(tenant_id=1, name="Contractor", hierarchy_level=1, role_template_id=template.id))
+    vendor = vendors.create_sub_vendor(db, world.hr, company_name=f"Nimbus Staffing {_uid()}",
+                                       contact_email="ap@nimbus.example")
+    db.commit()
+    email = f"vendor{_uid()}@bx.test"
+    header = "first_name,last_name,email,business_unit,delivery_center,joining_date,manager_email,billable,sub_vendor,vendor_rate_usd_hour"
+    row = ",".join(["Ravi", "Kumar", email, world.unit.display_name, world.company.name, "2024-04-01",
+                    world.manager.UserEmail, "yes", vendor.company_name, "70"])
+    content = (header + "\n" + row + "\n").encode()
+    preview = importer.dry_run(db, world.hr, content)
+    assert preview["counts"]["error"] == 0, preview["rows"]  # no pay asked for
+    importer.apply(db, world.hr, preview["token"], content)
+
+    employee = db.query(Employee).filter_by(email=email).one()
+    assert (employee.employment_type, employee.sub_vendor_id, employee.vendor_hourly_rate_usd_cents) == \
+        ("CONTRACT", vendor.id, 7000)
+    login = db.query(Users).filter_by(UserEmail=email).one()
+    assert login.job_title == "Contractor"  # the limited Contractor access
+
+
+def test_a_sub_vendor_row_without_a_rate_or_an_unknown_vendor_is_refused(db, world, mail):
+    header = "first_name,last_name,email,business_unit,delivery_center,joining_date,manager_email,billable,sub_vendor,vendor_rate_usd_hour"
+    content = (header + "\n" + ",".join(["Ravi", "Kumar", f"v{_uid()}@bx.test", world.unit.display_name,
+                                         world.company.name, "2024-04-01", world.manager.UserEmail, "yes",
+                                         "No Such Vendor", ""]) + "\n").encode()
+    errors = importer.dry_run(db, world.hr, content)["rows"][0]["errors"]
+    assert any("is not set up" in e for e in errors) and any("vendor_rate_usd_hour is required" in e for e in errors)
