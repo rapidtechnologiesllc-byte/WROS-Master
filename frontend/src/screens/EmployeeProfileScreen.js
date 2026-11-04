@@ -28,6 +28,7 @@ import { FeedbackSection, ReviewList } from "../components/PerformancePanel";
 import { getEmployeePerformance, getMyPerformance } from "../services/api/performance";
 import ActivityTimeline from "../components/timeline/ActivityTimeline";
 import { lineTypeLabel } from "../utils/lineType";
+import { EmployeeMinimumBillRate } from "../components/MinimumBillRate";
 
 const TABS = [
   ["about", "About"], ["profile", "Profile"], ["job", "Job"], ["documents", "Documents"],
@@ -548,14 +549,17 @@ function FinanceTab({ profile, save, reload }) {
       <Section title="Billing" subtitle="Billable people sit on the bench between projects; internal staff are overhead, never bench."
         action={profile.can_edit ? (
           <Button variant="ghost" size="sm" onClick={toggleBillable}>
-            Make {profile.is_billable ? "internal (non-billable)" : "billable"}
+            Make {profile.is_billable ? "non-billable" : "billable"}
           </Button>
         ) : null}>
         <div className="grid gap-x-6 gap-y-4 sm:grid-cols-3">
-          <Field label="Billable">{profile.is_billable ? "Billable" : "Internal (non-billable)"}</Field>
+          <Field label="Billable">{profile.is_billable ? "Billable" : "Non-billable"}</Field>
           <Field label="Classification">{statusLabel(finance.billing_classification)}</Field>
-          <Field label="Default bill rate">{money(finance.billing_rate_usd_cents)}{finance.billing_rate_usd_cents != null ? " / hr" : ""}</Field>
+          {profile.is_billable ? (
+            <Field label="Default bill rate">{money(finance.billing_rate_usd_cents)}{finance.billing_rate_usd_cents != null ? " / hr" : ""}</Field>
+          ) : null}
         </div>
+        {profile.is_billable ? <div className="mt-3"><EmployeeMinimumBillRate employeeId={profile.id} current={finance.billing_rate_usd_cents} /></div> : null}
         {message ? <div className="mt-2 text-sm text-rose-700">{message}</div> : null}
       </Section>
       {finance.compensation_visible ? (
@@ -576,7 +580,7 @@ function FinanceTab({ profile, save, reload }) {
             { key: "monthly_cost", label: "Monthly cost (USD, before statutory and overhead)", readOnly: true,
               display: (v) => (v == null ? "Unknown: no exchange rate for this currency" : money(v)),
               help: "Worked out from the pay; this is what the P&L and bench cost use." },
-            { key: "billing_rate", label: "Default bill rate (USD / hour)", type: "number", display: (v) => (v === "" ? "—" : money(v * 100)) },
+            ...(profile.is_billable ? [{ key: "billing_rate", label: "Default bill rate (USD / hour)", type: "number", display: (v) => (v === "" ? "—" : money(v * 100)) }] : []),
             { key: "pan_number", label: "PAN", help: "Type the full number to replace it." },
             { key: "tax_id", label: "Tax id (SSN / other)", help: "Type the full number to replace it." },
           ]} />

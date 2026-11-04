@@ -74,6 +74,7 @@ def set_billable(db: Session, employee: Employee, billable: bool, *, changed_by:
         return
     employee.is_billable = bool(billable)
     if not billable:
+        employee.billing_rate_usd_cents = None  # internal staff bill nothing
         remove_employee_from_bench(db, employee)
         if employee.status == "BENCH":
             transition_employee_status(db, employee, "ACTIVE", reason="Reclassified as non-billable (internal)",

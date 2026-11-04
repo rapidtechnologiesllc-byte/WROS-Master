@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 from uuid import uuid4
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, JSON, Enum, Numeric, event
 from sqlalchemy.orm import relationship, synonym
@@ -349,6 +350,14 @@ class Interview(Base):
     status = Column(String(50))  # Scheduled, Completed, Cancelled
 
     feedback_status = Column(String(512), nullable=False, server_default='Pending')  # Pending, Completed, Cancelled
+
+def average_feedback_score(feedback) -> Optional[float]:
+    """The mean of the scores given, to 2 places; None when none were given (a logged interview carries
+    its summary and recommendation, not scores)."""
+    scores = [s for s in (feedback.technical_score, feedback.communication_score,
+                          feedback.problem_solving_score, feedback.culture_fit_score) if s is not None]
+    return round(sum(scores) / len(scores), 2) if scores else None
+
 
 class InterviewFeedback(Base):
     __tablename__ = "interview_feedback"

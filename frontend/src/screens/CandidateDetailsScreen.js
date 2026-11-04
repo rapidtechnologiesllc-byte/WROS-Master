@@ -18,6 +18,7 @@ import {
 import {
   createCandidateHistoryEvent,
   HISTORY_EVENT_TYPES,
+  LOGGED_ACTIVITY_EVENT,
 } from "../services/api/candidateHistory";
 import { getCandidateChecklists } from "../services/api/checklists";
 import {
@@ -1160,30 +1161,25 @@ ${formattedJD}
     }
   };
 
+  const [historyVersion, setHistoryVersion] = useState(0);
   const handleLogActivity = async () => {
     if (!selectedActivityType || !activityNote.trim()) {
       return;
     }
     try {
       setActivityLogging(true);
-      const eventTypeMap = {
-        email: "Email Sent",
-        call: "Phone Call",
-        linkedin: "LinkedIn Message",
-        whatsapp: "WhatsApp Message",
-        meeting: "Activity Logged",
-      };
       await createCandidateHistoryEvent(candidate?.id, {
-        event_type: eventTypeMap[selectedActivityType] || selectedActivityType,
+        event_type: LOGGED_ACTIVITY_EVENT[selectedActivityType] || HISTORY_EVENT_TYPES.ACTIVITY_LOGGED,
         note: activityNote.trim(),
       });
+      setHistoryVersion((n) => n + 1);
       setShowActivityModal(false);
       setSelectedActivityType("");
       setActivityNote("");
       showNotice("Activity logged successfully", "success");
     } catch (error) {
       console.error("Failed to log activity", error);
-      showNotice("Failed to log activity", "error");
+      showNotice(`Failed to log activity: ${error?.message || "unknown error"}`, "error");
     } finally {
       setActivityLogging(false);
     }
@@ -1653,6 +1649,7 @@ ${formattedJD}
             )}
             {activeTab === "history" && !limitedMode && (
               <HistoryTab
+                key={historyVersion}
                 candidateId={candidate?.id || candidate?.candidate_id}
               />
             )}

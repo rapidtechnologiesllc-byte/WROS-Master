@@ -17,6 +17,15 @@ export const HISTORY_EVENT_TYPES = Object.freeze({
   CUSTOM: "Custom",
 });
 
+// What each Log button records (the backend validates against the same names)
+export const LOGGED_ACTIVITY_EVENT = Object.freeze({
+  email: HISTORY_EVENT_TYPES.EMAIL_SENT,
+  call: "Call",
+  linkedin: "LinkedIn Message",
+  whatsapp: "WhatsApp Message",
+  meeting: "Meeting",
+});
+
 // The filter's options come from the backend (the list event creation validates against)
 export const getHistoryEventTypes = async () => {
   const { data } = await apiRequest("/history/event-types", { method: "GET" });

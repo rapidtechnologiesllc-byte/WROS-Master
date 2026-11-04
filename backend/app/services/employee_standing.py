@@ -63,7 +63,8 @@ def employment_actions(employee_status: str) -> list:
 
 
 def deployment_status(employee_status: str, buddy_program_status: Optional[str], allocations: list,
-                      bench_days: Optional[int], today: date, htd_active: bool = False) -> dict:
+                      bench_days: Optional[int], today: date, htd_active: bool = False,
+                      billable: bool = True) -> dict:
     """{"status", "until", "days"}: until = the date the last active allocation ends (PROJECT /
     PROJECT_ENDING), days = days left on it, or days on bench. status None when not on payroll.
     allocations are the employee's ACTIVE allocation summaries (end_date ISO or None,
@@ -82,4 +83,6 @@ def deployment_status(employee_status: str, buddy_program_status: Optional[str],
         return {"status": "HTD", "until": None, "days": None}
     if buddy_program_status in BUDDY_RUNNING:
         return {"status": "BUDDY", "until": None, "days": None}
+    if not billable:  # internal staff: their cost is overhead, there is no project to be between
+        return {"status": "NON_BILLABLE", "until": None, "days": None}
     return {"status": "BENCH", "until": None, "days": bench_days}

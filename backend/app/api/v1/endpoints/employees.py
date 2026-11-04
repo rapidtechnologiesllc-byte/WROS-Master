@@ -142,7 +142,8 @@ def _to_item(db: Session, employee: Employee, *, bench_entry=..., allocations=No
     manager_name, manager_employee_id = managers.get(employee.reporting_manager_user_id, (None, None))
     bench_days = get_bench_duration_days(bench_entry) if bench_entry else None
     deployment = deployment_status(employee.status, employee.buddy_program_status, allocations, bench_days,
-                                   date.today(), htd_active=in_htd(employee.htd_track, employee.htd_phase))
+                                   date.today(), htd_active=in_htd(employee.htd_track, employee.htd_phase),
+                                   billable=bool(employee.is_billable))
     return EmployeeItem(
         id=employee.id,
         employee_number=employee.employee_number,
@@ -239,6 +240,67 @@ def create_employee(
 
     notify_employee_created(db, employee, actor=current_user)
     return _to_item(db, employee, viewer=current_user)
+
+
+class MinimumBillRateRequest(BaseModel):
+    business_unit_id: Optional[int] = None
+    company_id: Optional[str] = None
+    country: Optional[str] = None
+    current_title: Optional[str] = None
+    pay_amount_cents: Optional[int] = None
+    pay_currency: Optional[str] = None
+    pay_basis: Optional[str] = None
+    vendor_rate_usd_cents: Optional[int] = None
+
+
+@router.post(
+    "/minimum-bill-rate",
+    summary="The lowest bill rate for this pay, location and overhead, by line (Add employee)",
+    dependencies=[Depends(require_resource_permission("employees", "create"))]
+)
+def minimum_bill_rate_for_new_employee(
+    body: MinimumBillRateRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    from app.models.employee_org_history import country_of_company
+    from app.services import compensation, margin_guard_service
+    from app.services.employment_type_policy import country_code
+
+    if not can_see_compensation(db, current_user):
+        raise HTTPException(status_code=403, detail="Pay and rates are restricted")
+    monthly = None
+    if body.pay_amount_cents and body.pay_currency and body.pay_basis:
+        try:
+            monthly = compensation.monthly_usd_cents(body.pay_amount_cents, body.pay_currency, body.pay_basis)
+        except compensation.PayError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+    country = country_code(body.country) if body.country else country_of_company(db, body.company_id)
+    return margin_guard_service.minimum_bill_rate(
+        db, tenant_id=current_user.tenant_id, business_unit_id=body.business_unit_id, country=country,
+        role=body.current_title, monthly_usd_cents=monthly, vendor_rate_usd_cents=body.vendor_rate_usd_cents)
+
+
+@router.get(
+    "/{employee_id}/minimum-bill-rate",
+    summary="The lowest bill rate for this employee's pay, location and overhead, by line",
+    dependencies=[Depends(require_resource_permission("employees", "view"))]
+)
+def minimum_bill_rate_for_employee(
+    employee_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    from app.models.employee_org_history import country_of_company
+    from app.services import margin_guard_service
+
+    if not can_see_compensation(db, current_user):
+        raise HTTPException(status_code=403, detail="Pay and rates are restricted")
+    employee = _get_employee_or_404(db, employee_id, current_user)
+    return margin_guard_service.minimum_bill_rate(
+        db, tenant_id=employee.tenant_id, business_unit_id=employee.bu_id,
+        country=country_of_company(db, employee.company_id), role=employee.current_title,
+        monthly_usd_cents=employee.base_salary_usd_cents, vendor_rate_usd_cents=employee.vendor_hourly_rate_usd_cents)
 
 
 @router.get(
@@ -700,6 +762,8 @@ def update_employee_details(
         amount = updates["billing_rate_usd_cents"]
         if amount is not None and amount < 0:
             raise HTTPException(status_code=400, detail="Amounts cannot be negative")
+        if amount is not None and not employee.is_billable:
+            raise HTTPException(status_code=400, detail="A non-billable employee has no bill rate")
         employee.billing_rate_usd_cents = amount
     for field in ("pan_number", "tax_id"):
         if field in updates:

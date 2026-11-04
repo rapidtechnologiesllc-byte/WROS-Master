@@ -3,6 +3,17 @@
 import { apiFetch, apiRequest } from "./client";
 
 // Employee import (one creation path: a CSV, or one row from the Add employee form)
+// The lowest bill rate for this pay + location + overhead, by line (margin_guard_service.minimum_bill_rate)
+export const getMinimumBillRate = async (body) => {
+  const { data } = await apiRequest("/employees/minimum-bill-rate", { method: "POST", body: JSON.stringify(body) });
+  return data;
+};
+
+export const getEmployeeMinimumBillRate = async (employeeId) => {
+  const { data } = await apiRequest(`/employees/${employeeId}/minimum-bill-rate`, { method: "GET" });
+  return data;
+};
+
 export const getEmployeeImportTemplate = async () => {
   const { data } = await apiRequest("/employees/import/template", { method: "GET" });
   if (!data || !Array.isArray(data.columns)) throw new Error("Unexpected response: no import columns.");

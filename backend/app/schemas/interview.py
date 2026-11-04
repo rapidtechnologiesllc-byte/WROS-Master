@@ -196,10 +196,10 @@ class InterviewFeedbackResponse(BaseModel):
     id: int
     interview_id: int
     interviewer_id: str
-    technical_score: int
-    communication_score: int
-    problem_solving_score: int
-    culture_fit_score: int
+    technical_score: Optional[int] = None
+    communication_score: Optional[int] = None
+    problem_solving_score: Optional[int] = None
+    culture_fit_score: Optional[int] = None
     comments: Optional[str] = None
     recommendation: str
     submitted_at: datetime
@@ -211,11 +211,11 @@ class InterviewFeedbackWithDetails(BaseModel):
     interviewer_id: str
     interviewer_name: str
     interviewer_email: str
-    technical_score: int
-    communication_score: int
-    problem_solving_score: int
-    culture_fit_score: int
-    average_score: float
+    technical_score: Optional[int] = None
+    communication_score: Optional[int] = None
+    problem_solving_score: Optional[int] = None
+    culture_fit_score: Optional[int] = None
+    average_score: Optional[float] = None
     comments: Optional[str] = None
     recommendation: str
     submitted_at: datetime
@@ -281,11 +281,11 @@ class InterviewerWorkload(BaseModel):
 class MyInterviewFeedback(BaseModel):
     """Feedback submitted by the current panel member for a completed interview"""
     feedback_id: int
-    technical_score: int
-    communication_score: int
-    problem_solving_score: int
-    culture_fit_score: int
-    average_score: float
+    technical_score: Optional[int] = None
+    communication_score: Optional[int] = None
+    problem_solving_score: Optional[int] = None
+    culture_fit_score: Optional[int] = None
+    average_score: Optional[float] = None
     comments: Optional[str] = None
     recommendation: str
     submitted_at: datetime
@@ -337,11 +337,11 @@ class HMFeedbackDetail(BaseModel):
     feedback_id: int
     interviewer_id: str
     interviewer_name: str
-    technical_score: int
-    communication_score: int
-    problem_solving_score: int
-    culture_fit_score: int
-    average_score: float
+    technical_score: Optional[int] = None
+    communication_score: Optional[int] = None
+    problem_solving_score: Optional[int] = None
+    culture_fit_score: Optional[int] = None
+    average_score: Optional[float] = None
     comments: Optional[str] = None
     recommendation: str
     submitted_at: datetime

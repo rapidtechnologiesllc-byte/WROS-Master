@@ -32,6 +32,7 @@ from app.services.interview_feedback_task_service import (
     close_pending_feedback_task,
 )
 from app.core.logging import logger
+from app.models.user import average_feedback_score
 from app.schemas.interview import (
     # Panel schemas
     InterviewPanelCreate, InterviewPanelResponse, InterviewPanelWithDetails,
@@ -1107,19 +1108,14 @@ def get_my_interviews(
 
         if interview.status == "Completed":
             if my_feedback_record:
-                avg_score = (
-                    my_feedback_record.technical_score +
-                    my_feedback_record.communication_score +
-                    my_feedback_record.problem_solving_score +
-                    my_feedback_record.culture_fit_score
-                ) / 4.0
+                avg_score = average_feedback_score(my_feedback_record)
                 my_feedback_schema = MyInterviewFeedback(
                     feedback_id=my_feedback_record.id,
                     technical_score=my_feedback_record.technical_score,
                     communication_score=my_feedback_record.communication_score,
                     problem_solving_score=my_feedback_record.problem_solving_score,
                     culture_fit_score=my_feedback_record.culture_fit_score,
-                    average_score=round(avg_score, 2),
+                    average_score=avg_score,
                     comments=my_feedback_record.comments,
                     recommendation=my_feedback_record.recommendation,
                     submitted_at=my_feedback_record.submitted_at
@@ -1175,14 +1171,8 @@ def get_interview_statistics(
     total_feedback = len(feedbacks)
 
     # Calculate average feedback score
-    avg_score = None
-    if total_feedback > 0:
-        total_score = sum(
-            (f.technical_score + f.communication_score +
-             f.problem_solving_score + f.culture_fit_score) / 4.0
-            for f in feedbacks
-        )
-        avg_score = round(total_score / total_feedback, 2)
+    scored = [score for score in map(average_feedback_score, feedbacks) if score is not None]
+    avg_score = round(sum(scored) / len(scored), 2) if scored else None
 
     return InterviewStatistics(
         total_interviews=total_interviews,
@@ -1695,13 +1685,7 @@ def get_feedback_by_interview(
     for feedback in feedbacks:
         interviewer = db.query(Users).filter(Users.UserID == feedback.interviewer_id).first()
         
-        # Calculate average score
-        avg_score = (
-            feedback.technical_score +
-            feedback.communication_score +
-            feedback.problem_solving_score +
-            feedback.culture_fit_score
-        ) / 4.0
+        avg_score = average_feedback_score(feedback)
         
         results.append(InterviewFeedbackWithDetails(
             id=feedback.id,
@@ -1713,7 +1697,7 @@ def get_feedback_by_interview(
             communication_score=feedback.communication_score,
             problem_solving_score=feedback.problem_solving_score,
             culture_fit_score=feedback.culture_fit_score,
-            average_score=round(avg_score, 2),
+            average_score=avg_score,
             comments=feedback.comments,
             recommendation=feedback.recommendation,
             submitted_at=feedback.submitted_at
@@ -1749,13 +1733,7 @@ def get_feedback_by_id(
 
     interviewer = db.query(Users).filter(Users.UserID == feedback.interviewer_id).first()
     
-    # Calculate average score
-    avg_score = (
-        feedback.technical_score +
-        feedback.communication_score +
-        feedback.problem_solving_score +
-        feedback.culture_fit_score
-    ) / 4.0
+    avg_score = average_feedback_score(feedback)
     
     return InterviewFeedbackWithDetails(
         id=feedback.id,
@@ -1767,7 +1745,7 @@ def get_feedback_by_id(
         communication_score=feedback.communication_score,
         problem_solving_score=feedback.problem_solving_score,
         culture_fit_score=feedback.culture_fit_score,
-        average_score=round(avg_score, 2),
+        average_score=avg_score,
         comments=feedback.comments,
         recommendation=feedback.recommendation,
         submitted_at=feedback.submitted_at

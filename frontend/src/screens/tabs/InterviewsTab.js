@@ -15,6 +15,7 @@ import { hasPermission } from "../../utils/permissionsRoleTemplate";
 import {
   createCandidateHistoryEvent,
   HISTORY_EVENT_TYPES,
+  LOGGED_ACTIVITY_EVENT,
 } from "../../services/api/candidateHistory";
 import {
   getCandidateInterviewHistory,
@@ -638,14 +639,7 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
     }
     try {
       setActivityLogging(true);
-      const eventTypeMap = {
-        email: "Email Sent",
-        call: "Call",
-        linkedin: "LinkedIn Message",
-        whatsapp: "WhatsApp Message",
-        meeting: "Meeting",
-      };
-      const eventType = eventTypeMap[selectedActivityType] || "Activity Logged";
+      const eventType = LOGGED_ACTIVITY_EVENT[selectedActivityType] || "Activity Logged";
       await createCandidateHistoryEvent(candidateId, {
         event_type: eventType,
         note: activityNote,

@@ -35,6 +35,7 @@ export const DEPLOYMENT = {
   HTD: ["HTD", "blue"],
   BUDDY: ["Buddy Program", "purple"],
   BENCH: ["Bench", "amber"],
+  NON_BILLABLE: ["Non-billable", "grey"],
   PROJECT: ["On project", "green"],
   PROJECT_ENDING: ["Project ending", "amber"],
 };

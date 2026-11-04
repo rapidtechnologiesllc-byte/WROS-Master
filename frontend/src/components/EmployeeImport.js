@@ -8,9 +8,10 @@ import { Upload, Download, X, UserPlus } from "lucide-react";
 import { Button, Card } from "./ui";
 import cx from "../utils/cx";
 import {
-  applyEmployeeImport, createEmployee, dryRunEmployeeImport, getEmployeeImportTemplate,
+  applyEmployeeImport, createEmployee, dryRunEmployeeImport, getEmployeeImportTemplate, getMinimumBillRate,
 } from "../services/api/employees";
 import { addSubVendor, getSubVendors } from "../services/api/invoices";
+import MinimumBillRate from "./MinimumBillRate";
 
 const STATUS_STYLES = {
   applied: "bg-emerald-50 text-emerald-800",
@@ -245,6 +246,24 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
   const countryCurrency = (country || companyCountry)?.currency || "USD";
   const payCurrency = form.pay_currency || countryCurrency;
   const payBasis = form.pay_basis || template?.pay_basis_default || "ANNUAL";
+  // The lowest bill rate for this pay, location and overhead, recalculated as the form changes
+  const [minimum, setMinimum] = useState(null);
+  useEffect(() => {
+    if (form.billable !== "yes") return undefined;
+    const hasCost = viaVendor ? Number(form.vendor_rate_usd) > 0 : Number(form.pay) > 0;
+    if (!hasCost) return undefined;
+    const timer = setTimeout(() => {
+      getMinimumBillRate({
+        business_unit_id: form.business_unit_id ? Number(form.business_unit_id) : null,
+        company_id: form.company_id || null, country: form.country || null, current_title: form.current_title || null,
+        ...(viaVendor
+          ? { vendor_rate_usd_cents: Math.round(Number(form.vendor_rate_usd) * 100) }
+          : { pay_amount_cents: Math.round(Number(form.pay) * 100), pay_currency: payCurrency, pay_basis: payBasis }),
+      }).then(setMinimum).catch((err) => setError(`Could not work out the minimum bill rate: ${err.message}`));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [form.billable, form.business_unit_id, form.company_id, form.country, form.current_title, form.pay,
+    form.vendor_rate_usd, viaVendor, payCurrency, payBasis]);
   const employmentTypes = country ? country.employment_types
     : ((template?.countries || [])[0]?.employment_types || []);
   // The manager is recorded in the org chart: the new seat goes under the manager's seat, which the
@@ -275,7 +294,7 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
         ...(viaVendor
           ? { sub_vendor_id: form.sub_vendor_id, vendor_rate_usd_cents: Math.round(Number(form.vendor_rate_usd) * 100) }
           : { pay_amount_cents: Math.round(Number(form.pay) * 100), pay_currency: payCurrency, pay_basis: payBasis }),
-        billing_rate_usd_cents: form.bill_rate_usd ? Math.round(Number(form.bill_rate_usd) * 100) : null,
+        billing_rate_usd_cents: form.billable === "yes" && form.bill_rate_usd ? Math.round(Number(form.bill_rate_usd) * 100) : null,
       });
       onCreated(created);
     } catch (err) {
@@ -392,7 +411,12 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
           </label>
         </div>
         )}
-        <label><span className={label}>Bill rate (USD / hour)</span><input className={field} type="number" min="0" value={form.bill_rate_usd} onChange={set("bill_rate_usd")} /></label>
+        {form.billable === "yes" ? (
+          <>
+            <label><span className={label}>Bill rate (USD / hour)</span><input className={field} type="number" min="0" value={form.bill_rate_usd} onChange={set("bill_rate_usd")} /></label>
+            <div className="sm:col-span-2"><MinimumBillRate result={minimum} billRateCents={form.bill_rate_usd ? Math.round(Number(form.bill_rate_usd) * 100) : null} /></div>
+          </>
+        ) : null}
         <label className="flex items-center gap-2 text-sm sm:col-span-2">
           <input type="checkbox" checked={form.existing_staff} onChange={set("existing_staff")} />
           Already working here (recorded as Buddy Program graduated, audited under your name)
