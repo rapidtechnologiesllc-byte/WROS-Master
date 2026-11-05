@@ -24,6 +24,10 @@ never disagree:
   invoiced) billable hours x their vendor rate. They carry no bench or overhead. Lines report
   vendor_cost / vendor_invoiced / vendor_paid, so the P&L shows what is owed to vendors beside cash
   collected from clients (pay-when-paid: vendor_invoice_service).
+- *Shared services* (CEO 2026-11-03: "equally distributed in P&L across all BU's that has revenue"): the overhead of
+  non-billable people in a shared function (HR, Recruitment, Finance, Resource Management; Department.is_shared_service)
+  moves out of the BU they sit in and is split equally across the BUs with revenue in the period, as its own cost column.
+  With no revenue anywhere it stays where they sit. A move never changes the org total. Company rows keep the real cost.
 - *Expense cost* = manager-approved expenses dated in the period, attributed through
   the expense's client (else the business unit of whoever logged it).
 - *Partner* = the partner of the business unit that owns the client
@@ -359,6 +363,41 @@ def summarize(lines: List[Dict], group_by: str) -> List[Dict]:
     return sorted(rows, key=lambda r: r["earned_usd_cents"], reverse=True)
 
 
+def equal_shares(amount: int, business_units: Iterable[int]) -> Dict[int, int]:
+    """amount split equally; the cents left over go one each to the first BUs, so the shares add up exactly."""
+    ordered = sorted(business_units)
+    share, left = divmod(amount, len(ordered))
+    return {bu: share + (1 if index < left else 0) for index, bu in enumerate(ordered)}
+
+
+def shared_service_moves(db: Session, *, start: date, end: date, tenant_id: Optional[int], costs: CostBook):
+    """({(home bu, country): cost of shared-function people who sat there}, [BUs with revenue]). Always org-wide, so
+    a partner's view shows the same share as the CEO's."""
+    from app.core.config import settings as config
+    from app.models.org_structure import Department
+
+    default = {n.strip().lower() for n in config.SHARED_SERVICE_FUNCTIONS.split(",") if n.strip()}
+    departments = db.query(Department)
+    if tenant_id is not None:
+        departments = departments.filter(Department.tenant_id == tenant_id)
+    shared = [d.id for d in departments.all()
+              if (d.is_shared_service if d.is_shared_service is not None else d.name.strip().lower() in default)]
+    all_lines = chain_lines(db, start=start, end=end, tenant_id=tenant_id, costs=costs, business_unit_ids=None)
+    targets = sorted({line["business_unit_id"] for line in all_lines if line["business_unit_id"] and line["earned_usd_cents"]})
+    pool: Dict = defaultdict(int)
+    if not shared:
+        return dict(pool), targets
+    people = (db.query(Employee).join(Users, Users.UserID == Employee.wros_user_id)
+              .filter(Users.department_id.in_(shared), Employee.is_billable.is_(False), Employee.sub_vendor_id.is_(None),
+                      Employee.joining_date <= end, (Employee.exit_date.is_(None)) | (Employee.exit_date >= start),
+                      Employee.status != "PRE_JOINING").all())
+    for employee in people:
+        for (bu_id, _, where), payroll in costs.by_object(employee, start, end).items():
+            if payroll:
+                pool[(bu_id, where)] += payroll
+    return dict(pool), targets
+
+
 def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
         business_unit_ids: Optional[Set[int]] = None, country: Optional[str] = None) -> Dict:
     """Org P&L for [start, end] with every partner, business unit, location and cost object
@@ -396,7 +435,7 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
     # bench (billable staff) and overhead (internal staff): each day's unbilled payroll goes to the
     # BU, company and country the employee sat in THAT day, never to where they sit now
     bench_rows: Dict = defaultdict(lambda: {"bench_cost_usd_cents": 0, "overhead_cost_usd_cents": 0,
-                                            "htd_cost_usd_cents": 0, "missing": []})
+                                            "htd_cost_usd_cents": 0, "shared_cost_usd_cents": 0, "missing": []})
     company_staff_cost: Dict = defaultdict(lambda: {"bench": 0, "overhead": 0, "htd": 0, "complete": True})
     missing_cost = sorted({line["employee_id"] for line in lines if line["cost_usd_cents"] is None})
     for employee in staff:
@@ -429,6 +468,22 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
             bench_rows[bucket]["bench_cost_usd_cents" if employee.is_billable else "overhead_cost_usd_cents"] += uncovered
             company_staff_cost[company_id]["bench" if employee.is_billable else "overhead"] += uncovered
 
+    pool, revenue_units = shared_service_moves(db, start=start, end=end, tenant_id=tenant_id, costs=costs)
+
+    def staff_bucket(bu_id, where):
+        unit = units.get(bu_id)
+        return (unit.partner_user_id if unit and unit.partner_user_id else UNASSIGNED, bu_id, where)
+
+    if revenue_units:
+        for (home, where), amount in pool.items():
+            if country is not None and where != country:
+                continue
+            if business_unit_ids is None or home in business_unit_ids:
+                bench_rows[staff_bucket(home, where)]["overhead_cost_usd_cents"] -= amount
+            for bu_id, share in equal_shares(amount, revenue_units).items():
+                if business_unit_ids is None or bu_id in business_unit_ids:
+                    bench_rows[staff_bucket(bu_id, where)]["shared_cost_usd_cents"] += share
+
     expenses, pending_expenses = _expenses(db, start, end, tenant_id, units, business_unit_ids, costs)
     if country is not None:
         expenses = []  # a client expense has no location
@@ -437,7 +492,7 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
         return sum(e["amount"] for e in expenses if e["key"][index] == key)
 
     def section(revenue_lines: List[Dict], bench: int, bench_missing: List[str], expense: int,
-                overhead: int = 0, htd: int = 0) -> Dict:
+                overhead: int = 0, htd: int = 0, shared: int = 0) -> Dict:
         totals = _totals(revenue_lines)
         delivery = totals.pop("cost_usd_cents")
         complete = totals.pop("cost_data_complete") and not bench_missing
@@ -445,8 +500,9 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
         out = {
             **totals, "revenue_usd_cents": totals["earned_usd_cents"],
             "delivery_cost_usd_cents": delivery, "bench_cost_usd_cents": bench,
-            "overhead_cost_usd_cents": overhead, "htd_cost_usd_cents": htd, "expense_cost_usd_cents": expense,
-            "total_cost_usd_cents": delivery + bench + overhead + htd + expense, "cost_data_complete": complete,
+            "overhead_cost_usd_cents": overhead, "shared_cost_usd_cents": shared, "htd_cost_usd_cents": htd,
+            "expense_cost_usd_cents": expense,
+            "total_cost_usd_cents": delivery + bench + overhead + shared + htd + expense, "cost_data_complete": complete,
         }
         return _with_margin(out, out["revenue_usd_cents"], out["total_cost_usd_cents"], complete)
 
@@ -459,7 +515,7 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
                 [line for line in lines if line[line_key] == k],
                 sum(b["bench_cost_usd_cents"] for b in bench), [m for b in bench for m in b["missing"]],
                 expense_for(index, k), sum(b["overhead_cost_usd_cents"] for b in bench),
-                sum(b["htd_cost_usd_cents"] for b in bench),
+                sum(b["htd_cost_usd_cents"] for b in bench), sum(b["shared_cost_usd_cents"] for b in bench),
             )})
         return sorted(rows, key=lambda r: r["revenue_usd_cents"], reverse=True)
 
@@ -481,7 +537,8 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
     org = section(lines, sum(b["bench_cost_usd_cents"] for b in bench_rows.values()),
                   [m for b in bench_rows.values() for m in b["missing"]], sum(e["amount"] for e in expenses),
                   sum(b["overhead_cost_usd_cents"] for b in bench_rows.values()),
-                  sum(b["htd_cost_usd_cents"] for b in bench_rows.values()))
+                  sum(b["htd_cost_usd_cents"] for b in bench_rows.values()),
+                  sum(b["shared_cost_usd_cents"] for b in bench_rows.values()))
     by_company = _company_pnl(db, lines, company_staff_cost, expenses, start, end, tenant_id)
 
     def staff_rollup(key_of_line, key_of_bucket, names) -> List[Dict]:
@@ -494,7 +551,8 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
             rows.append({"key": k, "name": names(k), **section(
                 [line for line in lines if key_of_line(line) == k],
                 sum(b["bench_cost_usd_cents"] for b in bench), [m for b in bench for m in b["missing"]], 0,
-                sum(b["overhead_cost_usd_cents"] for b in bench), sum(b["htd_cost_usd_cents"] for b in bench))})
+                sum(b["overhead_cost_usd_cents"] for b in bench), sum(b["htd_cost_usd_cents"] for b in bench),
+                sum(b["shared_cost_usd_cents"] for b in bench))})
         return sorted(rows, key=lambda r: (-r["total_cost_usd_cents"], str(r["key"])))
 
     return {

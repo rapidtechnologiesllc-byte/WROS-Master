@@ -61,6 +61,8 @@ class RoleTemplate(Base):
     specialization = Column(String(512), nullable=False, default="General")  # Defines expertise domain
 
     is_system = Column(Boolean, default=False)  # True for built-in roles, False for custom
+    # May permanently delete records (authority.can_delete_records); seeded on for Super Admin
+    can_delete_records = Column(Boolean, default=False, nullable=False, server_default="false")
     is_super_user = Column(Boolean, default=False, nullable=False, server_default="false")  # True for Admin role - bypasses all permission checks
     # PRODUCTION SAFETY: enabled MUST default to True, never allow None
     enabled = Column(Boolean, default=True, nullable=False, server_default="true")

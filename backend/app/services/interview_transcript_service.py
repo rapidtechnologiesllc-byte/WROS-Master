@@ -31,6 +31,7 @@ GRAPH = "https://graph.microsoft.com/v1.0"
 TIMEOUT_SECONDS = 30
 FETCH_AFTER_MINUTES = 30  # Teams needs a while to publish the transcript
 FETCH_FOR_DAYS = 14
+CLOSE_AFTER_HOURS = 1  # the same hour the panel is asked for feedback
 PREPARE_WITHIN_DAYS = 7
 MAX_TRANSCRIPT_CHARS = 500_000
 CAUTIOUS_ORDER = ("Reject", "Hold", "Hire")  # a tied panel takes the more careful answer
@@ -253,6 +254,39 @@ def analysis_for(db: Session, interview: Interview) -> Optional[Dict]:
     if log is not None and log.analysis:
         return log.analysis
     return rules_analysis(db, interview, log)
+
+
+def close_past_interviews(db: Session, *, now: Optional[datetime] = None) -> int:
+    """An interview whose time has passed does not stay Scheduled: it is Completed, which asks the panel for feedback.
+    Cancelling or rescheduling stays with people. Commits."""
+    from app.models.candidate_history import CandidateHistory
+
+    now = now or datetime.utcnow()
+    past = db.query(Interview).filter(Interview.status == "Scheduled",
+                                      Interview.end_time <= now - timedelta(hours=CLOSE_AFTER_HOURS)).all()
+    for interview in past:
+        interview.status = "Completed"
+        db.add(CandidateHistory(candidateID=interview.candidate_id, event_type="Interview Completed", interview_id=interview.id,
+                                event_at=now, note=f"Its time passed on {interview.end_time:%d %b %Y %H:%M} UTC: closed automatically. "
+                                                   "If it did not happen, reschedule it."))
+    db.commit()
+    return len(past)
+
+
+def run_interview_feedback_job(db: Session, *, now: Optional[datetime] = None) -> Dict:
+    """Every 15 minutes: interviews over an hour ago close and ask their panels for feedback; a task that appeared too
+    early goes away until then. Commits."""
+    from app.services.interview_feedback_task_service import remove_early_feedback_tasks, sync_pending_feedback_tasks_for_interview
+
+    now = now or datetime.utcnow()
+    closed = close_past_interviews(db, now=now)
+    removed = remove_early_feedback_tasks(db)
+    finished = db.query(Interview).filter(Interview.status == "Completed", Interview.end_time >= now - timedelta(days=FETCH_FOR_DAYS),
+                                          (Interview.feedback_status.is_(None)) | (Interview.feedback_status != "Completed")).all()
+    for interview in finished:
+        sync_pending_feedback_tasks_for_interview(db, interview)
+    db.commit()
+    return {"closed": closed, "removed": removed}
 
 
 def run_interview_transcripts_job(db: Session, *, now: Optional[datetime] = None, http=requests) -> Dict:

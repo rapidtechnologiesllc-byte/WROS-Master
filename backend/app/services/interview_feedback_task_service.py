@@ -21,7 +21,7 @@ feedback. Never raises -- a Task-sync bug must never block scheduling
 an interview or submitting feedback, same fire-and-forget posture as
 document_task_service.py and interviews.py::_create_hm_review_task.
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -33,6 +33,7 @@ from app.models.user import Interview, InterviewFeedback, InterviewPanel, Jobs, 
 from app.services.task_service import create_task
 
 FEEDBACK_TASK_CATEGORY = "INTERVIEW_FEEDBACK"
+FEEDBACK_AFTER_END = timedelta(hours=1)
 
 def _candidate_display_name(candidate: Optional[Candidate]) -> str:
     if not candidate:
@@ -53,12 +54,27 @@ def _existing_feedback_task(db: Session, candidate_id: str, interview_id: int, i
         .first()
     )
 
+def remove_early_feedback_tasks(db: Session) -> int:
+    """Open feedback tasks for interviews not over an hour ago go; they come back at the right time. Flushes."""
+    now = datetime.utcnow()
+    early = (db.query(Task).join(Interview, Interview.id == Task.interview_id)
+             .filter(Task.category == FEEDBACK_TASK_CATEGORY, Task.status.in_(("NEW", "IN_PROGRESS", "ON_HOLD")),
+                     Interview.end_time > now - FEEDBACK_AFTER_END).all())
+    for task in early:
+        db.delete(task)
+    db.flush()
+    return len(early)
+
+
 def sync_pending_feedback_tasks_for_interview(db: Session, interview: Interview) -> None:
     """Call whenever the set of panel members for an interview may have
     changed (interview creation, a new panel member assigned to an
     already-existing interview) -- creates exactly one open Task per
     panel member who hasn't submitted feedback yet and doesn't already
-    have one for this interview."""
+    have one for this interview. Not before the interview is over: a task appears FEEDBACK_AFTER_END after it ends
+    (CEO 2026-11-05), brought by run_interview_feedback_job."""
+    if interview.end_time is None or datetime.utcnow() < interview.end_time + FEEDBACK_AFTER_END:
+        return
     try:
         panel = db.query(InterviewPanel).filter(InterviewPanel.id == interview.panel_id).first()
         if not panel:
@@ -100,7 +116,7 @@ def sync_pending_feedback_tasks_for_interview(db: Session, interview: Interview)
                 visibility_scope="ASSIGNEE_MANAGER_DEPARTMENT",
                 task_type="GENERAL",
                 category=FEEDBACK_TASK_CATEGORY,
-                due_date=interview.end_time,
+                due_date=interview.end_time + FEEDBACK_AFTER_END,
             )
             task.candidate_id = interview.candidate_id
             task.interview_id = interview.id

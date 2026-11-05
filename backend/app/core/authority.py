@@ -135,6 +135,11 @@ def is_ceo(db: Session, user: Optional[Users]) -> bool:
     return level(db, user) >= settings.CEO_LEVEL
 
 
+def can_delete_records(db: Session, user: Optional[Users]) -> bool:
+    """Permanent deletes are for the CEO and super users (both from the role template)."""
+    return is_ceo(db, user) or any(t.can_delete_records for t in templates_of(db, user))
+
+
 def is_director(db: Session, user: Optional[Users]) -> bool:
     return level(db, user) >= settings.DIRECTOR_MIN_LEVEL
 
@@ -270,6 +275,7 @@ def summary(db: Session, user: Optional[Users]) -> dict:
             "specialization": specializations[0] if specializations else ("General" if role_of(db, user) else None),
             "is_bu_leader": is_bu_leader(db, user),
             "is_finance_leader": is_finance_leader(db, user),
+            "can_delete_records": can_delete_records(db, user),
             "position": position(db, user)[0],
             "home_dashboard": home_dashboard(db, user)}
 

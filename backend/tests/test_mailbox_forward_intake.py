@@ -369,14 +369,13 @@ def test_candidate_news_without_a_resume_is_matched_by_phone(db, ceo):
 
 # ---- unclear or not allowed -> a task for the forwarder -----------------------------------
 
-def test_an_unclear_email_becomes_a_task_for_the_forwarder(db, ceo):
+def test_an_email_about_nobody_we_know_is_set_aside_without_a_task(db, ceo):
     row, mailbox = received_forward(db, ceo, "Thoughts?", subject="Fwd: lunch")
     result, _ = run_handler(db, row.id, mailbox, llm_returning(kind="OTHER", confidence=0.4))
-    task = db.query(Task).filter_by(id=result["task_id"]).one()
-    assert result["status"] == "needs_review" and task.assigned_to_user_id == ceo.UserID
-    assert task.title.startswith("Forwarded email needs you: Fwd: lunch") and task.due_date is not None
+    assert result["status"] == "ignored"
+    assert db.query(Task).filter(Task.title.like("Forwarded email needs you: Fwd: lunch%")).count() == 0
     db.refresh(row)
-    assert row.status == "NEEDS_REVIEW" and row.task_id == task.id
+    assert row.status == "IGNORED"
 
 
 def test_a_resume_without_an_email_address_becomes_a_task(db, ceo):

@@ -29,7 +29,7 @@ import {
 import { sendPlainEmail, sendInterviewInvite } from "../services/api/email";
 import { getCandidateDocuments } from "../services/api/documents";
 import { getAllUsers } from "../services/api/users";
-import { updateCandidate } from "../services/api/candidates";
+import { deleteCandidate, updateCandidate } from "../services/api/candidates";
 import {
   getOnlineInterviewEmailTemplate,
   getFaceToFaceInterviewEmailTemplate,
@@ -1164,6 +1164,29 @@ ${formattedJD}
   };
 
   const [historyVersion, setHistoryVersion] = useState(0);
+  // Permanent deletes: CEO and super users only (the server enforces the same flag)
+  const canDeleteRecords = useMemo(() => {
+    try {
+      return Boolean(JSON.parse(localStorage.getItem("hrms_authority") || "{}").can_delete_records);
+    } catch (err) {
+      console.warn("[CandidateDetails] could not read the authority flags:", err);
+      return false;
+    }
+  }, []);
+  const handleDeleteCandidate = async () => {
+    const label = candidate?.email || candidate?.id;
+    if (window.prompt(`This permanently deletes ${label} and everything attached: history, interviews, documents, tasks. It cannot be undone.\n\nType DELETE to confirm.`) !== "DELETE") {
+      return;
+    }
+    try {
+      await deleteCandidate(candidate?.id);
+      await onRefreshCandidates?.();
+      window.location.assign("/candidates");
+    } catch (error) {
+      console.error("Failed to delete candidate", error);
+      showNotice(`Could not delete: ${error?.message || "unknown error"}`, "error");
+    }
+  };
   const handleLogActivity = async () => {
     if (!selectedActivityType || !activityNote.trim()) {
       return;
@@ -1536,6 +1559,18 @@ ${formattedJD}
                         >
                           Merge candidate
                         </button>
+                        {canDeleteRecords ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowNotesMenu(false);
+                              handleDeleteCandidate();
+                            }}
+                            className="w-full px-4 py-3 text-sm text-left text-red-700 hover:bg-red-50 border-b"
+                          >
+                            Delete candidate
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           onClick={() => {

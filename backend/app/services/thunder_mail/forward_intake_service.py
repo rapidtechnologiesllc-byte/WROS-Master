@@ -260,8 +260,12 @@ def _file_by_address(db: Session, row, forwarder: Users, reading: ForwardReading
         db.commit()
         logger.info(f"[ForwardIntake] intake={row.id} processed: logged on client(s) {[c.id for c in clients]}")
         return {"status": "processed", "intake_id": row.id, "client_ids": [c.id for c in clients]}
-    return _needs_review(db, row, forwarder, "It is not clear what this email is about, and none of its "
-                         "addresses belongs to a candidate, employee or client we know.")
+    # about nobody we know and no recognisable request (a newsletter, a notice): set aside, not a task for anyone
+    row.status, row.review_reason, row.processed_at = ("IGNORED", "About nobody we know and no recognisable request",
+                                                       datetime.utcnow())
+    db.commit()
+    logger.info(f"[ForwardIntake] intake={row.id} about nobody we know: set aside")
+    return {"status": "ignored", "intake_id": row.id, "reason": row.review_reason}
 
 
 def _extracted(reading: ForwardReading) -> Dict:
@@ -302,7 +306,23 @@ def _existing_candidate(db: Session, row: MailboxIntakeMessage, reading: Forward
     return None
 
 
+def _is_our_own_address(address: Optional[str], company_domains) -> bool:
+    return bool(address) and address.rsplit("@", 1)[-1].lower() in company_domains
+
+
+def _company_domains(db: Session, tenant_id) -> set:
+    """The domains our own people's logins are on: nobody at one of them is a candidate."""
+    rows = db.query(Users.UserEmail).filter(Users.tenant_id == tenant_id, Users.terminated_at.is_(None)).all()
+    return {r[0].rsplit("@", 1)[-1].lower() for r in rows if r[0] and "@" in r[0]}
+
+
 def _candidate_email(db: Session, row, forwarder: Users, reading: ForwardReading, mailbox) -> Dict:
+    if _is_our_own_address((reading.candidate or {}).get("email"), _company_domains(db, row.tenant_id)):
+        # an internal meeting or a mailing list (employees@...): nobody to recruit, and nothing for anyone to do
+        row.status, row.review_reason, row.processed_at = "IGNORED", "Internal address: not a candidate", datetime.utcnow()
+        db.commit()
+        logger.info(f"[ForwardIntake] intake={row.id} is internal: set aside")
+        return {"status": "ignored", "intake_id": row.id, "reason": "internal address"}
     existing = _existing_candidate(db, row, reading)
     if existing is not None:
         if not _allowed(db, forwarder, "candidates.edit"):
