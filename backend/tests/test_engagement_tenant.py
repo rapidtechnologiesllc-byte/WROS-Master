@@ -30,7 +30,7 @@ def sent_emails():
         yield sent
 
 
-def _complete_except(db, *, missing=("candidateGender", "marital_status")):
+def _complete_except(db, *, missing=("candidateCurrentLocation", "permanent_address")):
     """A candidate with every profile field filled except `missing`."""
     values = dict(candidateFirstName="Ria", candidateLastName="Das", candidateMobile="+91 98765 43210",
                   candidateGender="Female", candidateDateOfBirth=date(1995, 5, 1),
@@ -53,7 +53,7 @@ def _complete_except(db, *, missing=("candidateGender", "marital_status")):
 
 def test_missing_fields_are_the_empty_profile_fields(db):
     candidate = _complete_except(db)
-    assert [m["field"] for m in svc.get_missing_fields(candidate, db)] == ["candidateGender", "marital_status"]
+    assert [m["field"] for m in svc.get_missing_fields(candidate, db)] == ["candidateCurrentLocation", "permanent_address"]
 
 
 def test_merge_saves_professional_details_and_rejects_bad_values(db):
@@ -82,6 +82,13 @@ def test_unknown_employment_type_and_a_missing_resume_count_as_missing(db):
     assert [m["field"] for m in svc.get_missing_fields(candidate, db)] == ["employment_type"]
     assert [m["field"] for m in svc.get_missing_fields(candidate, db, include_documents=True)] == [
         "employment_type", "resume"]
+
+
+def test_age_gender_marital_status_and_nationality_are_never_asked_before_an_offer(db):
+    candidate = factories.candidate(db)
+    asked = {m["field"] for m in svc.get_missing_fields(candidate, db)}
+    assert not asked & {"candidateGender", "candidateDateOfBirth", "marital_status", "nationality"}
+    assert "candidateExperience" in asked
 
 
 def test_merge_saves_core_and_form_fields_and_rejects_bad_values(db):
@@ -125,13 +132,13 @@ def test_assigning_thunder_keys_the_conversation_by_tenant_and_emails_what_is_mi
 def test_a_reply_fills_the_fields_and_closes_the_conversation(db, sent_emails):
     candidate = _complete_except(db)
     svc.assign_ai_agent(candidate.candidateID, None, None, db)
-    llm = lambda prompt: '{"candidateGender": "Female", "marital_status": "Single"}'  # noqa: E731
-    result = svc.process_candidate_reply(candidate.candidateID, db, raw_reply_text="I am female and single.",
+    llm = lambda prompt: '{"candidateCurrentLocation": "Pune", "permanent_address": "Pune, India"}'  # noqa: E731
+    result = svc.process_candidate_reply(candidate.candidateID, db, raw_reply_text="I live in Pune, India.",
                                          message_id="m-1", llm_call=llm)
     assert result["status"] == "completed"
-    assert sorted(result["updated_fields"]) == ["candidateGender", "marital_status"]
+    assert sorted(result["updated_fields"]) == ["candidateCurrentLocation", "permanent_address"]
     db.refresh(candidate)
-    assert candidate.candidateGender == "Female"
+    assert candidate.candidateCurrentLocation == "Pune"
     again = svc.process_candidate_reply(candidate.candidateID, db, raw_reply_text="x", message_id="m-1", llm_call=llm) \
         if db.query(CandidateConversation).filter(CandidateConversation.candidate_id == candidate.candidateID,
                                                   CandidateConversation.status != "closed").count() else None
@@ -141,13 +148,13 @@ def test_a_reply_fills_the_fields_and_closes_the_conversation(db, sent_emails):
 def test_a_partial_reply_follows_up_on_what_is_still_missing(db, sent_emails):
     candidate = _complete_except(db)
     svc.assign_ai_agent(candidate.candidateID, None, None, db)
-    result = svc.process_candidate_reply(candidate.candidateID, db, raw_reply_text="I am female.",
-                                         message_id="m-2", llm_call=lambda p: '{"candidateGender": "Female"}')
+    result = svc.process_candidate_reply(candidate.candidateID, db, raw_reply_text="I am in Pune.",
+                                         message_id="m-2", llm_call=lambda p: '{"candidateCurrentLocation": "Pune"}')
     assert result["status"] == "partial"
-    assert result["still_missing"] == ["marital_status"]
+    assert result["still_missing"] == ["permanent_address"]
     assert result["followup_email_sent"] is True
     assert "Follow-up" in sent_emails[-1]["subject"]
-    duplicate = svc.process_candidate_reply(candidate.candidateID, db, raw_reply_text="I am female.",
+    duplicate = svc.process_candidate_reply(candidate.candidateID, db, raw_reply_text="I am in Pune.",
                                             message_id="m-2", llm_call=lambda p: "{}")
     assert duplicate["status"] == "duplicate_message"
 
@@ -159,10 +166,10 @@ def test_check_replies_reads_only_the_candidates_mail(db, sent_emails):
     mailbox = SimpleNamespace(list_inbox=lambda since: [other])
     assert svc.process_candidate_reply(candidate.candidateID, db, mailbox=mailbox)["status"] == "no_reply_found"
     mine = {"id": "y", "from": {"emailAddress": {"address": candidate.candidateEmail.upper()}},
-            "body": {"content": "Gender: Female. Single."}, "receivedDateTime": "2026-10-14T10:00:00Z"}
+            "body": {"content": "Location: Pune. Address: Pune, India."}, "receivedDateTime": "2026-10-14T10:00:00Z"}
     mailbox = SimpleNamespace(list_inbox=lambda since: [other, mine])
     result = svc.process_candidate_reply(candidate.candidateID, db, mailbox=mailbox,
-                                         llm_call=lambda p: '{"candidateGender": "Female", "marital_status": "Single"}')
+                                         llm_call=lambda p: '{"candidateCurrentLocation": "Pune", "permanent_address": "Pune, India"}')
     assert result["status"] == "completed"
 
 

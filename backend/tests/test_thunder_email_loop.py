@@ -321,7 +321,7 @@ def test_details_in_a_reply_are_saved_and_the_rest_is_asked_for(db, world):
     db.refresh(world.candidate)
     assert world.candidate.candidateMobile == "+91 98765 43210"
     assert set(result["fields_saved"]) == {"candidateMobile", "candidateExperience"}
-    assert "candidateMobile" not in result["fields_missing"] and "candidateGender" in result["fields_missing"]
+    assert "candidateMobile" not in result["fields_missing"] and "candidateJobTitle" in result["fields_missing"] and "candidateGender" not in result["fields_missing"]
     task = db.query(Task).filter_by(candidate_id=world.candidate.candidateID).one()
     assert "Saved from this reply: " in task.description and "Thunder asked for them" in task.description
 
@@ -341,12 +341,12 @@ def test_an_acknowledgement_asks_for_the_missing_details_before_the_signature(db
     out = db.query(ThunderEmailMessage).filter_by(candidate_id=world.candidate.candidateID, step="ACK_FIELDS#2").one()
     assert result["status"] == "sent" and out.variant_id == db.query(ThunderOutreachVariant).filter_by(key="ack_fields").one().id
     sent = mailbox.drafts[out.graph_message_id]["html"]
-    assert "<li>Gender</li>" in sent and sent.index("To move things forward") < sent.index("<p>Regards,")
+    assert "Gender" not in sent and "<li>Notice Period" in sent and sent.index("To move things forward") < sent.index("<p>Regards,")
     # copy approved before the slot existed gets the request placed before its signature too
     variant = db.query(ThunderOutreachVariant).filter_by(key="ack_interested").one()
     _, body = cadence.render(variant, world.candidate, None, {"fields_request": cadence.fields_request_html(
-        [{"field": "candidateGender", "label": "Gender"}])})
-    assert body.index("<li>Gender</li>") < body.index("<p>Regards,")
+        [{"field": "candidate_notice_period", "label": "Notice Period"}])})
+    assert body.index("<li>Notice Period</li>") < body.index("<p>Regards,")
 
 
 def test_unreadable_details_never_block_the_reply(db, world):

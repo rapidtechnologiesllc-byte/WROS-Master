@@ -67,6 +67,10 @@ CANDIDATE_CORE_FIELDS: List[Tuple[str, str]] = [
     ("candidateCurrentSalary", "Current Salary (amount, and per hour or per year)"),
     ("candidateExpectedSalary", "Expected Salary (amount, and per hour or per year)"),
 ]
+# Never asked before an offer (CEO 2026-11-05): age, gender, marital status and nationality have no place in a hiring
+# decision and asking is a legal risk. A reply that volunteers them, and the pre-onboarding forms after an offer, still
+# record them.
+NOT_ASKED_BEFORE_OFFER = ("candidateGender", "candidateDateOfBirth", "marital_status", "nationality")
 DATE_FIELDS = ("candidateDateOfBirth", "candidateJoiningDate")
 # Asked as their amount; the reply may also give the rate, saved alongside
 SALARY_TYPE_FIELDS = {"candidateCurrentSalary": "candidateCurrentSalaryType",
@@ -133,10 +137,12 @@ def get_missing_fields(candidate: Candidate, db: Session, include_documents: boo
     include_documents adds the resume when none is on file: only an email channel (Thunder) can
     receive it, as an attachment."""
     missing = [{"field": field, "label": label, "source": "candidate"}
-               for field, label in CANDIDATE_CORE_FIELDS if _core_value_missing(candidate, field, db)]
+               for field, label in CANDIDATE_CORE_FIELDS
+               if field not in NOT_ASKED_BEFORE_OFFER and _core_value_missing(candidate, field, db)]
     info = db.query(CandidateInfoForm).filter(CandidateInfoForm.candidateID == candidate.candidateID).first()
     missing += [{"field": field, "label": label, "source": "info_form"}
-                for field, label in INFO_FORM_FIELDS if not (getattr(info, field, None) if info else None)]
+                for field, label in INFO_FORM_FIELDS
+                if field not in NOT_ASKED_BEFORE_OFFER and not (getattr(info, field, None) if info else None)]
     if include_documents:
         from app.services.candidate_resume_intake import has_resume
 
