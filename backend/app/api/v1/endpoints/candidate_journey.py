@@ -37,7 +37,14 @@ router = APIRouter(tags=["candidate-journey"])
     ),
 )
 def get_journey(candidate_id: str, db: Session = Depends(get_db)):
-    tenant_id = resolve_default_tenant_id(db)
+    from app.models.candidate import Candidate
+    from app.services.ai_conversation_service import conversation_tenant_key
+
+    candidate = db.get(Candidate, candidate_id)
+    if candidate is None:
+        raise HTTPException(status_code=404, detail=f"Candidate {candidate_id!r} not found.")
+    # The candidate's own organisation: with more than one, no default exists
+    tenant_id = conversation_tenant_key(candidate.tenant_id) if candidate.tenant_id else resolve_default_tenant_id(db)
     try:
         return get_candidate_journey(db, candidate_id, tenant_id)
     except CandidateNotFound:
