@@ -71,6 +71,14 @@ def test_a_partner_has_no_function_of_their_own(api, db, w):
     assert user.department_id is None
 
 
+def test_a_chief_of_one_function_keeps_it(db):
+    from app.services.org_roles_service import answers_for_all_functions
+
+    assert answers_for_all_functions(OrgRole(hierarchy_level=16, designation="cfo")) is False
+    assert answers_for_all_functions(OrgRole(hierarchy_level=17, designation="ceo")) is True
+    assert answers_for_all_functions(OrgRole(hierarchy_level=16)) is True
+
+
 def test_below_that_level_the_function_stays(api, db, w):
     _role(db, "Test Lead", 10)
     user, department = _add(api, db, w, "Test Lead")
