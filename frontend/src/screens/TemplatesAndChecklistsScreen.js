@@ -3,8 +3,10 @@
 import TabbedScreen from "../components/TabbedScreen";
 import ChecklistTemplatesScreen from "./ChecklistTemplatesScreen";
 import EmailTemplatesScreen from "./SettingsScreens/EmailTemplatesScreen";
+import TemplateCatalogScreen from "./SettingsScreens/TemplateCatalogScreen";
 
 const TABS = [
+  { key: "all", label: "All Messages", resource: "checklists", render: () => <TemplateCatalogScreen /> },
   { key: "checklists", label: "Checklists", resource: "checklists", render: () => <ChecklistTemplatesScreen /> },
   { key: "email", label: "Email Templates", resource: "checklists", render: () => <EmailTemplatesScreen /> },
 ];

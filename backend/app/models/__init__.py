@@ -118,6 +118,7 @@ from app.models.sub_vendor_submission import SubVendorSubmission, SubVendorViola
 from app.models.project import Project, ProjectMilestone
 from app.models.invoice import Invoice, InvoiceLineItem
 from app.models.vendor_invoice import VendorInvoice, VendorInvoiceLine
+from app.models.occasion_email import OccasionEmail
 from app.models.outbound_email import OutboundEmailSender
 from app.models.revenue_leakage import RevenueLeakageFlag, ReconciliationAlert
 from app.models.pipeline_leakage import PipelineLeakageFlag

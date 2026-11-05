@@ -29,6 +29,7 @@ import { getEmployeePerformance, getMyPerformance } from "../services/api/perfor
 import ActivityTimeline from "../components/timeline/ActivityTimeline";
 import { lineTypeLabel } from "../utils/lineType";
 import { EmployeeMinimumBillRate } from "../components/MinimumBillRate";
+import { appreciateEmployee } from "../services/api/employees";
 
 const TABS = [
   ["about", "About"], ["profile", "Profile"], ["job", "Job"], ["documents", "Documents"],
@@ -405,12 +406,25 @@ function ProfileTab({ profile, save }) {
   const values = { ...profile, ...profile.personal };
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button variant="secondary" size="sm" onClick={async () => {
+          const note = window.prompt(`What are you thanking ${profile.first_name || "them"} for? It goes in an email from you.`);
+          if (!note) return;
+          try {
+            await appreciateEmployee(profile.id, note);
+            window.alert("Sent.");
+          } catch (err) {
+            window.alert(`Could not send: ${err.message}`);
+          }
+        }}>Send appreciation</Button>
+      </div>
       <EditableSection title="Basic information" canEdit={profile.can_edit} values={values} onSave={save} fields={[
         { key: "first_name", label: "First name" },
         { key: "last_name", label: "Last name" },
         { key: "legal_name", label: "Legal name (as on documents)" },
         { key: "gender", label: "Gender" },
         { key: "date_of_birth", label: "Date of birth", type: "date" },
+        { key: "marriage_date", label: "Marriage date (optional, for an anniversary wish)", type: "date" },
         { key: "nationality", label: "Nationality" },
       ]} />
       <EditableSection title="Contact" canEdit={profile.can_edit} values={values} onSave={save} fields={[

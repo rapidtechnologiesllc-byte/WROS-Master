@@ -103,6 +103,7 @@ class Employee(Base):
     personal_email = Column(String(300), nullable=True)
     phone = Column(String(512), nullable=True)
     date_of_birth = Column(Date, nullable=True)
+    marriage_date = Column(Date, nullable=True)  # given by the employee; only for their anniversary email
     gender = Column(String(512), nullable=True)
     nationality = Column(String(512), nullable=True)
     current_address = Column(Text, nullable=True)

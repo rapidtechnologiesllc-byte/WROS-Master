@@ -14,6 +14,11 @@ export const getEmployeeMinimumBillRate = async (employeeId) => {
   return data;
 };
 
+export const appreciateEmployee = async (employeeId, note) => {
+  const { data } = await apiRequest(`/employees/${employeeId}/appreciate`, { method: "POST", body: JSON.stringify({ note }) });
+  return data;
+};
+
 export const getEmployeeImportTemplate = async () => {
   const { data } = await apiRequest("/employees/import/template", { method: "GET" });
   if (!data || !Array.isArray(data.columns)) throw new Error("Unexpected response: no import columns.");

@@ -116,6 +116,9 @@ _JOBS = (
     ScheduledJob("notification_release", "app.services.notification_service:release_pending_notifications",
                  timedelta(minutes=5), timeout_s=120,
                  backlog_guard="app.services.notification_service:release_backlog_guard"),
+    # Wishes go by themselves (occasion_email_service), so there are no drafts to approve any more
+    ScheduledJob("occasion_emails", "app.services.occasion_email_service:run_occasion_emails_job",
+                 timedelta(days=1), timeout_s=300, daily_after_utc="13:30"),
     ScheduledJob("birthday_drafts", "app.services.culture_agent_service:generate_birthday_drafts",
                  timedelta(days=1), timeout_s=120, daily_after_utc="03:00"),
 )

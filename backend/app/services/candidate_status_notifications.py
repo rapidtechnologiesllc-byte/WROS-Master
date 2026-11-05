@@ -90,10 +90,11 @@ def seed_templates(db: Session, tenant_id) -> int:
     (idempotent; admin edits are new versions and are never overwritten). Caller commits."""
     from app.models.message_template import MessageTemplate
 
+    from app.services.occasion_email_service import OCCASION_TEMPLATES
     from app.services.thunder_mail.candidate_notices import all_templates
 
     added = 0
-    for key, spec in all_templates().items():  # the status notices and the event notices
+    for key, spec in {**all_templates(), **OCCASION_TEMPLATES}.items():  # status and event notices, occasions
         exists = db.query(MessageTemplate.id).filter(
             MessageTemplate.tenant_id == str(tenant_id), MessageTemplate.template_key == key,
             MessageTemplate.channel == "EMAIL").first()

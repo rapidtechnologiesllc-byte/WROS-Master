@@ -120,6 +120,7 @@ def build_profile(db: Session, employee: Employee, viewer: Users, item: dict) ->
                     "pay_bases": list(PAY_BASES), "currencies": list(BILLING_CURRENCIES)},
         "personal": {
             "legal_name": employee.legal_name, "personal_email": employee.personal_email, "phone": employee.phone,
+            "marriage_date": employee.marriage_date.isoformat() if employee.marriage_date else None,
             "date_of_birth": employee.date_of_birth.isoformat() if employee.date_of_birth else None,
             "gender": employee.gender, "nationality": employee.nationality,
             "current_address": employee.current_address, "permanent_address": employee.permanent_address,
