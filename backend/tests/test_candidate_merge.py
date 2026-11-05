@@ -124,3 +124,20 @@ def test_the_journey_uses_the_candidates_own_organisation(api, db, w):
     response = api.get(w.org_user, f"/api/v1/candidates/{candidate.candidateID}/journey")
     assert response.status_code == 200, response.text
     assert response.json()["stages"]
+
+
+def test_the_conversation_on_the_duplicate_carries_to_the_record_kept(db, w):
+    tenant = w.org_user.tenant_id
+    kept, dup = _candidate(db, tenant), _candidate(db, tenant)
+    db.add_all([ThunderCadenceState(candidate_id=kept.candidateID, tenant_id=tenant, stage="ACTIVE", next_step="2", touches_sent=1,
+                                    next_action_at=datetime(2026, 11, 11)),
+                ThunderCadenceState(candidate_id=dup.candidateID, tenant_id=tenant, stage="HANDOFF", next_step="DETAILS-2", touches_sent=2,
+                                    next_action_at=datetime(2026, 11, 19), last_inbound_at=datetime(2026, 11, 4))])
+    db.commit()
+    kept_id, dup_id = kept.candidateID, dup.candidateID
+    merge.merge_candidates(db, dup, kept, merged_by=w.org_user.UserID)
+    db.expire_all()
+    state = db.query(ThunderCadenceState).filter_by(candidate_id=kept_id).one()
+    assert (state.stage, state.next_step, state.next_action_at) == ("HANDOFF", "DETAILS-2", datetime(2026, 11, 19))
+    assert state.touches_sent == 3 and state.last_inbound_at == datetime(2026, 11, 4)
+    assert db.query(ThunderCadenceState).filter_by(candidate_id=dup_id).one().stage == "STOPPED"

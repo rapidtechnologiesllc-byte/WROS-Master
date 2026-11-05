@@ -33,6 +33,7 @@ ENTITY_COLUMNS = (("activity_timeline", "entity_id", "entity_type"), ("file_uplo
 NEVER_COPIED = {"candidateID", "candidateEmail", "candidatePassword", "candidateTempPassword", "candidateCreatedAt",
                 "merged_into_id", "tenant_id"}
 MIN_LOCAL_PART = 5
+CADENCE_RANK = {"STOPPED": 0, "ACTIVE": 1, "NURTURE": 2, "HANDOFF": 3}
 
 
 class CandidateMergeError(ValueError):
@@ -97,6 +98,24 @@ def _move(db: Session, table, column, type_column, source_id: str, target_id: st
     return {"moved": moved, "kept": kept}
 
 
+def _carry_live_cadence(source, target) -> None:
+    """Both records had a cadence: the kept record continues the conversation furthest along, so a person already
+    talking to Thunder on the duplicate never gets a cold follow-up on the record kept."""
+    if target is None:
+        return
+    moments = [m for m in (source.last_inbound_at, target.last_inbound_at) if m]
+    source_leads = (source.last_inbound_at == max(moments) if moments
+                    else CADENCE_RANK.get(source.stage, 0) > CADENCE_RANK.get(target.stage, 0))
+    if source_leads and (not moments or source.last_inbound_at != target.last_inbound_at):
+        target.job_id, target.cadence_seq = source.job_id or target.job_id, source.cadence_seq
+        target.stage, target.next_step, target.next_action_at = source.stage, source.next_step, source.next_action_at
+        target.stop_reason = source.stop_reason
+    target.touches_sent = (target.touches_sent or 0) + (source.touches_sent or 0)
+    outbound = [m for m in (source.last_outbound_at, target.last_outbound_at) if m]
+    target.last_outbound_at = max(outbound) if outbound else None
+    target.last_inbound_at = max(moments) if moments else None
+
+
 def merge_candidates(db: Session, source: Candidate, target: Candidate, *, merged_by: str,
                      merged_by_name: Optional[str] = None) -> Dict:
     """Merge source (archived) into target (kept). Commits."""
@@ -145,6 +164,7 @@ def merge_candidates(db: Session, source: Candidate, target: Candidate, *, merge
     else:
         status.status = "Inactive"
     for state in db.query(ThunderCadenceState).filter(ThunderCadenceState.candidate_id == source_id).all():
+        _carry_live_cadence(state, db.get(ThunderCadenceState, target_id))
         state.stage, state.stop_reason = "STOPPED", f"Merged into {target_id}"
         state.next_step, state.next_action_at = None, None
 
