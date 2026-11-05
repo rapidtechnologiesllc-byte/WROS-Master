@@ -121,6 +121,7 @@ from app.api.v1.endpoints.intervention_queue import router as intervention_queue
 from app.api.v1.endpoints.agent_config import router as agent_config_router
 from app.api.v1.endpoints.tenant_ai_config import router as tenant_ai_config_router
 from app.api.v1.endpoints.email_templates import router as email_templates_router
+from app.api.v1.endpoints.template_catalog import router as template_catalog_router
 from app.api.v1.endpoints.performance import router as performance_router
 from app.api.v1.endpoints.webhooks import router as webhooks_router
 from app.api.v1.endpoints.cascade_prediction import router as cascade_prediction_router
@@ -261,4 +262,5 @@ router.include_router(router=intervention_queue_router)
 router.include_router(router=agent_config_router)
 router.include_router(router=tenant_ai_config_router)
 router.include_router(router=email_templates_router)
+router.include_router(router=template_catalog_router)
 router.include_router(router=performance_router)

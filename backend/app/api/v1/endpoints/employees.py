@@ -253,6 +253,32 @@ class MinimumBillRateRequest(BaseModel):
     vendor_rate_usd_cents: Optional[int] = None
 
 
+class AppreciationRequest(BaseModel):
+    note: str
+
+
+@router.post(
+    "/{employee_id}/appreciate",
+    summary="Thank someone: an email from you, in your words, using the Appreciation template",
+    dependencies=[Depends(require_resource_permission("employees", "view"))]
+)
+def appreciate_employee(
+    employee_id: str,
+    body: AppreciationRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    from app.services.occasion_email_service import send_appreciation
+
+    employee = _get_employee_or_404(db, employee_id, current_user)
+    try:
+        send_appreciation(db, employee, current_user, body.note)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"status": "sent"}
+
+
 @router.post(
     "/minimum-bill-rate",
     summary="The lowest bill rate for this pay, location and overhead, by line (Add employee)",
@@ -657,6 +683,7 @@ class EmployeeDetailsUpdate(BaseModel):
     personal_email: Optional[str] = None
     phone: Optional[str] = None
     date_of_birth: Optional[date] = None
+    marriage_date: Optional[date] = None
     gender: Optional[str] = None
     nationality: Optional[str] = None
     current_address: Optional[str] = None
@@ -723,6 +750,11 @@ def update_employee_details(
         if dob is not None and dob >= date.today():
             raise HTTPException(status_code=400, detail="Date of birth must be in the past")
         employee.date_of_birth = dob
+    if "marriage_date" in updates:
+        married = updates["marriage_date"]
+        if married is not None and married >= date.today():
+            raise HTTPException(status_code=400, detail="Marriage date must be in the past")
+        employee.marriage_date = married
     if "employment_type" in updates:
         if updates["employment_type"] not in EMPLOYMENT_TYPES:
             raise HTTPException(status_code=400, detail=f"Employment type must be one of {list(EMPLOYMENT_TYPES)}")

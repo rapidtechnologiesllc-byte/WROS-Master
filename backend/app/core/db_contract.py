@@ -1069,13 +1069,17 @@ def _initialize_candidate_status_templates(db):
     """The template_key CHECK constraint is rebuilt from MessageTemplate's TEMPLATE_KEYS (it
     had fallen behind: EMPLOYEE_WELCOME_EMAIL could not be saved), then every tenant gets the
     candidate status emails seeded once (candidate_status_notifications.seed_templates)."""
-    from app.models.message_template import TEMPLATE_KEYS
+    from app.models.message_template import TEMPLATE_CHANNELS, TEMPLATE_KEYS
     from app.services.candidate_status_notifications import seed_templates
 
     allowed = ", ".join("'" + key + "'" for key in TEMPLATE_KEYS)
     db.execute(text("ALTER TABLE app_schema.message_templates DROP CONSTRAINT IF EXISTS message_template_key"))
     db.execute(text(f"ALTER TABLE app_schema.message_templates ADD CONSTRAINT message_template_key "
                     f"CHECK (template_key IN ({allowed}))"))
+    channels = ", ".join("'" + c + "'" for c in TEMPLATE_CHANNELS)
+    db.execute(text("ALTER TABLE app_schema.message_templates DROP CONSTRAINT IF EXISTS message_template_channel"))
+    db.execute(text(f"ALTER TABLE app_schema.message_templates ADD CONSTRAINT message_template_channel "
+                    f"CHECK (channel IN ({channels}))"))
     db.commit()
     added = sum(seed_templates(db, tenant_id) for (tenant_id,) in db.query(Tenant.id).all())
     db.commit()
@@ -1986,6 +1990,7 @@ def _apply_schema_migrations(db: Session):
             ("next_touch_scheduled_at", "TIMESTAMP NULL"),
         ],
         "employees": [
+            ("marriage_date", "DATE NULL"),
             # Employer of record (BX-US / BX-IN): headcount splits by company
             ("company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
             ("guidewire_certification_current", "VARCHAR(50) NULL"),
