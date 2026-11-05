@@ -46,6 +46,14 @@ def role_for_title(db: Session, tenant_id: int, title: Optional[str]) -> Optiona
 DEFAULT_DESIGNATIONS = {"CEO": "ceo", "CFO": "cfo"}
 
 
+def answers_for_all_functions(role: Optional[OrgRole]) -> bool:
+    """From ALL_FUNCTIONS_MIN_LEVEL a person answers for every function and has none of their own. A chief of one
+    function (CFO, CHRO ...) still has theirs: Finance approvals follow the Finance function."""
+    from app.core.config import settings
+
+    return bool(role and (role.hierarchy_level or 0) >= settings.ALL_FUNCTIONS_MIN_LEVEL and role.designation in (None, "", "ceo"))
+
+
 # A person's Job Title holds the role name (Users.job_title is String(150))
 ROLE_NAME_MAX = 150
 
