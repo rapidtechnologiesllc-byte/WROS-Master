@@ -463,7 +463,7 @@ def test_timesheet_approver_is_read_from_the_org_chart(db, world, mail):
 
 def test_add_employee_form_lists_org_roles_and_seated_managers(api, db, world):
     template = api.get("/api/v1/employees/import/template", headers=_h(world.hr)).json()
-    assert {"name": "Lead Consultant", "level": 6} in template["org_roles"]
+    assert {"name": "Lead Consultant", "level": 6, "all_functions": False} in template["org_roles"]
     assert any(m["user_id"] == world.manager.UserID and m["level"] == 8 for m in template["managers"])
     assert all(m["user_id"] != world.hr.UserID for m in template["managers"])  # not seated
 
