@@ -321,6 +321,6 @@ def test_flash_says_which_profile_details_a_candidate_is_missing(db, world):
                      candidateCurrentLocation="Chicago, Illinois, United States"))
     db.flush()
     outcome = execute(_ctx(db, world.recruiter), "candidate_profile", {"name": f"Joss {last}"})
-    assert outcome["text"].startswith(f"Joss {last}: ") and "Date of Birth" in outcome["missing"]
+    assert outcome["text"].startswith(f"Joss {last}: ") and "Date of Birth" not in outcome["missing"]
     assert "Expected Salary" in outcome["missing"] and "Your latest resume" in outcome["missing"]
     assert "Gender" not in outcome["missing"] and "Thunder has not emailed them yet." in outcome["text"]
