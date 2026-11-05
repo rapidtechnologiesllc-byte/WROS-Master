@@ -41,6 +41,7 @@ class EmployeeCreateRequest(BaseModel):
     vendor_rate_usd_cents: Optional[int] = Field(None, ge=0)
     employee_code: Optional[str] = None
     reporting_manager_id: Optional[str] = Field(None, description="Users.UserID this employee reports to")
+    department_id: Optional[str] = Field(None, description="Function: sets their access, and whether their cost sits at org level")
     role_template_id: Optional[int] = Field(None, description="Function add-on; blank = the tenant's Employee role")
     existing_staff: bool = True
     core_certified: bool = False

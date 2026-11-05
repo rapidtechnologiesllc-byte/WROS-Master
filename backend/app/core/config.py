@@ -432,6 +432,12 @@ class Settings:
     # Only client jobs opened this recently go to sub-vendors, so older open jobs are never sent in one blast
     # Functions whose people's cost is split across the BUs with revenue unless a function says otherwise
     SHARED_SERVICE_FUNCTIONS: str = os.getenv("SHARED_SERVICE_FUNCTIONS", "HR,Recruitment,Finance,Resource Management")
+    # Thunder answers replies and books calls itself (thunder_autonomy_service); false hands them to a person
+    THUNDER_AUTO_REPLY: bool = os.getenv("THUNDER_AUTO_REPLY", "true").lower() == "true"
+    WELCOME_RESEND_DAYS: int = int(os.getenv("WELCOME_RESEND_DAYS", "3"))
+    WELCOME_MAX_SENDS: int = int(os.getenv("WELCOME_MAX_SENDS", "3"))
+    # False: org-level staff stay in an Org level row. True: that cost is split equally across BUs with revenue
+    SHARED_COST_SPLIT_TO_BUS: bool = os.getenv("SHARED_COST_SPLIT_TO_BUS", "false").lower() == "true"
     FLASH_AUTO_MISSION_DAYS: int = int(os.getenv("FLASH_AUTO_MISSION_DAYS", "14"))
     SUB_VENDOR_ROLE_WINDOW_DAYS: int = int(os.getenv("SUB_VENDOR_ROLE_WINDOW_DAYS", "7"))
     SCHEDULED_JOBS_ENABLED: str = os.getenv(
@@ -439,7 +445,7 @@ class Settings:
         "timesheet_draft_creation,timesheet_reminders,ar_follow_up,expire_bu_ownerships,"
         "daily_revenue_scan,engagement_metrics,hiring_pipeline_sweep,client_start_date,auto_invoicing,"
         "utilization_snapshot,renewal_alerts,po_expiry_alerts,performance_reviews,task_due_reminders,"
-        "notification_release,certification_expiry,reconciliation_scan,sub_vendor_new_roles,interview_transcripts,flash_auto_missions,occasion_emails,interview_feedback,resume_refresh,submitted_candidates_backfill",
+        "notification_release,certification_expiry,reconciliation_scan,sub_vendor_new_roles,interview_transcripts,flash_auto_missions,welcome_followup,occasion_emails,interview_feedback,resume_refresh,submitted_candidates_backfill",
     )
     SCHEDULED_JOB_LEASE_GRACE_SECONDS: int = int(os.getenv("SCHEDULED_JOB_LEASE_GRACE_SECONDS", "120"))
 

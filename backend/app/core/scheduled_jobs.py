@@ -41,6 +41,8 @@ _JOBS = (
     ScheduledJob("sub_vendor_new_roles", "app.services.sub_vendor_roles_service:run_new_roles_job",
                  timedelta(hours=1), timeout_s=300),
     # Teams transcripts of finished interviews; recording and transcription on for upcoming ones
+    ScheduledJob("welcome_followup", "app.services.account_activation_service:run_welcome_followup_job",
+                 timedelta(hours=6), timeout_s=120),
     ScheduledJob("interview_feedback", "app.services.interview_transcript_service:run_interview_feedback_job",
                  timedelta(minutes=15), timeout_s=120),
     ScheduledJob("interview_transcripts", "app.services.interview_transcript_service:run_interview_transcripts_job",

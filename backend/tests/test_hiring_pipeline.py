@@ -182,6 +182,8 @@ def test_gate_refuses_to_skip_ahead(db, world, queued):
 
 def test_evaluating_twice_changes_nothing_and_actions_run_once(db, world, queued):
     candidate = _candidate(db)
+    candidate.candidateExperience, candidate.total_experience_months = None, None  # unverified: a person screens
+    db.commit()
     pipeline = hp.evaluate_and_act(db, candidate.candidateID, "test")
     hp.evaluate_and_act(db, candidate.candidateID, "test")
     events = db.query(HiringPipelineEvent).filter_by(pipeline_id=pipeline.id).count()
@@ -192,6 +194,7 @@ def test_evaluating_twice_changes_nothing_and_actions_run_once(db, world, queued
     assert hp.run_stage_action(db, pipeline.id, "SCREEN") == "recruiter screen task created"
     assert db.query(Task).filter(Task.candidate_id == candidate.candidateID, Task.category == "HIRING_SCREEN").count() == 1
     # a stale action (pipeline moved on) does nothing
+    candidate.total_experience_months = 72
     hp.record_screen_decision(db, candidate.candidateID, "SKIP", world.UserID)
     db.commit()
     assert hp.run_stage_action(db, pipeline.id, "SCREEN").startswith("stale")

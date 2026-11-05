@@ -12,6 +12,7 @@ import {
 } from "../services/api/employees";
 import { addSubVendor, getSubVendors } from "../services/api/invoices";
 import MinimumBillRate from "./MinimumBillRate";
+import { apiRequest } from "../services/api/client";
 
 const STATUS_STYLES = {
   applied: "bg-emerald-50 text-emerald-800",
@@ -205,7 +206,7 @@ const EMPTY_FORM = {
   first_name: "", last_name: "", email: "", joining_date: "", business_unit_id: "", company_id: "", country: "",
   current_title: "", reporting_manager_id: "", employment_type: "", billable: "", existing_staff: true, hired_for_htd: false,
   pay: "", pay_basis: "", pay_currency: "", bill_rate_usd: "",
-  via_vendor: "", sub_vendor_id: "", vendor_rate_usd: "", new_vendor_name: "", new_vendor_email: "",
+  department_id: "", work_location: "", via_vendor: "", sub_vendor_id: "", vendor_rate_usd: "", new_vendor_name: "", new_vendor_email: "",
 };
 
 const PAY_BASIS_LABEL = { ANNUAL: "Annual", MONTHLY: "Monthly", HOURLY: "Hourly" };
@@ -217,7 +218,11 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
   const [error, setError] = useState("");
 
   const [vendors, setVendors] = useState([]);
+  const [functions, setFunctions] = useState([]);
   useEffect(() => {
+    apiRequest("/org/departments")
+      .then(({ data }) => setFunctions((Array.isArray(data) ? data : []).filter((d) => d.active !== false)))
+      .catch((err) => setError(`Could not load the functions: ${err.message}`));
     getEmployeeImportTemplate().then(setTemplate).catch((err) => setError(`Could not load the form options: ${err.message}`));
     getSubVendors()
       .then((list) => setVendors((list || []).filter((v) => v.status === "APPROVED")))
@@ -277,6 +282,10 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
       setError("Name, email, joining date, business unit, billable and pay are required.");
       return;
     }
+    if (!viaVendor && !form.department_id) {
+      setError("Pick their function: it sets their access, and where their cost sits in the P&L.");
+      return;
+    }
     if (viaVendor && (!form.sub_vendor_id || !form.vendor_rate_usd)) {
       setError("Pick the sub-vendor and enter what they charge per hour.");
       return;
@@ -289,6 +298,7 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
         business_unit_id: Number(form.business_unit_id), company_id: form.company_id || null,
         country: form.country || null, current_title: form.current_title || null,
         reporting_manager_id: form.reporting_manager_id || null,
+        department_id: form.department_id || null, work_location: form.work_location || null,
         employment_type: viaVendor ? "CONTRACT" : (form.employment_type || null),
         billable: form.billable === "yes", existing_staff: form.existing_staff, hired_for_htd: form.hired_for_htd,
         ...(viaVendor
@@ -319,10 +329,23 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
             {orgOptions.businessUnits.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
         </label>
-        <label><span className={label}>Delivery center</span>
+        <label><span className={label}>Function {viaVendor ? "" : "*"}</span>
+          <select className={field} value={form.department_id} onChange={set("department_id")}>
+            <option value="">{viaVendor ? "None" : "Pick a function"}</option>
+            {functions.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+        </label>
+        <label><span className={label}>Company (delivery center)</span>
           <select className={field} value={form.company_id} onChange={set("company_id")}>
             <option value="">The business unit's only company</option>
             {orgOptions.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </label>
+        <label><span className={label}>Work location</span>
+          <select className={field} value={form.work_location} onChange={set("work_location")}>
+            <option value="">Remote (default)</option>
+            <option value="ONSITE">Onsite</option>
+            <option value="HYBRID">Hybrid</option>
           </select>
         </label>
         <label><span className={label}>Country</span>

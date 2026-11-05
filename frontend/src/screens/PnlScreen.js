@@ -25,7 +25,7 @@ const MONEY_COLUMNS = [
   { key: "vendor", header: "of which sub-vendors", cell: (r) => usd(r.vendor_cost_usd_cents) },
   { key: "bench", header: "Bench cost", cell: (r) => usd(r.bench_cost_usd_cents) },
   { key: "overhead", header: "Internal staff (overhead)", cell: (r) => usd(r.overhead_cost_usd_cents) },
-  { key: "shared", header: "Shared services", cell: (r) => usd(r.shared_cost_usd_cents) },
+  { key: "shared", header: "Org-level staff", cell: (r) => usd(r.shared_cost_usd_cents) },
   { key: "htd", header: "HTD training", cell: (r) => usd(r.htd_cost_usd_cents) },
   { key: "expense", header: "Expenses", cell: (r) => usd(r.expense_cost_usd_cents ?? r.expense_usd_cents) },
   { key: "margin", header: "Margin", cell: (r) => usd(r.margin_usd_cents) },
@@ -147,6 +147,20 @@ export default function PnlScreen() {
       </Card>
 
       {report?.by_cost_object?.length ? (
+        <Card title="Org-level staff by function" subtitle="HR, recruitment, finance, resource management and org-wide leaders. Not charged to any business unit.">
+          <div className="grid gap-2 sm:grid-cols-3">
+            {(report.org_staff_by_function || []).map((row) => (
+              <div key={row.name} className="rounded-xl border p-3">
+                <div className="text-xs text-gray-500">{row.name}</div>
+                <div className="text-lg font-semibold">{usd(row.cost_usd_cents)}</div>
+              </div>
+            ))}
+            {!(report.org_staff_by_function || []).length ? <div className="text-sm text-gray-500">No org-level staff cost in this period.</div> : null}
+          </div>
+        </Card>
+      ) : null}
+
+      {report?.by_cost_object ? (
         <Card title="By cost object (business unit x location)"
           subtitle="Each day's cost is charged to the business unit and location the person sat in that day.">
           <Table columns={[{ key: "name", header: "Cost object", cell: (r) => r.name }, ...MONEY_COLUMNS]}

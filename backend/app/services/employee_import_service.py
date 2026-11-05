@@ -71,6 +71,8 @@ IMPORT_COLUMNS: Tuple[Tuple[str, bool, str], ...] = (
     ("country", False, "ISO country code (IN, US). Blank: the delivery center's country."),
     ("joining_date", True, "YYYY-MM-DD. A future date makes the employee pre-joining."),
     ("designation", False, "Job title. When it names an org role the login gets that role and an org-chart seat."),
+    ("function", False, "Function (HR, Recruitment, Finance, ...): sets their access, and whether their cost sits at org level. "
+                         "Blank: no function, own work only."),
     ("role_template", False, "Function add-on (role template name). Blank: the tenant's Employee role."),
     ("manager_email", False, "Reporting manager's login email. The employee's org-chart seat goes under the manager's seat "
                              "(the manager needs a seat, or a row earlier or later in this file); the manager approves "
@@ -188,6 +190,7 @@ class Spec:
     pay_currency: Optional[str] = None
     pay_basis: Optional[str] = None
     bill_rate_cents: Optional[int] = None
+    department: Any = None
     # supplied by a sub-vendor (CEO 2026-11-03): paid through the vendor at this rate, no payroll
     sub_vendor_id: Optional[str] = None
     vendor_rate_cents: Optional[int] = None
@@ -250,6 +253,21 @@ class _Lookups:
         self.assignable = visible_bu_ids(db, uploader)  # None = every business unit
         self.file_rows: Dict[str, Dict[str, str]] = {}  # email -> row, for managers listed in the same file
         self.applying = False
+
+    def function(self, text: str):
+        from app.models.org_structure import Department
+
+        key = text.strip().lower()
+        rows = self.db.query(Department).filter(Department.tenant_id == self.tenant_id, Department.active.is_(True)).all()
+        return next((d for d in rows if key in {str(d.id).lower(), (d.name or "").lower()}), None)
+
+    def addon_for_function(self, department):
+        """The one enabled add-on for this function (Finance -> Finance Manager), as Add user picks it."""
+        from app.models.role_template import RoleTemplate
+
+        rows = self.db.query(RoleTemplate).filter(RoleTemplate.tenant_id == self.tenant_id,
+                                                  func.lower(RoleTemplate.specialization) == (department.name or "").lower()).all()
+        return rows[0] if len(rows) == 1 else None
 
     def unit(self, text: str) -> Optional[BusinessUnit]:
         key = text.strip().lower()
@@ -367,6 +385,14 @@ def _resolve(lk: _Lookups, row: Dict[str, str]) -> Spec:
     if row["skills"]:
         spec.skills = [s.strip() for s in row["skills"].replace(";", ",").split(",") if s.strip()]
 
+    if row.get("function"):
+        spec.department = lk.function(row["function"])
+        if spec.department is None:
+            errors.append(f"Function '{row['function']}' not found.")
+        elif not row["role_template"]:
+            addon = lk.addon_for_function(spec.department)
+            if addon is not None:
+                spec.role_template = addon
     if row["role_template"]:
         template = lk.template(row["role_template"])
         if template is None:
@@ -759,6 +785,8 @@ def _login_for(db: Session, spec: Spec, uploader: Users) -> Tuple[Users, bool]:
 
     user = db.query(Users).filter(func.lower(Users.UserEmail) == spec.email).first()
     if user is not None:
+        if spec.department is not None and not user.department_id:
+            user.department_id = spec.department.id  # a blank function is filled; a set one is left to Users & Access
         return user, False
     user = EmployeeConversionService.create_employee_account(
         db, employee_name=f"{spec.first_name} {spec.last_name}".strip(), employee_email=spec.email,
@@ -767,6 +795,7 @@ def _login_for(db: Session, spec: Spec, uploader: Users) -> Tuple[Users, bool]:
     role = role_for_title(db, uploader.tenant_id, spec.designation)
     user.job_title = role.name if role else spec.designation
     user.location_id = spec.company.id if spec.company else None
+    user.department_id = spec.department.id if spec.department is not None else None
     db.flush()
     return user, True
 
@@ -925,8 +954,9 @@ def apply_rows(db: Session, uploader: Users, rows: List[Dict[str, str]], *, only
             logger.warning(f"[EmployeeImport] row {plan['row']} ({spec.email}) failed: {exc}", exc_info=True)
             results.append({**result, "status": "failed", "errors": [str(exc)]})
             continue
-        if created:
-            new_logins.append((len(results), user))
+        login = user if user is not None else db.get(Users, employee.wros_user_id)
+        if created or (plan["action"] in (ACTION_CREATE, ACTION_LINK) and login is not None and login.password_reset_required):
+            new_logins.append((len(results), login))  # a login that never signed in needs the welcome too
         results.append({**result, "status": "applied", "employee_id": employee.id,
                         "user_id": employee.wros_user_id, "errors": []})
     for index, user in new_logins:  # after commit: the email refers to saved rows
@@ -978,6 +1008,7 @@ def row_from_request(db: Session, body) -> Dict[str, str]:
         "delivery_center": body.company_id or "", "country": body.country or "",
         "joining_date": body.joining_date.isoformat(), "designation": body.current_title or "",
         "role_template": str(body.role_template_id) if body.role_template_id else "",
+        "function": body.department_id or "",
         "manager_email": manager_email, "employment_type": employment_type,
         "billable": yes_no(body.billable), "existing_staff": yes_no(body.existing_staff),
         "core_certified": yes_no(body.core_certified),

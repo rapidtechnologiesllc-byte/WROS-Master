@@ -519,6 +519,21 @@ def get_assigned_interviews(
 # ============================================
 
 @router.post(
+    "/users/{user_id}/resend-welcome",
+    dependencies=[Depends(require_resource_permission("users-access-control", "edit"))],
+    summary="Send the welcome email again with a fresh link",
+)
+def resend_welcome(user_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_internal_user)):
+    from app.services.account_activation_service import queue_account_email
+
+    user = db.query(Users).filter(Users.UserID == user_id, Users.tenant_id == current_user.tenant_id).first()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+    queue_account_email(user, "ACTIVATE" if user.password_reset_required else "RESET")
+    return {"status": "queued", "email": user.UserEmail, "purpose": "welcome" if user.password_reset_required else "password reset"}
+
+
+@router.post(
     "/users/create",
     response_model=dict,
     status_code=202,

@@ -94,6 +94,14 @@ def world(db):
     return SimpleNamespace(candidate=candidate, state=state)
 
 
+@pytest.fixture(autouse=True)
+def _replies_handed_over(monkeypatch):
+    """These tests are of the acknowledge-and-hand-over path; test_thunder_autonomy covers Thunder acting itself."""
+    from app.core.config import settings as _settings
+
+    monkeypatch.setattr(_settings, "THUNDER_AUTO_REPLY", False)
+
+
 def _send(db, world, step, mailbox, seq=1):
     message = SimpleNamespace(id="m1", payload={"candidate_id": world.candidate.candidateID,
                                                 "cadence_seq": seq, "step": step, "tenant_id": 1})
