@@ -73,6 +73,8 @@ def log_task_update(
     complete_task: bool = False,
 ) -> TaskActivity:
     """Raises ValueError on invalid input (nothing is written)."""
+    if complete_task and task.system_action:
+        raise ValueError("This task closes itself when the work it asks for is done")
     if activity_type not in TASK_ACTIVITY_TYPES:
         raise ValueError(f"activity_type must be one of {TASK_ACTIVITY_TYPES}")
     if outcome and outcome not in TASK_ACTIVITY_OUTCOMES:

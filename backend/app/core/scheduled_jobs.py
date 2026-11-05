@@ -41,6 +41,15 @@ _JOBS = (
     ScheduledJob("sub_vendor_new_roles", "app.services.sub_vendor_roles_service:run_new_roles_job",
                  timedelta(hours=1), timeout_s=300),
     # Teams transcripts of finished interviews; recording and transcription on for upcoming ones
+    # Thunder picks a paused conversation back up when its pause ends; risk and readiness scores stay current
+    ScheduledJob("thunder_pause_expiry", "app.services.thunder_pause_service:run_pause_expiry_job",
+                 timedelta(minutes=15), timeout_s=120),
+    ScheduledJob("drop_risk_scoring", "app.services.drop_risk_service:run_drop_risk_scoring_job",
+                 timedelta(hours=4), timeout_s=300),
+    ScheduledJob("abandonment_scoring", "app.services.abandonment_scoring_service:run_abandonment_scoring_job",
+                 timedelta(hours=6), timeout_s=300),
+    ScheduledJob("joining_readiness", "app.services.joining_readiness_service:run_joining_readiness_job",
+                 timedelta(hours=6), timeout_s=300),
     ScheduledJob("welcome_followup", "app.services.account_activation_service:run_welcome_followup_job",
                  timedelta(hours=6), timeout_s=120),
     ScheduledJob("interview_feedback", "app.services.interview_transcript_service:run_interview_feedback_job",

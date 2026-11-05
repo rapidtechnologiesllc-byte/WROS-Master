@@ -1389,7 +1389,7 @@ function CancelInterviewModal({ interview, notice, noticeType, loading, onClose,
   );
 }
 
-function SubmitFeedbackModal({ interview, panelMembers, loggedInInterviewerId, loading, notice, noticeType, onClose, onSubmit }) {
+export function SubmitFeedbackModal({ interview, panelMembers, loggedInInterviewerId, loading, notice, noticeType, onClose, onSubmit }) {
   const [form, setForm] = useState({
     interviewerId: loggedInInterviewerId || "",
     technical_score: 5, communication_score: 5, problem_solving_score: 5, culture_fit_score: 5,

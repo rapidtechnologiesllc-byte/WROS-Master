@@ -276,7 +276,9 @@ def close_past_interviews(db: Session, *, now: Optional[datetime] = None) -> int
 def run_interview_feedback_job(db: Session, *, now: Optional[datetime] = None) -> Dict:
     """Every 15 minutes: interviews over an hour ago close and ask their panels for feedback; a task that appeared too
     early goes away until then. Commits."""
-    from app.services.interview_feedback_task_service import remove_early_feedback_tasks, sync_pending_feedback_tasks_for_interview
+    from app.services.interview_feedback_task_service import (
+        close_answered_feedback_tasks, remove_early_feedback_tasks, sync_pending_feedback_tasks_for_interview,
+    )
 
     now = now or datetime.utcnow()
     closed = close_past_interviews(db, now=now)
@@ -285,8 +287,9 @@ def run_interview_feedback_job(db: Session, *, now: Optional[datetime] = None) -
                                           (Interview.feedback_status.is_(None)) | (Interview.feedback_status != "Completed")).all()
     for interview in finished:
         sync_pending_feedback_tasks_for_interview(db, interview)
+    answered = close_answered_feedback_tasks(db)
     db.commit()
-    return {"closed": closed, "removed": removed}
+    return {"closed": closed, "removed": removed, "answered": answered}
 
 
 def run_interview_transcripts_job(db: Session, *, now: Optional[datetime] = None, http=requests) -> Dict:

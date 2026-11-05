@@ -213,3 +213,59 @@ def test_linkedin_shows_saves_and_is_one_persons(api, db, w):
     assert fine.status_code == 200, fine.text
     assert api.get(w.org_user, f"/api/v1/candidates/{one.candidateID}").json()["linkedin_url"] == "https://www.linkedin.com/in/jane-doe"
     assert two.linkedin_url
+
+
+def test_a_certifications_heading_does_not_swallow_the_next_column():
+    text = """Certifications
+AINS (Associate in Insurance)
+AI-Powered Claims & Coverage Solutions : Led FRDs for a tool
+discovery, FRD development, and UAT.
+Previous Experience
+May\u201922-Dec\u201923| Manager \u2013 Business Analyst| Capgemini, Pune, India
+Ran workshops.
+Since Dec\u201923| Lead Business Analyst | OneShield India Pvt. Ltd., Goa, India
+May\u201916-Apr\u201918 Apr\u201918-May\u201922 May\u201922-Dec\u201923
+"""
+    parsed = ResumeSLM.parse_resume(text)
+    assert [c["name"] for c in parsed["certifications"]] == ["AINS (Associate in Insurance)"]
+    jobs = {j["employer"]: j for j in parsed["work_history"]}
+    assert jobs["Capgemini"]["title"] == "Manager \u2013 Business Analyst" and jobs["Capgemini"]["start_date"] == "2022-05"
+    assert jobs["OneShield India Pvt. Ltd"]["end_date"] is None and len(jobs) == 2
+
+
+def test_a_pdf_that_came_out_one_word_per_line_is_read_as_its_lines():
+    words = " ".join(f"word{i}" for i in range(200)).replace(" ", "\n \n")
+    text = (words + "\nCERTIFICATIONS:     \u25cf  Guidewire  Certified  Ace  -  BillingCenter  Configuration  \u25cf  Sun  Certified  Programmer  -  95%   "
+            "EDUCATION:     \u25cf  Masters  in  Computer  Science  at  Cleveland  State  University,  Cleveland,  OH.  "
+            "PROFESSIONAL  EXPERIENCE:  MetLife  Insurance  Inc.  Sr.  Guidewire  Developer/Lead.          Full  Stack  Guidewire  Project          Apr  2022 \u2013 Present   "
+            "Description:  Upgrades.  Environment :  Java,  HTML.  Hawaii  Employers  Mutual  Incorporation.  Sr.  Guidewire  Developer/Lead.          Full  Stack  Guidewire  Project          Jan  2020 \u2013 Mar  2022")
+    parsed = ResumeSLM.parse_resume(text)
+    assert [c["name"] for c in parsed["certifications"]] == ["Guidewire Certified Ace - BillingCenter Configuration", "Sun Certified Programmer"]
+    assert [(j["employer"], j["title"]) for j in parsed["work_history"]] == [
+        ("MetLife Insurance Inc", "Sr. Guidewire Developer/Lead"), ("Hawaii Employers Mutual Incorporation", "Sr. Guidewire Developer/Lead")]
+    assert parsed["education"][0]["institution"] == "Cleveland State University"
+
+
+def test_skills_are_a_list_not_the_lines_after_the_heading():
+    text = """Core Competencies
+Project Management Jira, Agile, Scrum
+Converted out-of-sequence, and rollback, bind workflow with a four-
+This line is a whole sentence about what the person did on the project for the client over the years.
+"""
+    assert ResumeSLM.parse_resume(text)["skills"] == ["Jira", "Agile", "Scrum"]
+
+
+def test_dates_on_a_title_line_do_not_make_the_title_the_employer():
+    text = """Experience
+Sr. Business Consultant / Functional Lead   |   2016 - 2017
+Majesco Consulting
+- Led things
+\u2022 Senior Specialist \u2013 LTM | June 2022 \u2013 November 2026
+"""
+    jobs = ResumeSLM.parse_resume(text)["work_history"]
+    assert (jobs[0]["employer"], jobs[0]["title"]) == ("Majesco Consulting", "Sr. Business Consultant / Functional Lead")
+    assert (jobs[1]["employer"], jobs[1]["title"]) == ("LTM", "Senior Specialist")
+
+
+def test_a_certification_named_only_in_the_summary_counts():
+    assert [c["name"] for c in ResumeSLM.parse_resume("Summary\nRecently achieved Guidewire ACE Certification, showing skill.\n")["certifications"]] == ["Guidewire ACE Certification"]

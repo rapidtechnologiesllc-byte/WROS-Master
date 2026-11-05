@@ -50,6 +50,8 @@ class TaskResponse(BaseModel):
     # Lets My Tasks open the record a task is about (candidate profile, its interview tab)
     candidate_id: Optional[str] = None
     interview_id: Optional[int] = None
+    # Doing this is what closes the task (My Tasks shows it instead of Log update and Mark complete)
+    system_action: Optional[str] = None
     recurrence: Optional[str] = None
     # In-app path the task opens; My Tasks follows it first
     link: Optional[str] = None

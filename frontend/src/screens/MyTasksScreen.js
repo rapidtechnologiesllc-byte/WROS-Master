@@ -13,6 +13,8 @@ import {
   getScheduledTasks, getTaskReplyDraft, getUpcomingUrgentTasks,
 } from "../services/api/tasks";
 import TaskUpdateModal from "../components/TaskUpdateModal";
+import { SubmitFeedbackModal } from "./tabs/InterviewsTab";
+import { getFeedbackForm, submitInterviewFeedback } from "../services/api/interviews";
 import { ROUTES } from "../utils/Routes";
 import { connectOutlook, disconnectOutlook, getOutlookStatus } from "../services/api/msgraph";
 import { createTicket, getTicketCategories } from "../services/api/tickets";
@@ -35,7 +37,59 @@ function isOverdue(task, now) {
 // The task itself (CEO 2026-11-02: "click on the task shouldnt open candidate but the exact step or the
 // task and what has to be done on it"): what is needed, who it is about, the email behind it and, when
 // the system drafted an answer, that reply to approve (edit first if needed) or discard.
-function TaskPanel({ task, onClose, onNavigate, onComplete, onLogUpdate, onChanged }) {
+const SUBMIT_FEEDBACK = "SUBMIT_FEEDBACK";
+
+// The same form as the candidate's Interviews tab; submitting it is what closes the task.
+function TaskFeedbackModal({ task, onClose, onDone }) {
+  const [form, setForm] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    let live = true;
+    getFeedbackForm(task.interview_id)
+      .then((data) => { if (live) setForm(data); })
+      .catch((err) => { if (live) setNotice(err?.message || "Could not open this interview."); });
+    return () => { live = false; };
+  }, [task.interview_id]);
+
+  const submit = async (values) => {
+    try {
+      setLoading(true);
+      setNotice("");
+      await submitInterviewFeedback({
+        interviewId: task.interview_id,
+        interviewerId: values.interviewerId,
+        technicalScore: Number(values.technical_score),
+        communicationScore: Number(values.communication_score),
+        problemSolvingScore: Number(values.problem_solving_score),
+        cultureFitScore: Number(values.culture_fit_score),
+        comments: values.comments.trim(),
+        recommendation: values.recommendation,
+      });
+      onDone();
+    } catch (err) {
+      setNotice(err?.message || "Could not submit the feedback.");
+      setLoading(false);
+    }
+  };
+
+  if (!form && !notice) return null;
+  return (
+    <SubmitFeedbackModal
+      interview={form || { id: task.interview_id }}
+      panelMembers={form?.panel_members || []}
+      loggedInInterviewerId={task.assigned_to_user_id}
+      loading={loading}
+      notice={notice}
+      noticeType="error"
+      onClose={onClose}
+      onSubmit={submit}
+    />
+  );
+}
+
+function TaskPanel({ task, onClose, onNavigate, onComplete, onLogUpdate, onSubmitFeedback, onChanged }) {
   const [draft, setDraft] = useState(undefined);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -126,7 +180,9 @@ function TaskPanel({ task, onClose, onNavigate, onComplete, onLogUpdate, onChang
           {task.description || "No details were recorded on this task."}
         </div>
 
-        {task.status !== "COMPLETED" ? (
+        {task.status !== "COMPLETED" && task.system_action === SUBMIT_FEEDBACK ? (
+          <Button variant="ghost" onClick={() => { onSubmitFeedback(task); onClose(); }}>Submit feedback</Button>
+        ) : task.status !== "COMPLETED" ? (
           <div className="flex gap-2">
             <Button variant="ghost" onClick={() => onLogUpdate(task)}>Log update</Button>
             <Button variant="ghost" onClick={() => { onComplete(task.id); onClose(); }}>Mark complete</Button>
@@ -137,7 +193,7 @@ function TaskPanel({ task, onClose, onNavigate, onComplete, onLogUpdate, onChang
   );
 }
 
-function TaskRow({ task, now, onComplete, onConfirmUrgent, onNavigate, onLogUpdate, onOpen }) {
+function TaskRow({ task, now, onComplete, onConfirmUrgent, onNavigate, onLogUpdate, onSubmitFeedback, onOpen }) {
   const overdue = isOverdue(task, now);
   return (
     <tr className="border-b border-bx-border last:border-0">
@@ -189,7 +245,12 @@ function TaskRow({ task, now, onComplete, onConfirmUrgent, onNavigate, onLogUpda
       <td className="py-2 px-3 text-xs text-gray-500">{task.department_id ?? "--"}</td>
       <td className="py-2 px-3 text-xs text-gray-500">{task.is_external ? "Yes" : "No"}</td>
       <td className="py-2 px-3 whitespace-nowrap">
-        {task.status !== "COMPLETED" && (
+        {task.status !== "COMPLETED" && task.system_action === SUBMIT_FEEDBACK && (
+          <button className="text-xs font-semibold text-bx-orange hover:underline" onClick={() => onSubmitFeedback(task)}>
+            Submit feedback
+          </button>
+        )}
+        {task.status !== "COMPLETED" && !task.system_action && (
           <div className="flex flex-col items-start gap-1">
             <button
               className="text-xs font-semibold text-bx-orange hover:underline"
@@ -273,6 +334,7 @@ export default function MyTasksScreen() {
   const [upcoming, setUpcoming] = useState([]);
   const [scheduled, setScheduled] = useState([]);
   const [updatingTask, setUpdatingTask] = useState(null);
+  const [feedbackTask, setFeedbackTask] = useState(null);
   const [openTask, setOpenTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -565,7 +627,7 @@ export default function MyTasksScreen() {
                   <tr><td colSpan={8} className="py-6 text-center text-sm text-gray-400">Nothing due today. Nice.</td></tr>
                 ) : (
                   tasks.map((t) => (
-                    <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} onOpen={setOpenTask} />
+                    <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} onSubmitFeedback={setFeedbackTask} onOpen={setOpenTask} />
                   ))
                 )}
               </tbody>
@@ -579,7 +641,7 @@ export default function MyTasksScreen() {
                 <table className="w-full text-left">
                   <tbody>
                     {scheduled.map((t) => (
-                      <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} onOpen={setOpenTask} />
+                      <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} onSubmitFeedback={setFeedbackTask} onOpen={setOpenTask} />
                     ))}
                   </tbody>
                 </table>
@@ -594,7 +656,7 @@ export default function MyTasksScreen() {
                 <table className="w-full text-left">
                   <tbody>
                     {upcoming.map((t) => (
-                      <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} onOpen={setOpenTask} />
+                      <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} onSubmitFeedback={setFeedbackTask} onOpen={setOpenTask} />
                     ))}
                   </tbody>
                 </table>
@@ -606,7 +668,12 @@ export default function MyTasksScreen() {
 
       {openTask && (
         <TaskPanel task={openTask} onClose={() => setOpenTask(null)} onNavigate={handleNavigateTask}
-          onComplete={handleComplete} onLogUpdate={setUpdatingTask} onChanged={load} />
+          onComplete={handleComplete} onLogUpdate={setUpdatingTask} onSubmitFeedback={setFeedbackTask} onChanged={load} />
+      )}
+
+      {feedbackTask && (
+        <TaskFeedbackModal task={feedbackTask} onClose={() => setFeedbackTask(null)}
+          onDone={() => { setFeedbackTask(null); setActionSuccess("Feedback submitted. The task is closed."); load(); }} />
       )}
 
       {updatingTask && (

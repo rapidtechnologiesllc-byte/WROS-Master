@@ -70,6 +70,7 @@ class DepartmentResponse(BaseModel):
     access_template_id: Optional[int] = None
     access_template_name: Optional[str] = None
     access_org_level: bool = False
+    org_level: bool = False  # its people's cost sits at org level in the P&L
     access_note: Optional[str] = None
 
     class Config:
