@@ -1953,6 +1953,8 @@ def _apply_schema_migrations(db: Session):
             ("tenant_id", "INTEGER NOT NULL DEFAULT 1 REFERENCES app_schema.tenants(id)"),
         ],
         "candidates": [
+            ("\"candidateSecondaryEmail\"", "VARCHAR(512) NULL"),
+            ("\"candidateSecondaryMobile\"", "VARCHAR(20) NULL"),
             ("merged_into_id", "VARCHAR(512) NULL REFERENCES app_schema.candidates(\"candidateID\") ON DELETE SET NULL"),
             ("thunder_enabled", "BOOLEAN NOT NULL DEFAULT true"),
             ("status_changed_at", "TIMESTAMP NULL"),
@@ -1991,6 +1993,9 @@ def _apply_schema_migrations(db: Session):
             # Contractor supplied by a sub-vendor, paid through the vendor at an hourly rate
             ("sub_vendor_id", "VARCHAR(512) NULL REFERENCES app_schema.sub_vendor_accounts(id) ON DELETE SET NULL"),
             ("vendor_hourly_rate_usd_cents", "INTEGER NULL"),
+        ],
+        "interview_logs": [
+            ("analysis", "JSON NULL"),
         ],
         "sub_vendor_accounts": [
             ("payment_terms_days", "INTEGER NOT NULL DEFAULT 30"),

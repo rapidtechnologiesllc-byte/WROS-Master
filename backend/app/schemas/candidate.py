@@ -54,7 +54,9 @@ class CandidateUpdateRequest(BaseModel):
     candidate_middle_name: Optional[str] = None
     candidate_last_name: Optional[str] = None
     candidate_email: Optional[EmailStr] = None
+    candidate_secondary_email: Optional[EmailStr] = None
     candidate_mobile: Optional[str] = None
+    candidate_secondary_mobile: Optional[str] = None
     candidate_gender: Optional[str] = None
     candidate_date_of_birth: Optional[date] = None
     candidate_source: Optional[str] = None
@@ -149,7 +151,9 @@ class CandidateCompleteResponse(BaseModel):
     candidate_middle_name: str | None = None
     candidate_last_name: str | None = None
     candidate_email: str
+    candidate_secondary_email: str | None = None
     candidate_mobile: str | None = None
+    candidate_secondary_mobile: str | None = None
     candidate_role: str | None = None
     candidate_job_title: str | None = None
     candidate_is_verified: bool | None = None

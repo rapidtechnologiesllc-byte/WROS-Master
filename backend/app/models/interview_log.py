@@ -9,7 +9,7 @@ held, its transcript (pasted or read from a Word document) and the summary, and 
 candidate's 5+ years were unverified when it was logged (it is recorded anyway -- it happened -- and
 the existing experience gates still stop an offer or a client submission until it is verified).
 """
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text, func
 
 from app.models.base import Base
 
@@ -28,6 +28,7 @@ class InterviewLog(Base):
     # Claude's suggested recommendation from the transcript; the interviewer's pick is the record
     suggested_recommendation = Column(String(20), nullable=True)
     summary_by = Column(String(16), nullable=True)  # "interviewer" / "claude"
+    analysis = Column(JSON, nullable=True)  # Claude's scores and recommendation (interview_transcript_service)
     experience_unverified = Column(Boolean, nullable=False, default=False, server_default="false")
     experience_note = Column(String(512), nullable=True)
     logged_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)

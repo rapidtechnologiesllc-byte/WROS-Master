@@ -31,8 +31,11 @@ EXTRA_COLUMNS = {"candidate_intelligence_profiles": "candidate_id", "email_track
 ENTITY_COLUMNS = (("activity_timeline", "entity_id", "entity_type"), ("file_uploads", "entity_id", "entity_type"),
                   ("consent_records", "subject_id", "subject_type"))
 NEVER_COPIED = {"candidateID", "candidateEmail", "candidatePassword", "candidateTempPassword", "candidateCreatedAt",
-                "merged_into_id", "tenant_id"}
+                "merged_into_id", "tenant_id", "candidateSecondaryEmail", "candidateSecondaryMobile"}
+# The archived record's own marks: its status says it is archived, its cadence says it stopped
+STAYS_ON_ARCHIVED = {"candidate_status", "thunder_cadence_state"}
 MIN_LOCAL_PART = 5
+CADENCE_RANK = {"STOPPED": 0, "ACTIVE": 1, "NURTURE": 2, "HANDOFF": 3}
 
 
 class CandidateMergeError(ValueError):
@@ -93,8 +96,72 @@ def _move(db: Session, table, column, type_column, source_id: str, target_id: st
                 db.execute(update(table).where(one).values({column.name: target_id}))
             moved += 1
         except IntegrityError:
-            kept += 1
+            if _absorb(db, table, column, row, one, target_id):
+                moved += 1
+            else:
+                kept += 1
     return {"moved": moved, "kept": kept}
+
+
+def _absorb(db: Session, table, column, row, this_row, target_id: str) -> bool:
+    """The kept record already has this one-per-candidate row: what only the duplicate's row knows goes onto it, and
+    the duplicate's row goes. False when it has to stay."""
+    if table.name in STAYS_ON_ARCHIVED:
+        return False
+    key_columns = set(table.primary_key.columns)
+    same = column == target_id
+    for shared in ("job_id", "demand_id"):  # one row per candidate and job
+        if shared in table.c and row[shared] is not None:
+            same = same & (table.c[shared] == row[shared])
+    kept_row = db.execute(table.select().where(same)).mappings().first()
+    if kept_row is None:
+        return False
+    blanks = {c.name: row[c.name] for c in table.columns
+              if c not in key_columns and c is not column and kept_row[c.name] is None and row[c.name] is not None}
+    try:
+        with db.begin_nested():
+            if blanks:
+                one = same
+                for key in key_columns:
+                    one = one & (key == kept_row[key.name])
+                db.execute(update(table).where(one).values(blanks))
+            db.execute(table.delete().where(this_row))
+        return True
+    except IntegrityError as exc:  # something still points at the duplicate's row
+        logger.warning(f"[CandidateMerge] {table.name} row stays on the duplicate: {exc}")
+        return False
+
+
+def _carry_live_cadence(source, target) -> None:
+    """Both records had a cadence: the kept record continues the conversation furthest along, so a person already
+    talking to Thunder on the duplicate never gets a cold follow-up on the record kept."""
+    if target is None:
+        return
+    moments = [m for m in (source.last_inbound_at, target.last_inbound_at) if m]
+    source_leads = (source.last_inbound_at == max(moments) if moments
+                    else CADENCE_RANK.get(source.stage, 0) > CADENCE_RANK.get(target.stage, 0))
+    if source_leads and (not moments or source.last_inbound_at != target.last_inbound_at):
+        target.job_id, target.cadence_seq = source.job_id or target.job_id, source.cadence_seq
+        target.stage, target.next_step, target.next_action_at = source.stage, source.next_step, source.next_action_at
+        target.stop_reason = source.stop_reason
+    target.touches_sent = (target.touches_sent or 0) + (source.touches_sent or 0)
+    outbound = [m for m in (source.last_outbound_at, target.last_outbound_at) if m]
+    target.last_outbound_at = max(outbound) if outbound else None
+    target.last_inbound_at = max(moments) if moments else None
+
+
+def _keep_contact_details(source: Candidate, target: Candidate) -> None:
+    """The duplicate's email and phone become the kept record's secondary ones (the kept record's stay primary)."""
+    emails = {(target.candidateEmail or "").lower(), (target.candidateSecondaryEmail or "").lower()}
+    for email in (source.candidateEmail, source.candidateSecondaryEmail):
+        if email and email.lower() not in emails and not target.candidateSecondaryEmail:
+            target.candidateSecondaryEmail = email
+            emails.add(email.lower())
+    phones = {last_digits(target.candidateMobile), last_digits(target.candidateSecondaryMobile)}
+    for phone in (source.candidateMobile, source.candidateSecondaryMobile):
+        if phone and last_digits(phone) not in phones and not target.candidateSecondaryMobile:
+            target.candidateSecondaryMobile = phone
+            phones.add(last_digits(phone))
 
 
 def merge_candidates(db: Session, source: Candidate, target: Candidate, *, merged_by: str,
@@ -139,12 +206,14 @@ def merge_candidates(db: Session, source: Candidate, target: Candidate, *, merge
     source = db.get(Candidate, source_id)
     target = db.get(Candidate, target_id)
     source.merged_into_id, source.thunder_enabled = target_id, False
+    _keep_contact_details(source, target)
     status = db.query(CandidateStatus).filter(CandidateStatus.candidateID == source_id).first()
     if status is None:
         db.add(CandidateStatus(candidateID=source_id, status="Inactive"))
     else:
         status.status = "Inactive"
     for state in db.query(ThunderCadenceState).filter(ThunderCadenceState.candidate_id == source_id).all():
+        _carry_live_cadence(state, db.get(ThunderCadenceState, target_id))
         state.stage, state.stop_reason = "STOPPED", f"Merged into {target_id}"
         state.next_step, state.next_action_at = None, None
 

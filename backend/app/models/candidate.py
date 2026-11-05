@@ -31,6 +31,10 @@ class Candidate(Base):
     candidateLastName = Column(String(150), nullable=True)
     candidateEmail = Column(String(512), unique=True, nullable=False, index=True)
     candidateMobile = Column(String(20), nullable=True)
+    # A second address and phone for the same person, filled by a merge or typed on the profile; the first ones
+    # stay primary (outreach goes there). Duplicate detection and incoming mail match both.
+    candidateSecondaryEmail = Column(String(512), nullable=True, index=True)
+    candidateSecondaryMobile = Column(String(20), nullable=True)
     # R-07 -- the Dev Review Standard's own example of the dedup gap:
     # "missing phone/LinkedIn" matching. See app.services.candidate_service
     # .create_candidate() -- this field lets LinkedIn dedup run for
