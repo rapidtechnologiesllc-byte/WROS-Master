@@ -195,6 +195,9 @@ class JobResponse(BaseModel):
     job_skills_boolean_mode: Optional[str] = None
     client_id: Optional[str] = None
     client_name: Optional[str] = None
+    opportunity_id: Optional[str] = None
+    opportunity_stage: Optional[str] = None
+    confirmation_status: Optional[str] = None
     project_id: Optional[str] = None
     billing_rate_usd_cents: Optional[int] = None
 

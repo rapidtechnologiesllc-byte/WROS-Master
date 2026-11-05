@@ -283,6 +283,15 @@ def get_or_create_pipeline(db: Session, candidate_id: str, job_id: Optional[str]
     return evaluate(db, pipeline, trigger="created", actor=created_by)
 
 
+def link_job(db: Session, candidate_id: str, job_id: str) -> None:
+    """A candidate submitted to a job: their open pipeline that has no job yet is for this one. Flushes."""
+    pipeline = db.query(HiringPipeline).filter(HiringPipeline.candidate_id == candidate_id,
+                                               HiringPipeline.closed_at.is_(None), HiringPipeline.job_id.is_(None)).first()
+    if pipeline is not None:
+        pipeline.job_id = job_id
+        db.flush()
+
+
 def record_screen_decision(db: Session, candidate_id: str, decision: str, user_id: str,
                            notes: Optional[str] = None) -> HiringPipeline:
     if decision not in ("PASS", "SKIP", "FAIL"):
