@@ -6,47 +6,22 @@ from app.core.dependencies import get_current_internal_user, require_resource_pe
 from app.core.database import get_db
 from app.models.user import Users
 import logging
-from app.services.flash_transcript_service import FlashTranscriptService
 
 router = APIRouter(prefix="/flash/interviews", tags=["Flash Interview Analysis"])
 
 @router.get("/{interview_id}/analysis", response_model=dict, dependencies=[Depends(require_resource_permission("candidates", "view"))])
 def get_flash_interview_analysis(
-    interview_id: str,
-    use_mock: bool = Query(False, description="Use mock transcript for testing (local only)"),
+    interview_id: int,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user)
 ):
-    """
-    Get Flash's AI-powered analysis of an interview transcript from Office 365.
+    """The recommendation after an interview: Claude's when a key is configured, else worked out by rules from the
+    panel's feedback and the transcript (source says which). data is null when nothing is known yet."""
+    from app.api.v1.endpoints.interviews import _interview_scope
+    from app.models.user import Interview
+    from app.services.interview_transcript_service import analysis_for
 
-    Flash reads the actual Teams meeting transcript and provides:
-    - Technical competency score (0-100)
-    - Communication clarity score (0-100)
-    - Problem-solving approach score (0-100)
-    - Cultural fit with BlitzenX score (0-100)
-    - HIRE | NO_HIRE | MAYBE recommendation
-    - Confidence percentage (0-100)
-    - Strengths and concerns
-    - Next steps recommendation
-
-    Parameters:
-    - use_mock: For local testing only. Uses generated mock transcript instead of Office 365.
-
-    Permissions: candidate.view (Recruiter, HR, BU Head, Finance, CEO)
-    """
-    try:
-        # Get Flash decision (reads from Office 365 or uses mock for local testing)
-        decision = FlashTranscriptService.get_flash_decision(db, interview_id, use_mock=use_mock)
-
-        if "error" in decision:
-            raise HTTPException(status_code=404, detail=decision.get("error"))
-
-        return {
-            "status": "success",
-            "data": decision
-        }
-    except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
+    interview = db.query(Interview).filter(Interview.id == interview_id, _interview_scope(db, current_user)).first()
+    if interview is None:
+        raise HTTPException(status_code=404, detail="Interview not found.")
+    return {"status": "success", "data": analysis_for(db, interview)}

@@ -292,9 +292,8 @@ def _existing_candidate(db: Session, row: MailboxIntakeMessage, reading: Forward
     emails = [e for e in [details.get("email")] + reading.emails if e]
     phones = [p for p in [details.get("phone")] + reading.phones if p]
     for email in dict.fromkeys(emails):
-        hit = db.query(Candidate).filter(func.lower(Candidate.candidateEmail) == email.lower(),
-                                         Candidate.tenant_id == row.tenant_id).first()
-        if hit is not None:
+        hit, _ = find_duplicate_candidate(db, email=email)
+        if hit is not None and hit.tenant_id == row.tenant_id:
             return resolve_merged(db, hit)
     for phone in dict.fromkeys(phones):
         hit, _ = find_duplicate_candidate(db, mobile=phone)

@@ -29,6 +29,7 @@ import {
   getFlashAnalysisForInterview,
   getInterviewLogOptions,
   getInterviewTranscript,
+  addInterviewTranscript,
   logCompletedInterview,
 } from "../../services/api/interviews";
 import { listAccountManagerOptions } from "../../services/api/clients";
@@ -1244,27 +1245,30 @@ function InterviewDetailsModal({ open, onClose, loading, error, interview, flash
               {flashAnalysis && (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
                   <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-sm font-semibold text-amber-900">Flash AI Analysis</h4>
+                    <h4 className="text-sm font-semibold text-amber-900">
+                      {flashAnalysis.source === "rules" ? "Recommendation (rules, no AI)" : "Flash AI Analysis"}
+                    </h4>
                     <span className="text-xs font-medium text-amber-700 bg-white px-2 py-1 rounded">
-                      {flashAnalysis.recommendation} • {flashAnalysis.confidence_pct}%
+                      {flashAnalysis.recommendation || "No recommendation yet"}
+                      {flashAnalysis.confidence_pct != null ? ` • ${flashAnalysis.confidence_pct}%` : ""}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                     <div className="bg-white rounded p-2">
                       <div className="text-xs text-gray-600">Technical</div>
-                      <div className="text-lg font-bold text-gray-900">{flashAnalysis.technical_score}</div>
+                      <div className="text-lg font-bold text-gray-900">{flashAnalysis.technical_score ?? "—"}</div>
                     </div>
                     <div className="bg-white rounded p-2">
                       <div className="text-xs text-gray-600">Communication</div>
-                      <div className="text-lg font-bold text-gray-900">{flashAnalysis.communication_score}</div>
+                      <div className="text-lg font-bold text-gray-900">{flashAnalysis.communication_score ?? "—"}</div>
                     </div>
                     <div className="bg-white rounded p-2">
                       <div className="text-xs text-gray-600">Problem-Solving</div>
-                      <div className="text-lg font-bold text-gray-900">{flashAnalysis.problem_solving_score}</div>
+                      <div className="text-lg font-bold text-gray-900">{flashAnalysis.problem_solving_score ?? "—"}</div>
                     </div>
                     <div className="bg-white rounded p-2">
                       <div className="text-xs text-gray-600">Culture Fit</div>
-                      <div className="text-lg font-bold text-gray-900">{flashAnalysis.culture_fit_score}</div>
+                      <div className="text-lg font-bold text-gray-900">{flashAnalysis.culture_fit_score ?? "—"}</div>
                     </div>
                   </div>
                   {flashAnalysis.rationale && (
@@ -1851,6 +1855,29 @@ function LogInterviewModal({ candidateId, onClose, onLogged }) {
 function TranscriptSection({ interviewId }) {
   const [data, setData] = useState(null);
   const [open, setOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [text, setText] = useState("");
+  const [file, setFile] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const save = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      const form = new FormData();
+      if (text.trim()) form.append("transcript_text", text);
+      if (file) form.append("transcript_file", file);
+      await addInterviewTranscript(interviewId, form);
+      setData(await getInterviewTranscript(interviewId));
+      setAdding(false);
+      setOpen(true);
+    } catch (err) {
+      setError(err?.message || "Could not save the transcript.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -1865,7 +1892,27 @@ function TranscriptSection({ interviewId }) {
     return () => { cancelled = true; };
   }, [interviewId]);
 
-  if (!data?.transcript_text) return null;
+  if (!data?.transcript_text) {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-white p-3 text-sm text-gray-700">
+        <div>No transcript yet. Teams transcripts are fetched automatically when the meeting was transcribed.</div>
+        {adding ? (
+          <div className="mt-2 grid gap-2">
+            <textarea aria-label="Transcript text" rows={5} className="w-full rounded-lg border p-2 text-xs" placeholder="Paste the transcript"
+              value={text} onChange={(e) => setText(e.target.value)} />
+            <input aria-label="Transcript file" type="file" accept=".docx,.txt,.vtt" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+            {error ? <div className="text-xs text-rose-700">{error}</div> : null}
+            <button type="button" disabled={saving || (!text.trim() && !file)} onClick={save}
+              className="w-fit rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
+              {saving ? "Saving…" : "Save transcript"}
+            </button>
+          </div>
+        ) : (
+          <button type="button" className="mt-1 text-sm font-semibold text-blue-700 hover:underline" onClick={() => setAdding(true)}>Add transcript</button>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-3">
       <button type="button" className="text-sm font-semibold text-blue-700 hover:underline" onClick={() => setOpen((v) => !v)}>

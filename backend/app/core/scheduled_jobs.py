@@ -40,6 +40,9 @@ _JOBS = (
     # New client roles to approved sub-vendors, by email (sub_vendor_roles_service)
     ScheduledJob("sub_vendor_new_roles", "app.services.sub_vendor_roles_service:run_new_roles_job",
                  timedelta(hours=1), timeout_s=300),
+    # Teams transcripts of finished interviews; recording and transcription on for upcoming ones
+    ScheduledJob("interview_transcripts", "app.services.interview_transcript_service:run_interview_transcripts_job",
+                 timedelta(hours=1), timeout_s=300),
     ScheduledJob("engagement_metrics", "app.services.engagement_metrics_service:run_engagement_metrics_job",
                  timedelta(hours=4), timeout_s=300),
     # internal only: re-derives hiring stages from facts and backfills pipelines

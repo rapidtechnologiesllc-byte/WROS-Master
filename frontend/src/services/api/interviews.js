@@ -325,6 +325,12 @@ export const logCompletedInterview = async (formData) => {
   return data;
 };
 
+// Paste or upload the transcript of an interview that already exists (multipart)
+export const addInterviewTranscript = async (interviewId, formData) => {
+  const { data } = await apiRequest(`/interviews/${interviewId}/transcript`, { method: "POST", body: formData });
+  return data;
+};
+
 export const getInterviewTranscript = async (interviewId) => {
   const { data } = await apiRequest(`/interviews/${interviewId}/transcript`, { method: "GET" });
   return data;

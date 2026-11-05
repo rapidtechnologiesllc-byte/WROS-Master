@@ -209,6 +209,8 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         middle_name: profile?.candidate_middle_name || "",
         last_name: profile?.candidate_last_name || "",
         email: profile?.candidate_email || "",
+        secondary_email: profile?.candidate_secondary_email || "",
+        secondary_mobile: profile?.candidate_secondary_mobile || "",
         mobile_code: splitPhone(profile?.candidate_mobile).code,
         mobile_number: splitPhone(profile?.candidate_mobile).number,
         job_title: profile?.candidate_job_title || "",
@@ -248,6 +250,8 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         updatePayload.candidate_middle_name = editForm.middle_name || null;
         updatePayload.candidate_last_name = editForm.last_name || null;
         updatePayload.candidate_email = editForm.email?.trim() || null;
+        updatePayload.candidate_secondary_email = editForm.secondary_email?.trim() || null;
+        updatePayload.candidate_secondary_mobile = editForm.secondary_mobile?.trim() || null;
         updatePayload.candidate_mobile = joinPhone(editForm.mobile_code, editForm.mobile_number) || null;
         updatePayload.candidate_job_title = editForm.job_title || null;
         updatePayload.candidate_gender = editForm.gender || null;
@@ -379,10 +383,21 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               onChange={(v) => setEditForm({...editForm, last_name: v})}
             />
             <Input
-              label="Email"
+              label="Primary Email"
               type="email"
               value={editForm.email || ""}
               onChange={(v) => setEditForm({...editForm, email: v})}
+            />
+            <Input
+              label="Secondary Email"
+              type="email"
+              value={editForm.secondary_email || ""}
+              onChange={(v) => setEditForm({...editForm, secondary_email: v})}
+            />
+            <Input
+              label="Secondary Mobile"
+              value={editForm.secondary_mobile || ""}
+              onChange={(v) => setEditForm({...editForm, secondary_mobile: v})}
             />
             <PhoneField
               label="Mobile"
@@ -426,8 +441,10 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
             <InfoDisplay label="First Name" value={profile?.candidate_first_name} />
             <InfoDisplay label="Middle Name" value={profile?.candidate_middle_name} />
             <InfoDisplay label="Last Name" value={profile?.candidate_last_name} />
-            <InfoDisplay label="Email" value={profile?.candidate_email} />
+            <InfoDisplay label="Primary Email" value={profile?.candidate_email} />
+            <InfoDisplay label="Secondary Email" value={profile?.candidate_secondary_email} />
             <InfoDisplay label="Mobile" value={profile?.candidate_mobile} />
+            <InfoDisplay label="Secondary Mobile" value={profile?.candidate_secondary_mobile} />
             <InfoDisplay label="Job Title" value={profile?.candidate_job_title} />
             <InfoDisplay label="Gender" value={profile?.candidate_gender} />
             <InfoDisplay label="Date of Birth" value={profile?.candidate_date_of_birth} />

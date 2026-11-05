@@ -141,3 +141,44 @@ def test_the_conversation_on_the_duplicate_carries_to_the_record_kept(db, w):
     assert (state.stage, state.next_step, state.next_action_at) == ("HANDOFF", "DETAILS-2", datetime(2026, 11, 19))
     assert state.touches_sent == 3 and state.last_inbound_at == datetime(2026, 11, 4)
     assert db.query(ThunderCadenceState).filter_by(candidate_id=dup_id).one().stage == "STOPPED"
+
+
+def test_both_emails_stay_primary_and_secondary_and_either_finds_the_record(db, w):
+    tenant = w.org_user.tenant_id
+    phone = _phone()
+    kept = _candidate(db, tenant, mobile=_phone())
+    dup = _candidate(db, tenant, mobile=phone)
+    kept_id, primary, second = kept.candidateID, kept.candidateEmail, dup.candidateEmail
+    merge.merge_candidates(db, dup, kept, merged_by=w.org_user.UserID)
+    db.expire_all()
+    kept = db.get(Candidate, kept_id)
+    assert kept.candidateEmail == primary and kept.candidateSecondaryEmail == second
+    assert kept.candidateSecondaryMobile == phone
+    assert find_duplicate_candidate(db, email=second)[0].candidateID == kept_id
+    assert find_duplicate_candidate(db, mobile=phone)[0].candidateID == kept_id
+
+
+def test_a_one_per_candidate_record_is_combined_onto_the_record_kept(db, w):
+    from app.models.candidate_engagement_metrics import CandidateEngagementMetrics as Metrics
+
+    tenant = w.org_user.tenant_id
+    kept, dup = _candidate(db, tenant), _candidate(db, tenant)
+    db.add_all([Metrics(tenant_id=str(tenant), candidate_id=kept.candidateID),
+                Metrics(tenant_id=str(tenant), candidate_id=dup.candidateID, avg_response_time_minutes=42)])
+    db.commit()
+    kept_id, dup_id = kept.candidateID, dup.candidateID
+    result = merge.merge_candidates(db, dup, kept, merged_by=w.org_user.UserID)
+    db.expire_all()
+    assert db.query(Metrics).filter_by(candidate_id=dup_id).count() == 0
+    assert db.query(Metrics).filter_by(candidate_id=kept_id).one().avg_response_time_minutes == 42
+    assert result["records_left_on_duplicate"] == 0
+
+
+def test_a_secondary_email_cannot_belong_to_someone_else(api, db, w):
+    tenant = w.org_user.tenant_id
+    one, two = _candidate(db, tenant), _candidate(db, tenant)
+    taken = api.put(w.org_user, f"/api/v1/candidates/hr/update_candidate/{one.candidateID}", json={"candidate_secondary_email": two.candidateEmail})
+    assert taken.status_code == 409, taken.text
+    fine = api.put(w.org_user, f"/api/v1/candidates/hr/update_candidate/{one.candidateID}", json={"candidate_secondary_email": "other.address@example.com"})
+    assert fine.status_code == 200, fine.text
+    assert api.get(w.org_user, f"/api/v1/candidates/{one.candidateID}").json()["candidate_secondary_email"] == "other.address@example.com"

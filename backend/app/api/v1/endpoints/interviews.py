@@ -2104,6 +2104,55 @@ def get_my_hiring_manager_candidate_review(
 TRANSCRIPT_MAX_BYTES = 10 * 1024 * 1024
 
 
+async def _read_transcript_upload(transcript_text: Optional[str], transcript_file: Optional[UploadFile]):
+    """(text, file name) from the pasted text or the uploaded .docx / .txt / .vtt."""
+    from app.services.interview_log_service import InterviewLogError, read_docx_text
+    from app.services.interview_transcript_service import vtt_to_text
+
+    if transcript_file is None or not transcript_file.filename:
+        return transcript_text, None
+    content = await transcript_file.read()
+    if len(content) > TRANSCRIPT_MAX_BYTES:
+        raise HTTPException(status_code=400, detail="The transcript file is larger than 10 MB.")
+    name = transcript_file.filename.lower()
+    try:
+        if name.endswith(".docx"):
+            text = read_docx_text(content)
+        elif name.endswith(".vtt"):
+            text = vtt_to_text(content.decode("utf-8", errors="replace"))
+        elif name.endswith(".txt"):
+            text = content.decode("utf-8", errors="replace")
+        else:
+            raise InterviewLogError("Upload the transcript as a Word document (.docx) or a text file (.txt, .vtt).")
+    except InterviewLogError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return text, transcript_file.filename[:255]
+
+
+@router.post(
+    "/{interview_id}/transcript",
+    dependencies=[Depends(require_resource_permission("interviews", "edit"))],
+    summary="Add the transcript to an interview that already exists",
+)
+async def add_interview_transcript(
+    interview_id: int,
+    transcript_text: Optional[str] = Form(None),
+    transcript_file: Optional[UploadFile] = File(None),
+    db: Session = Depends(get_db),
+    user=Depends(get_current_internal_user),
+):
+    from app.services.interview_transcript_service import save_transcript
+
+    interview = db.query(Interview).filter(Interview.id == interview_id, _interview_scope(db, user)).first()
+    if interview is None:
+        raise HTTPException(status_code=404, detail="Interview not found.")
+    text, file_name = await _read_transcript_upload(transcript_text, transcript_file)
+    if not (text or "").strip():
+        raise HTTPException(status_code=400, detail="Paste the transcript or upload the file.")
+    log = save_transcript(db, interview, text, file_name=file_name, by=user.UserID)
+    return {"interview_id": interview_id, "has_transcript": True, "summary": log.summary}
+
+
 @router.post(
     "/log-completed",
     status_code=201,
@@ -2126,27 +2175,12 @@ async def log_completed_interview_endpoint(
     db: Session = Depends(get_db),
     user=Depends(get_current_internal_user),
 ):
-    from app.services.interview_log_service import InterviewLogError, log_completed_interview, read_docx_text
+    from app.services.interview_log_service import InterviewLogError, log_completed_interview
 
     candidate = ensure_candidate_visible(db, candidate_id, user)
     if job_id:
         visible_job_or_404(db, user, job_id)
-    text, file_name = transcript_text, None
-    if transcript_file is not None and transcript_file.filename:
-        content = await transcript_file.read()
-        if len(content) > TRANSCRIPT_MAX_BYTES:
-            raise HTTPException(status_code=400, detail="The transcript file is larger than 10 MB.")
-        name = transcript_file.filename.lower()
-        try:
-            if name.endswith(".docx"):
-                text = read_docx_text(content)
-            elif name.endswith((".txt", ".vtt")):
-                text = content.decode("utf-8", errors="replace")
-            else:
-                raise InterviewLogError("Upload the transcript as a Word document (.docx) or a text file (.txt, .vtt).")
-        except InterviewLogError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        file_name = transcript_file.filename[:255]
+    text, file_name = await _read_transcript_upload(transcript_text, transcript_file)
     start = None
     if interview_date:
         try:

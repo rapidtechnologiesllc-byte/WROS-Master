@@ -70,12 +70,11 @@ def _match(db: Session, message: Dict, headers: Dict[str, str], sender: str) -> 
                 ThunderEmailMessage.internet_message_id.in_(referenced)).first()
     if out is not None:
         return db.query(ThunderCadenceState).filter_by(candidate_id=out.candidate_id).first()
-    candidate = db.query(Candidate).filter(func.lower(Candidate.candidateEmail) == sender).first()
+    from app.services.candidate_service import find_duplicate_candidate
+
+    candidate = find_duplicate_candidate(db, email=sender)[0]  # primary or secondary; a merged duplicate leads to the record kept
     if candidate is None:
         return None
-    from app.services.candidate_merge_service import resolve_merged
-
-    candidate = resolve_merged(db, candidate)  # a merged duplicate's email leads to the record kept
     return db.query(ThunderCadenceState).filter_by(candidate_id=candidate.candidateID).first()
 
 

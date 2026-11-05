@@ -119,7 +119,9 @@ def _find_duplicate(db: Session, email: Optional[str], mobile: Optional[str],
                     linkedin_url: Optional[str]) -> Tuple[Optional[Candidate], Optional[str]]:
     if email:
         try:
-            hit = db.query(Candidate).filter(func.lower(Candidate.candidateEmail) == email.strip().lower()).first()
+            address = email.strip().lower()
+            hit = db.query(Candidate).filter(func.lower(Candidate.candidateEmail) == address).first() \
+                or db.query(Candidate).filter(func.lower(Candidate.candidateSecondaryEmail) == address).first()
             if hit:
                 return hit, "email"
         except Exception as e:
@@ -132,7 +134,9 @@ def _find_duplicate(db: Session, email: Optional[str], mobile: Optional[str],
             hit = db.query(Candidate).filter(Candidate.candidateMobile == mobile).first()
             if hit is None and len(digits) >= MIN_PHONE_DIGITS:
                 hit = db.query(Candidate).filter(
-                    func.right(func.regexp_replace(Candidate.candidateMobile, r"\D", "", "g"), 10) == digits[-10:]).first()
+                    func.right(func.regexp_replace(Candidate.candidateMobile, r"\D", "", "g"), 10) == digits[-10:]).first() \
+                    or db.query(Candidate).filter(
+                        func.right(func.regexp_replace(Candidate.candidateSecondaryMobile, r"\D", "", "g"), 10) == digits[-10:]).first()
             if hit:
                 return hit, "phone"
         except Exception as e:

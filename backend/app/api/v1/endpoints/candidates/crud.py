@@ -129,6 +129,8 @@ def _build_candidate_response(
         candidate_middle_name=candidate.candidateMiddleName,
         candidate_last_name=candidate.candidateLastName,
         candidate_email=candidate.candidateEmail,
+        candidate_secondary_email=candidate.candidateSecondaryEmail,
+        candidate_secondary_mobile=candidate.candidateSecondaryMobile,
         candidate_mobile=candidate.candidateMobile,
         candidate_role=getattr(candidate, 'candidateRole', None),
         candidate_job_title=candidate.candidateJobTitle,
@@ -687,6 +689,17 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         if old_val != request.candidate_job_title:
             corrections['candidate_job_title'] = (old_val, request.candidate_job_title)
 
+    if "candidate_secondary_mobile" in request.model_fields_set:
+        candidate.candidateSecondaryMobile = (request.candidate_secondary_mobile or "").strip() or None
+    if "candidate_secondary_email" in request.model_fields_set:
+        secondary = str(request.candidate_secondary_email or "").strip().lower() or None
+        if secondary and secondary != (candidate.candidateSecondaryEmail or "").lower():
+            from app.services.candidate_service import find_duplicate_candidate
+
+            holder = find_duplicate_candidate(db, email=secondary)[0]
+            if holder is not None and holder.candidateID != candidate_id:
+                raise HTTPException(status_code=409, detail=f"{secondary} already belongs to candidate {holder.candidateID}")
+        candidate.candidateSecondaryEmail = secondary
     # Email can be corrected (e.g. a LinkedIn lead's placeholder address once
     # the real one is known); it is the dedup key, so it must stay unique
     if request.candidate_email is not None:
