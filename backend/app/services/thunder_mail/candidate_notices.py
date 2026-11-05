@@ -31,6 +31,8 @@ logger = logging.getLogger(__name__)
 
 INTERVIEW_CANCELLED = "CANDIDATE_INTERVIEW_CANCELLED"
 OFFER_CANCELLED = "CANDIDATE_OFFER_CANCELLED"
+INTERVIEW_NO_SHOW = "CANDIDATE_INTERVIEW_NO_SHOW"
+INTERVIEW_NO_SHOW_FOLLOWUP = "CANDIDATE_NO_SHOW_FOLLOWUP"
 REJECTED = "CANDIDATE_STATUS_REJECTED"
 
 _SIGN = "\n\nBest regards,\nThe {{company_name}} Recruiting Team"
@@ -46,6 +48,17 @@ TEMPLATES: Dict[str, Dict[str, str]] = {
         "body": "Hi {{candidate_first_name}},\n\nWe're writing to let you know that the offer for the "
                 "{{position}} role has been withdrawn. We're sorry to share this news. Your recruiter will "
                 "reach out to talk it through and answer any questions." + _SIGN},
+    INTERVIEW_NO_SHOW: {
+        "name": "Candidate: missed an interview",
+        "subject": "We missed you at your interview",
+        "body": "Hi {{candidate_first_name}},\n\nWe missed you at your {{round_name}} on {{interview_time}}. If something came "
+                "up, we completely understand. Would you like to reschedule? Just reply to this email with a few times "
+                "that suit you." + _SIGN},
+    INTERVIEW_NO_SHOW_FOLLOWUP: {
+        "name": "Candidate: missed an interview, follow-up",
+        "subject": "Would you still like to reschedule your interview?",
+        "body": "Hi {{candidate_first_name}},\n\nWe haven't heard from you since your {{round_name}} on {{interview_time}}. "
+                "If you're still interested, reply with a few times that suit you and we'll set it up." + _SIGN},
 }
 
 
@@ -153,6 +166,17 @@ def queue_interview_cancelled(db: Session, candidate_id: str, interview_id: int,
     return queue_notice(db, candidate, INTERVIEW_CANCELLED, interview_ref(interview_id, start, round_name))
 
 
+def queue_interview_no_show(db: Session, candidate_id: str, interview_id: int, start: datetime,
+                            round_name: Optional[str]) -> Optional[str]:
+    candidate = db.query(Candidate).filter(Candidate.candidateID == candidate_id).first()
+    return queue_notice(db, candidate, INTERVIEW_NO_SHOW, interview_ref(interview_id, start, round_name))
+
+
+def queue_interview_no_show_followup(db: Session, candidate: Candidate, interview_id: int, start: datetime,
+                                     round_name: Optional[str], number: int) -> Optional[str]:
+    return queue_notice(db, candidate, INTERVIEW_NO_SHOW_FOLLOWUP, f"{interview_ref(interview_id, start, round_name)}#{number}")
+
+
 def queue_offer_cancelled(db: Session, offer) -> Optional[str]:
     """Only an offer the candidate was given (released) is withdrawn to them."""
     if offer.released_at is None:
@@ -207,6 +231,17 @@ def _variables(db: Session, candidate: Candidate, row, company: str) -> Dict[str
         if interview is not None and interview.status == "Scheduled":
             raise NotSent(f"interview {interview_id} is scheduled again")
         variables["round_name"] = round_name or "interview"
+        variables["interview_time"] = _local(candidate, datetime.strptime(start_key, "%Y%m%dT%H%M"))
+    elif row.kind in (INTERVIEW_NO_SHOW, INTERVIEW_NO_SHOW_FOLLOWUP):
+        interview_id, start_key, round_name = (row.ref.split(":", 2) + ["", ""])[:3]
+        interview = db.query(Interview).filter(Interview.id == int(interview_id)).first() \
+            if interview_id.isdigit() else None
+        if interview is None or interview.status != "No Show":
+            raise NotSent(f"interview {interview_id} is no longer marked as missed")
+        if db.query(Interview.id).filter(Interview.candidate_id == candidate.candidateID, Interview.status == "Scheduled",
+                                         Interview.start_time > datetime.utcnow()).first():
+            raise NotSent("the candidate has an interview booked")
+        variables["round_name"] = round_name.split("#")[0] or "interview"
         variables["interview_time"] = _local(candidate, datetime.strptime(start_key, "%Y%m%dT%H%M"))
     elif row.kind == OFFER_CANCELLED:
         offer = db.query(OfferLetter).filter(OfferLetter.id == int(row.ref)).first()

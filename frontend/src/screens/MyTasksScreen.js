@@ -14,7 +14,7 @@ import {
 } from "../services/api/tasks";
 import TaskUpdateModal from "../components/TaskUpdateModal";
 import { SubmitFeedbackModal } from "./tabs/InterviewsTab";
-import { getFeedbackForm, submitInterviewFeedback } from "../services/api/interviews";
+import { getFeedbackForm, markCandidateNoShow, submitInterviewFeedback } from "../services/api/interviews";
 import { ROUTES } from "../utils/Routes";
 import { connectOutlook, disconnectOutlook, getOutlookStatus } from "../services/api/msgraph";
 import { createTicket, getTicketCategories } from "../services/api/tickets";
@@ -67,9 +67,21 @@ function TaskFeedbackModal({ task, onClose, onDone }) {
         comments: values.comments.trim(),
         recommendation: values.recommendation,
       });
-      onDone();
+      onDone("Feedback submitted. The task is closed.");
     } catch (err) {
       setNotice(err?.message || "Could not submit the feedback.");
+      setLoading(false);
+    }
+  };
+
+  const noShow = async () => {
+    try {
+      setLoading(true);
+      setNotice("");
+      await markCandidateNoShow(task.interview_id);
+      onDone("Recorded. We emailed the candidate to reschedule and the task is closed.");
+    } catch (err) {
+      setNotice(err?.message || "Could not record that.");
       setLoading(false);
     }
   };
@@ -85,6 +97,7 @@ function TaskFeedbackModal({ task, onClose, onDone }) {
       noticeType="error"
       onClose={onClose}
       onSubmit={submit}
+      onNoShow={noShow}
     />
   );
 }
@@ -673,7 +686,7 @@ export default function MyTasksScreen() {
 
       {feedbackTask && (
         <TaskFeedbackModal task={feedbackTask} onClose={() => setFeedbackTask(null)}
-          onDone={() => { setFeedbackTask(null); setActionSuccess("Feedback submitted. The task is closed."); load(); }} />
+          onDone={(message) => { setFeedbackTask(null); setActionSuccess(message); load(); }} />
       )}
 
       {updatingTask && (

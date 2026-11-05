@@ -21,6 +21,7 @@ import {
   getCandidateInterviewHistory,
   getFeedbackForInterview,
   submitInterviewFeedback,
+  markCandidateNoShow,
   getPanelMembers,
   updateInterview,
   deleteInterview,
@@ -361,6 +362,21 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
       } catch (historyError) {
         console.error("HISTORY CREATION FAILED", historyError);
       }
+    }
+  };
+
+  const handleNoShow = async () => {
+    try {
+      setSubmitting(true);
+      await markCandidateNoShow(getInterviewId(selectedInterview));
+      await fetchData();
+      setSubmitting(false);
+      closeSubmitModal();
+    } catch (err) {
+      console.error("Failed to report the candidate did not join", err);
+      setSubmitNotice(err?.message || "Could not record that.");
+      setSubmitNoticeType("error");
+      setSubmitting(false);
     }
   };
 
@@ -825,6 +841,7 @@ export default function InterviewsTab({ candidateId, onScheduleInterview }) {
           noticeType={submitNoticeType}
           onClose={closeSubmitModal}
           onSubmit={handleSubmitFeedback}
+          onNoShow={handleNoShow}
         />
       )}
 
@@ -1014,7 +1031,7 @@ function InterviewRoundCard({
     Boolean(myPanelInterview?.feedback_submitted) ||
     Boolean(myPanelInterview?.my_feedback) ||
     Boolean(loggedInInterviewerId && doneInterviewerIds.has(loggedInInterviewerId));
-  const canTakeAction = Boolean(myPanelInterview) && !currentUserAlreadyDone;
+  const canTakeAction = Boolean(myPanelInterview) && !currentUserAlreadyDone && interview?.status !== "No Show";
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-4">
@@ -1389,7 +1406,8 @@ function CancelInterviewModal({ interview, notice, noticeType, loading, onClose,
   );
 }
 
-export function SubmitFeedbackModal({ interview, panelMembers, loggedInInterviewerId, loading, notice, noticeType, onClose, onSubmit }) {
+export function SubmitFeedbackModal({ interview, panelMembers, loggedInInterviewerId, loading, notice, noticeType, onClose, onSubmit, onNoShow }) {
+  const [sureNoShow, setSureNoShow] = useState(false);
   const [form, setForm] = useState({
     interviewerId: loggedInInterviewerId || "",
     technical_score: 5, communication_score: 5, problem_solving_score: 5, culture_fit_score: 5,
@@ -1476,6 +1494,16 @@ export function SubmitFeedbackModal({ interview, panelMembers, loggedInInterview
           <TextAreaField label="Comments" value={form.comments} onChange={(e) => handleChange("comments", e.target.value)} error={errors.comments} placeholder="Enter feedback comments" rows={5} />
         </div>
         <div className="border-t bg-white px-6 py-4 flex justify-end gap-3">
+          {onNoShow && (
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => (sureNoShow ? onNoShow() : setSureNoShow(true))}
+              className="mr-auto inline-flex items-center rounded-xl border border-orange-200 bg-orange-50 px-4 py-2 text-sm font-semibold text-orange-800 hover:bg-orange-100"
+            >
+              {sureNoShow ? "Yes, email them to reschedule" : "Candidate did not join"}
+            </button>
+          )}
           <button type="button" onClick={onClose} disabled={loading} className="inline-flex items-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50">Close</button>
           <button type="button" onClick={handleSubmit} disabled={loading} className="inline-flex items-center rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-100 disabled:opacity-60">
             {loading ? "Submitting..." : "Submit Feedback"}

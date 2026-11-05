@@ -248,8 +248,20 @@ def evaluate(db: Session, pipeline: HiringPipeline, *, trigger: str = "evaluate"
         pipeline.stage, pipeline.stage_entered_at = stage, datetime.utcnow()
     if stage in ("REJECTED", "ALLOCATED"):
         pipeline.closed_at = datetime.utcnow()
+    _status_follows_interviews(db, pipeline.candidate_id)
     db.flush()
     return pipeline
+
+
+def _status_follows_interviews(db: Session, candidate_id: str) -> None:
+    """A candidate with an interview on record is in the Interview stage, however it was booked or logged."""
+    from app.models.user import Interview
+
+    rows = db.query(CandidateStatus).filter(CandidateStatus.candidateID == candidate_id,
+                                            CandidateStatus.piplineStatus.in_(("Applied", "Screening"))).all()
+    if rows and db.query(Interview.id).filter(Interview.candidate_id == candidate_id, Interview.status != "Cancelled").first():
+        for row in rows:
+            row.piplineStatus = "Interview"
 
 
 def get_or_create_pipeline(db: Session, candidate_id: str, job_id: Optional[str] = None, *,
