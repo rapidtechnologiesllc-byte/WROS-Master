@@ -318,6 +318,7 @@ class DepartmentRequest(BaseModel):
     business_unit_id: Optional[int] = None  # legacy: functions are org-wide
     description: Optional[str] = None
     cost_center_code: Optional[str] = None
+    org_level: Optional[bool] = None  # True: its people's cost sits at org level in the P&L, not in a business unit
     active: Optional[bool] = None  # False retires the function, True restores it
 
 def _function_templates(db: Session, tenant_id: int, name: str) -> list:
@@ -348,6 +349,10 @@ def _department_response(dept: Department, tenant_id: int, db: Session) -> Depar
     data = DepartmentResponse.from_orm(dept).dict()
     data["tenant_name"] = tenant.name if tenant else None
     data["business_unit_name"] = dept.business_unit.name if dept.business_unit else None
+    from app.core.config import settings
+
+    default = {n.strip().lower() for n in settings.SHARED_SERVICE_FUNCTIONS.split(",") if n.strip()}
+    data["org_level"] = dept.is_shared_service if dept.is_shared_service is not None else dept.name.strip().lower() in default
     return DepartmentResponse(**_with_access(db, tenant_id, dept, data))
 
 def _tenant_business_unit(db: Session, business_unit_id: int, tenant_id: int) -> BusinessUnit:
@@ -389,6 +394,7 @@ def create_department_endpoint(
         name=request.name.strip(),
         description=request.description,
         cost_center_code=request.cost_center_code,
+        is_shared_service=request.org_level,
         active=True,
     )
     db.add(dept)
@@ -446,6 +452,8 @@ def update_department_endpoint(
     dept.name = new_name
     dept.description = request.description
     dept.cost_center_code = request.cost_center_code
+    if request.org_level is not None:
+        dept.is_shared_service = request.org_level
     if request.active is not None:
         dept.active = request.active
     db.commit()

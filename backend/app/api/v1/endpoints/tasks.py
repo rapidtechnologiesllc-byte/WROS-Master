@@ -279,6 +279,8 @@ def confirm_urgent(task_id: int, current_user: Users = Depends(get_current_inter
 )
 def complete(task_id: int, current_user: Users = Depends(get_current_internal_user), db: Session = Depends(get_db)):
     task = _get_task_or_404(db, task_id, current_user)
+    if task.system_action:
+        raise HTTPException(status_code=409, detail="This task closes itself when the work it asks for is done.")
     return complete_task(db, task)
 
 

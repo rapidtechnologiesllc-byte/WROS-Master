@@ -87,24 +87,81 @@ class ResumeSLM:
     # --- Section-based reading: a resume's headings say what each block is, whatever the employer is called.
     HEADINGS = {
         "experience": ("professional experience", "work experience", "experience", "employment history", "employment",
-                       "work history", "career history", "relevant experience"),
+                       "work history", "career history", "relevant experience", "previous experience"),
         "education": ("education", "academic background", "academic qualifications", "qualifications", "education & training"),
         "certifications": ("certifications", "certification", "certificates", "licenses", "licenses & certifications",
                            "certifications & licenses", "professional certifications", "credentials"),
         "skills": ("skills", "core skills", "technical skills", "key skills", "core competencies", "competencies", "expertise",
-                   "skills & tools", "technologies"),
+                   "skills & tools", "technologies", "technical expertise"),
         "other": ("professional summary", "summary", "profile", "objective", "projects", "languages", "awards", "references",
-                  "publications", "interests", "achievements", "personal details"),
+                  "publications", "interests", "achievements", "personal details", "professional summary", "profile summary",
+                  "key achievements", "career timeline", "project profile", "career highlights"),
     }
     MONTHS = {m: i + 1 for i, m in enumerate(("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"))}
-    _DATE = r"(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?,?\s+\d{4}|\d{1,2}/\d{4}|\d{4}-\d{2}|(?:19|20)\d{2})"
+    _DATE = (r"(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?,?\s+\d{4}"
+             r"|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s*[\u2019']\s?\d{2}\b|\d{1,2}/\d{4}|\d{4}-\d{2}|(?:19|20)\d{2})")
     DATE_RANGE = re.compile(rf"(?<![\w(])({_DATE})\s*(?:\u2013|\u2014|-|to|until)\s*({_DATE}|present|current|now|till date|to date|ongoing)\b",
                             re.IGNORECASE)
     TITLE_WORDS = ("engineer", "developer", "manager", "analyst", "designer", "architect", "lead", "consultant", "director", "head",
-                   "specialist", "associate", "administrator", "officer", "programmer", "tester", "president", "recruiter", "intern")
+                   "specialist", "associate", "administrator", "officer", "programmer", "tester", "president", "recruiter", "intern", "executive")
     ISSUERS = ("Guidewire", "AWS", "Amazon", "Microsoft", "Azure", "Google", "Oracle", "Sun", "Cisco", "PMI", "Scrum Alliance",
                "Salesforce", "SAFe", "ISTQB", "IBM", "CompTIA", "ITIL", "TOGAF", "Duck Creek")
     INSTITUTION_WORDS = ("university", "college", "institute", "school", "academy", "polytechnic", "iit ", "nit ", "vidyalaya")
+    CERTIFICATE_WORDS = re.compile(r"\b(?:certifi\w*|certificate\w*|licen[sc]e\w*|credential\w*|associate in|AINS|CPCU|PMP|CSM|CSPO|SAFe|ITIL|TOGAF|ISTQB|CISSP|ACE)\b")
+    NOT_A_SKILL_START = {"and", "or", "with", "the", "to", "of", "for", "in", "on", "by", "a", "an", "as", "at", "from", "into", "knowledge", "experience",
+                         "proficient", "technically", "good", "strong", "hands-on", "key"}
+    NOT_A_SKILL_END = {"and", "or", "with", "the", "to", "of", "for", "in", "on", "by", "a", "an", "as", "at", "from", "into"}
+    SKILL_CATEGORY = re.compile(r"^[\w&/ -]*?\b(?:Products|Languages|Configuration|Development|Technologies|Formats|DevOps|Tools|Control|Management|Environment|Debugging|Model)\s+(?=[A-Z])")
+    BULLETS = "\u2022*\u25cf\u25cb\u25aa\\-\u2013\\s"
+
+    @staticmethod
+    def _reflow(text: str) -> str:
+        """Some PDFs come out with most words on a line of their own: put the resume's own lines back before reading it."""
+        lines = [line.strip() for line in (text or "").splitlines() if line.strip()]
+        if len(lines) < 150 or sum(len(line.split()) for line in lines) / len(lines) >= 4:
+            return text or ""
+        one = " ".join(lines)
+        one = re.sub(r"\s{5,}", " | ", one)
+        one = re.sub(r"\|\s*:", ":", one)
+        one = re.sub(r"\s*([\u25cf\u25cb\u2022\u25aa])\s*", r"\n\1 ", one)
+        one = re.sub(r"\s*\b((?:[A-Z]{3,}\s+)*[A-Z&]{3,})\s*:\s*", r"\n\1:\n", one)
+        one = re.sub(r"\s*\b(Description|Responsibilities|Environment)\s*:", r"\n\1:", one)
+        one = ResumeSLM.DATE_RANGE.sub(lambda m: m.group(0) + "\n", one)
+        result: List[str] = []
+        for line in one.splitlines():
+            line = re.sub(r"\s+", " ", line).strip(" |")
+            # the next job's name runs straight on from the last job's technology list
+            if line.startswith("Environment:") and ResumeSLM.DATE_RANGE.search(line):
+                head, _, tail = line.partition(" | ")
+                if "," in head:
+                    keep, _, name = head.rpartition(",")
+                    name = re.sub(r"^\s*\S+\s+(?:\d+\s+)?", "", name)  # the list's last entry, and a page number
+                    result.append(keep)
+                    line = name + " | " + tail
+            if line:
+                result.append(line)
+        return "\n".join(result)
+
+    @staticmethod
+    def _is_certification(line: str) -> bool:
+        """A heading is only a start: what follows it may be the next column or the next job."""
+        if ResumeSLM.DATE_RANGE.search(line) or (len(line) > 140 and ";" not in line):
+            return False
+        if ResumeSLM.CERTIFICATE_WORDS.search(line) or any(line.startswith(issuer + " ") for issuer in ResumeSLM.ISSUERS):
+            return True
+        if "|" in line:
+            return False
+        words = line.split()
+        return 2 <= len(words) <= 7 and words[0][0].isupper() and not line.rstrip().endswith((".", ",", ":")) and " : " not in line and "," not in line
+
+    @staticmethod
+    def _is_skill(item: str) -> bool:
+        words = item.lower().split()
+        if not words or len(words) > 5 or item.endswith("-") or item.isdigit():
+            return False
+        if words[0] in ResumeSLM.NOT_A_SKILL_START or words[-1] in ResumeSLM.NOT_A_SKILL_END:
+            return False
+        return not (len(words) > 1 and item[0].isupper() and words[0].endswith("ed"))
 
     @staticmethod
     def _sections(text: str) -> Dict[str, List[str]]:
@@ -112,9 +169,12 @@ class ResumeSLM:
         lookup = {name: kind for kind, names in ResumeSLM.HEADINGS.items() for name in names}
         sections: Dict[str, List[str]] = {}
         current = None
-        for raw in (text or "").splitlines():
+        # "Since Dec'23" is a range to today; a range cut by the end of a line is one range
+        text = re.sub(rf"(?im)^\s*since\s+({ResumeSLM._DATE})", r"\1 - Present", text or "")
+        text = re.sub(rf"(?i)({ResumeSLM._DATE})\s*(\u2013|\u2014|-|to)\s*\n\s*({ResumeSLM._DATE}|present|current)", r"\1 \2 \3", text)
+        for raw in text.splitlines():
             line = raw.strip()
-            bare = re.sub(r"[:\s]+$", "", line).lower()
+            bare = re.sub(r"\s+", " ", re.sub(r"[:\s]+$", "", line)).lower()
             if bare in lookup:
                 current = lookup[bare]
                 sections.setdefault(current, [])
@@ -125,6 +185,9 @@ class ResumeSLM:
                 sections.setdefault(kind, []).append(inline.group(2))
                 current = None if kind == "skills" else kind
                 continue
+            if current in ("certifications", "skills") and len(line) <= 140 and len(ResumeSLM.DATE_RANGE.findall(line)) == 1:
+                current = "experience"  # a job's dates: that heading's list is over
+                sections.setdefault(current, [])
             if current and line:
                 sections[current].append(line)
         return sections
@@ -133,6 +196,10 @@ class ResumeSLM:
     def _month_of(value: Optional[str]) -> Optional[str]:
         """'YYYY-MM' from "Oct 2022", "10/2022", "2022-10" or "2022"; None for present."""
         value = (value or "").strip().lower().replace(",", "").replace(".", "")
+        short = re.match(r"^([a-z]{3})[a-z]*\s*[\u2019']\s?(\d{2})$", value)
+        if short and short.group(1) in ResumeSLM.MONTHS:
+            year = int(short.group(2))
+            return f"{2000 + year if year < 50 else 1900 + year}-{ResumeSLM.MONTHS[short.group(1)]:02d}"
         match = re.match(r"^([a-z]{3})[a-z]*\s+(\d{4})$", value)
         if match and match.group(1) in ResumeSLM.MONTHS:
             return f"{match.group(2)}-{ResumeSLM.MONTHS[match.group(1)]:02d}"
@@ -146,8 +213,7 @@ class ResumeSLM:
 
     @staticmethod
     def _looks_like_title(text: str) -> bool:
-        lowered = text.lower()
-        return any(word in lowered for word in ResumeSLM.TITLE_WORDS)
+        return bool(re.search(rf"\b(?:{'|'.join(ResumeSLM.TITLE_WORDS)})s?\b", text, re.IGNORECASE))
 
     @staticmethod
     def _is_label_line(line: str) -> bool:
@@ -157,28 +223,47 @@ class ResumeSLM:
     def _section_jobs(lines: List[str]) -> List[Dict]:
         # a job's dates head its line; dates in brackets or in a long line belong to a project inside the job
         headers = [(i, m) for i, m in ((i, ResumeSLM.DATE_RANGE.search(l)) for i, l in enumerate(lines))
-                   if m and len(lines[i]) <= 140 and lines[i][:m.start()].count("(") <= lines[i][:m.start()].count(")")]
+                   if m and len(lines[i]) <= 180 and lines[i][:m.start()].count("(") <= lines[i][:m.start()].count(")")
+                   and len(ResumeSLM.DATE_RANGE.findall(lines[i])) == 1]
         jobs = []
         taken: set = set()
         for position, (index, match) in enumerate(headers):
             line = lines[index]
             before = re.sub(r"[\s,|\u2013\u2014-]+$", "", line[:match.start()]).strip()
+            before = re.sub(rf"^[{ResumeSLM.BULLETS}]+", "", before)
+            after = re.sub(r"^[\s,|\u2013\u2014-]+", "", line[match.end():]).strip()
+            trailing = not before and bool(after)  # "May'22-Dec'23| Manager | Capgemini, Pune, India"
             employer = title = None
-            parts = [p.strip() for p in re.split(r"\t|\s{2,}\|\s{2,}|\s\|\s", before) if p.strip()] if before else []
+            parts = [p.strip() for p in re.split(r"\t|\s*\|\s*", before or after) if p.strip()] if (before or after) else []
+            parts = [re.sub(r"\s*\((?:formerly|previously)[^)]*\)", "", p) for p in parts if not p.lower().endswith(" project")]
+            if trailing:
+                parts = [parts[0], parts[1].split(",")[0].strip()] if len(parts) >= 2 else parts
+            named = re.match(r"^(.+?\.)\s+(.+)$", parts[0]) if len(parts) > 1 else None
+            if named and len(named.group(1)) > 4 and ResumeSLM._looks_like_title(named.group(2)):
+                parts = parts[:1]  # "Company. Title." with a project name after it
             if len(parts) == 1:
                 at = re.match(r"^(.+?)\s+(?:at|@)\s+(.+)$", parts[0])
+                dash = re.match(r"^(.+?)\s+[\u2013\u2014]\s+(.+)$", parts[0])
+                stop = re.match(r"^(.+?\.)\s+(.+)$", parts[0])
                 comma = [p.strip() for p in parts[0].split(",") if p.strip()]
                 if at:
                     title, employer = at.group(1), at.group(2)
+                elif dash:
+                    title, employer = dash.group(1), dash.group(2)
+                elif (stop and len(stop.group(1)) > 4 and ResumeSLM._looks_like_title(stop.group(2))
+                      and not ResumeSLM._looks_like_title(stop.group(1))):
+                    employer, title = stop.group(1).rstrip("."), stop.group(2).rstrip(".")
                 elif len(comma) == 2 and ResumeSLM._looks_like_title(comma[0]):
                     title, employer = comma
                 else:
                     employer = parts[0]
+            elif len(parts) >= 2 and ResumeSLM._looks_like_title(parts[0]) and ResumeSLM._looks_like_title(parts[1]):
+                title = parts[0]  # two titles: this line does not name the employer
             elif len(parts) >= 2:
                 title, employer = (parts[0], parts[1]) if ResumeSLM._looks_like_title(parts[0]) else (parts[1], parts[0])
             floor = headers[position - 1][0] + 1 if position else 0
             above = [i for i in range(max(floor, index - 2), index) if ResumeSLM._is_label_line(lines[i]) and i not in taken]
-            if not before and above:  # the dates stand alone: the lines above name the job
+            if not before and not after and above:  # the dates stand alone: the lines above name the job
                 labels = [lines[i] for i in above]
                 taken.update(above)
                 if len(labels) == 2:
@@ -199,9 +284,13 @@ class ResumeSLM:
                 following += 1
             # a stacked next job's labels sit just above its dates, not in this job's text
             next_above = set()
-            if position + 1 < len(headers) and not lines[headers[position + 1][0]][:headers[position + 1][1].start()].strip():
+            if position + 1 < len(headers) and not lines[headers[position + 1][0]][:headers[position + 1][1].start()].strip() \
+                    and not lines[headers[position + 1][0]][headers[position + 1][1].end():].strip(" |"):
                 next_above = {i for i in range(max(following, limit - 2), limit) if ResumeSLM._is_label_line(lines[i])}
+            if employer and title and ResumeSLM._looks_like_title(employer) and not ResumeSLM._looks_like_title(title):
+                employer, title = title, employer
             description = [lines[i] for i in range(following, limit) if i not in next_above]
+            employer, title = (employer or "").rstrip(" .") or None, (title or "").rstrip(" .") or None
             jobs.append({"employer": employer, "title": title, "start_date": ResumeSLM._month_of(match.group(1)),
                          "end_date": ResumeSLM._month_of(match.group(2)), "description": " ".join(description)[:2000] or None})
         return [j for j in jobs if j["employer"] or j["title"]]
@@ -210,7 +299,10 @@ class ResumeSLM:
     def _section_certifications(lines: List[str]) -> List[Dict]:
         found = []
         for line in lines:
-            line = re.sub(r"^[\u2022*\u25cf\-\u2013\s]+", "", line)
+            line = re.sub(rf"^[{ResumeSLM.BULLETS}]+", "", line)
+            line = re.sub(r"\s*[-\u2013]\s*\d{1,3}%\s*$", "", line.split(" | ")[0])
+            if not ResumeSLM._is_certification(line):
+                continue
             prefix = ""
             head = re.match(r"^([^:]{2,60}):\s*(.+)$", line)
             if head and ";" in head.group(2) or head and re.search(r"(19|20)\d{2}", head.group(2)):
@@ -225,22 +317,45 @@ class ResumeSLM:
                 issuer = next((v for v in ResumeSLM.ISSUERS if re.search(rf"\b{re.escape(v)}\b", name, re.IGNORECASE)), None)
                 if name and not any(c["name"].lower() == name.lower() for c in found):
                     found.append({"name": name[:255], "issuer": issuer, "year": int(year.group(1)) if year else None})
-        return found
+        return found[:20]
+
+    @staticmethod
+    def _certifications_mentioned(text: str) -> List[Dict]:
+        """No certifications heading: a resume can still say it in its summary ("achieved Guidewire ACE Certification")."""
+        found: List[Dict] = []
+        for match in re.finditer(r"\b((?:[A-Z][\w+-]*\s+){1,5}Certification)\b", text or ""):
+            name = match.group(1).strip()
+            if not any(c["name"].lower() == name.lower() for c in found):
+                issuer = next((v for v in ResumeSLM.ISSUERS if re.search(rf"\b{re.escape(v)}\b", name, re.IGNORECASE)), None)
+                found.append({"name": name[:255], "issuer": issuer, "year": None})
+        return found[:20]
 
     @staticmethod
     def _section_education(lines: List[str]) -> List[Dict]:
         pieces: List[str] = []
+        if len(lines) >= 3 and all(len(line) <= 35 for line in lines):  # a narrow column: one entry wraps over lines, ending at its year
+            merged, part = [], []
+            for line in lines:
+                part.append(line)
+                if re.search(r"\b(?:19|20)\d{2}\b", line):
+                    merged.append(" ".join(part))
+                    part = []
+            lines = merged + ([" ".join(part)] if part else [])
         for line in lines:
-            pieces.extend(p.strip() for p in re.split(r"\s+\|\s+", re.sub(r"^[\u2022*\u25cf\-\u2013\s]+", "", line)) if p.strip())
+            pieces.extend(p.strip() for p in re.split(r"\s+\|\s+", re.sub(rf"^[{ResumeSLM.BULLETS}]+", "", line)) if p.strip())
         entries: List[Dict] = []
         pending: Optional[Dict] = None
         for piece in pieces:
             year = re.search(r"\b((?:19|20)\d{2})\b", piece)
             body = re.sub(r"[,\s\-\u2013(]*\b(?:19|20)\d{2}\)?\s*$", "", piece).strip(" ,")
+            body = re.sub(r"\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?$", "", body, flags=re.IGNORECASE).replace("\t", ", ")
             segments = [s.strip() for s in body.split(",") if s.strip()]
             institution = next((s for s in segments if any(w in f"{s.lower()} " for w in ResumeSLM.INSTITUTION_WORDS)), None)
             others = [s for s in segments if s != institution]
             degree = others[0] if others else None
+            joined = re.match(r"^(.+?)\s+(?:at|from)\s+(.+)$", institution or "")
+            if joined:  # "Masters in Science at Cleveland State University"
+                degree, institution = joined.group(1), joined.group(2)
             if institution:
                 institution = re.sub(r"\s*\([^)]*\)\s*$", "", institution).strip()
             if pending and (not institution or not pending["degree"]) and not (institution and pending["institution"]):
@@ -257,6 +372,14 @@ class ResumeSLM:
                 pending = entry
         if pending:
             entries.append(pending)
+        joined_up: List[Dict] = []
+        for entry in entries:  # a degree on one line and its school on the next are one entry
+            if joined_up and entry["institution"] and not joined_up[-1]["institution"]:
+                joined_up[-1]["institution"] = entry["institution"]
+                joined_up[-1]["graduation_year"] = joined_up[-1]["graduation_year"] or entry["graduation_year"]
+            else:
+                joined_up.append(entry)
+        entries = joined_up
         for entry in entries:
             field = re.search(r"\bin\s+([A-Z][^,]{1,80})$", entry["degree"] or "")
             entry["field"] = field.group(1).strip() if field else None
@@ -266,14 +389,18 @@ class ResumeSLM:
     def _section_skills(lines: List[str]) -> List[str]:
         skills: List[str] = []
         for line in lines:
-            line = re.sub(r"^[\u2022*\u25cf\-\u2013\s]+", "", line)
+            line = re.sub(rf"^[{ResumeSLM.BULLETS}]+", "", line)
+            if len(line.split()) > 12 and line.count(",") < 2:
+                continue  # a sentence, not a list
             if "\t" in line:  # "Category<TAB>A, B"
                 line = line.split("\t", 1)[1]
-            elif re.match(r"^[A-Za-z &/]{2,30}:\s", line):
+            elif re.match(r"^[A-Za-z &/.-]{2,30}\s*:\s", line):
                 line = line.split(":", 1)[1]
+            elif "," in line:  # "Project Management Jira, Agile": the category runs straight into the list
+                line = ResumeSLM.SKILL_CATEGORY.sub("", line, count=1)
             for item in re.split(r"[,;|\u2022]", line):
-                item = item.split(":")[-1].strip(" .")
-                if 1 < len(item) <= 40 and item.lower() not in {s.lower() for s in skills}:
+                item = item.split(":")[-1].strip(" .()")
+                if 1 < len(item) <= 40 and ResumeSLM._is_skill(item) and item.lower() not in {s.lower() for s in skills}:
                     skills.append(item)
         return skills[:60]
 
@@ -295,10 +422,12 @@ class ResumeSLM:
         - languages: List of languages
         """
         slm = ResumeSLM()
+        raw_text = slm._reflow(raw_text)
         sections = slm._sections(raw_text)
         # the resume's own sections first; the older pattern search only for a resume without those headings
         jobs = slm._section_jobs(sections.get("experience") or []) or slm._extract_work_history(raw_text)
-        current = jobs[0] if jobs and jobs[0].get("start_date") and not jobs[0].get("end_date") else None
+        dated = sorted((j for j in jobs if j.get("start_date")), key=lambda j: j["start_date"], reverse=True)
+        current = next((j for j in dated if not j.get("end_date")), dated[0] if dated else None)
 
         return {
             "full_name": slm._extract_name(raw_text),
@@ -309,7 +438,8 @@ class ResumeSLM:
             "work_history": jobs,
             "education": slm._section_education(sections.get("education") or []) or slm._extract_education(raw_text),
             "skills": slm._section_skills(sections.get("skills") or []) or slm._extract_skills(raw_text),
-            "certifications": slm._section_certifications(sections.get("certifications") or []) or slm._extract_certifications(raw_text),
+            "certifications": (slm._section_certifications(sections.get("certifications") or []) or slm._certifications_mentioned(raw_text)
+                               or slm._extract_certifications(raw_text)),
             "languages": slm._extract_languages(raw_text),
         }
 

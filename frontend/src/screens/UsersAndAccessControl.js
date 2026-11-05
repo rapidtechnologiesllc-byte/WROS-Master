@@ -1053,7 +1053,7 @@ function OrganizationalHierarchySection() {
       await apiRequest(editingDept ? `/org/departments/${editingDept.id}` : "/org/departments", {
         method: editingDept ? "PUT" : "POST",
         // Functions are org-wide (HR, Recruitment, Finance ...)
-        body: JSON.stringify({ name: form.name.trim(), description: form.description || null }),
+        body: JSON.stringify({ name: form.name.trim(), description: form.description || null, org_level: Boolean(form.org_level) }),
       });
       setActionSuccess(editingDept ? "Function updated" : "Function added");
       setEditingDept(null);
@@ -1456,6 +1456,7 @@ function OrganizationalHierarchySection() {
                   <div>
                     <span className="text-sm font-medium text-gray-900">{dept.name}</span>
                     {dept.active === false && <span className="ml-2 text-xs text-gray-500">Retired</span>}
+                    {dept.org_level && <span className="ml-2 text-xs text-gray-500">Org level in P&amp;L</span>}
                     <div className="text-[11px] text-gray-500">
                       {dept.access_note
                         ? dept.access_note
@@ -1474,7 +1475,7 @@ function OrganizationalHierarchySection() {
                       {dept.active === false ? "Restore" : "Retire"}
                     </button>
                     <button
-                      onClick={() => setEditingDept({ id: dept.id, name: dept.name, description: dept.description || "" })}
+                      onClick={() => setEditingDept({ id: dept.id, name: dept.name, description: dept.description || "", org_level: Boolean(dept.org_level) })}
                       className="p-1 text-blue-600 hover:bg-blue-50 rounded"
                       aria-label={`Edit ${dept.name}`}
                     >
@@ -1504,6 +1505,16 @@ function OrganizationalHierarchySection() {
               placeholder="Function name (e.g. Recruitment)"
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-bx-orange"
             />
+            <label className="flex items-center gap-2 text-xs text-gray-700">
+              <input
+                type="checkbox"
+                checked={Boolean((editingDept || deptForm).org_level)}
+                onChange={(e) => editingDept
+                  ? setEditingDept(d => ({ ...d, org_level: e.target.checked }))
+                  : setDeptForm(d => ({ ...d, org_level: e.target.checked }))}
+              />
+              Org level in the P&amp;L (this function&apos;s people are not charged to one business unit)
+            </label>
             <div className="flex gap-2 justify-end">
               {editingDept && (
                 <button type="button" onClick={() => setEditingDept(null)} className="px-3 py-1 text-xs text-gray-700 border border-gray-300 rounded hover:bg-gray-50">

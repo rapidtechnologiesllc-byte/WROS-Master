@@ -10,6 +10,7 @@ SECRETS MANAGEMENT (2026-08-18):
 """
 import logging
 import os
+import re
 from typing import Optional
 from dotenv import load_dotenv
 
@@ -448,6 +449,12 @@ class Settings:
         "notification_release,certification_expiry,reconciliation_scan,sub_vendor_new_roles,interview_transcripts,flash_auto_missions,welcome_followup,occasion_emails,interview_feedback,resume_refresh,submitted_candidates_backfill",
     )
     SCHEDULED_JOB_LEASE_GRACE_SECONDS: int = int(os.getenv("SCHEDULED_JOB_LEASE_GRACE_SECONDS", "120"))
+
+    @classmethod
+    def validate_email_links(cls) -> None:
+        """Every emailed link is built on FRONTEND_BASE_URL: in production a local address breaks all of them."""
+        if os.getenv("ENVIRONMENT", "").lower() == "production" and re.search(r"localhost|127\.0\.0\.1", cls.FRONTEND_BASE_URL or "localhost"):
+            raise ValueError("FRONTEND_BASE_URL must be the production address: emailed links would open a local address.")
 
     @classmethod
     def validate_config(cls) -> bool:

@@ -71,6 +71,8 @@ async def health():
 async def startup_event():
     from app.core.database import SAFE_DATABASE_URL
     logger.info("[STARTUP] DATABASE_URL=%s", SAFE_DATABASE_URL)
+    from app.core.config import settings as startup_settings
+    startup_settings.validate_email_links()
     logger.info(f"[STARTUP] Connecting to database...")
 
     try:

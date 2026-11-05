@@ -28,11 +28,10 @@ from sqlalchemy.orm import Session
 
 from app.core.logging import logger
 from app.models.candidate import Candidate
-from app.models.task import Task
+from app.models.task import FEEDBACK_TASK_CATEGORY, Task
 from app.models.user import Interview, InterviewFeedback, InterviewPanel, Jobs, PanelMember
 from app.services.task_service import create_task
 
-FEEDBACK_TASK_CATEGORY = "INTERVIEW_FEEDBACK"
 FEEDBACK_AFTER_END = timedelta(hours=1)
 
 def _candidate_display_name(candidate: Optional[Candidate]) -> str:
@@ -129,6 +128,22 @@ def sync_pending_feedback_tasks_for_interview(db: Session, interview: Interview)
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[InterviewFeedbackTask] Failed to sync pending-feedback tasks for interview {interview.id}: {exc}")
         db.rollback()
+
+def close_answered_feedback_tasks(db: Session) -> int:
+    """A feedback task is open only while that interviewer's feedback is missing on an interview that went ahead. Flushes."""
+    tasks = (db.query(Task).filter(Task.category == FEEDBACK_TASK_CATEGORY, Task.status != "COMPLETED", Task.interview_id.isnot(None)).all())
+    closed = 0
+    for task in tasks:
+        interview = db.query(Interview).filter(Interview.id == task.interview_id).first()
+        answered = db.query(InterviewFeedback.id).filter(InterviewFeedback.interview_id == task.interview_id,
+                                                         InterviewFeedback.interviewer_id == task.assigned_to_user_id).first()
+        if interview is None or interview.status == "Cancelled" or answered:
+            task.status = "COMPLETED"
+            task.completed_at = datetime.utcnow()
+            closed += 1
+    db.flush()
+    return closed
+
 
 def close_pending_feedback_task(db: Session, interview_id: int, interviewer_id: str) -> None:
     """Call the moment an interviewer submits their feedback."""

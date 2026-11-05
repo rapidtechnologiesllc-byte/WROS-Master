@@ -32,6 +32,9 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
+FEEDBACK_TASK_CATEGORY = "INTERVIEW_FEEDBACK"
+SYSTEM_ACTIONS = {FEEDBACK_TASK_CATEGORY: "SUBMIT_FEEDBACK"}
+
 TASK_PRIORITIES = ("URGENT", "HIGH", "MEDIUM", "LOW")
 TASK_STATUSES = ("NEW", "IN_PROGRESS", "ON_HOLD", "COMPLETED", "CANCELLED")
 TASK_VISIBILITY_SCOPES = ("ASSIGNEE_MANAGER_DEPARTMENT", "ORG_WIDE")
@@ -77,6 +80,11 @@ class Task(Base):
     # Reserved for the ticketing story -- unused by GENERAL tasks.
     category = Column(String(512), nullable=True)
     subcategory = Column(String(512), nullable=True)
+
+    @property
+    def system_action(self):
+        """What this task asks for, when doing it is what closes it: nobody marks it complete."""
+        return SYSTEM_ACTIONS.get(self.category)
 
     priority = Column(
         Enum(*TASK_PRIORITIES, name="task_priority", native_enum=False, create_constraint=True),

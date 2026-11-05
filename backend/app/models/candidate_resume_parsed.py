@@ -16,7 +16,7 @@ from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, JSON, Strin
 
 from app.models.base import Base
 
-PARSER_VERSION = "2.0"  # raise it when the parser improves: the resumes on file are read again
+PARSER_VERSION = "3.0"  # raise it when the parser improves: the resumes on file are read again
 
 logger = logging.getLogger(__name__)
 

@@ -17,6 +17,7 @@ from app.models import (
     InterviewRehireReview,
 )
 from app.services.email_service import EmailService
+from app.services.role_template_permission_service import RoleTemplatePermissionService
 from app.services import interview_scheduling_service as scheduling
 from app.services.interview_sequencing_service import (
     get_hm_candidate_review_list,
@@ -1498,11 +1499,51 @@ def delete_interview(
 # Interview Feedback Endpoints
 # ============================================
 
+def _record_interview_completed(db: Session, interview: Interview, user) -> None:
+    """The candidate's history: the round and what the panel said, however the feedback came in."""
+    from app.models.candidate_history import CandidateHistory
+
+    if db.query(CandidateHistory.id).filter(CandidateHistory.interview_id == interview.id,
+                                            CandidateHistory.event_type == "Interview Completed").first():
+        return
+    panel = db.query(InterviewPanel).filter(InterviewPanel.id == interview.panel_id).first()
+    said = []
+    for number, feedback in enumerate(db.query(InterviewFeedback).filter(InterviewFeedback.interview_id == interview.id).all(), 1):
+        person = db.query(Users).filter(Users.UserID == feedback.interviewer_id).first()
+        said.append(f"{number}. {(person.UserName if person else None) or feedback.interviewer_id}\n\n"
+                    f"Recommendation: {feedback.recommendation or 'N/A'}\n\nComments:\n{(feedback.comments or '').strip() or 'No feedback comments provided.'}")
+    db.add(CandidateHistory(candidateID=interview.candidate_id, event_type="Interview Completed",
+                            note=f"Round: {(panel.round_name if panel else None) or 'Interview'}\n\nPanel Feedback:\n\n" + "\n\n".join(said),
+                            performed_by_id=user.UserID, performed_by_name=user.UserName or user.UserEmail, interview_id=interview.id,
+                            event_at=interview.end_time or interview.start_time or datetime.utcnow()))
+
+
+@router.get(
+    "/{interview_id}/feedback-form",
+    dependencies=[Depends(require_resource_permission("my-tasks", "view"))],
+)
+def feedback_form(interview_id: int, db: Session = Depends(get_db), user = Depends(get_current_internal_user)):
+    """What the feedback form shows, for an interviewer on the panel whatever else they can open."""
+    interview = _visible_interview_or_404(db, user, interview_id, panel_member_ok=True)
+    panel = db.query(InterviewPanel).filter(InterviewPanel.id == interview.panel_id).first()
+    members = (db.query(PanelMember, Users).join(Users, Users.UserID == PanelMember.interviewer_id)
+               .filter(PanelMember.panel_id == interview.panel_id).all())
+    return {
+        "id": interview.id,
+        "panel_id": interview.panel_id,
+        "candidate_id": interview.candidate_id,
+        "panel_round_name": panel.round_name if panel else None,
+        "panel_members": [{"interviewer_id": member.interviewer_id, "interviewer_name": person.UserName or person.UserEmail,
+                           "interviewer_email": person.UserEmail} for member, person in members],
+    }
+
+
 @router.post(
     "/feedback/submit",
     response_model=InterviewFeedbackResponse,
     status_code=201,
-    dependencies=[Depends(require_resource_permission("interviews", "edit"))],
+    # An interviewer on the panel gives their own feedback without Interviews access; anyone else needs it (below)
+    dependencies=[Depends(require_resource_permission("my-tasks", "view"))],
 )
 def submit_interview_feedback(
     request: InterviewFeedbackCreate,
@@ -1525,6 +1566,9 @@ def submit_interview_feedback(
     """
     # Verify interview exists and is in scope (an interviewer on its panel may always submit)
     interview = _visible_interview_or_404(db, user, request.interview_id, panel_member_ok=True)
+    can_edit = RoleTemplatePermissionService.has_permission(db, user.UserID, "interviews", "edit", user.tenant_id)
+    if not can_edit and (request.interviewer_id != user.UserID or not _is_panel_member(db, user, interview.panel_id)):
+        raise HTTPException(status_code=403, detail="Only the interviewers on this panel can give this feedback.")
 
     # Verify interviewer exists
     interviewer = db.query(Users).filter(Users.UserID == request.interviewer_id).first()
@@ -1593,9 +1637,11 @@ def submit_interview_feedback(
 
             # If every panel member has now submitted feedback, mark interview as Completed
             if panel_member_ids.issubset(submitted_ids):
-                if interview.status != "Completed":
+                # by now the clock may have closed the interview: what counts is whether the panel had finished
+                if interview.status != "Completed" or interview.feedback_status != "Completed":
                     interview.status = "Completed"
                     interview.feedback_status = "Completed"
+                    _record_interview_completed(db, interview, user)
                     db.commit()
                     logger.info(
                         f"[FeedbackComplete] Interview #{interview.id} marked as Completed - "

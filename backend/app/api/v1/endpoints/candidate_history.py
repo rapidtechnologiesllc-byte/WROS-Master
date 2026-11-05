@@ -128,6 +128,13 @@ def create_candidate_history(
 
     event_at = request.event_at or datetime.utcnow()
 
+    # An interview finishes once: the feedback that finished it already wrote this event.
+    if request.event_type == "Interview Completed" and request.interview_id:
+        written = db.query(CandidateHistory).filter(CandidateHistory.interview_id == request.interview_id,
+                                                    CandidateHistory.event_type == request.event_type).first()
+        if written:
+            return CandidateHistoryCreateResponse(status="success", message="Already recorded.", event=_to_response(written))
+
     history_row = CandidateHistory(
         candidateID=candidate_id,
         event_type=request.event_type,

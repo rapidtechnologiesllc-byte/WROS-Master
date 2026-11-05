@@ -210,15 +210,15 @@ def _initialize_default_handlers():
         # Formation feedback: Thunder → Flash (health metrics)
         def _handle_formation_feedback(message: Any, db: Session) -> Dict[str, Any]:
             """Formation feedback handler: Receive health reports from downstream neighbors."""
-            logger.info(f"[FormationFeedback] {message.payload.get('source')} → {message.payload.get('target')}: "
-                       f"{message.payload.get('metric')} = {message.payload.get('value'):.1%}")
-            return {
-                'status': 'feedback_received',
-                'source': message.payload.get('source'),
-                'target': message.payload.get('target'),
-                'metric': message.payload.get('metric'),
-                'value': message.payload.get('value')
-            }
+            payload = message.payload or {}
+            # a feedback report carries source/target/value; an integrity escalation carries the component that stopped
+            source = payload.get('source') or payload.get('formation_component')
+            target = payload.get('target') or payload.get('broken_neighbor')
+            metric = payload.get('metric') or ('success_rate' if 'thunder_success_rate' in payload else None)
+            value = payload.get('value', payload.get('thunder_success_rate'))
+            shown = f"{value:.1%}" if isinstance(value, (int, float)) else "not reported"
+            logger.info(f"[FormationFeedback] {source} -> {target}: {metric} = {shown}")
+            return {'status': 'feedback_received', 'source': source, 'target': target, 'metric': metric, 'value': value}
 
         MessageHandlerRegistry.register("formation_feedback_thunder_to_flash", _handle_formation_feedback)
         MessageHandlerRegistry.register("formation_integrity_escalation", _handle_formation_feedback)
