@@ -117,3 +117,10 @@ def test_the_api_suggests_the_duplicate_and_merges(api, db, w):
     assert opened.json()["merged_into_id"] == older.candidateID
     again = api.post(w.org_user, f"/api/v1/candidates/{newer.candidateID}/merge", json={"into_candidate_id": older.candidateID})
     assert again.status_code == 400
+
+
+def test_the_journey_uses_the_candidates_own_organisation(api, db, w):
+    candidate = _candidate(db, w.org_user.tenant_id)
+    response = api.get(w.org_user, f"/api/v1/candidates/{candidate.candidateID}/journey")
+    assert response.status_code == 200, response.text
+    assert response.json()["stages"]
