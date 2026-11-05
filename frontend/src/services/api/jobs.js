@@ -159,6 +159,11 @@ export const applyForJob = async ({
   return data;
 };
 
+export const getJobHistory = async (id) => {
+  const { data } = await apiRequest(`/api/v1/jobs/${id}/history`, { method: "GET" });
+  return data;
+};
+
 export const candidateAppendedJob = async (id) => {
   const { data } = await apiRequest(`/api/v1/jobs/${id}/applications`, {
     method: "GET",

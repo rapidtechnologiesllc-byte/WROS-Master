@@ -520,14 +520,19 @@ def get_job_by_id(
     if job.contactPerson:
         contact_user = db.query(Users).filter(Users.UserID == job.contactPerson).first()
         if contact_user:
-            contact_person_name = contact_user.UserName or contact_user.Email
+            contact_person_name = contact_user.UserName or contact_user.UserEmail
 
     hiring_manager_name = None
     if job.hiringManagerID:
         hiring_manager = db.query(Users).filter(Users.UserID == job.hiringManagerID).first()
         if hiring_manager:
-            hiring_manager_name = hiring_manager.UserName or hiring_manager.Email
+            hiring_manager_name = hiring_manager.UserName or hiring_manager.UserEmail
 
+    from app.models.client import Client
+    from app.models.opportunity import Opportunity
+
+    client = db.get(Client, job.client_id) if job.client_id else None
+    opportunity = db.get(Opportunity, job.opportunity_id) if job.opportunity_id else None
     return JobResponse(
         job_id=job.jobID,
         job_title=job.jobTitle,
@@ -549,6 +554,10 @@ def get_job_by_id(
         recuriter_id=job.recuriterID,
         business_unit=job.business_unit_id,
         client_id=job.client_id,
+        client_name=client.company_name if client is not None else None,
+        opportunity_id=job.opportunity_id,
+        opportunity_stage=opportunity.stage if opportunity is not None else None,
+        confirmation_status=job.confirmation_status,
         project_id=job.project_id,
         billing_rate_usd_cents=job.billing_rate_usd_cents,
         department_id=job.department_id,
@@ -556,6 +565,19 @@ def get_job_by_id(
         required_skills_canonical=job.required_skills_canonical,
         job_skills_boolean_mode=job.job_skills_boolean_mode
     )
+
+
+@router.get(
+    "/{job_id}/history",
+    dependencies=[Depends(require_resource_permission("jobs", "view"))],
+    summary="What has happened on this job, read from its records, and its figures",
+)
+def get_job_history(job_id: str, db: Session = Depends(get_db), user=Depends(get_current_internal_user)):
+    from app.services.job_history_service import job_history, job_summary
+
+    job = visible_job_or_404(db, user, job_id, f"Job '{job_id}'")
+    return {"events": job_history(db, job), "summary": job_summary(db, job)}
+
 
 @router.post(
     "/create_job",
@@ -1193,12 +1215,16 @@ def create_job_application(
         application_status=request.application_status or "Applied",
     )
     db.add(application)
+    from app.services.hiring_pipeline_service import link_job
+
+    link_job(db, candidate_id, job_id)  # the candidate's open pipeline is now for this job
     db.commit()
     db.refresh(application)
 
     # Queue job application event for FLASH orchestrator
     MessageQueueService.enqueue(
         task_name='job_application_created',
+        tenant_id=job.tenant_id,
         data={
             'application_id': application.id,
             'candidate_id': candidate_id,

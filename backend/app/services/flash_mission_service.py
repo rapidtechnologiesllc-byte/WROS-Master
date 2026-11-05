@@ -233,6 +233,30 @@ def start_mission(db: Session, user: Users, job_id: str, positions: int,
     return mission
 
 
+def start_missions_for_open_jobs(db: Session, *, now: Optional[datetime] = None) -> Dict:
+    """Flash starts the search on an open client job by itself, however the job was created. A potential job (the
+    opportunity is not sold yet) waits until it is confirmed; only recent jobs start, so old ones are not woken at once."""
+    from app.models.user import Jobs
+
+    now = now or datetime.utcnow()
+    jobs = (db.query(Jobs).outerjoin(FlashMission, FlashMission.job_id == Jobs.jobID)
+            .filter(FlashMission.id.is_(None), Jobs.jobStatus.in_(("active", "public")), Jobs.client_id.isnot(None),
+                    Jobs.is_deleted.isnot(True),
+                    (Jobs.confirmation_status.is_(None)) | (Jobs.confirmation_status != "POTENTIAL"),
+                    Jobs.jobCreatedAt >= now - timedelta(days=settings.FLASH_AUTO_MISSION_DAYS)).all())
+    started = 0
+    for job in jobs:
+        requester = next((u for u in (db.get(Users, i) for i in (job.recuriterID, job.created_by, job.hiringManagerID) if i)
+                          if u is not None and u.terminated_at is None), None)
+        if requester is None or (job.tenant_id is not None and requester.tenant_id != job.tenant_id):
+            logger.warning(f"[FlashMission] job {job.jobID} has nobody to run its search for")
+            continue
+        start_mission(db, requester, job.jobID, max(job.noOfPositions or 1, 1))
+        db.commit()
+        started += 1
+    return {"started": started}
+
+
 # --------------------------------------------------------------------------- state changes
 
 def _set_next(mission: FlashMission, now: datetime, delta: timedelta) -> None:

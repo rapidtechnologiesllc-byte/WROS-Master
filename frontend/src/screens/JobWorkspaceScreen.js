@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, StatusBadge } from "../components/ui";
-import { candidateAppendedJob } from "../services/api/jobs";
+import { candidateAppendedJob, getJobHistory } from "../services/api/jobs";
 import CandidateAssignJobModal from "./CandidateAssignJobModal";
 import { getCandidateById } from "../services/api/candidates";
 import { AlertCircle, CheckCircle, X } from "lucide-react";
+import { Link } from "react-router-dom";
 import JobDetails from "./JobDetails";
+import JobHistory from "../components/JobHistory";
 
-const TABS = ["Job Details", "Candidates", "Job Analytics"];
+const TABS = ["Job Details", "Candidates", "Job Analytics", "History"];
 
 const getStageLabel = (candidate) => {
   const status = String(candidate?.pipelineStatus || candidate?.status || "")
@@ -31,20 +33,12 @@ const STAGES = [
   "Archived",
 ];
 
-const jobStages = [
-  "Upcomming Interviews",
-  "Time to Hire",
-  "Offer Acceptance Rate",
-  "Closed/Total Position",
-];
-
-const pipeline = [
-  { count: 5, label: "Sourced" },
-  { count: 2, label: "Screening" },
-  { count: 3, label: "Interview" },
-  { count: 0, label: "Pre-Onboarding" },
-  { count: 1, label: "Hired" },
-  { count: 0, label: "Archived" },
+// The job's figures come from its own records (GET /jobs/{id}/history); "—" until there is something to measure
+const jobFigures = (summary) => [
+  ["Upcoming Interviews", summary?.upcoming_interviews ?? "—"],
+  ["Days to First Accepted Offer", summary?.days_to_first_accepted_offer ?? "—"],
+  ["Offer Acceptance Rate", summary?.offer_acceptance_pct != null ? `${summary.offer_acceptance_pct}%` : "—"],
+  ["Filled / Total Positions", summary ? `${summary.positions_filled} / ${summary.positions}` : "—"],
 ];
 
 export default function JobWorkspaceScreen({
@@ -61,7 +55,6 @@ export default function JobWorkspaceScreen({
   onUpdateJob,
 }) {
   const [activeTab, setActiveTab] = useState("Candidates");
-  const [selectedStage, setSelectedStage] = useState("All");
   const [finalCandidates, setFinalCandidates] = useState([]);
   const [showSubmitJobModal, setShowSubmitJobModal] = useState(false);
   const [selectedJobForSubmission, setSelectedJobForSubmission] =
@@ -137,14 +130,15 @@ export default function JobWorkspaceScreen({
   const normalizedCandidates = useMemo(() => {
     return finalCandidates.map((c) => ({
       id: c.candidate_id,
+      job_id: c.job_id,
       name: `${c?.candidate?.candidate_name || ""} ${c.candidate_last_name || ""}`.trim(),
       email: c?.candidate?.candidate_email,
       phone: c?.candidate?.candidate_mobile,
       experience: c.candidate_experience,
       location: c.candidate_current_location,
       source: "API",
-      status: c.status || c?.candidate?.pipline_status || "Sourced",
-      pipelineStatus: c?.candidate?.pipline_status || c.status || "Sourced",
+      status: c.application_status || c?.candidate?.pipline_status || "Sourced",
+      pipelineStatus: c?.candidate?.pipline_status || c.application_status || "Sourced",
       createdAt: formatDate(c.applied_at),
     }));
   }, [finalCandidates]);
@@ -168,12 +162,17 @@ export default function JobWorkspaceScreen({
     return counts;
   }, [jobCandidates]);
 
-  const jobAnalyticsPipeline = useMemo(() => {
-    return pipeline.map((item) => ({
-      ...item,
-      count: stageCounts[item.label] || 0,
-    }));
-  }, [stageCounts]);
+  const jobAnalyticsPipeline = useMemo(
+    () => STAGES.map((label) => ({ label, count: stageCounts[label] || 0 })),
+    [stageCounts],
+  );
+  const [summary, setSummary] = useState(null);
+  useEffect(() => {
+    if (!jobId || activeTab !== "Job Analytics") return;
+    getJobHistory(jobId)
+      .then((res) => setSummary(res?.summary || null))
+      .catch((err) => setActionError(`Could not load this job's figures: ${err.message}`));
+  }, [jobId, activeTab]);
 
   return (
     <div className="space-y-4">
@@ -221,6 +220,12 @@ export default function JobWorkspaceScreen({
             </div>
             <div className="mt-1 text-xs text-slate-500">
               {job?.location || "—"} - {job?.experienceLevel || "—"} years
+            </div>
+            <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-slate-600">
+              {job?.clientDisplayName ? <span>Client: <Link className="font-semibold underline" to="/client-management">{job.clientDisplayName}</Link></span> : null}
+              {job?.opportunityId ? <span>Opportunity: <Link className="font-semibold underline" to="/opportunity-pipeline">{(job.opportunityStage || "linked").toLowerCase()}</Link></span> : null}
+              {job?.hiringManagerName ? <span>Hiring manager: <span className="font-semibold">{job.hiringManagerName}</span></span> : null}
+              {job?.confirmationStatus === "POTENTIAL" ? <span className="font-semibold text-amber-700">Potential: not sold yet</span> : null}
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
               {/* Role Type Indicator */}
@@ -294,26 +299,17 @@ export default function JobWorkspaceScreen({
       {activeTab === "Job Details" ? (
         <JobDetails job={job} candidates={candidates} mode="edit" defaultTab="details" onUpdate={onUpdateJob} />
       ) : activeTab === "Candidates" ? (
-        <JobDetails job={job} candidates={candidates} mode="edit" defaultTab="candidates" onUpdate={onUpdateJob} />
+        <JobDetails job={job} candidates={jobCandidates} mode="edit" defaultTab="candidates" onUpdate={onUpdateJob} />
+      ) : activeTab === "History" ? (
+        <JobHistory jobId={job?.id} />
       ) : activeTab === "Job Analytics" ? (
         <>
           <div className="grid gap-2 rounded-2xl border bg-white p-3 shadow-sm md:grid-cols-4">
-            {jobStages.map((stage) => (
-              <button
-                key={stage}
-                type="button"
-                onClick={() => setSelectedStage(stage)}
-                className={`rounded-xl border px-3 py-2 text-left ${
-                  selectedStage === stage
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "bg-slate-50"
-                }`}
-              >
-                <div className="text-xs">{stage}</div>
-                <div className="text-lg font-bold">
-                  {stageCounts[stage] || 0}
-                </div>
-              </button>
+            {jobFigures(summary).map(([label, value]) => (
+              <div key={label} className="rounded-xl border bg-slate-50 px-3 py-2 text-left">
+                <div className="text-xs">{label}</div>
+                <div className="text-lg font-bold">{value}</div>
+              </div>
             ))}
           </div>
 
@@ -349,21 +345,22 @@ export default function JobWorkspaceScreen({
             </div>
 
             <div className="mt-4">
-              <span className="text-3xl font-semibold text-blue-600">0</span>
-              <span className="ml-2 text-gray-500 text-sm">(Last 3 months)</span>
+              <span className="text-3xl font-semibold text-blue-600">
+                {(stageCounts.Sourced || 0) + (stageCounts["Recruiter Screening"] || 0) + (stageCounts["L1 Interview"] || 0)}
+              </span>
             </div>
             <div className="mt-6 flex items-center gap-6 text-sm text-gray-600">
               <div className="flex items-center gap-2">
                 <span className="h-3 w-3 rounded-full bg-purple-400"></span>
-                <span>Sourced (0)</span>
+                <span>Sourced ({stageCounts.Sourced || 0})</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="h-3 w-3 rounded-full bg-teal-400"></span>
-                <span>Screening (0)</span>
+                <span>Screening ({stageCounts["Recruiter Screening"] || 0})</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="h-3 w-3 rounded-full bg-yellow-400"></span>
-                <span>Interview (0)</span>
+                <span>Interview ({stageCounts["L1 Interview"] || 0})</span>
               </div>
             </div>
           </div>

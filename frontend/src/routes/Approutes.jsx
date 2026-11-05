@@ -187,7 +187,7 @@ export const mapJobFromApi = (j, users = []) => {
     (u) => String(u?.user_id || "") === String(hmId || ""),
   );
   const hiringManagerName =
-    hmUser?.user_name || hmUser?.user_email || (hmId ? String(hmId) : "");
+    hmUser?.user_name || hmUser?.user_email || j?.hiring_manager_name || "";
 
   return {
     id: j.job_id,
@@ -200,6 +200,11 @@ export const mapJobFromApi = (j, users = []) => {
       .filter(Boolean),
     hiringManager: hmId,
     hiringManagerName,
+    clientId: j.client_id || "",
+    clientDisplayName: j.client_name || j.company_name || "",
+    opportunityId: j.opportunity_id || "",
+    opportunityStage: j.opportunity_stage || "",
+    confirmationStatus: j.confirmation_status || "",
     status: (() => {
       const raw = String(j.job_status || "")
         .trim()

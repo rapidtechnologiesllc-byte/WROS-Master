@@ -21,6 +21,13 @@ const getContactPersonName = (job) => {
 export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode = "view", candidates = [], defaultTab = "details" }) {
   const navigate = useNavigate();
   const [editingSection, setEditingSection] = useState(null);
+  const [hiringManagerOptions, setHiringManagerOptions] = useState([]);
+  useEffect(() => {
+    // any internal user can be a job's hiring manager (an assignment, not authority)
+    searchUsers({ limit: 200 })
+      .then((res) => setHiringManagerOptions(Array.isArray(res?.users) ? res.users : []))
+      .catch((err) => console.error("[JobDetails] Could not load the people list:", err));
+  }, []);
   const [clientList, setClientList] = useState([]);
   const [availableContacts, setAvailableContacts] = useState([]);
   const [title, setTitle] = useState(job.title || "");
@@ -127,7 +134,7 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
       case "company":
         return { company_name: companyClient, company_type: companyType, contact_person: contactPerson };
       case "skills":
-        return { job_experience: experienceLevel, job_location: location, job_skills: skills.join(", ") };
+        return { job_experience: experienceLevel, job_location: location, job_skills: skills.join(", "), hiring_manager_id: hiringManager || null };
       case "timeline":
         // Status is not editable here: it only changes through the approval flow
         return { start_date: isoDate(startDate), end_date: isoDate(endDate), no_of_positions: noOfPositions > 0 ? noOfPositions : undefined };
@@ -278,7 +285,9 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
             <Input label="Experience Level" value={experienceLevel} onChange={setExperienceLevel} />
             <Input label="Location" value={location} onChange={setLocation} />
             <Input label="Skills (comma separated)" value={skillsText} onChange={setSkillsText} />
-            <Input label="Hiring Manager" value={hiringManager} onChange={setHiringManager} />
+            <Select label="Hiring Manager" value={hiringManager} onChange={setHiringManager}
+              options={[{ label: "Select Hiring Manager", value: "" },
+                ...hiringManagerOptions.map((u) => ({ label: `${u.user_name ?? ""} (${u.user_email ?? ""})`, value: u.user_id }))]} />
             <div className="flex gap-2 justify-end">
               <Button variant="secondary" onClick={cancelSection}>Cancel</Button>
               <Button onClick={() => saveSection("skills")}>Save</Button>
@@ -289,7 +298,7 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
             <div className="grid gap-3 md:grid-cols-2 mb-3">
               <Info label="Experience Level" value={job.experienceLevel} />
               <Info label="Location" value={job.location} />
-              <Info label="Hiring Manager" value={job.hiringManager} />
+              <Info label="Hiring Manager" value={job.hiringManagerName} />
             </div>
             <div>
               <div className="text-xs font-semibold text-gray-500 mb-2">Skills</div>
@@ -595,7 +604,7 @@ export default function JobDetails({ job, onSubmit, onGoApproval, onUpdate, mode
                 <div>
                   <div className="text-xs font-semibold text-gray-500 uppercase">Hiring Managers</div>
                   <div className="text-sm font-medium text-gray-900 mt-1">
-                    {job.hiring_manager_name || job.hiringManager || "-"}
+                    {job.hiringManagerName || "-"}
                   </div>
                 </div>
                 <div>
