@@ -25,6 +25,7 @@ const MONEY_COLUMNS = [
   { key: "vendor", header: "of which sub-vendors", cell: (r) => usd(r.vendor_cost_usd_cents) },
   { key: "bench", header: "Bench cost", cell: (r) => usd(r.bench_cost_usd_cents) },
   { key: "overhead", header: "Internal staff (overhead)", cell: (r) => usd(r.overhead_cost_usd_cents) },
+  { key: "shared", header: "Shared services", cell: (r) => usd(r.shared_cost_usd_cents) },
   { key: "htd", header: "HTD training", cell: (r) => usd(r.htd_cost_usd_cents) },
   { key: "expense", header: "Expenses", cell: (r) => usd(r.expense_cost_usd_cents ?? r.expense_usd_cents) },
   { key: "margin", header: "Margin", cell: (r) => usd(r.margin_usd_cents) },

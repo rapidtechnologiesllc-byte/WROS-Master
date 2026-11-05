@@ -966,168 +966,24 @@ def update_thunder_config(
 @router.delete(
     "/{candidate_id}",
     response_model=DeleteResponse,
-    dependencies=[Depends(require_role_template_permission("candidates", "can_delete"))],
+    summary="Permanently delete a candidate and everything attached (CEO and super users)",
 )
 def delete_candidate_restful(candidate_id: str, db: Session = Depends(get_db), user = Depends(get_current_user)):
-    """
-    Delete a candidate and all associated records (RESTful endpoint).
+    """Permanent. Out-of-scope ids are 404 for everyone, the same answer as an id that does not exist."""
+    from app.core import authority
+    from app.services.candidate_delete_service import CandidateDeleteError, delete_candidate
 
-    The one delete endpoint for candidates (the old
-    /candidates/hr/delete_candidate/{candidate_id} route was removed).
-
-    Args:
-        candidate_id: ID of the candidate to delete
-        db: Database session
-        user: Authenticated HR/Admin user
-
-    Returns:
-        DeleteResponse with success message
-
-    Raises:
-        HTTPException: If candidate not found or user lacks BU permission
-    """
     candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, user)
     if not candidate:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Candidate with ID {candidate_id} not found or not accessible"
-        )
-    
-    # ---------------------------------------------------------------
-    # Delete child records in FK-safe order (deepest children first)
-    # ---------------------------------------------------------------
-
-    # 1. InterviewFeedback â†' references interviews.id
-    feedback_ids = [
-        row.id for row in
-        db.query(Interview.id).filter(Interview.candidate_id == candidate_id).all()
-    ]
-    if feedback_ids:
-        db.query(InterviewFeedback).filter(InterviewFeedback.interview_id.in_(feedback_ids)).delete(synchronize_session=False)
-
-    # 2. PanelMember â†' references interview_panels.id
-    panel_ids = [
-        row.id for row in
-        db.query(InterviewPanel.id).filter(InterviewPanel.candidate_id == candidate_id).all()
-    ]
-    if panel_ids:
-        db.query(PanelMember).filter(PanelMember.panel_id.in_(panel_ids)).delete(synchronize_session=False)
-
-    # 3. Interviews â†' references interview_panels.id + candidates.candidateID
-    db.query(Interview).filter(Interview.candidate_id == candidate_id).delete(synchronize_session=False)
-
-    # 4. InterviewPanel â†' references candidates.candidateID
-    db.query(InterviewPanel).filter(InterviewPanel.candidate_id == candidate_id).delete(synchronize_session=False)
-
-    # 5. CandidateAssignment â†' references candidates.candidateID
-    db.query(CandidateAssignment).filter(CandidateAssignment.candidate_id == candidate_id).delete(synchronize_session=False)
-
-    # 6. CandidateDocument (SharePoint file metadata) â†' references candidates.candidateID
-    db.query(CandidateDocument).filter(CandidateDocument.candidate_id == candidate_id).delete(synchronize_session=False)
-
-    # 7. Candidate form tables
-    db.query(CandidateInfoForm).filter(CandidateInfoForm.candidateID == candidate_id).delete(synchronize_session=False)
-    db.query(CandidateEducationForm).filter(CandidateEducationForm.candidateID == candidate_id).delete(synchronize_session=False)
-    db.query(CandidateExperienceForm).filter(CandidateExperienceForm.candidateID == candidate_id).delete(synchronize_session=False)
-    db.query(CandidateAadharForm).filter(CandidateAadharForm.candidateID == candidate_id).delete(synchronize_session=False)
-    db.query(CandidatePanForm).filter(CandidatePanForm.candidateID == candidate_id).delete(synchronize_session=False)
-    db.query(CandidateStatus).filter(CandidateStatus.candidateID == candidate_id).delete(synchronize_session=False)
-
-    # 8. Checklist items then checklists
-    checklist_ids = [
-        row.id for row in
-        db.query(CandidateChecklist.id).filter(CandidateChecklist.candidate_id == candidate_id).all()
-    ]
-    if checklist_ids:
-        db.query(CandidateChecklistItem).filter(
-            CandidateChecklistItem.checklist_id.in_(checklist_ids)
-        ).delete(synchronize_session=False)
-    db.query(CandidateChecklist).filter(
-        CandidateChecklist.candidate_id == candidate_id
-    ).delete(synchronize_session=False)
-
-    # 9. CandidateHistory --" has backref="history" which makes SQLAlchemy try to
-    #    SET candidateID=NULL before the parent delete; column is NOT NULL so we
-    #    must delete these rows explicitly first.
-    db.query(CandidateHistory).filter(
-        CandidateHistory.candidateID == candidate_id
-    ).delete(synchronize_session=False)
-
-    # 10. OfferLetter --" no ondelete="CASCADE" on FK; must be deleted manually.
-    db.query(OfferLetter).filter(
-        OfferLetter.candidate_id == candidate_id
-    ).delete(synchronize_session=False)
-
-    # 11. InternalNote --" has backref="internal_notes"; same NULL risk as CandidateHistory.
-    db.query(InternalNote).filter(
-        InternalNote.candidate_id == candidate_id
-    ).delete(synchronize_session=False)
-
-    # 12. ATSScore --" has ondelete="CASCADE" but ORM may still interfere; explicit is safer.
-    db.query(ATSScore).filter(
-        ATSScore.candidate_id == candidate_id
-    ).delete(synchronize_session=False)
-
-    # 13. HRAssignment --" has ondelete="CASCADE" but explicit delete ensures no ORM conflict.
-    db.query(HRAssignment).filter(
-        HRAssignment.candidate_id == candidate_id
-    ).delete(synchronize_session=False)
-
-    # 14. CandidateOwnership --" has ondelete="CASCADE".
-    db.query(CandidateOwnership).filter(
-        CandidateOwnership.candidateID == candidate_id
-    ).delete(synchronize_session=False)
-
-    # 15. AI agentic tables
-    conv_ids = [
-        row.id for row in
-        db.query(CandidateConversation.id).filter(
-            CandidateConversation.candidate_id == candidate_id
-        ).all()
-    ]
-    if conv_ids:
-        db.query(ConversationEvent).filter(
-            ConversationEvent.conversation_id.in_(conv_ids)
-        ).delete(synchronize_session=False)
-    db.query(CandidateConversation).filter(
-        CandidateConversation.candidate_id == candidate_id
-    ).delete(synchronize_session=False)
-    db.query(CandidateAIAssignment).filter(
-        CandidateAIAssignment.candidate_id == candidate_id
-    ).delete(synchronize_session=False)
-
-    # 16. CandidateJobApplication --" has ondelete="CASCADE".
-    from app.models.candidate import CandidateJobApplication
-    db.query(CandidateJobApplication).filter(
-        CandidateJobApplication.candidate_id == candidate_id
-    ).delete(synchronize_session=False)
-
-    # 17. Finally delete the candidate row --" all FKs cleared above.
-    db.delete(candidate)
-
-    # TIER 1 FIX: Add try/except to db.commit() for transaction safety
+        raise HTTPException(status_code=404, detail=f"Candidate with ID {candidate_id} not found or not accessible")
+    if not authority.can_delete_records(db, user):
+        raise HTTPException(status_code=403, detail="Only the CEO or a super user can delete a candidate record.")
     try:
-        db.commit()
-    except Exception as e:
-        logger.error(f"Failed to commit deletion of candidate {candidate_id}: {str(e)}", exc_info=True)
+        result = delete_candidate(db, candidate, deleted_by=user.UserID)
+    except CandidateDeleteError as exc:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to delete candidate: {str(e)}")
-
-    # Queue candidate deletion for THUNDER orchestrator
-    MessageQueueService.enqueue(
-        task_name='candidate_deleted',
-        task_id=f"candidate_deleted:{candidate_id}",
-        data={
-            'candidate_id': candidate_id,
-            'candidate_email': candidate.candidateEmail,
-            'deleted_at': datetime.now().isoformat()
-        }
-    )
-
-    return DeleteResponse(
-        status="Success",
-        message=f"Candidate with ID {candidate_id} and all associated records deleted successfully"
-    )
+        raise HTTPException(status_code=409, detail=str(exc))
+    return DeleteResponse(status="Success", message=f"Candidate deleted with {result['records_removed']} attached record(s).")
 
 
 # ============================================

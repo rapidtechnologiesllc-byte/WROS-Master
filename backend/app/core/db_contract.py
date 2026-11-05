@@ -698,6 +698,7 @@ def _initialize_leadership_roles():
                 ensure_role(db, name, spec, tenant_id)
         _move_converted_employees_off_user_role(db)
         _initialize_role_authority(db)
+        _initialize_delete_authority(db)
         _initialize_bu_location_heads(db)
         _initialize_org_positions(db)
         _initialize_org_roles(db)
@@ -728,6 +729,13 @@ def _initialize_leadership_roles():
         db.close()
 
 
+
+
+def _initialize_delete_authority(db):
+    """Permanent deletes are for the CEO (by level, authority.can_delete_records) and Super Admin."""
+    db.query(RoleTemplate).filter(RoleTemplate.name == "Super Admin", RoleTemplate.can_delete_records.is_(False)) \
+        .update({RoleTemplate.can_delete_records: True}, synchronize_session=False)
+    db.commit()
 
 
 def _initialize_role_authority(db):
@@ -1942,6 +1950,7 @@ def _apply_schema_migrations(db: Session):
             ("hierarchy_level", "INTEGER NOT NULL DEFAULT 5"),
             ("specialization", "VARCHAR(512) NOT NULL DEFAULT 'General'"),
             ("is_super_user", "BOOLEAN NOT NULL DEFAULT false"),
+            ("can_delete_records", "BOOLEAN NOT NULL DEFAULT false"),
             ("org_level_access", "BOOLEAN NOT NULL DEFAULT false"),
         ],
         "org_nodes": [
@@ -1993,6 +2002,9 @@ def _apply_schema_migrations(db: Session):
             # Contractor supplied by a sub-vendor, paid through the vendor at an hourly rate
             ("sub_vendor_id", "VARCHAR(512) NULL REFERENCES app_schema.sub_vendor_accounts(id) ON DELETE SET NULL"),
             ("vendor_hourly_rate_usd_cents", "INTEGER NULL"),
+        ],
+        "departments": [
+            ("is_shared_service", "BOOLEAN NULL"),
         ],
         "interview_logs": [
             ("analysis", "JSON NULL"),

@@ -135,7 +135,7 @@ def test_the_endpoint_queues_after_commit_and_invites_the_candidate_once(client,
     # Thunder off does not block the candidate's own interview mail
     assert world.candidate.thunder_enabled is False
     assert db.query(Task).filter(Task.interview_id == interview.id,
-                                 Task.assigned_to_user_id == world.users[1].UserID).count() == 1
+                                 Task.assigned_to_user_id == world.users[1].UserID).count() == 0  # the feedback task comes an hour after it ends
 
     assert scheduling.queue_invite(db, interview) is None  # once per interview and time
 
