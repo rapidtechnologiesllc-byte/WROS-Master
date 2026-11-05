@@ -27,11 +27,14 @@ logger = logging.getLogger(__name__)
 TIMEOUT_SECONDS = 45
 
 COPY = {
-    "ACTIVATE": ("Set up your {company} account",
-                 "<p>Hello {name},</p><p>Your {company} account is ready. Set your password to sign in "
-                 "(the link works once and expires in 7 days):</p><p><a href=\"{link}\">Set my password</a></p>"
-                 "<p>Your login is this email address. You can log your timesheets and expenses, see your "
-                 "assignments and tasks once you're in.</p>"),
+    "ACTIVATE": ("Welcome to {company}: set up your account",
+                 "<p>Hello {name},</p><p>Welcome. Your {company} account is ready, and setup takes about two minutes:</p><ol>"
+                 "<li><b>Set your password.</b> <a href=\"{link}\">Set my password</a> (the link works once and expires in "
+                 "7 days). Your login is this email address.</li>"
+                 "<li><b>Connect your Outlook.</b> You are asked to right after you sign in. It is required: your emails go out "
+                 "from your own mailbox, and new jobs, candidates, client updates and escalations are picked up from it.</li>"
+                 "<li><b>You are ready.</b> Your timesheets, expenses, assignments and tasks are all there.</li></ol>"
+                 "<p>If you did not expect this email, please tell your manager.</p>"),
     "RESET": ("Reset your {company} password",
               "<p>Hello {name},</p><p>Use this link to set a new password (it works once and expires in "
               "2 hours):</p><p><a href=\"{link}\">Reset my password</a></p>"

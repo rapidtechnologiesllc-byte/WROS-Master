@@ -29,7 +29,7 @@ import { getEmployeePerformance, getMyPerformance } from "../services/api/perfor
 import ActivityTimeline from "../components/timeline/ActivityTimeline";
 import { lineTypeLabel } from "../utils/lineType";
 import { EmployeeMinimumBillRate } from "../components/MinimumBillRate";
-import { appreciateEmployee } from "../services/api/employees";
+import { appreciateEmployee, resendWelcomeEmail } from "../services/api/employees";
 
 const TABS = [
   ["about", "About"], ["profile", "Profile"], ["job", "Job"], ["documents", "Documents"],
@@ -417,6 +417,16 @@ function ProfileTab({ profile, save }) {
             window.alert(`Could not send: ${err.message}`);
           }
         }}>Send appreciation</Button>
+        {profile.can_edit ? (
+          <Button variant="secondary" size="sm" className="ml-2" onClick={async () => {
+            try {
+              const sent = await resendWelcomeEmail(profile.id);
+              window.alert(`Sent to ${sent.email}.`);
+            } catch (err) {
+              window.alert(`Could not send: ${err.message}`);
+            }
+          }}>Resend welcome email</Button>
+        ) : null}
       </div>
       <EditableSection title="Basic information" canEdit={profile.can_edit} values={values} onSave={save} fields={[
         { key: "first_name", label: "First name" },

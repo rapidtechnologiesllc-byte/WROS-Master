@@ -24,10 +24,11 @@ never disagree:
   invoiced) billable hours x their vendor rate. They carry no bench or overhead. Lines report
   vendor_cost / vendor_invoiced / vendor_paid, so the P&L shows what is owed to vendors beside cash
   collected from clients (pay-when-paid: vendor_invoice_service).
-- *Shared services* (CEO 2026-11-03: "equally distributed in P&L across all BU's that has revenue"): the overhead of
-  non-billable people in a shared function (HR, Recruitment, Finance, Resource Management; Department.is_shared_service)
-  moves out of the BU they sit in and is split equally across the BUs with revenue in the period, as its own cost column.
-  With no revenue anywhere it stays where they sit. A move never changes the org total. Company rows keep the real cost.
+- *Org-level staff* (CEO 2026-11-05: HR, resource management, recruitment, finance and the CEO "broken at org level", "BU
+  specific non billable should be at BU level"): the cost of non-billable people in a shared function
+  (Department.is_shared_service) or with org-wide authority leaves the BU they sit in and shows in an Org level row, broken
+  down by function. SHARED_COST_SPLIT_TO_BUS splits it equally across the BUs with revenue instead. Other non-billable
+  people stay overhead of their BU. A move never changes the org total. Company rows keep the real cost.
 - *Expense cost* = manager-approved expenses dated in the period, attributed through
   the expense's client (else the business unit of whoever logged it).
 - *Partner* = the partner of the business unit that owns the client
@@ -371,8 +372,9 @@ def equal_shares(amount: int, business_units: Iterable[int]) -> Dict[int, int]:
 
 
 def shared_service_moves(db: Session, *, start: date, end: date, tenant_id: Optional[int], costs: CostBook):
-    """({(home bu, country): cost of shared-function people who sat there}, [BUs with revenue]). Always org-wide, so
-    a partner's view shows the same share as the CEO's."""
+    """({(home bu, country): cost of org-level people who sat there}, [BUs with revenue], {function: cost}). Always
+    org-wide, so a partner's view shows the same share as the CEO's."""
+    from app.core import authority
     from app.core.config import settings as config
     from app.models.org_structure import Department
 
@@ -380,22 +382,27 @@ def shared_service_moves(db: Session, *, start: date, end: date, tenant_id: Opti
     departments = db.query(Department)
     if tenant_id is not None:
         departments = departments.filter(Department.tenant_id == tenant_id)
-    shared = [d.id for d in departments.all()
-              if (d.is_shared_service if d.is_shared_service is not None else d.name.strip().lower() in default)]
+    names = {d.id: d.name for d in departments.all()}
+    shared = {d.id for d in departments.all()
+              if (d.is_shared_service if d.is_shared_service is not None else d.name.strip().lower() in default)}
     all_lines = chain_lines(db, start=start, end=end, tenant_id=tenant_id, costs=costs, business_unit_ids=None)
     targets = sorted({line["business_unit_id"] for line in all_lines if line["business_unit_id"] and line["earned_usd_cents"]})
     pool: Dict = defaultdict(int)
-    if not shared:
-        return dict(pool), targets
-    people = (db.query(Employee).join(Users, Users.UserID == Employee.wros_user_id)
-              .filter(Users.department_id.in_(shared), Employee.is_billable.is_(False), Employee.sub_vendor_id.is_(None),
+    by_function: Dict = defaultdict(int)
+    people = (db.query(Employee, Users).join(Users, Users.UserID == Employee.wros_user_id)
+              .filter(Employee.is_billable.is_(False), Employee.sub_vendor_id.is_(None),
                       Employee.joining_date <= end, (Employee.exit_date.is_(None)) | (Employee.exit_date >= start),
                       Employee.status != "PRE_JOINING").all())
-    for employee in people:
+    for employee, user in people:
+        in_function = user.department_id in shared
+        if not in_function and not authority.is_org_level(db, user):
+            continue  # BU-specific: stays overhead of their BU
+        label = names.get(user.department_id) if in_function else "Leadership"
         for (bu_id, _, where), payroll in costs.by_object(employee, start, end).items():
             if payroll:
                 pool[(bu_id, where)] += payroll
-    return dict(pool), targets
+                by_function[label] += payroll
+    return dict(pool), targets, dict(by_function)
 
 
 def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
@@ -468,21 +475,26 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
             bench_rows[bucket]["bench_cost_usd_cents" if employee.is_billable else "overhead_cost_usd_cents"] += uncovered
             company_staff_cost[company_id]["bench" if employee.is_billable else "overhead"] += uncovered
 
-    pool, revenue_units = shared_service_moves(db, start=start, end=end, tenant_id=tenant_id, costs=costs)
+    from app.core.config import settings as config
+
+    pool, revenue_units, by_function = shared_service_moves(db, start=start, end=end, tenant_id=tenant_id, costs=costs)
+    split = config.SHARED_COST_SPLIT_TO_BUS and bool(revenue_units)
 
     def staff_bucket(bu_id, where):
         unit = units.get(bu_id)
         return (unit.partner_user_id if unit and unit.partner_user_id else UNASSIGNED, bu_id, where)
 
-    if revenue_units:
-        for (home, where), amount in pool.items():
-            if country is not None and where != country:
-                continue
-            if business_unit_ids is None or home in business_unit_ids:
-                bench_rows[staff_bucket(home, where)]["overhead_cost_usd_cents"] -= amount
+    for (home, where), amount in pool.items():
+        if country is not None and where != country:
+            continue
+        if business_unit_ids is None or home in business_unit_ids:
+            bench_rows[staff_bucket(home, where)]["overhead_cost_usd_cents"] -= amount
+        if split:
             for bu_id, share in equal_shares(amount, revenue_units).items():
                 if business_unit_ids is None or bu_id in business_unit_ids:
                     bench_rows[staff_bucket(bu_id, where)]["shared_cost_usd_cents"] += share
+        elif business_unit_ids is None:  # the Org level row is for those who see the whole org
+            bench_rows[(UNASSIGNED, None, where)]["shared_cost_usd_cents"] += amount
 
     expenses, pending_expenses = _expenses(db, start, end, tenant_id, units, business_unit_ids, costs)
     if country is not None:
@@ -524,6 +536,7 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
     for user in db.query(Users).filter(Users.UserID.in_(partner_ids)).all():
         partner_names.setdefault(user.UserID, user.UserName)
     bu_names = {u.id: u.name for u in units.values()}
+    bu_names[None] = "Org level"
 
     by_client = {row["key"]: row for row in summarize(lines, "client")}
     client_ids = {e["key"][2] for e in expenses if e["key"][2]} - set(by_client)
@@ -558,6 +571,8 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
     return {
         "start": start.isoformat(), "end": end.isoformat(), "country": country, **org,
         "pending_expenses_usd_cents": pending_expenses,
+        "org_staff_by_function": ([{"name": name, "cost_usd_cents": cost} for name, cost in sorted(by_function.items())]
+                                  if business_unit_ids is None and country is None else []),
         "missing_cost_employee_ids": missing_cost,
         "by_partner": rollup("partner_user_id", 0, partner_names),
         "by_business_unit": rollup("business_unit_id", 1, bu_names),

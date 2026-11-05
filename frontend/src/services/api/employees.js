@@ -14,6 +14,11 @@ export const getEmployeeMinimumBillRate = async (employeeId) => {
   return data;
 };
 
+export const resendWelcomeEmail = async (employeeId) => {
+  const { data } = await apiRequest(`/employees/${employeeId}/resend-activation`, { method: "POST" });
+  return data;
+};
+
 export const appreciateEmployee = async (employeeId, note) => {
   const { data } = await apiRequest(`/employees/${employeeId}/appreciate`, { method: "POST", body: JSON.stringify({ note }) });
   return data;

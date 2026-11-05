@@ -439,6 +439,17 @@ def _recruiter_task(db: Session, pipeline: HiringPipeline, title: str, descripti
 def _action_screen(db: Session, pipeline: HiringPipeline) -> str:
     if not pipeline.screen_required:
         return "skipped: Thunder-engaged candidate"
+    from app.services.submission_service import ExperienceIneligible, assert_experience_eligible
+
+    candidate = db.query(Candidate).filter(Candidate.candidateID == pipeline.candidate_id).first()
+    try:  # the rule is the screen: a person only decides when it is not met (CEO 2026-11-03: tasks are for decisions)
+        assert_experience_eligible(candidate, "pass the screen")
+    except ExperienceIneligible:
+        pass
+    else:
+        pipeline.screen_decision, pipeline.screen_decided_by = "PASS", "system"
+        db.flush()
+        return "screen passed by rule: experience verified"
     _recruiter_task(db, pipeline, "Screen candidate: {name}",
                     "Screen {name}, then record PASS, SKIP or FAIL in the hiring pipeline. Scheduling the L1 "
                     "(technical) interview also counts as passing the screen.", "HIRING_SCREEN")

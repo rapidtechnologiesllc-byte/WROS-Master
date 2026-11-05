@@ -11,7 +11,7 @@ import hashlib
 import logging
 import secrets
 from datetime import datetime, timedelta
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -65,6 +65,30 @@ def queue_account_email(user: Users, purpose: str = "ACTIVATE", *, once_key: Opt
     suffix = once_key or uuid.uuid4().hex[:12]
     return enqueue_once(ACCOUNT_EMAIL_TASK, f"account-email-{user.UserID}-{purpose}-{suffix}",
                         {"user_id": user.UserID, "purpose": purpose}, user.tenant_id)
+
+
+def run_welcome_followup_job(db: Session, *, now: Optional[datetime] = None) -> Dict[str, int]:
+    """Nobody is left without a working link. Someone who has not set their password, with Outlook not connected, gets
+    the welcome email when they never had one or their last one is WELCOME_RESEND_DAYS old, up to WELCOME_MAX_SENDS times."""
+    from app.models.msgraph_session import MsgraphSession
+
+    now = now or datetime.utcnow()
+    connected = {r[0] for r in db.query(MsgraphSession.user_id).all()}
+    queued = 0
+    people = db.query(Users).filter(Users.password_reset_required.is_(True), Users.terminated_at.is_(None), Users.UserEmail.isnot(None)).all()
+    for user in people:
+        if user.UserID in connected or not user.tenant_id:
+            continue  # they are using the system
+        sends = (db.query(AccountActivationToken).filter(AccountActivationToken.user_id == user.UserID, AccountActivationToken.purpose == "ACTIVATE")
+                 .order_by(AccountActivationToken.created_at.desc()).all())
+        if len(sends) >= settings.WELCOME_MAX_SENDS or any(s.used_at for s in sends):
+            continue
+        if sends and now - sends[0].created_at < timedelta(days=settings.WELCOME_RESEND_DAYS):
+            continue
+        queued += bool(queue_account_email(user, "ACTIVATE", once_key=f"welcome-{len(sends) + 1}"))
+    if queued:
+        logger.info(f"[AccountActivation] {queued} welcome email(s) queued")
+    return {"queued": queued}
 
 
 def prepare_new_account(db: Session, user: Users) -> None:

@@ -113,6 +113,15 @@ class ThunderInboundEmailHandler:
             actions = cadence.apply_reply(db, state, candidate, result.intent, result.erasure_requested,
                                           job, datetime.utcnow(), missing_fields=still_missing)
 
+            from app.services import thunder_autonomy_service as autonomy
+            from app.services.thunder_mail.reply_classifier import candidate_words
+
+            words = candidate_words(row.body_text or "", own_texts)
+            if autonomy.needs_nobody(result.intent, words):
+                actions["handoff"] = None  # they answered what we asked: Thunder carries on
+            elif autonomy.will_answer(result.intent, words):
+                actions["ack_step"] = None  # Thunder's answer goes instead of a holding note
+
             row.intent, row.intent_confidence, row.intent_source = result.intent, result.confidence, result.source
             row.intent_evidence = result.matched_text
             row.credited_out_id = credited.id if credited and result.intent != "AUTO" else None
@@ -154,7 +163,10 @@ class ThunderInboundEmailHandler:
             from app.services.thunder_mail.reply_classifier import candidate_words
             record_reply_signals(db, conversation_tenant_key(row.tenant_id), row.candidate_id,
                                  candidate_words(row.body_text or "", own_texts))
-        ThunderInboundEmailHandler._draft_reply(db, candidate, row, result.intent, task, job)
+        draft = ThunderInboundEmailHandler._draft_reply(db, candidate, row, result.intent, task, job)
+        done = autonomy.act_on_reply(db, candidate, result.intent, words, task, draft)
+        if done is None and task is not None and autonomy.will_answer(result.intent, words):
+            logger.warning(f"[ThunderInbound] {row.candidate_id}: Thunder could not answer; the task stands")
 
         return {"status": "processed", "thunder_message_id": row_id, "intent": result.intent,
                 "stage": state.stage, "ack_step": actions["ack_step"], "handoff": bool(actions["handoff"]),
@@ -220,17 +232,17 @@ class ThunderInboundEmailHandler:
             db.commit()
 
     @staticmethod
-    def _draft_reply(db: Session, candidate: Candidate, row: ThunderEmailMessage, intent: str, task, job) -> None:
+    def _draft_reply(db: Session, candidate: Candidate, row: ThunderEmailMessage, intent: str, task, job):
         """A handed-off reply gets a drafted answer for the task's owner to approve (never raises)."""
         if task is None:
-            return
+            return None
         from app.services.reply_draft_service import draft_reply
         from app.services.thunder_mail.reply_classifier import candidate_words
 
         own = [t for (t,) in db.query(ThunderEmailMessage.body_text).filter(
             ThunderEmailMessage.candidate_id == candidate.candidateID, ThunderEmailMessage.direction == "OUT",
             ThunderEmailMessage.body_text.isnot(None))]
-        draft_reply(db, candidate, row, intent, task, job, candidate_words(row.body_text or "", own))
+        return draft_reply(db, candidate, row, intent, task, job, candidate_words(row.body_text or "", own))
 
     @staticmethod
     def _handoff_task(db: Session, candidate: Candidate, row: ThunderEmailMessage, title: str, note: str) -> Any:
