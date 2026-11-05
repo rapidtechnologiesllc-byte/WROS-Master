@@ -1,8 +1,8 @@
 """Pydantic schemas -- sub-vendor invoices and pay-when-paid (vendor_invoice_service)."""
 from datetime import date
-from typing import List, Optional
+from typing import List, Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SubVendorCreate(BaseModel):
@@ -18,6 +18,34 @@ class SubVendorItem(BaseModel):
     contact_email: str
     status: str
     contractors: int = 0
+    payment_terms_days: int = 30
+    w9_status: str = "NOT_REQUESTED"
+    is_1099: bool = True
+    receives_new_roles: bool = True
+    has_tax_id: bool = False
+    last_paid_on: Optional[str] = None
+    unpaid_bills: int = 0
+    open_balance_usd_cents: int = 0
+    paid_this_year_usd_cents: int = 0
+
+
+class SubVendorUpdate(BaseModel):
+    contact_email: Optional[str] = None
+    payment_terms_days: Optional[int] = Field(None, ge=0, le=365)
+    w9_status: Optional[Literal["NOT_REQUESTED", "REQUESTED", "RECEIVED"]] = None
+    is_1099: Optional[bool] = None
+    receives_new_roles: Optional[bool] = None
+    tax_id: Optional[str] = None
+
+
+class SubmissionAccept(BaseModel):
+    email: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+
+
+class SubmissionReject(BaseModel):
+    note: str
 
 
 class ContractorSet(BaseModel):
@@ -88,6 +116,7 @@ class VendorInvoiceLineItem(BaseModel):
 
 class VendorInvoiceItem(BaseModel):
     id: str
+    due_date: Optional[str] = None
     sub_vendor_id: str
     sub_vendor_name: Optional[str] = None
     vendor_invoice_number: str

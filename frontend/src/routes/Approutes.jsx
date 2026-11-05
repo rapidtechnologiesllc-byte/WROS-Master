@@ -62,9 +62,8 @@ const ProjectsScreen = lazy(() => import("../screens/ProjectsScreen"));
 const HtdIntakeScreen = lazy(() => import("../screens/HtdIntakeScreen"));
 const HmReviewScreen = lazy(() => import("../screens/HmReviewScreen"));
 const TimesheetsScreen = lazy(() => import("../screens/TimesheetsScreen"));
-const ForecastVsActualScreen = lazy(() => import("../screens/ForecastVsActualScreen"));
+const ManageSubVendorsScreen = lazy(() => import("../screens/ManageSubVendorsScreen"));
 const InvoicesScreen = lazy(() => import("../screens/InvoicesScreen"));
-const RevenueScreen = lazy(() => import("../screens/RevenueScreen"));
 const TenantLocaleScreen = lazy(() => import("../screens/TenantLocaleScreen"));
 const PublicThunderChatScreen = lazy(() => import("../screens/PublicThunderChatScreen"));
 const CandidatePortalScreen = lazy(() => import("../screens/CandidatePortalScreen"));
@@ -137,6 +136,7 @@ const mapCandidateFromApi = (c) => {
   };
 
   return {
+    mergedIntoId: c.merged_into_id || null,
     id: c.candidate_id,
     name: c.candidate_name,
     email: c.candidate_email,
@@ -593,10 +593,11 @@ function AuthenticatedApp() {
           <Route path="timesheets" element={<TimesheetsScreen />} />
           <Route path="demand-vs-bench" element={<DemandVsBenchScreen />} />
           <Route path="forecast" element={<Navigate to="/demand-vs-bench?view=forecast" replace />} />
-          <Route path="forecast-vs-actual" element={<ForecastVsActualScreen />} />
-          <Route path="invoices" element={<InvoicesScreen />} />
+          <Route path="forecast-vs-actual" element={<Navigate to="/pnl?view=forecast" replace />} />
+          <Route path="invoices" element={new URLSearchParams(window.location.search).get("tab") === "vendor" ? <Navigate to="/sub-vendors?view=bills" replace /> : <InvoicesScreen />} />
           <Route path="invoice-management" element={<Navigate to="/invoices" replace />} />
-          <Route path="revenue" element={<RevenueScreen />} />
+          <Route path="revenue" element={<Navigate to="/pnl?view=revenue-health" replace />} />
+          <Route path="sub-vendors" element={<ManageSubVendorsScreen />} />
           <Route path="opportunity-pipeline" element={<OpportunityPipelineScreen />} />
           <Route path="executive-revenue-dashboard" element={<ExecutiveRevenueDashboardScreen />} />
           <Route path="finance-operations" element={<Navigate to="/pnl?view=operations" replace />} />

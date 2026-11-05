@@ -9,7 +9,6 @@ import {
   addSubVendor,
   addVendorInvoice,
   approveVendorInvoice,
-  getContractors,
   getEligibleVendorTimesheets,
   getSubVendors,
   getVendorInvoices,
@@ -40,7 +39,7 @@ function Notice({ tone = "error", children }) {
   );
 }
 
-function SubVendorsPanel({ vendors, contractors, employees, onChanged }) {
+export function SubVendorsPanel({ vendors, contractors, employees, onChanged }) {
   const [vendor, setVendor] = useState({ company_name: "", contact_email: "" });
   const [assign, setAssign] = useState({ employee_id: "", sub_vendor_id: "", rate: "" });
   const [error, setError] = useState("");
@@ -224,6 +223,7 @@ function VendorInvoiceRow({ invoice, onChanged }) {
           </div>
           <div className="text-xs text-gray-500">
             {invoice.period_start} → {invoice.period_end} · {invoice.lines.length} timesheet(s) · {usd(invoice.amount_usd_cents)}
+            {invoice.due_date && invoice.status !== "PAID" && invoice.status !== "REJECTED" ? ` · due ${invoice.due_date}` : ""}
             {invoice.variance_usd_cents ? ` (expected ${usd(invoice.expected_usd_cents)})` : ""}
           </div>
         </button>
@@ -285,19 +285,17 @@ function VendorInvoiceRow({ invoice, onChanged }) {
   );
 }
 
-export default function VendorInvoicesTab() {
+export default function VendorInvoicesTab({ statuses = null, hideForm = false, emptyText = "No sub-vendor invoices yet." }) {
   const [data, setData] = useState(null);
   const [vendors, setVendors] = useState([]);
-  const [people, setPeople] = useState({ contractors: [], employees: [] });
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     setError("");
     try {
-      const [list, vendorList, contractorList] = await Promise.all([getVendorInvoices(), getSubVendors(), getContractors()]);
+      const [list, vendorList] = await Promise.all([getVendorInvoices(), getSubVendors()]);
       setData(list);
       setVendors(vendorList || []);
-      setPeople(contractorList || { contractors: [], employees: [] });
     } catch (err) {
       setError(err.message || "Could not load sub-vendor invoices.");
     }
@@ -307,6 +305,7 @@ export default function VendorInvoicesTab() {
     load();
   }, [load]);
 
+  const shown = (data?.vendor_invoices || []).filter((inv) => !statuses || statuses.includes(inv.status));
   return (
     <div className="grid gap-4">
       <Notice>{error}</Notice>
@@ -318,15 +317,14 @@ export default function VendorInvoicesTab() {
             <div className="text-lg font-semibold text-emerald-700">{usd(data.payable_now_usd_cents)}</div></div>
         </div>
       ) : null}
-      <AddVendorInvoiceForm vendors={vendors.filter((v) => v.status === "APPROVED")} onAdded={load} />
+      {hideForm ? null : <AddVendorInvoiceForm vendors={vendors.filter((v) => v.status === "APPROVED")} onAdded={load} />}
       <div className="grid gap-3">
-        {data?.vendor_invoices?.length ? (
-          data.vendor_invoices.map((inv) => <VendorInvoiceRow key={inv.id} invoice={inv} onChanged={load} />)
+        {shown.length ? (
+          shown.map((inv) => <VendorInvoiceRow key={inv.id} invoice={inv} onChanged={load} />)
         ) : (
-          <div className="py-6 text-center text-sm text-gray-500">No sub-vendor invoices yet.</div>
+          <div className="py-6 text-center text-sm text-gray-500">{emptyText}</div>
         )}
       </div>
-      <SubVendorsPanel vendors={vendors} contractors={people.contractors} employees={people.employees} onChanged={load} />
     </div>
   );
 }

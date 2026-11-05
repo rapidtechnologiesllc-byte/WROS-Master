@@ -36,6 +36,9 @@ class Candidate(Base):
     # .create_candidate() -- this field lets LinkedIn dedup run for
     # the first time in this codebase.
     linkedin_url = Column(String(512), nullable=True)
+    # This record was a duplicate, merged into that one (candidate_merge_service). It stays, archived, so its
+    # email and phone keep leading to the record kept.
+    merged_into_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="SET NULL"), nullable=True, index=True)
     candidateGender = Column(String(100), nullable=True)
     candidateDateOfBirth = Column(Date, nullable=True)
     candidateSource = Column(String(512), nullable=True)

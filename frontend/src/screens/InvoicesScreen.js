@@ -6,7 +6,6 @@ import { Fragment, useCallback, useEffect, useState } from "react";
 import { Receipt, RefreshCw, CheckCircle2, Send, DollarSign } from "lucide-react";
 import { Card, Button, Input } from "../components/ui";
 import cx from "../utils/cx";
-import VendorInvoicesTab from "../components/VendorInvoicesTab";
 import {
   runAutoInvoicing,
   approveInvoice,
@@ -253,10 +252,10 @@ function ArAgingTab() {
 export default function InvoicesScreen() {
   const [invoices, setInvoices] = useState([]);
   const [statusFilter, setStatusFilter] = useState("");
-  // a task link can open a tab directly (e.g. /invoices?tab=vendor from "Pay the vendor: the client has paid")
+  // a task link can open a tab directly (sub-vendor bills moved to /sub-vendors, ManageSubVendorsScreen)
   const [tab, setTab] = useState(() => {
     const wanted = new URLSearchParams(window.location.search).get("tab");
-    return ["invoices", "aging", "vendor"].includes(wanted) ? wanted : "invoices";
+    return ["invoices", "aging"].includes(wanted) ? wanted : "invoices";
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -291,7 +290,7 @@ export default function InvoicesScreen() {
         }
       >
         <div className="mb-4 flex gap-1">
-          {[["invoices", "Client invoices"], ["aging", "AR aging"], ["vendor", "Sub-vendor invoices"]].map(([key, label]) => (
+          {[["invoices", "Client invoices"], ["aging", "AR aging"]].map(([key, label]) => (
             <button key={key} type="button" onClick={() => setTab(key)}
               className={cx("rounded-lg px-3 py-1.5 text-sm font-semibold",
                 tab === key ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100")}>
@@ -300,7 +299,6 @@ export default function InvoicesScreen() {
           ))}
         </div>
         {tab === "aging" ? <ArAgingTab /> : null}
-        {tab === "vendor" ? <VendorInvoicesTab /> : null}
 
         {tab === "invoices" && error ? (
           <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">

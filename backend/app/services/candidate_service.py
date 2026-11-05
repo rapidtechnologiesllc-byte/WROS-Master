@@ -106,8 +106,17 @@ def find_duplicate_candidate(
     ANY of the three is a duplicate, checked in this order (email,
     phone, LinkedIn) so the reported `matched_on` is deterministic when
     more than one would match. Emails match whatever their case; phone numbers
-    match on their digits, so "+91 98765 43210" and "+919876543210" are one person.
+    match on their national digits, so "+91 98765 43210" and "9876543210" are one person. A record
+    merged into another answers with the record kept.
     """
+    from app.services.candidate_merge_service import resolve_merged
+
+    hit, matched_on = _find_duplicate(db, email, mobile, linkedin_url)
+    return resolve_merged(db, hit), matched_on
+
+
+def _find_duplicate(db: Session, email: Optional[str], mobile: Optional[str],
+                    linkedin_url: Optional[str]) -> Tuple[Optional[Candidate], Optional[str]]:
     if email:
         try:
             hit = db.query(Candidate).filter(func.lower(Candidate.candidateEmail) == email.strip().lower()).first()
@@ -123,7 +132,7 @@ def find_duplicate_candidate(
             hit = db.query(Candidate).filter(Candidate.candidateMobile == mobile).first()
             if hit is None and len(digits) >= MIN_PHONE_DIGITS:
                 hit = db.query(Candidate).filter(
-                    func.regexp_replace(Candidate.candidateMobile, r"\D", "", "g") == digits).first()
+                    func.right(func.regexp_replace(Candidate.candidateMobile, r"\D", "", "g"), 10) == digits[-10:]).first()
             if hit:
                 return hit, "phone"
         except Exception as e:
@@ -132,7 +141,8 @@ def find_duplicate_candidate(
 
     if linkedin_url:
         try:
-            hit = db.query(Candidate).filter(Candidate.linkedin_url == linkedin_url).first()
+            hit = db.query(Candidate).filter(
+                func.lower(func.rtrim(Candidate.linkedin_url, "/")) == linkedin_url.rstrip("/").lower()).first()
             if hit:
                 return hit, "linkedin"
         except Exception as e:

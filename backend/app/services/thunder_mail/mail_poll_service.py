@@ -19,6 +19,7 @@ and escalations"): replies in our threads go to Thunder, the rest to mailbox_sig
 A reply that reached two mailboxes (reply-all with the helpdesk on copy) is stored once.
 """
 import logging
+import re
 import uuid
 from datetime import datetime, timedelta
 from typing import Dict, Optional
@@ -72,6 +73,9 @@ def _match(db: Session, message: Dict, headers: Dict[str, str], sender: str) -> 
     candidate = db.query(Candidate).filter(func.lower(Candidate.candidateEmail) == sender).first()
     if candidate is None:
         return None
+    from app.services.candidate_merge_service import resolve_merged
+
+    candidate = resolve_merged(db, candidate)  # a merged duplicate's email leads to the record kept
     return db.query(ThunderCadenceState).filter_by(candidate_id=candidate.candidateID).first()
 
 
@@ -189,8 +193,8 @@ def poll_connected_mailboxes(db: Session, mailboxes: Optional[Dict[str, GraphMai
 
 
 def _vendor_invoice(db: Session, mailbox, message: Dict, sender: str, received: datetime) -> bool:
-    """An email from a sub-vendor with attachments: their invoice is recorded and validated. True when the
-    sender is a sub-vendor and the email carried an invoice (handled here, never filed elsewhere)."""
+    """An email from a sub-vendor with attachments: their invoice is recorded and validated, a resume becomes a
+    submission for the role they were sent. True when it was either (handled here, never filed elsewhere)."""
     from app.services import vendor_invoice_intake as intake
     from app.services.thunder_mail.forward_classifier import read_attachments
 
@@ -204,8 +208,12 @@ def _vendor_invoice(db: Session, mailbox, message: Dict, sender: str, received: 
         return False
     if not any((a.text or "").strip() for a in attachments):
         return False
-    intake.receive(db, vendor, message, attachments, received)
-    return True
+    if any(a.text and re.search(r"invoice", f"{a.name} {a.text}", re.I) for a in attachments):
+        intake.receive(db, vendor, message, attachments, received)
+        return True
+    from app.services.sub_vendor_roles_service import receive_submission
+
+    return receive_submission(db, vendor, message, attachments, getattr(mailbox, "mailbox", None))
 
 
 def _route_own_email(db: Session, message: Dict, headers: Dict[str, str], sender: str, received: datetime,

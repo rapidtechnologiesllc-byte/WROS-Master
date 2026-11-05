@@ -53,8 +53,8 @@ RESOURCE_ROUTES = {
     "invoices": "/invoices",
     "revenue": "/pnl",  # partner & org P&L
     "finance-operations": "/pnl",  # a tab of P&L
-    "sales-ops": "/revenue",  # revenue leakage & reconciliation
-    "forecasts": "/forecast-vs-actual",  # its API (/forecast-vs-actual) checks forecasts
+    "sales-ops": "/pnl",  # Revenue Health: a tab of P&L
+    "forecasts": "/pnl",  # Forecast vs Actual: a tab of P&L
     # Leadership (CEO / CFO / BU Head dashboards are each person's Home, not menu items)
     # FY goal tree (Org > Location > Partner > BU) + executive revenue
     "goals": "/executive-revenue-dashboard",
@@ -107,8 +107,8 @@ NAV_LABELS = {
     "utilization-dashboard": "Workforce Overview",
     "revenue": "P&L",
     "finance-operations": "P&L",
-    "sales-ops": "Revenue Health",
-    "forecasts": "Forecast vs Actual",
+    "sales-ops": "P&L",
+    "forecasts": "P&L",
     "goals": "Goals & Revenue",
     "bi-explorer": "BI Explorer",
     "admin-agent-state": "Agent Health",
@@ -133,6 +133,7 @@ NAV_LABELS = {
 # The LinkedIn pipeline's endpoints all check "candidates", so its page does too --
 # CEO, CFO, partners and BU heads see it under Recruitment, not only recruiters.
 RESOURCE_EXTRA_PAGES = {
+    "invoices": [{"key": "sub-vendors", "label": "Sub-vendors", "route": "/sub-vendors"}],
     "candidates": [{"key": "linkedin-pipeline", "label": "LinkedIn Pipeline", "route": "/linkedin-pipeline"}],
     # My Performance (CEO 2026-10-24): everyone who has My Tasks; its self-service endpoints check
     # my-tasks too (app/api/v1/endpoints/performance.py)

@@ -35,6 +35,11 @@ _JOBS = (
                  timedelta(days=1), timeout_s=120, daily_after_utc="00:00"),
     ScheduledJob("daily_revenue_scan", "app.services.revenue_scanning_service:run_daily_revenue_scan_job",
                  timedelta(days=1), timeout_s=300, daily_after_utc="02:00"),
+    ScheduledJob("reconciliation_scan", "app.services.revenue_scanning_service:run_reconciliation_scan_job",
+                 timedelta(days=1), timeout_s=300, daily_after_utc="02:30"),
+    # New client roles to approved sub-vendors, by email (sub_vendor_roles_service)
+    ScheduledJob("sub_vendor_new_roles", "app.services.sub_vendor_roles_service:run_new_roles_job",
+                 timedelta(hours=1), timeout_s=300),
     ScheduledJob("engagement_metrics", "app.services.engagement_metrics_service:run_engagement_metrics_job",
                  timedelta(hours=4), timeout_s=300),
     # internal only: re-derives hiring stages from facts and backfills pipelines

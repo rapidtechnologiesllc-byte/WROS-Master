@@ -285,6 +285,7 @@ def _allowed(db: Session, user: Users, permission: str) -> bool:
 
 
 def _existing_candidate(db: Session, row: MailboxIntakeMessage, reading: ForwardReading) -> Optional[Candidate]:
+    from app.services.candidate_merge_service import resolve_merged
     from app.services.candidate_service import find_duplicate_candidate
 
     details = reading.candidate
@@ -294,7 +295,7 @@ def _existing_candidate(db: Session, row: MailboxIntakeMessage, reading: Forward
         hit = db.query(Candidate).filter(func.lower(Candidate.candidateEmail) == email.lower(),
                                          Candidate.tenant_id == row.tenant_id).first()
         if hit is not None:
-            return hit
+            return resolve_merged(db, hit)
     for phone in dict.fromkeys(phones):
         hit, _ = find_duplicate_candidate(db, mobile=phone)
         if hit is not None and hit.tenant_id == row.tenant_id:

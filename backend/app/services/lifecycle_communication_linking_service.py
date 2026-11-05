@@ -53,6 +53,9 @@ def _resolve_entity(db: Session, email: str):
 
     candidate = db.query(Candidate).filter(func.lower(Candidate.candidateEmail) == normalized).first()
     if candidate:
+        from app.services.candidate_merge_service import resolve_merged
+
+        candidate = resolve_merged(db, candidate)
         name_parts = [candidate.candidateFirstName or "", candidate.candidateLastName or ""]
         name = " ".join(p for p in name_parts if p).strip() or candidate.candidateEmail
         return "candidate", candidate.candidateID, name

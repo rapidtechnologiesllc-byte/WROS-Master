@@ -1,8 +1,9 @@
 """Sub-vendor invoices and pay-when-paid (CEO 2026-11-02): Finance records a vendor's invoice against
 the contractors' approved timesheets, approves it, and pays it only once the client has paid for
 that work. Rules live in app.services.vendor_invoice_service; this layer maps them to HTTP."""
+import html
 import logging
-from datetime import date
+from datetime import date, datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -20,6 +21,10 @@ from app.schemas.vendor_invoice import (
     VendorInvoiceApprove, VendorInvoiceCreate, VendorInvoiceItem, VendorInvoiceListResponse, VendorInvoicePay,
     VendorInvoiceReject,
 )
+from app.models.sub_vendor import SubVendorRequest
+from app.models.sub_vendor_submission import SubVendorSubmission
+from app.schemas.vendor_invoice import SubmissionAccept, SubmissionReject, SubVendorUpdate
+from app.services import sub_vendor_roles_service as roles_service
 from app.services import vendor_invoice_service as service
 from app.services.vendor_invoice_service import VendorInvoiceError
 
@@ -46,6 +51,21 @@ def _invoice_or_404(db: Session, invoice_id: str, user: Users) -> VendorInvoice:
     return invoice
 
 
+def _vendor_or_404(db: Session, vendor_id: str, user: Users) -> SubVendorAccount:
+    vendor = db.query(SubVendorAccount).filter(SubVendorAccount.id == vendor_id,
+                                               SubVendorAccount.tenant_id == user.tenant_id).first()
+    if vendor is None:
+        raise HTTPException(status_code=404, detail="Sub-vendor not found.")
+    return vendor
+
+
+def _vendor_item(vendor: SubVendorAccount, contractors: int = 0, summary: Optional[dict] = None) -> SubVendorItem:
+    return SubVendorItem(id=vendor.id, company_name=vendor.company_name, contact_email=vendor.contact_email,
+                         status=vendor.status, contractors=contractors, payment_terms_days=vendor.payment_terms_days or 0,
+                         w9_status=vendor.w9_status or "NOT_REQUESTED", is_1099=bool(vendor.is_1099),
+                         receives_new_roles=bool(vendor.receives_new_roles), has_tax_id=bool(vendor.tax_id), **(summary or {}))
+
+
 def _vendor_names(db: Session, tenant_id: int) -> dict:
     return dict(db.query(SubVendorAccount.id, SubVendorAccount.company_name)
                 .filter(SubVendorAccount.tenant_id == tenant_id))
@@ -59,8 +79,8 @@ def list_sub_vendors(db: Session = Depends(get_db), user: Users = Depends(get_cu
                   .group_by(Employee.sub_vendor_id))
     vendors = (db.query(SubVendorAccount).filter(SubVendorAccount.tenant_id == user.tenant_id)
                .order_by(SubVendorAccount.company_name).all())
-    return [SubVendorItem(id=v.id, company_name=v.company_name, contact_email=v.contact_email, status=v.status,
-                          contractors=counts.get(v.id, 0)) for v in vendors]
+    summaries = service.vendor_summaries(db, user.tenant_id)
+    return [_vendor_item(v, counts.get(v.id, 0), summaries.get(v.id)) for v in vendors]
 
 
 @router.post("/sub-vendors", response_model=SubVendorItem, status_code=201, dependencies=CREATE,
@@ -73,8 +93,81 @@ def add_sub_vendor(body: SubVendorCreate, db: Session = Depends(get_db),
     except VendorInvoiceError as exc:
         raise _refuse(exc, db)
     db.commit()
-    return SubVendorItem(id=vendor.id, company_name=vendor.company_name, contact_email=vendor.contact_email,
-                         status=vendor.status)
+    return _vendor_item(vendor)
+
+
+@router.patch("/sub-vendors/{vendor_id}", response_model=SubVendorItem, dependencies=EDIT,
+              summary="Payment terms, W-9 status, 1099 flag, tax id, and whether new roles are emailed to them")
+def update_sub_vendor(vendor_id: str, body: SubVendorUpdate, db: Session = Depends(get_db),
+                      user: Users = Depends(get_current_internal_user)):
+    vendor = _vendor_or_404(db, vendor_id, user)
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(vendor, field, value)
+    db.commit()
+    return _vendor_item(vendor)
+
+
+@router.post("/sub-vendors/{vendor_id}/request-w9", response_model=SubVendorItem, dependencies=EDIT,
+             summary="Email the vendor for their W-9, from the person asking")
+def request_w9(vendor_id: str, db: Session = Depends(get_db), user: Users = Depends(get_current_internal_user)):
+    from app.services import mail_sender
+
+    vendor = _vendor_or_404(db, vendor_id, user)
+    key = f"sub-vendor-w9-{vendor.id}-{datetime.utcnow():%Y%m%d}"
+    sender = mail_sender.sender_for(db, key, [user.UserID], tenant_id=user.tenant_id)
+    draft_id, _, internet_id = sender.create_draft(
+        vendor.contact_email, "W-9 request", f"<p>Please reply with your completed Form W-9 for our records. "
+        f"We need it on file before year-end 1099 reporting.</p><p>{html.escape(user.UserName or '')}</p>", key)
+    sender.send(draft_id)
+    mail_sender.record_sent(db, key, internet_id)
+    vendor.w9_status = "REQUESTED"
+    db.commit()
+    return _vendor_item(vendor)
+
+
+@router.get("/roles", dependencies=[Depends(require_resource_permission("jobs", "view"))],
+            summary="The roles sent to sub-vendors and how many candidates each brought")
+def sub_vendor_roles(db: Session = Depends(get_db), user: Users = Depends(get_current_internal_user)):
+    return roles_service.roles_summary(db, user.tenant_id)
+
+
+@router.get("/submissions", dependencies=[Depends(require_resource_permission("candidates", "view"))],
+            summary="Candidates sub-vendors emailed in for those roles")
+def sub_vendor_submissions(db: Session = Depends(get_db), user: Users = Depends(get_current_internal_user)):
+    return roles_service.submissions_list(db, user.tenant_id)
+
+
+def _submission_or_404(db: Session, submission_id: str, user: Users) -> SubVendorSubmission:
+    row = (db.query(SubVendorSubmission).join(SubVendorRequest, SubVendorRequest.id == SubVendorSubmission.request_id)
+           .filter(SubVendorSubmission.id == submission_id, SubVendorRequest.tenant_id == user.tenant_id).first())
+    if row is None:
+        raise HTTPException(status_code=404, detail="Submission not found.")
+    return row
+
+
+@router.post("/submissions/{submission_id}/accept", dependencies=[Depends(require_resource_permission("candidates", "create"))],
+             summary="Create the candidate from a vendor's submission (Thunder does not start)")
+def accept_submission(submission_id: str, body: SubmissionAccept, db: Session = Depends(get_db),
+                      user: Users = Depends(get_current_internal_user)):
+    try:
+        candidate_id = roles_service.accept_submission(db, user, _submission_or_404(db, submission_id, user),
+                                                       email=body.email, first_name=body.first_name, last_name=body.last_name)
+    except roles_service.SubVendorSubmissionError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"candidate_id": candidate_id}
+
+
+@router.post("/submissions/{submission_id}/reject", dependencies=[Depends(require_resource_permission("candidates", "edit"))],
+             summary="Reject a vendor's submission; the reason goes back to the vendor")
+def reject_submission(submission_id: str, body: SubmissionReject, db: Session = Depends(get_db),
+                      user: Users = Depends(get_current_internal_user)):
+    try:
+        roles_service.reject_submission(db, user, _submission_or_404(db, submission_id, user), body.note)
+    except roles_service.SubVendorSubmissionError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"status": "REJECTED"}
 
 
 def _contractor_item(employee: Employee, vendors: dict) -> ContractorItem:

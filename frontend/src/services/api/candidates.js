@@ -24,6 +24,18 @@ export const updateCandidateThunderEnabled = async (candidateId, enabled) => {
   return data;
 };
 
+export const getPossibleDuplicates = async (candidateId, q = "") => {
+  const { data } = await apiRequest(`/candidates/${candidateId}/possible-duplicates?q=${encodeURIComponent(q)}`, { method: "GET" });
+  return data;
+};
+
+export const mergeCandidate = async (candidateId, intoCandidateId) => {
+  const { data } = await apiRequest(`/candidates/${candidateId}/merge`, {
+    method: "POST", body: JSON.stringify({ into_candidate_id: intoCandidateId }),
+  });
+  return data;
+};
+
 export const getCandidateById = async (candidateId) => {
   const { data } = await apiRequest(`/candidates/${candidateId}`, {
     method: "GET",

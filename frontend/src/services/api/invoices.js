@@ -90,6 +90,17 @@ export const getEligibleVendorTimesheets = async (subVendorId, periodStart, peri
   return data;
 };
 
+const jsonRequest = async (path, method, body) => {
+  const { data } = await apiRequest(path, { method, ...(body ? { body: JSON.stringify(body) } : {}) });
+  return data;
+};
+export const updateSubVendor = (id, body) => jsonRequest(`/vendor-invoices/sub-vendors/${id}`, "PATCH", body);
+export const requestSubVendorW9 = (id) => jsonRequest(`/vendor-invoices/sub-vendors/${id}/request-w9`, "POST");
+export const getSubVendorRoles = () => jsonRequest("/vendor-invoices/roles", "GET");
+export const getSubVendorSubmissions = () => jsonRequest("/vendor-invoices/submissions", "GET");
+export const acceptSubVendorSubmission = (id, body) => jsonRequest(`/vendor-invoices/submissions/${id}/accept`, "POST", body);
+export const rejectSubVendorSubmission = (id, note) => jsonRequest(`/vendor-invoices/submissions/${id}/reject`, "POST", { note });
+
 export const getVendorInvoices = async () => {
   const { data } = await apiRequest("/vendor-invoices", { method: "GET" });
   return data;

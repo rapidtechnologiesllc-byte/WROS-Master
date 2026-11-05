@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Navigate, useParams } from "react-router-dom";
 import { AlertCircle, CheckCircle, X } from "lucide-react";
 import CandidateDetailsScreen from "../../screens/CandidateDetailsScreen";
 import { useSearchParams } from "react-router-dom";
@@ -35,6 +35,11 @@ export default function CandidateDetailsWrapper({
 
   if (loading) {
     return <div>Loading...</div>;
+  }
+
+  // a merged duplicate's old link opens the record kept
+  if (candidate?.mergedIntoId) {
+    return <Navigate to={`/candidates/${candidate.mergedIntoId}`} replace />;
   }
 
   return (
