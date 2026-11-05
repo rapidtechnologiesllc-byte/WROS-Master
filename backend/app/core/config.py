@@ -346,6 +346,8 @@ class Settings:
     CORE_CERT_TASK_DUE_DAYS: int = int(os.getenv("CORE_CERT_TASK_DUE_DAYS", "7"))
     BU_LEADER_MIN_LEVEL: int = int(os.getenv("BU_LEADER_MIN_LEVEL", "14"))
     PARTNER_MIN_LEVEL: int = int(os.getenv("PARTNER_MIN_LEVEL", "16"))
+    # From this level a person answers for every function, so they have no Function of their own
+    ALL_FUNCTIONS_MIN_LEVEL: int = int(os.getenv("ALL_FUNCTIONS_MIN_LEVEL", "15"))
     CEO_LEVEL: int = int(os.getenv("CEO_LEVEL", "17"))
     MFA_TOTP_MIN_LEVEL: int = int(os.getenv("MFA_TOTP_MIN_LEVEL", "14"))
     # auto-invoicing considers this many complete months back (oldest first), so late approvals still bill

@@ -385,7 +385,7 @@ def _resolve(lk: _Lookups, row: Dict[str, str]) -> Spec:
     if row["skills"]:
         spec.skills = [s.strip() for s in row["skills"].replace(";", ",").split(",") if s.strip()]
 
-    if row.get("function"):
+    if row.get("function") and not _answers_for_all_functions(lk, spec.designation):
         spec.department = lk.function(row["function"])
         if spec.department is None:
             errors.append(f"Function '{row['function']}' not found.")
@@ -618,6 +618,15 @@ def _plan_one(lk: _Lookups, number: int, row: Dict[str, str], seen: Dict[str, in
     _check_reporting_line(lk, spec, user, employee, plan)
     plan["errors"] = list(spec.errors)
     return plan, spec
+
+
+def _answers_for_all_functions(lk, designation: Optional[str]) -> bool:
+    """A partner or above answers for every function: a function in the row does not narrow that."""
+    from app.core.config import settings
+    from app.services.org_roles_service import role_for_title
+
+    role = role_for_title(lk.db, lk.tenant_id, designation)
+    return bool(role and (role.hierarchy_level or 0) >= settings.ALL_FUNCTIONS_MIN_LEVEL)
 
 
 def _seat_level(db: Session, tenant_id: int, user: Optional[Users], designation: Optional[str]) -> Optional[int]:

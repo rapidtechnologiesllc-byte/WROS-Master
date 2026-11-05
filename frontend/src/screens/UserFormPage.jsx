@@ -424,7 +424,9 @@ export default function UserFormPage() {
               onChange={(e) => {
                 const title = e.target.value;
                 // a new level means a new set of eligible supervisors
-                setFormData(prev => ({ ...prev, job_title: title, parent_node_id: '' }));
+                // a partner or above answers for every function
+                const clearFunction = roleFor(title)?.all_functions ? { department_id: '', role_template_id: '' } : {};
+                setFormData(prev => ({ ...prev, job_title: title, parent_node_id: '', ...clearFunction }));
               }}
               disabled={saving || isSelf}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange disabled:bg-gray-100"
@@ -500,6 +502,9 @@ export default function UserFormPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Function</label>
+                {selectedRole?.all_functions ? (
+                  <p className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 bg-gray-50">All functions</p>
+                ) : (<>
                 <select
                   value={formData.department_id || ''}
                   onChange={(e) => handleFunctionChange(e.target.value)}
@@ -526,6 +531,7 @@ export default function UserFormPage() {
                 {departments.length === 0 && (
                   <p className="text-xs text-gray-500 mt-1">No functions yet - add them under Organizational Hierarchy → Manage Functions.</p>
                 )}
+                </>)}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>

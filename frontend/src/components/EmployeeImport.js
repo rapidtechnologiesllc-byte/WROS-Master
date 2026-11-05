@@ -273,7 +273,9 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
     : ((template?.countries || [])[0]?.employment_types || []);
   // The manager is recorded in the org chart: the new seat goes under the manager's seat, which the
   // org rules allow anyone above the designation's level (same rule as the backend).
-  const roleLevel = (template?.org_roles || []).find((r) => r.name === form.current_title)?.level;
+  const pickedRole = (template?.org_roles || []).find((r) => r.name === form.current_title);
+  const roleLevel = pickedRole?.level;
+  const allFunctions = Boolean(pickedRole?.all_functions);  // a partner or above answers for every function
   const managers = (template?.managers || []).filter((m) => !roleLevel || m.level > roleLevel);
 
   const submit = async () => {
@@ -282,7 +284,7 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
       setError("Name, email, joining date, business unit, billable and pay are required.");
       return;
     }
-    if (!viaVendor && !form.department_id) {
+    if (!viaVendor && !allFunctions && !form.department_id) {
       setError("Pick their function: it sets their access, and where their cost sits in the P&L.");
       return;
     }
@@ -298,7 +300,7 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
         business_unit_id: Number(form.business_unit_id), company_id: form.company_id || null,
         country: form.country || null, current_title: form.current_title || null,
         reporting_manager_id: form.reporting_manager_id || null,
-        department_id: form.department_id || null, work_location: form.work_location || null,
+        department_id: allFunctions ? null : (form.department_id || null), work_location: form.work_location || null,
         employment_type: viaVendor ? "CONTRACT" : (form.employment_type || null),
         billable: form.billable === "yes", existing_staff: form.existing_staff, hired_for_htd: form.hired_for_htd,
         ...(viaVendor
@@ -329,12 +331,24 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
             {orgOptions.businessUnits.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
         </label>
-        <label><span className={label}>Function {viaVendor ? "" : "*"}</span>
-          <select className={field} value={form.department_id} onChange={set("department_id")}>
-            <option value="">{viaVendor ? "None" : "Pick a function"}</option>
-            {functions.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+        <label><span className={label}>Designation (org role)</span>
+          <select className={field} value={form.current_title} onChange={set("current_title")}>
+            <option value="">Pick a role</option>
+            {(template?.org_roles || []).map((r) => <option key={r.name} value={r.name}>{r.name} (level {r.level})</option>)}
           </select>
         </label>
+        {allFunctions ? (
+          <label><span className={label}>Function</span>
+            <input className={field} value="All functions" disabled />
+          </label>
+        ) : (
+          <label><span className={label}>Function {viaVendor ? "" : "*"}</span>
+            <select className={field} value={form.department_id} onChange={set("department_id")}>
+              <option value="">{viaVendor ? "None" : "Pick a function"}</option>
+              {functions.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+          </label>
+        )}
         <label><span className={label}>Company (delivery center)</span>
           <select className={field} value={form.company_id} onChange={set("company_id")}>
             <option value="">The business unit's only company</option>
@@ -391,12 +405,6 @@ export function AddEmployeeModal({ orgOptions, onClose, onCreated }) {
             </select>
           </label>
         )}
-        <label><span className={label}>Designation (org role)</span>
-          <select className={field} value={form.current_title} onChange={set("current_title")}>
-            <option value="">Pick a role</option>
-            {(template?.org_roles || []).map((r) => <option key={r.name} value={r.name}>{r.name} (level {r.level})</option>)}
-          </select>
-        </label>
         <label><span className={label}>Reporting manager (their seat in the org chart; approves timesheets)</span>
           <select className={field} value={form.reporting_manager_id} onChange={set("reporting_manager_id")}>
             <option value="">None: their BU head</option>

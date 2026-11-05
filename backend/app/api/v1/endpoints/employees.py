@@ -361,7 +361,8 @@ def import_template(
             "pay_bases": list(PAY_BASES), "pay_basis_default": settings.PAY_BASIS_DEFAULT,
             "currencies": list(BILLING_CURRENCIES),
             "columns": [{"name": n, "required": r, "description": d} for n, r, d in IMPORT_COLUMNS],
-            "org_roles": [{"name": r.name, "level": r.hierarchy_level} for r in roles],
+            "org_roles": [{"name": r.name, "level": r.hierarchy_level,
+                           "all_functions": (r.hierarchy_level or 0) >= settings.ALL_FUNCTIONS_MIN_LEVEL} for r in roles],
             "managers": [{"user_id": u.UserID, "name": u.UserName or u.UserEmail, "email": u.UserEmail,
                           "title": u.job_title, "level": node.hierarchy_level} for u, node in seated]}
 

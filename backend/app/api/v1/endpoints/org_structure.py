@@ -312,6 +312,12 @@ def delete_org_node_endpoint(
     db.commit()
     return {"status": "deleted", "id": org_node_id}
 
+def _all_functions_level() -> int:
+    from app.core.config import settings
+
+    return settings.ALL_FUNCTIONS_MIN_LEVEL
+
+
 class DepartmentRequest(BaseModel):
     """A function (Recruitment, HR, Finance ...): app.services.function_service."""
     name: str
@@ -551,6 +557,7 @@ def _role_dict(db: Session, role) -> dict:
             # the role's permission set, edited in the Role Templates editor
             "role_template_id": role.role_template_id,
             # the role's set sees every business unit and company (C-level, or set in the editor)
+            "all_functions": (role.hierarchy_level or 0) >= _all_functions_level(),
             "org_level_access": bool(template and template.org_level_access)}
 
 
