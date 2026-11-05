@@ -39,6 +39,7 @@ from typing import Optional
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from app.core.config import settings
+from app.services.org_roles_service import answers_for_all_functions
 from sqlalchemy.orm import Session
 
 from app.core.data_scope import bu_filter, ensure_assignable
@@ -362,7 +363,7 @@ def import_template(
             "currencies": list(BILLING_CURRENCIES),
             "columns": [{"name": n, "required": r, "description": d} for n, r, d in IMPORT_COLUMNS],
             "org_roles": [{"name": r.name, "level": r.hierarchy_level,
-                           "all_functions": (r.hierarchy_level or 0) >= settings.ALL_FUNCTIONS_MIN_LEVEL} for r in roles],
+                           "all_functions": answers_for_all_functions(r)} for r in roles],
             "managers": [{"user_id": u.UserID, "name": u.UserName or u.UserEmail, "email": u.UserEmail,
                           "title": u.job_title, "level": node.hierarchy_level} for u, node in seated]}
 

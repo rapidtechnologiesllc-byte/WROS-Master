@@ -35,7 +35,7 @@ from app.models.business_unit import BusinessUnit
 from app.models.tenant import Tenant
 from app.models.user import Users
 
-from app.services.org_roles_service import DESIGNATION_LEVELS, DESIGNATION_NAMES  # noqa: E402
+from app.services.org_roles_service import DESIGNATION_LEVELS, DESIGNATION_NAMES, answers_for_all_functions  # noqa: E402
 
 router = APIRouter(prefix="/org", tags=["Organization Structure"])
 
@@ -312,12 +312,6 @@ def delete_org_node_endpoint(
     db.commit()
     return {"status": "deleted", "id": org_node_id}
 
-def _all_functions_level() -> int:
-    from app.core.config import settings
-
-    return settings.ALL_FUNCTIONS_MIN_LEVEL
-
-
 class DepartmentRequest(BaseModel):
     """A function (Recruitment, HR, Finance ...): app.services.function_service."""
     name: str
@@ -557,7 +551,7 @@ def _role_dict(db: Session, role) -> dict:
             # the role's permission set, edited in the Role Templates editor
             "role_template_id": role.role_template_id,
             # the role's set sees every business unit and company (C-level, or set in the editor)
-            "all_functions": (role.hierarchy_level or 0) >= _all_functions_level(),
+            "all_functions": answers_for_all_functions(role),
             "org_level_access": bool(template and template.org_level_access)}
 
 

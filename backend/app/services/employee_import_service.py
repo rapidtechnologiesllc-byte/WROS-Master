@@ -622,11 +622,9 @@ def _plan_one(lk: _Lookups, number: int, row: Dict[str, str], seen: Dict[str, in
 
 def _answers_for_all_functions(lk, designation: Optional[str]) -> bool:
     """A partner or above answers for every function: a function in the row does not narrow that."""
-    from app.core.config import settings
-    from app.services.org_roles_service import role_for_title
+    from app.services.org_roles_service import answers_for_all_functions as answers, role_for_title
 
-    role = role_for_title(lk.db, lk.tenant_id, designation)
-    return bool(role and (role.hierarchy_level or 0) >= settings.ALL_FUNCTIONS_MIN_LEVEL)
+    return answers(role_for_title(lk.db, lk.tenant_id, designation))
 
 
 def _seat_level(db: Session, tenant_id: int, user: Optional[Users], designation: Optional[str]) -> Optional[int]:
