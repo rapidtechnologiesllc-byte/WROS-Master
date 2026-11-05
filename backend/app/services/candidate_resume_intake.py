@@ -33,7 +33,7 @@ def save_parsed_resume(db: Session, candidate: Candidate, text: str,
                        total_experience_years: Any = None) -> Dict[str, Any]:
     """Parse the resume text into candidate_resume_parsed (one row per candidate, replaced) and
     return the parsed fields. Flushes; the caller commits."""
-    from app.models.candidate_resume_parsed import CandidateResumeParsed
+    from app.models.candidate_resume_parsed import PARSER_VERSION, CandidateResumeParsed
     from app.services.resume_completeness_service import calculate_resume_completeness
     from app.services.resume_parser_slm import ResumeSLM
 
@@ -50,6 +50,7 @@ def save_parsed_resume(db: Session, candidate: Candidate, text: str,
     row.total_experience_years = years
     row.total_experience_months = round(years * 12) if years is not None else None
     row.parsed_at = datetime.utcnow()
+    row.parser_version = PARSER_VERSION
     db.flush()
     score = calculate_resume_completeness(row)
     row.resume_completeness_score, row.score_calculated_at = score, datetime.utcnow()
@@ -121,6 +122,100 @@ def fill_empty_sections(db: Session, candidate: Candidate, parsed: Dict[str, Any
     if filled:
         logger.info(f"[ResumeIntake] {candidate_id}: filled {filled} from the resume")
     return filled
+
+
+def _same(a: Any, b: Any) -> bool:
+    return str(a or "").strip().lower() == str(b or "").strip().lower()
+
+
+def refresh_from_resume(db: Session, row) -> List[str]:
+    """Read a resume on file again with the current parser. What the older parser wrote goes (a row is the parser's only
+    if it still reads exactly as parsed); what a person typed stays; what was missed is added. Flushes."""
+    from app.services.candidate_service import experience_years
+
+    candidate = db.get(Candidate, row.candidate_id)
+    old = {"jobs": [j for j in row.work_history or [] if isinstance(j, dict)],
+           "education": [e for e in row.education or [] if isinstance(e, dict)],
+           "skills": [str(s) for s in row.skills or []], "certifications": [c for c in row.certifications or [] if isinstance(c, dict)]}
+    cid = row.candidate_id
+    if candidate is None:
+        return []
+    parsed = save_parsed_resume(db, candidate, row.raw_text, row.total_experience_years)
+
+    forms = db.query(CandidateExperienceForm).filter(CandidateExperienceForm.candidateID == cid).all()
+    for form in forms:
+        if any(_same(form.company_name, j.get("employer")) and _same(form.job_title, j.get("title")) for j in old["jobs"]):
+            db.delete(form)
+    schools = db.query(CandidateEducationForm).filter(CandidateEducationForm.candidateID == cid).all()
+    for form in schools:
+        if any(_same(form.education_institute, e.get("institution")) and _same(form.degree, e.get("degree")) for e in old["education"]):
+            db.delete(form)
+    skills = db.query(CandidateProfileSkill).filter(CandidateProfileSkill.candidate_id == cid).all()
+    for skill in skills:
+        if any(_same(skill.name, s) for s in old["skills"]):
+            db.delete(skill)
+    certifications = db.query(CandidateCertification).filter(CandidateCertification.candidate_id == cid).all()
+    for certificate in certifications:
+        if any(_same(certificate.name, c.get("name")) for c in old["certifications"]):
+            db.delete(certificate)
+    db.flush()
+
+    added: List[str] = []
+    present = db.query(CandidateExperienceForm).filter(CandidateExperienceForm.candidateID == cid).all()
+    for job in parsed.get("work_history") or []:
+        if isinstance(job, dict) and (job.get("employer") or job.get("title")) and not any(
+                _same(p.company_name, job.get("employer")) and _same(p.job_title, job.get("title")) for p in present):
+            start, end = _month(job.get("start_date")), _month(job.get("end_date"))
+            db.add(CandidateExperienceForm(candidateID=cid, company_name=job.get("employer"), job_title=job.get("title"), start_date=start,
+                                           end_date=end, year_of_experience=experience_years(start, end), responsibilities=job.get("description")))
+            added.append("Experience")
+    present = db.query(CandidateEducationForm).filter(CandidateEducationForm.candidateID == cid).all()
+    for entry in parsed.get("education") or []:
+        if isinstance(entry, dict) and (entry.get("institution") or entry.get("degree")) and not any(
+                _same(p.education_institute, entry.get("institution")) and _same(p.degree, entry.get("degree")) for p in present):
+            db.add(CandidateEducationForm(candidateID=cid, education_institute=entry.get("institution"), degree=entry.get("degree"),
+                                          field_of_study=entry.get("field"),
+                                          year_of_passing=str(entry["graduation_year"]) if entry.get("graduation_year") else None))
+            added.append("Education")
+    present = db.query(CandidateProfileSkill).filter(CandidateProfileSkill.candidate_id == cid).all()
+    has_primary = any(p.is_primary for p in present)
+    for name in parsed.get("skills") or []:
+        name = str(name).strip()
+        if name and not any(_same(p.name, name) for p in present):
+            db.add(CandidateProfileSkill(candidate_id=cid, name=name[:255], is_primary=not has_primary))
+            has_primary = True
+            added.append("Skills")
+    if ", ".join(old["skills"]) == (candidate.candidateSkills or "") and parsed.get("skills"):
+        candidate.candidateSkills = ", ".join(str(s) for s in parsed["skills"])
+    present = db.query(CandidateCertification).filter(CandidateCertification.candidate_id == cid).all()
+    for certificate in parsed.get("certifications") or []:
+        if isinstance(certificate, dict) and certificate.get("name") and not any(_same(p.name, certificate["name"]) for p in present):
+            db.add(CandidateCertification(candidate_id=cid, name=str(certificate["name"])[:255], organization=certificate.get("issuer")))
+            added.append("Certifications")
+    db.flush()
+    return sorted(set(added))
+
+
+def run_resume_refresh_job(db: Session, limit: int = 200) -> Dict[str, int]:
+    """Every resume read by an older parser is read again (existing candidates get what new ones get). Commits per
+    candidate; a resume that fails stays on the older version and is retried, and the others carry on."""
+    from app.models.candidate_resume_parsed import PARSER_VERSION, CandidateResumeParsed
+
+    ids = [r[0] for r in db.query(CandidateResumeParsed.id).filter(CandidateResumeParsed.parser_version != PARSER_VERSION,
+                                                                   CandidateResumeParsed.raw_text.isnot(None)).limit(limit).all()]
+    refreshed = failed = 0
+    for row_id in ids:
+        try:
+            refresh_from_resume(db, db.get(CandidateResumeParsed, row_id))
+            db.commit()
+            refreshed += 1
+        except Exception as exc:
+            db.rollback()
+            failed += 1
+            logger.error(f"[ResumeIntake] resume row {row_id} could not be read again: {exc}", exc_info=True)
+    if refreshed or failed:
+        logger.info(f"[ResumeIntake] resumes read again: {refreshed} refreshed, {failed} failed")
+    return {"refreshed": refreshed, "failed": failed}
 
 
 def store_resume_document(db: Session, candidate: Candidate, name: str, content: bytes, uploaded_by: str,

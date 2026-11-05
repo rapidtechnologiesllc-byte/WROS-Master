@@ -211,6 +211,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         email: profile?.candidate_email || "",
         secondary_email: profile?.candidate_secondary_email || "",
         secondary_mobile: profile?.candidate_secondary_mobile || "",
+        linkedin_url: profile?.linkedin_url || "",
         mobile_code: splitPhone(profile?.candidate_mobile).code,
         mobile_number: splitPhone(profile?.candidate_mobile).number,
         job_title: profile?.candidate_job_title || "",
@@ -252,6 +253,7 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
         updatePayload.candidate_email = editForm.email?.trim() || null;
         updatePayload.candidate_secondary_email = editForm.secondary_email?.trim() || null;
         updatePayload.candidate_secondary_mobile = editForm.secondary_mobile?.trim() || null;
+        updatePayload.linkedin_url = editForm.linkedin_url?.trim() || null;
         updatePayload.candidate_mobile = joinPhone(editForm.mobile_code, editForm.mobile_number) || null;
         updatePayload.candidate_job_title = editForm.job_title || null;
         updatePayload.candidate_gender = editForm.gender || null;
@@ -399,6 +401,12 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
               value={editForm.secondary_mobile || ""}
               onChange={(v) => setEditForm({...editForm, secondary_mobile: v})}
             />
+            <Input
+              label="LinkedIn"
+              placeholder="https://www.linkedin.com/in/name"
+              value={editForm.linkedin_url || ""}
+              onChange={(v) => setEditForm({...editForm, linkedin_url: v})}
+            />
             <PhoneField
               label="Mobile"
               code={editForm.mobile_code}
@@ -445,6 +453,9 @@ export default function ProfileTabEditable({ candidateId, candidate = {}, onRefr
             <InfoDisplay label="Secondary Email" value={profile?.candidate_secondary_email} />
             <InfoDisplay label="Mobile" value={profile?.candidate_mobile} />
             <InfoDisplay label="Secondary Mobile" value={profile?.candidate_secondary_mobile} />
+            <InfoDisplay label="LinkedIn" value={profile?.linkedin_url ? (
+              <a href={profile.linkedin_url} target="_blank" rel="noreferrer" className="text-blue-600 underline">{profile.linkedin_url.replace("https://www.", "")}</a>
+            ) : null} />
             <InfoDisplay label="Job Title" value={profile?.candidate_job_title} />
             <InfoDisplay label="Gender" value={profile?.candidate_gender} />
             <InfoDisplay label="Date of Birth" value={profile?.candidate_date_of_birth} />

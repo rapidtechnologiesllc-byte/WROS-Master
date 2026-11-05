@@ -43,6 +43,11 @@ _JOBS = (
     # Teams transcripts of finished interviews; recording and transcription on for upcoming ones
     ScheduledJob("interview_transcripts", "app.services.interview_transcript_service:run_interview_transcripts_job",
                  timedelta(hours=1), timeout_s=300),
+    # Existing candidates get what new ones get: resumes read again when the parser improves; blank recruiter and BU
+    ScheduledJob("resume_refresh", "app.services.candidate_resume_intake:run_resume_refresh_job",
+                 timedelta(hours=1), timeout_s=300),
+    ScheduledJob("submitted_candidates_backfill", "app.services.candidate_assignment_service:run_submitted_candidates_backfill",
+                 timedelta(hours=1), timeout_s=120),
     ScheduledJob("engagement_metrics", "app.services.engagement_metrics_service:run_engagement_metrics_job",
                  timedelta(hours=4), timeout_s=300),
     # internal only: re-derives hiring stages from facts and backfills pipelines

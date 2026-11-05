@@ -131,6 +131,7 @@ def _build_candidate_response(
         candidate_email=candidate.candidateEmail,
         candidate_secondary_email=candidate.candidateSecondaryEmail,
         candidate_secondary_mobile=candidate.candidateSecondaryMobile,
+        linkedin_url=candidate.linkedin_url,
         candidate_mobile=candidate.candidateMobile,
         candidate_role=getattr(candidate, 'candidateRole', None),
         candidate_job_title=candidate.candidateJobTitle,
@@ -587,6 +588,8 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         )
     
     # Store original values for SLM correction tracking
+    from app.services.candidate_service import find_duplicate_candidate
+
     corrections = {}
 
     # Update only provided fields and track corrections
@@ -689,13 +692,22 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         if old_val != request.candidate_job_title:
             corrections['candidate_job_title'] = (old_val, request.candidate_job_title)
 
+    if "linkedin_url" in request.model_fields_set:
+        url = (request.linkedin_url or "").strip().rstrip("/") or None
+        if url:
+            handle = re.search(r"linkedin\.com/in/([^/?#\s]+)", url, re.IGNORECASE)
+            if not handle:
+                raise HTTPException(status_code=400, detail="Give the LinkedIn profile link, like https://www.linkedin.com/in/name")
+            url = f"https://www.linkedin.com/in/{handle.group(1)}"
+            holder = find_duplicate_candidate(db, linkedin_url=url)[0]
+            if holder is not None and holder.candidateID != candidate_id:
+                raise HTTPException(status_code=409, detail=f"This LinkedIn profile already belongs to candidate {holder.candidateID}")
+        candidate.linkedin_url = url
     if "candidate_secondary_mobile" in request.model_fields_set:
         candidate.candidateSecondaryMobile = (request.candidate_secondary_mobile or "").strip() or None
     if "candidate_secondary_email" in request.model_fields_set:
         secondary = str(request.candidate_secondary_email or "").strip().lower() or None
         if secondary and secondary != (candidate.candidateSecondaryEmail or "").lower():
-            from app.services.candidate_service import find_duplicate_candidate
-
             holder = find_duplicate_candidate(db, email=secondary)[0]
             if holder is not None and holder.candidateID != candidate_id:
                 raise HTTPException(status_code=409, detail=f"{secondary} already belongs to candidate {holder.candidateID}")
