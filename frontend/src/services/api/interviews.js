@@ -128,6 +128,11 @@ export const deleteInterviewPanel = async (panelId) => {
   return data;
 };
 
+export const markCandidateNoShow = async (interviewId) => {
+  const { data } = await apiRequest(`/interviews/${interviewId}/no-show`, { method: "POST" });
+  return data;
+};
+
 export const getFeedbackForm = async (interviewId) => {
   const { data } = await apiRequest(`/interviews/${interviewId}/feedback-form`, { method: "GET" });
   return data;

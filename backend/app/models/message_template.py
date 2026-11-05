@@ -23,6 +23,7 @@ TEMPLATE_KEYS = ("GREETING_WHATSAPP", "GREETING_EMAIL", "EMPLOYEE_WELCOME_EMAIL"
                  "CANDIDATE_STATUS_ONBOARDED", "CANDIDATE_STATUS_REJECTED",
                  # candidate notices through Thunder (app.services.thunder_mail.candidate_notices)
                  "CANDIDATE_INTERVIEW_CANCELLED", "CANDIDATE_OFFER_CANCELLED",
+                 "CANDIDATE_INTERVIEW_NO_SHOW", "CANDIDATE_NO_SHOW_FOLLOWUP",
                  # occasion emails (app.services.occasion_email_service)
                  "OCCASION_CANDIDATE_BIRTHDAY", "OCCASION_EMPLOYEE_BIRTHDAY", "OCCASION_WORK_ANNIVERSARY",
                  "OCCASION_MARRIAGE_ANNIVERSARY", "OCCASION_PROJECT_MILESTONE", "OCCASION_APPRECIATION")

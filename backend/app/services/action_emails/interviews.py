@@ -84,6 +84,33 @@ def notify_interview_changed(db: Session, interview: Interview, *, actor: Users,
 
 
 @after_commit("interviews")
+def notify_candidate_no_show(db: Session, interview: Interview, *, actor: Users) -> int:
+    panel = db.query(InterviewPanel).filter(InterviewPanel.id == interview.panel_id).first()
+    if panel is None:
+        raise ValueError(f"Interview {interview.id} has unknown panel {interview.panel_id}")
+    name = _candidate_name(_candidate(db, interview.candidate_id), interview.candidate_id)
+    return send(db, interview_team(db, panel), actor_id=actor.UserID, key=f"interview-no-show-{interview.id}",
+                subject=f"Did not join: {_round(panel, name)}",
+                opening=f"{name_of(actor)} reported that {name} did not join the {_round(panel, name)}. We have emailed "
+                        f"them to reschedule and will follow up if they don't answer.",
+                details=[_when(interview)], link_path=candidate_path(interview.candidate_id), link_label="Open the candidate")
+
+
+@after_commit("interviews")
+def notify_no_show_reply(db: Session, interview: Interview) -> int:
+    """Once: send() keeps one email per key."""
+    panel = db.query(InterviewPanel).filter(InterviewPanel.id == interview.panel_id).first()
+    if panel is None:
+        raise ValueError(f"Interview {interview.id} has unknown panel {interview.panel_id}")
+    name = _candidate_name(_candidate(db, interview.candidate_id), interview.candidate_id)
+    return send(db, interview_team(db, panel), actor_id=None, key=f"interview-no-show-reply-{interview.id}",
+                subject=f"{name} replied after missing an interview",
+                opening=f"{name} replied after missing the {_round(panel, name)}. Their reply is on the candidate's record; "
+                        f"reschedule the interview from there.",
+                details=[], link_path=candidate_path(interview.candidate_id), link_label="Open the candidate")
+
+
+@after_commit("interviews")
 def notify_interview_deleted(db: Session, team: Team, *, interview_id: int, round_label: str,
                              candidate_id: str, actor: Users) -> int:
     """team and round_label are read before the delete (the rows are gone after the commit)."""

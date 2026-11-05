@@ -137,7 +137,7 @@ def close_answered_feedback_tasks(db: Session) -> int:
         interview = db.query(Interview).filter(Interview.id == task.interview_id).first()
         answered = db.query(InterviewFeedback.id).filter(InterviewFeedback.interview_id == task.interview_id,
                                                          InterviewFeedback.interviewer_id == task.assigned_to_user_id).first()
-        if interview is None or interview.status == "Cancelled" or answered:
+        if interview is None or interview.status in ("Cancelled", "No Show") or answered:
             task.status = "COMPLETED"
             task.completed_at = datetime.utcnow()
             closed += 1

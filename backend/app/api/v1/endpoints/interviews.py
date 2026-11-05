@@ -1394,6 +1394,8 @@ def update_interview(
         interview.outlook_event_id = request.outlook_event_id
     if request.status is not None:
         interview.status = request.status
+    if previous_status == "No Show" and interview.start_time != previous_start and interview.status == "No Show":
+        interview.status, interview.feedback_status = "Scheduled", "Pending"  # a new time: it is on again
     
     # Validate time if both are set
     if interview.end_time <= interview.start_time:
@@ -1516,6 +1518,25 @@ def _record_interview_completed(db: Session, interview: Interview, user) -> None
                             note=f"Round: {(panel.round_name if panel else None) or 'Interview'}\n\nPanel Feedback:\n\n" + "\n\n".join(said),
                             performed_by_id=user.UserID, performed_by_name=user.UserName or user.UserEmail, interview_id=interview.id,
                             event_at=interview.end_time or interview.start_time or datetime.utcnow()))
+
+
+@router.post(
+    "/{interview_id}/no-show",
+    dependencies=[Depends(require_resource_permission("my-tasks", "view"))],
+)
+def candidate_did_not_join(interview_id: int, db: Session = Depends(get_db), user = Depends(get_current_internal_user)):
+    """An interviewer on the panel, or anyone who may edit interviews, says the candidate did not join."""
+    from app.services.interview_missed_service import mark_no_show
+
+    interview = _visible_interview_or_404(db, user, interview_id, panel_member_ok=True)
+    if not _is_panel_member(db, user, interview.panel_id) and not RoleTemplatePermissionService.has_permission(
+            db, user.UserID, "interviews", "edit", user.tenant_id):
+        raise HTTPException(status_code=403, detail="Only the interviewers on this panel can say this.")
+    try:
+        email_id = mark_no_show(db, interview, user)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return {"status": interview.status, "candidate_emailed": email_id is not None}
 
 
 @router.get(

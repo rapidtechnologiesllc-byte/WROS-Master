@@ -50,6 +50,10 @@ _JOBS = (
                  timedelta(hours=6), timeout_s=300),
     ScheduledJob("joining_readiness", "app.services.joining_readiness_service:run_joining_readiness_job",
                  timedelta(hours=6), timeout_s=300),
+    # a candidate who missed an interview and has not answered
+    ScheduledJob("interview_no_show_followups", "app.services.interview_missed_service:run_followups",
+                 timedelta(hours=1), timeout_s=120, sends_external=True,
+                 backlog_guard="app.services.interview_missed_service:backlog_guard"),
     ScheduledJob("welcome_followup", "app.services.account_activation_service:run_welcome_followup_job",
                  timedelta(hours=6), timeout_s=120),
     ScheduledJob("interview_feedback", "app.services.interview_transcript_service:run_interview_feedback_job",

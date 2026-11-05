@@ -279,6 +279,9 @@ class Settings:
     INTERVIEW_FEEDBACK_NUDGE_MINUTES_AFTER: tuple = tuple(
         int(m) for m in os.getenv("INTERVIEW_FEEDBACK_NUDGE_MINUTES_AFTER", "60,1440").split(",") if m.strip())
     INTERVIEW_REMINDER_GRACE_MINUTES: int = int(os.getenv("INTERVIEW_REMINDER_GRACE_MINUTES", "30"))
+    # A candidate who missed an interview: more emails after the first, and the wait between them
+    INTERVIEW_NO_SHOW_FOLLOWUPS: int = int(os.getenv("INTERVIEW_NO_SHOW_FOLLOWUPS", "2"))
+    INTERVIEW_NO_SHOW_FOLLOWUP_HOURS: int = int(os.getenv("INTERVIEW_NO_SHOW_FOLLOWUP_HOURS", "48"))
     # task_due_reminders job: a task's due email is sent only this many minutes after its due time
     TASK_DUE_REMINDER_GRACE_MINUTES: int = int(os.getenv("TASK_DUE_REMINDER_GRACE_MINUTES", "60"))
     

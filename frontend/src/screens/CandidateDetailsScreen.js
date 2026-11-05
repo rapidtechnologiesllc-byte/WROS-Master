@@ -49,6 +49,7 @@ import { managerReviewApprove } from "../services/api/preOnboarding";
 import { getEmailBodyHTML } from "../utils/preboardingEmailTemplate";
 import ScreenErrorDisplay from "../components/ScreenErrorDisplay";
 import { getAllOffers } from "../services/api/offerLetters";
+import { getCandidatePipeline } from "../services/api/hiringPipeline";
 import PreviousOfferModal from "./PreviousOfferModal";
 import { alertDialog } from "../utils/dialogs";
 
@@ -326,7 +327,16 @@ export default function CandidateDetailsScreen({
   const [candidateJobs, setCandidateJobs] = useState([]);
   const [selectedJobId, setSelectedJobId] = useState("");
   const [loadingCandidateJobs, setLoadingCandidateJobs] = useState(false);
-  const [candidateDocCount, setCandidateDocCount] = useState(null);
+  // Where the candidate is in screen -> L1 -> L2 -> offer, and what is needed next
+  const [hiringStage, setHiringStage] = useState(null);
+  useEffect(() => {
+    if (!candidate?.id) return undefined;
+    let live = true;
+    getCandidatePipeline(candidate.id)
+      .then((data) => { if (live) setHiringStage(data); })
+      .catch((err) => console.warn("[CandidateDetails] hiring stage unavailable:", err?.message || err));
+    return () => { live = false; };
+  }, [candidate?.id]);
   const [offerId, setOfferId] = useState(null);
   const [previousOffer, setPreviousOffer] = useState([]);
   const [previousOfferModalState, setPreviousOfferModalState] = useState(false);
@@ -525,18 +535,6 @@ export default function CandidateDetailsScreen({
 
   useEffect(() => {
     if (limitedMode) return;
-    const loadDocumentCount = async () => {
-      try {
-        const docs = await getCandidateDocuments(candidate?.id);
-        setCandidateDocCount(docs);
-      } catch (error) {
-        console.error(error);
-      }
-    };
-    if (candidate?.id) {
-      loadDocumentCount();
-    }
-
     // Load candidate job applications for Schedule button visibility
     const loadCandidateJobs = async () => {
       try {
@@ -1269,10 +1267,6 @@ ${formattedJD}
     }
   };
 
-  const handleDocumentsUpdate = (docs) => {
-    setCandidateDocCount(docs);
-  };
-
   return (
     <>
       <div className="grid gap-5">
@@ -1366,6 +1360,12 @@ ${formattedJD}
                     <span>-</span>
                   )}
                   <span className="truncate">{candidate?.jobTitle || "-"}</span>
+                  {hiringStage?.stage ? (
+                    <span className="text-gray-700">
+                      Hiring stage: <strong>{hiringStage.stage}</strong>
+                      {hiringStage.blockers?.length ? ` · Next: ${hiringStage.blockers.join("; ")}` : ""}
+                    </span>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -1393,9 +1393,7 @@ ${formattedJD}
                 </AcceptButton>
               ) : null}
               {hasPermission("offer-letters", "create") &&
-                candidateDocCount?.total_documents > 0 &&
-                candidateDocCount?.verified_count ===
-                  candidateDocCount?.total_documents && (
+                hiringStage?.stage === "OFFER" && (
                   <Button
                     variant="secondary"
                     onClick={openOfferModal}
@@ -1675,7 +1673,6 @@ ${formattedJD}
                 candidateId={candidate?.id}
                 candidateEmail={candidate?.email || candidate?.candidate_email}
                 candidateName={candidate?.name || candidate?.candidate_name}
-                onDocumentsUpdate={handleDocumentsUpdate}
               />
             )}
 
