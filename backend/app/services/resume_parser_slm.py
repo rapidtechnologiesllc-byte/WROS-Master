@@ -35,8 +35,8 @@ class ResumeSLM:
     # Known technical skills database (can be expanded)
     TECHNICAL_SKILLS = {
         # Programming Languages
-        "python", "javascript", "java", "csharp", "c#", "ruby", "golang", "go",
-        "typescript", "rust", "kotlin", "swift", "php", "perl", "r", "scala",
+        "python", "javascript", "java", "csharp", "c#", "ruby", "golang",
+        "typescript", "kotlin", "php", "perl", "scala",
         "julia", "haskell", "elixir", "clojure", "groovy", "lua", "bash",
 
         # Databases
@@ -84,6 +84,199 @@ class ResumeSLM:
         "arabic", "hebrew", "hindi", "vietnamese", "thai", "polish",
     }
 
+    # --- Section-based reading: a resume's headings say what each block is, whatever the employer is called.
+    HEADINGS = {
+        "experience": ("professional experience", "work experience", "experience", "employment history", "employment",
+                       "work history", "career history", "relevant experience"),
+        "education": ("education", "academic background", "academic qualifications", "qualifications", "education & training"),
+        "certifications": ("certifications", "certification", "certificates", "licenses", "licenses & certifications",
+                           "certifications & licenses", "professional certifications", "credentials"),
+        "skills": ("skills", "core skills", "technical skills", "key skills", "core competencies", "competencies", "expertise",
+                   "skills & tools", "technologies"),
+        "other": ("professional summary", "summary", "profile", "objective", "projects", "languages", "awards", "references",
+                  "publications", "interests", "achievements", "personal details"),
+    }
+    MONTHS = {m: i + 1 for i, m in enumerate(("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"))}
+    _DATE = r"(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?,?\s+\d{4}|\d{1,2}/\d{4}|\d{4}-\d{2}|(?:19|20)\d{2})"
+    DATE_RANGE = re.compile(rf"(?<![\w(])({_DATE})\s*(?:\u2013|\u2014|-|to|until)\s*({_DATE}|present|current|now|till date|to date|ongoing)\b",
+                            re.IGNORECASE)
+    TITLE_WORDS = ("engineer", "developer", "manager", "analyst", "designer", "architect", "lead", "consultant", "director", "head",
+                   "specialist", "associate", "administrator", "officer", "programmer", "tester", "president", "recruiter", "intern")
+    ISSUERS = ("Guidewire", "AWS", "Amazon", "Microsoft", "Azure", "Google", "Oracle", "Sun", "Cisco", "PMI", "Scrum Alliance",
+               "Salesforce", "SAFe", "ISTQB", "IBM", "CompTIA", "ITIL", "TOGAF", "Duck Creek")
+    INSTITUTION_WORDS = ("university", "college", "institute", "school", "academy", "polytechnic", "iit ", "nit ", "vidyalaya")
+
+    @staticmethod
+    def _sections(text: str) -> Dict[str, List[str]]:
+        """The lines under each known heading. Same-line lists ("Skills: Python, SQL") stay with their heading."""
+        lookup = {name: kind for kind, names in ResumeSLM.HEADINGS.items() for name in names}
+        sections: Dict[str, List[str]] = {}
+        current = None
+        for raw in (text or "").splitlines():
+            line = raw.strip()
+            bare = re.sub(r"[:\s]+$", "", line).lower()
+            if bare in lookup:
+                current = lookup[bare]
+                sections.setdefault(current, [])
+                continue
+            inline = re.match(r"^([A-Za-z &]{4,35}):\s*(.+)$", line)
+            if inline and inline.group(1).lower() in lookup:
+                kind = lookup[inline.group(1).lower()]
+                sections.setdefault(kind, []).append(inline.group(2))
+                current = None if kind == "skills" else kind
+                continue
+            if current and line:
+                sections[current].append(line)
+        return sections
+
+    @staticmethod
+    def _month_of(value: Optional[str]) -> Optional[str]:
+        """'YYYY-MM' from "Oct 2022", "10/2022", "2022-10" or "2022"; None for present."""
+        value = (value or "").strip().lower().replace(",", "").replace(".", "")
+        match = re.match(r"^([a-z]{3})[a-z]*\s+(\d{4})$", value)
+        if match and match.group(1) in ResumeSLM.MONTHS:
+            return f"{match.group(2)}-{ResumeSLM.MONTHS[match.group(1)]:02d}"
+        match = re.match(r"^(\d{1,2})/(\d{4})$", value)
+        if match:
+            return f"{match.group(2)}-{int(match.group(1)):02d}"
+        match = re.match(r"^(\d{4})-(\d{2})$", value)
+        if match:
+            return value
+        return f"{value}-01" if re.match(r"^(19|20)\d{2}$", value) else None
+
+    @staticmethod
+    def _looks_like_title(text: str) -> bool:
+        lowered = text.lower()
+        return any(word in lowered for word in ResumeSLM.TITLE_WORDS)
+
+    @staticmethod
+    def _is_label_line(line: str) -> bool:
+        return len(line) <= 90 and not line.endswith((".", ";", ":")) and not line.startswith(("\u2022", "*", "-", "\u25cf"))
+
+    @staticmethod
+    def _section_jobs(lines: List[str]) -> List[Dict]:
+        # a job's dates head its line; dates in brackets or in a long line belong to a project inside the job
+        headers = [(i, m) for i, m in ((i, ResumeSLM.DATE_RANGE.search(l)) for i, l in enumerate(lines))
+                   if m and len(lines[i]) <= 140 and lines[i][:m.start()].count("(") <= lines[i][:m.start()].count(")")]
+        jobs = []
+        taken: set = set()
+        for position, (index, match) in enumerate(headers):
+            line = lines[index]
+            before = re.sub(r"[\s,|\u2013\u2014-]+$", "", line[:match.start()]).strip()
+            employer = title = None
+            parts = [p.strip() for p in re.split(r"\t|\s{2,}\|\s{2,}|\s\|\s", before) if p.strip()] if before else []
+            if len(parts) == 1:
+                at = re.match(r"^(.+?)\s+(?:at|@)\s+(.+)$", parts[0])
+                comma = [p.strip() for p in parts[0].split(",") if p.strip()]
+                if at:
+                    title, employer = at.group(1), at.group(2)
+                elif len(comma) == 2 and ResumeSLM._looks_like_title(comma[0]):
+                    title, employer = comma
+                else:
+                    employer = parts[0]
+            elif len(parts) >= 2:
+                title, employer = (parts[0], parts[1]) if ResumeSLM._looks_like_title(parts[0]) else (parts[1], parts[0])
+            floor = headers[position - 1][0] + 1 if position else 0
+            above = [i for i in range(max(floor, index - 2), index) if ResumeSLM._is_label_line(lines[i]) and i not in taken]
+            if not before and above:  # the dates stand alone: the lines above name the job
+                labels = [lines[i] for i in above]
+                taken.update(above)
+                if len(labels) == 2:
+                    title, employer = labels if ResumeSLM._looks_like_title(labels[0]) else labels[::-1]
+                elif ResumeSLM._looks_like_title(labels[0]):
+                    title = labels[0]
+                else:
+                    employer = labels[0]
+            following = index + 1
+            limit = headers[position + 1][0] if position + 1 < len(headers) else len(lines)
+            if not title and following < limit and ResumeSLM._is_label_line(lines[following]):
+                title = lines[following]
+                taken.add(following)
+                following += 1
+            elif not employer and following < limit and ResumeSLM._is_label_line(lines[following]):
+                employer = lines[following]
+                taken.add(following)
+                following += 1
+            # a stacked next job's labels sit just above its dates, not in this job's text
+            next_above = set()
+            if position + 1 < len(headers) and not lines[headers[position + 1][0]][:headers[position + 1][1].start()].strip():
+                next_above = {i for i in range(max(following, limit - 2), limit) if ResumeSLM._is_label_line(lines[i])}
+            description = [lines[i] for i in range(following, limit) if i not in next_above]
+            jobs.append({"employer": employer, "title": title, "start_date": ResumeSLM._month_of(match.group(1)),
+                         "end_date": ResumeSLM._month_of(match.group(2)), "description": " ".join(description)[:2000] or None})
+        return [j for j in jobs if j["employer"] or j["title"]]
+
+    @staticmethod
+    def _section_certifications(lines: List[str]) -> List[Dict]:
+        found = []
+        for line in lines:
+            line = re.sub(r"^[\u2022*\u25cf\-\u2013\s]+", "", line)
+            prefix = ""
+            head = re.match(r"^([^:]{2,60}):\s*(.+)$", line)
+            if head and ";" in head.group(2) or head and re.search(r"(19|20)\d{2}", head.group(2)):
+                prefix, line = head.group(1).strip(), head.group(2)
+            for item in re.split(r";", line):
+                item = item.strip()
+                if len(item) < 3:
+                    continue
+                year = re.search(r"\b((?:19|20)\d{2})\b", item)
+                name = re.sub(r"[,\s\-\u2013(]*\b(?:19|20)\d{2}\)?\s*$", "", item).strip(" ,")
+                name = f"{prefix}: {name}" if prefix else name
+                issuer = next((v for v in ResumeSLM.ISSUERS if re.search(rf"\b{re.escape(v)}\b", name, re.IGNORECASE)), None)
+                if name and not any(c["name"].lower() == name.lower() for c in found):
+                    found.append({"name": name[:255], "issuer": issuer, "year": int(year.group(1)) if year else None})
+        return found
+
+    @staticmethod
+    def _section_education(lines: List[str]) -> List[Dict]:
+        pieces: List[str] = []
+        for line in lines:
+            pieces.extend(p.strip() for p in re.split(r"\s+\|\s+", re.sub(r"^[\u2022*\u25cf\-\u2013\s]+", "", line)) if p.strip())
+        entries: List[Dict] = []
+        pending: Optional[Dict] = None
+        for piece in pieces:
+            year = re.search(r"\b((?:19|20)\d{2})\b", piece)
+            body = re.sub(r"[,\s\-\u2013(]*\b(?:19|20)\d{2}\)?\s*$", "", piece).strip(" ,")
+            segments = [s.strip() for s in body.split(",") if s.strip()]
+            institution = next((s for s in segments if any(w in f"{s.lower()} " for w in ResumeSLM.INSTITUTION_WORDS)), None)
+            others = [s for s in segments if s != institution]
+            degree = others[0] if others else None
+            if institution:
+                institution = re.sub(r"\s*\([^)]*\)\s*$", "", institution).strip()
+            if pending and (not institution or not pending["degree"]) and not (institution and pending["institution"]):
+                pending["institution"] = pending["institution"] or institution
+                pending["degree"] = pending["degree"] or degree
+                pending["graduation_year"] = pending["graduation_year"] or (int(year.group(1)) if year else None)
+                entries.append(pending)
+                pending = None
+                continue
+            entry = {"institution": institution, "degree": degree, "field": None, "graduation_year": int(year.group(1)) if year else None}
+            if institution and degree or (institution or degree) and year:
+                entries.append(entry)
+            else:
+                pending = entry
+        if pending:
+            entries.append(pending)
+        for entry in entries:
+            field = re.search(r"\bin\s+([A-Z][^,]{1,80})$", entry["degree"] or "")
+            entry["field"] = field.group(1).strip() if field else None
+        return entries
+
+    @staticmethod
+    def _section_skills(lines: List[str]) -> List[str]:
+        skills: List[str] = []
+        for line in lines:
+            line = re.sub(r"^[\u2022*\u25cf\-\u2013\s]+", "", line)
+            if "\t" in line:  # "Category<TAB>A, B"
+                line = line.split("\t", 1)[1]
+            elif re.match(r"^[A-Za-z &/]{2,30}:\s", line):
+                line = line.split(":", 1)[1]
+            for item in re.split(r"[,;|\u2022]", line):
+                item = item.split(":")[-1].strip(" .")
+                if 1 < len(item) <= 40 and item.lower() not in {s.lower() for s in skills}:
+                    skills.append(item)
+        return skills[:60]
+
     @staticmethod
     def parse_resume(raw_text: str) -> Dict:
         """
@@ -102,17 +295,21 @@ class ResumeSLM:
         - languages: List of languages
         """
         slm = ResumeSLM()
+        sections = slm._sections(raw_text)
+        # the resume's own sections first; the older pattern search only for a resume without those headings
+        jobs = slm._section_jobs(sections.get("experience") or []) or slm._extract_work_history(raw_text)
+        current = jobs[0] if jobs and jobs[0].get("start_date") and not jobs[0].get("end_date") else None
 
         return {
             "full_name": slm._extract_name(raw_text),
             "email": slm._extract_email(raw_text),
             "phone": slm._extract_phone(raw_text),
-            "current_title": slm._extract_current_title(raw_text),
-            "current_employer": slm._extract_current_employer(raw_text),
-            "work_history": slm._extract_work_history(raw_text),
-            "education": slm._extract_education(raw_text),
-            "skills": slm._extract_skills(raw_text),
-            "certifications": slm._extract_certifications(raw_text),
+            "current_title": (current or {}).get("title") or slm._extract_current_title(raw_text),
+            "current_employer": (current or {}).get("employer") or slm._extract_current_employer(raw_text),
+            "work_history": jobs,
+            "education": slm._section_education(sections.get("education") or []) or slm._extract_education(raw_text),
+            "skills": slm._section_skills(sections.get("skills") or []) or slm._extract_skills(raw_text),
+            "certifications": slm._section_certifications(sections.get("certifications") or []) or slm._extract_certifications(raw_text),
             "languages": slm._extract_languages(raw_text),
         }
 

@@ -1218,6 +1218,9 @@ def create_job_application(
     from app.services.hiring_pipeline_service import link_job
 
     link_job(db, candidate_id, job_id)  # the candidate's open pipeline is now for this job
+    from app.services.candidate_assignment_service import assign_from_job
+
+    assign_from_job(db, candidate, job, user.UserID)  # blank recruiter and business unit
     db.commit()
     db.refresh(application)
 
