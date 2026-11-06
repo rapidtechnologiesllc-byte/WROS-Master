@@ -105,8 +105,8 @@ The `HRMS` user has **no usable sudo** (`sudo -l` lists NOPASSWD ALL, but every
   ssh -p 22587 HRMS@46.224.149.7 "bash -s -- /tmp/wros-deploy.bundle $SHA" < backend/scripts/deploy_backend.sh
   ```
 - **Frontend:** nginx root is `/home/HRMS/WROS-Master/frontend/build/build`.
-  `npm run build` locally, upload to `frontend/build-new/build`,
-  `mv build build-prev-<ts>; mv build-new build`.
+  `npm run build` locally, upload to a folder of its own (`frontend/build-manual-<ts>/build`, never one a running deploy may use),
+  `mv build build-prev-<ts>; mv build-manual-<ts> build`.
 - `deploy_backend.sh` refuses commits older than the one deployed (ancestry
   check). Pipe the script from git (`git show HEAD:backend/scripts/deploy_backend.sh |
   ssh ... bash -s -- ...`) — the Windows working copy has CRLF.

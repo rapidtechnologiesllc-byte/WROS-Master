@@ -140,14 +140,20 @@ jobs:
 
       # The server has no GitHub credentials: nothing is pulled there, the
       # CI build is copied. The old build is kept as build-prev-<time>.
+      # The upload folder is this run's own: another deploy at the same moment can't remove it.
       - name: Copy new build to production
+        id: copy
         if: steps.guard.outputs.skip != 'true'
         run: |
           git log -1 --format=%ct > build/DEPLOYED_COMMIT_TIME
           git rev-parse HEAD > build/DEPLOYED_COMMIT
-          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }}             "rm -rf ${{ env.PROD_PATH }}/build-new && mkdir -p ${{ env.PROD_PATH }}/build-new"
-          scp -r -o StrictHostKeyChecking=no -P 22587 build/             ${{ env.PROD_USER }}@${{ env.PROD_SERVER }}:${{ env.PROD_PATH }}/build-new/
-          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }}             "set -e; cd ${{ env.PROD_PATH }} && test -f build-new/build/index.html &&              mv build build-prev-\$(date +%s) && mv build-new build &&              ls -dt build-prev-* | tail -n +3 | xargs -r rm -rf"
+          NEW="build-new-${{ github.run_id }}-${{ github.run_attempt }}"
+          PREV="build-prev-$(date +%s)"
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} "rm -rf ${{ env.PROD_PATH }}/$NEW && mkdir -p ${{ env.PROD_PATH }}/$NEW"
+          scp -r -o StrictHostKeyChecking=no -P 22587 build/ ${{ env.PROD_USER }}@${{ env.PROD_SERVER }}:${{ env.PROD_PATH }}/$NEW/
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} "set -e; cd ${{ env.PROD_PATH }} && test -f $NEW/build/index.html && mv build $PREV && mv $NEW build"
+          echo "replaced=$PREV" >> "$GITHUB_OUTPUT"
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} "cd ${{ env.PROD_PATH }} && ls -dt build-prev-* | tail -n +3 | xargs -r rm -rf"
 
       - name: Fix file permissions for Nginx
         if: steps.guard.outputs.skip != 'true'
@@ -182,11 +188,18 @@ jobs:
           head -c 300 page.html 2>/dev/null || true
           exit 1
 
+      # Only undoes this run's own swap, back to the build that swap replaced. A run that failed
+      # before swapping has nothing to undo: the live build is not its to touch.
       - name: Rollback on failure
-        if: failure() && steps.guard.outputs.skip != 'true'
+        if: failure() && steps.copy.outputs.replaced != ''
         run: |
-          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }}             "cd ${{ env.PROD_PATH }} && PREV=\$(ls -dt build-prev-* 2>/dev/null | head -1) &&              [ -n \"\$PREV\" ] && mv build build-failed-\$(date +%s) && mv \"\$PREV\" build"
-          echo "Deployment failed - restored the previous build"
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} "cd ${{ env.PROD_PATH }} && test -d ${{ steps.copy.outputs.replaced }} && mv build build-failed-\$(date +%s) && mv ${{ steps.copy.outputs.replaced }} build"
+          echo "Deployment failed - restored the build it replaced"
+
+      - name: Remove this run's upload folder
+        if: always() && steps.guard.outputs.skip != 'true'
+        run: |
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} "rm -rf ${{ env.PROD_PATH }}/build-new-${{ github.run_id }}-${{ github.run_attempt }}"
 
       - name: Notify deployment
         if: always()
