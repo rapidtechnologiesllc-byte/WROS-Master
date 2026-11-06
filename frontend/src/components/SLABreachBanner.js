@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getActiveSLABreaches } from "../services/api/slaBreaches";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
 
 export default function SLABreachBanner() {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ export default function SLABreachBanner() {
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
+    if (!hasPermission("slm-dashboard", "view")) return undefined; // the endpoint would refuse
     let cancelled = false;
     getActiveSLABreaches()
       .then((res) => {

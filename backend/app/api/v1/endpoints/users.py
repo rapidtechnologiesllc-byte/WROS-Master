@@ -15,7 +15,7 @@ get_current_user = get_current_internal_user
 from app.models.role_template import RoleTemplate
 from app.schemas.auth import SignupRequest
 from app.schemas.user import (
-    AllUsersResponse, UserResponse,
+    AllUsersResponse, UserResponse, UserDirectoryEntry, UserDirectoryResponse,
     CandidateAssignmentCreate, CandidateAssignmentResponse,
     AssignedCandidateResponse, AssignedInterviewResponse, DeleteResponse,
     ChangePasswordRequest, SingleUserResponse,
@@ -115,6 +115,36 @@ def get_all_users(
         for u in users
     ]
     return AllUsersResponse(total_users=len(users_data), users=users_data)
+
+# Pickers and names on working screens (interview panels, recruiters, hiring managers). Users & Access
+# Control stays with /users/all. my-referrals: everyone employed here holds it, a sub-vendor contractor doesn't.
+@router.get(
+    "/users/directory",
+    dependencies=[Depends(require_resource_permission("my-referrals", "view"))],
+    response_model=UserDirectoryResponse,
+)
+def get_user_directory(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_internal_user),
+):
+    """Every colleague in the caller's tenant, without their roles or access."""
+    users = db.query(Users).filter(Users.tenant_id == user.tenant_id).all()
+    entries = [
+        UserDirectoryEntry(
+            user_id=u.UserID,
+            user_name=u.UserName or "",
+            user_email=u.UserEmail,
+            job_title=u.job_title,
+            department_id=u.department_id,
+            department_name=u.department.name if u.department else None,
+            business_unit_id=u.business_unit_id,
+            business_unit_name=u.business_unit.name if u.business_unit else None,
+            active=u.terminated_at is None,
+        )
+        for u in users
+    ]
+    return UserDirectoryResponse(total_users=len(entries), users=entries)
+
 
 @router.get(
     "/users/search",

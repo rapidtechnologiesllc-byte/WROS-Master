@@ -11,7 +11,7 @@ import { Button, Card, StatusBadge } from "../components/ui";
 import { useNavigate } from "react-router-dom";
 import LinkedInActivityTable from "../components/LinkedInActivityTable";
 import { ROUTES } from "../utils/Routes";
-import { hasPermission, isOrgLevel } from "../utils/permissionsRoleTemplate";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
 
 function StatCard({ title, value, icon, onClick }) {
   return (
@@ -39,25 +39,12 @@ export default function Dashboard({
 
   // Home renders this for roles without a dashboard of their own (authority.home_dashboard)
 
-  // Get user's BU for filtering
-  const userBuId = parseInt(localStorage.getItem("hrms_business_unit_id") || "0", 10);
-
-  // Org-level roles (role template flag) see every BU; others see their own BU and the org pool
-  const canViewAllData = isOrgLevel();
-
-  // Filter data based on user permission
-  const filteredCandidates = canViewAllData
-    ? candidates
-    : candidates.filter((c) => !c.businessUnitId || c.businessUnitId === userBuId);
-
-  const filteredJobs = canViewAllData
-    ? jobs
-    : jobs.filter((j) => !j.businessUnitId || j.businessUnitId === userBuId);
-
-  const openJobs = filteredJobs.filter(
+  // The server has already scoped these to what this person may see (a function that sees every
+  // business unit included), so the counts match the lists behind them.
+  const openJobs = jobs.filter(
     (j) => j.status === "Open" || j.status === "Public",
   ).length;
-  const inPipeline = filteredCandidates.filter((c) => {
+  const inPipeline = candidates.filter((c) => {
     const p = (c.pipelineStatus || "").trim();
     if (p === "Rejected") return false;
     // Check status from CandidateStatus table (mapped to candidate.status in API response)

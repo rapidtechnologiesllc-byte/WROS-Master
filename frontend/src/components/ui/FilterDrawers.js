@@ -7,7 +7,7 @@ import {
   priorityOptions,
   statusOptions,
 } from "../../utils/mockData";
-import { getAllUsers } from "../../services/api/users";
+import { getUserDirectory } from "../../services/api/users";
 import { listBusinessUnits, departmentList } from "../../services/api/rbac";
 import { listClients } from "../../services/api/clients";
 
@@ -45,7 +45,7 @@ const FIlterDrawer = ({ open, onClose, filters, setFilters, onApply }) => {
       )
       .catch(() => setClientOptions([]));
 
-    getAllUsers()
+    getUserDirectory()
       .then((data) => {
         const users = data || [];
         // a job's hiring manager / recruiter can be any internal user (assignments, not roles)

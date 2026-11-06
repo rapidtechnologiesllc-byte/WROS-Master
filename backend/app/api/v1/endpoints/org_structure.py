@@ -170,7 +170,8 @@ def get_org_node(
     response_model=List[DepartmentResponse],
     summary="List departments for a tenant",
     description="Returns all departments organized by business unit",
-    dependencies=[Depends(require_resource_permission("admin-settings", "view"))],
+    # names for pickers and filters on working screens; changing them stays with admin-settings
+    dependencies=[Depends(require_resource_permission("my-referrals", "view"))],
 )
 def list_departments(
     business_unit_id: Optional[int] = None,
