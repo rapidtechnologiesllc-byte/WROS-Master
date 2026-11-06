@@ -30,8 +30,10 @@ never disagree:
   other BU by its employee headcount, billable or not: a BU with no employees pays nothing. Corporate spend follows.
   SHARED_COST_SPLIT_TO_BUS off keeps it in an Org level row. Other non-billable people stay overhead of their BU. A move
   never changes the org total. Company rows keep the real cost with the employer.
-- *Expense cost* = manager-approved expenses dated in the period, attributed through
-  the expense's client (else the business unit of whoever logged it).
+- *Expense cost* = manager-approved expenses dated in the period (a multi-day expense on its first
+  day), attributed through the expense's client (else the business unit of whoever logged it), and to
+  the location of whoever spent it that day. Those still awaiting the manager are not a cost yet; every
+  view shows them beside it (pending_expense_usd_cents).
 - *Partner* = the partner of the business unit that owns the client
   (business_units.partner_user_id). Bench cost goes to the partner of the
   employee's own business unit. Anything without a partner is "unassigned",
@@ -442,7 +444,7 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
     (BU x location) underneath it. business_unit_ids (None = the whole org) narrows revenue, staff
     and expenses to those BUs. country (ISO, None = every location) narrows to work done from that
     location: lines by where the employee sat that week, bench and overhead by where they sat each
-    day; client expenses have no location and are left out of a country view."""
+    day, expenses by where the person who spent it sat that day."""
     if end < start:
         raise ValueError("end must be on or after start")
     costs = CostBook(db)
@@ -530,20 +532,25 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
             bench_rows[(UNASSIGNED, None, where)]["shared_cost_usd_cents"] += amount
 
     # every BU's first: a Corporate expense is shared, including with a BU a partner is looking at
-    expenses, _ = _expenses(db, start, end, tenant_id, units, None, costs)
+    every_expense, _ = _expenses(db, start, end, tenant_id, units, None, costs, include_pending=True)
     if split:
-        expenses = _share_corporate_expenses(expenses, corporate, weights, units)
+        every_expense = _share_corporate_expenses(every_expense, corporate, weights, units)
     if business_unit_ids is not None:
-        expenses = [e for e in expenses if e["key"][1] in business_unit_ids]
-    pending_expenses = _expenses(db, start, end, tenant_id, units, business_unit_ids, costs)[1]
+        every_expense = [e for e in every_expense if e["key"][1] in business_unit_ids]
     if country is not None:
-        expenses = []  # a client expense has no location
+        every_expense = [e for e in every_expense if e["country"] == country]
+    expenses = [e for e in every_expense if not e.get("pending")]
+    waiting = [e for e in every_expense if e.get("pending")]
+    pending_expenses = sum(e["amount"] for e in waiting)
 
     def expense_for(index: int, key) -> int:
         return sum(e["amount"] for e in expenses if e["key"][index] == key)
 
+    def waiting_for(index: int, key) -> int:
+        return sum(e["amount"] for e in waiting if e["key"][index] == key)
+
     def section(revenue_lines: List[Dict], bench: int, bench_missing: List[str], expense: int,
-                overhead: int = 0, htd: int = 0, shared: int = 0) -> Dict:
+                overhead: int = 0, htd: int = 0, shared: int = 0, pending: int = 0) -> Dict:
         totals = _totals(revenue_lines)
         delivery = totals.pop("cost_usd_cents")
         complete = totals.pop("cost_data_complete") and not bench_missing
@@ -552,13 +559,14 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
             **totals, "revenue_usd_cents": totals["earned_usd_cents"],
             "delivery_cost_usd_cents": delivery, "bench_cost_usd_cents": bench,
             "overhead_cost_usd_cents": overhead, "shared_cost_usd_cents": shared, "htd_cost_usd_cents": htd,
-            "expense_cost_usd_cents": expense,
+            "expense_cost_usd_cents": expense, "pending_expense_usd_cents": pending,
             "total_cost_usd_cents": delivery + bench + overhead + shared + htd + expense, "cost_data_complete": complete,
         }
         return _with_margin(out, out["revenue_usd_cents"], out["total_cost_usd_cents"], complete)
 
     def rollup(line_key: str, index: int, names: Dict) -> List[Dict]:
-        keys = {line[line_key] for line in lines} | {b[index] for b in bench_rows} | {e["key"][index] for e in expenses}
+        keys = ({line[line_key] for line in lines} | {b[index] for b in bench_rows}
+                | {e["key"][index] for e in every_expense})
         rows = []
         for k in keys:
             bench = [v for b, v in bench_rows.items() if b[index] == k]
@@ -567,11 +575,12 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
                 sum(b["bench_cost_usd_cents"] for b in bench), [m for b in bench for m in b["missing"]],
                 expense_for(index, k), sum(b["overhead_cost_usd_cents"] for b in bench),
                 sum(b["htd_cost_usd_cents"] for b in bench), sum(b["shared_cost_usd_cents"] for b in bench),
+                waiting_for(index, k),
             )})
         return sorted(rows, key=lambda r: r["revenue_usd_cents"], reverse=True)
 
     partner_names = {line["partner_user_id"]: line["partner_name"] for line in lines}
-    partner_ids = ({b[0] for b in bench_rows} | {e["key"][0] for e in expenses}) - {UNASSIGNED}
+    partner_ids = ({b[0] for b in bench_rows} | {e["key"][0] for e in every_expense}) - {UNASSIGNED}
     for user in db.query(Users).filter(Users.UserID.in_(partner_ids)).all():
         partner_names.setdefault(user.UserID, user.UserName)
     bu_names = {u.id: u.name for u in units.values()}
@@ -590,21 +599,25 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
                   [m for b in bench_rows.values() for m in b["missing"]], sum(e["amount"] for e in expenses),
                   sum(b["overhead_cost_usd_cents"] for b in bench_rows.values()),
                   sum(b["htd_cost_usd_cents"] for b in bench_rows.values()),
-                  sum(b["shared_cost_usd_cents"] for b in bench_rows.values()))
-    by_company = _company_pnl(db, lines, company_staff_cost, expenses, start, end, tenant_id)
+                  sum(b["shared_cost_usd_cents"] for b in bench_rows.values()), pending_expenses)
+    by_company = _company_pnl(db, lines, company_staff_cost, expenses, start, end, tenant_id, pending=waiting)
 
-    def staff_rollup(key_of_line, key_of_bucket, names) -> List[Dict]:
+    def staff_rollup(key_of_line, key_of_bucket, names, key_of_expense) -> List[Dict]:
         """Rows for a staff-side dimension (location; cost object = BU x location): revenue and
-        delivery of the work done from there, bench and overhead of the people who sat there."""
-        keys = {key_of_line(line) for line in lines} | {key_of_bucket(b) for b in bench_rows}
+        delivery of the work done from there, bench and overhead of the people who sat there,
+        expenses of the people who spent it there."""
+        keys = ({key_of_line(line) for line in lines} | {key_of_bucket(b) for b in bench_rows}
+                | {key_of_expense(e) for e in every_expense})
         rows = []
         for k in keys:
             bench = [v for b, v in bench_rows.items() if key_of_bucket(b) == k]
             rows.append({"key": k, "name": names(k), **section(
                 [line for line in lines if key_of_line(line) == k],
-                sum(b["bench_cost_usd_cents"] for b in bench), [m for b in bench for m in b["missing"]], 0,
+                sum(b["bench_cost_usd_cents"] for b in bench), [m for b in bench for m in b["missing"]],
+                sum(e["amount"] for e in expenses if key_of_expense(e) == k),
                 sum(b["overhead_cost_usd_cents"] for b in bench), sum(b["htd_cost_usd_cents"] for b in bench),
-                sum(b["shared_cost_usd_cents"] for b in bench))})
+                sum(b["shared_cost_usd_cents"] for b in bench),
+                sum(e["amount"] for e in waiting if key_of_expense(e) == k))})
         return sorted(rows, key=lambda r: (-r["total_cost_usd_cents"], str(r["key"])))
 
     return {
@@ -615,13 +628,15 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
         "missing_cost_employee_ids": missing_cost,
         "by_partner": rollup("partner_user_id", 0, partner_names),
         "by_business_unit": rollup("business_unit_id", 1, bu_names),
-        "by_location": staff_rollup(lambda line: line["country"], lambda b: b[2], lambda k: k or "Unknown location"),
+        "by_location": staff_rollup(lambda line: line["country"], lambda b: b[2], lambda k: k or "Unknown location",
+                                    lambda e: e["country"]),
         "by_cost_object": [
             {**row, "business_unit_id": row["key"][0], "country": row["key"][1],
              "key": f"{row['key'][0]}:{row['key'][1]}"}
             for row in staff_rollup(lambda line: (line["cost_business_unit_id"], line["country"]),
                                     lambda b: (b[1], b[2]),
-                                    lambda k: f"{bu_names.get(k[0]) or 'No BU'} x {k[1] or 'unknown location'}")],
+                                    lambda k: f"{bu_names.get(k[0]) or 'No BU'} x {k[1] or 'unknown location'}",
+                                    lambda e: (e["key"][1], e["country"]))],
         "by_client": sorted(by_client.values(), key=lambda r: r["earned_usd_cents"], reverse=True),
         "by_company": by_company,
         # the whole picture only: a slice of one BU or country would understate what was lent
@@ -631,7 +646,7 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
 
 
 def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: List[Dict], start: date, end: date,
-                 tenant_id: Optional[int]) -> List[Dict]:
+                 tenant_id: Optional[int], pending: Iterable[Dict] = ()) -> List[Dict]:
     """Each company's (legal entity's) own P&L; the parent company (tenant) owns the org-wide one.
 
       revenue          earned on the clients the company contracts (Client.contracting_company_id)
@@ -651,7 +666,7 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
         db.query(Location).filter(Location.tenant_id == tenant_id).all()
     client_company = dict(db.query(Client.id, Client.contracting_company_id))
     rows: Dict = defaultdict(lambda: {"revenue": 0, "delivery": 0, "bench": 0, "overhead": 0, "htd": 0, "expense": 0,
-                                      "ic_revenue": 0, "ic_cost": 0, "complete": True})
+                                      "ic_revenue": 0, "ic_cost": 0, "complete": True, "pending": 0})
     for line in lines:
         rows[client_company.get(line["client_id"])]["revenue"] += line.get("earned_usd_cents") or 0
         owner = rows[line["cost_company_id"]]  # the company the employee worked for that week
@@ -667,6 +682,8 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
             rows[company_id]["complete"] = False
     for e in expenses:  # a client's contracting company; personal spend, the logger's company that day
         rows[e["company_id"]]["expense"] += e["amount"]
+    for e in pending:  # not a cost yet: shown beside it
+        rows[e["company_id"]]["pending"] += e["amount"]
     settlements = db.query(IntercompanySettlement).filter(
         IntercompanySettlement.settlement_date >= start, IntercompanySettlement.settlement_date <= end)
     if tenant_id is not None:
@@ -691,7 +708,7 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
             "intercompany_revenue_usd_cents": r["ic_revenue"], "intercompany_cost_usd_cents": r["ic_cost"],
             "delivery_cost_usd_cents": r["delivery"], "bench_cost_usd_cents": r["bench"],
             "overhead_cost_usd_cents": r["overhead"], "htd_cost_usd_cents": r["htd"],
-            "expense_cost_usd_cents": r["expense"], "total_cost_usd_cents": cost,
+            "expense_cost_usd_cents": r["expense"], "pending_expense_usd_cents": r["pending"], "total_cost_usd_cents": cost,
             "cost_data_complete": r["complete"], "funded_by": names.get(funded.get(key), (None, None))[0],
             "loaned_out_usd_cents": 0,
         }, revenue, cost, r["complete"]))
@@ -744,7 +761,8 @@ def company_loans(db: Session, by_company: List[Dict], *, end: date, tenant_id: 
 
 
 def _expenses(db: Session, start: date, end: date, tenant_id: Optional[int], units: Dict,
-              business_unit_ids: Optional[Set[int]] = None, costs: Optional["CostBook"] = None):
+              business_unit_ids: Optional[Set[int]] = None, costs: Optional["CostBook"] = None,
+              include_pending: bool = False):
     """Manager-approved expenses dated in the period, keyed (partner, business unit, client):
     each client's part (expense_service.expense_shares -- a split expense counts on every client
     it names) goes to that client's business unit and contracting company; internal (personal)
@@ -752,7 +770,8 @@ def _expenses(db: Session, start: date, end: date, tenant_id: Optional[int], uni
     the expense date (CostBook.object_on, the same rule as their salary -- CEO 2026-11-01: an
     attendee's own conference meals and travel count in their company's P&L, not "Group").
     A logger with no employee record stays with the parent ("Group", company None).
-    Pending expenses are totalled separately; rejected ones never count."""
+    Each carries the country its spender sat in that day. Pending expenses are totalled separately
+    (include_pending also returns them, flagged, for the views that show them); rejected ones never count."""
     from app.models.expense import ExpenseRecord
     from app.services.expense_service import expense_shares
 
@@ -766,9 +785,9 @@ def _expenses(db: Session, start: date, end: date, tenant_id: Optional[int], uni
     loggers = {e.wros_user_id: e for e in db.query(Employee).filter(
         Employee.wros_user_id.in_({r.logged_by_user_id for r in records} or {""}))}
 
-    def logger_company(record) -> Optional[str]:
+    def logger_object(record):
         employee = loggers.get(record.logged_by_user_id)
-        return costs.object_on(employee, record.expense_date)[1] if employee is not None else None
+        return costs.object_on(employee, record.expense_date) if employee is not None else (None, None, None)
 
     out, pending = [], 0
     for record in records:
@@ -777,13 +796,18 @@ def _expenses(db: Session, start: date, end: date, tenant_id: Optional[int], uni
             bu_id = client.business_unit_id if client and client.business_unit_id else record.business_unit_id
             if business_unit_ids is not None and bu_id not in business_unit_ids:
                 continue
-            if record.manager_approval_status == "PENDING":
+            is_pending = record.manager_approval_status == "PENDING"
+            if is_pending:
                 pending += cents
-                continue
+                if not include_pending:
+                    continue
             unit = units.get(bu_id)
             partner = unit.partner_user_id if unit and unit.partner_user_id else UNASSIGNED
-            company_id = client.contracting_company_id if client is not None else logger_company(record)
-            out.append({"key": (partner, bu_id, client_id), "amount": cents, "company_id": company_id})
+            _, own_company, where = logger_object(record)
+            # the client's contracting company; with none set yet (a prospect), the spender's own
+            company_id = (client.contracting_company_id if client is not None else None) or own_company
+            out.append({"key": (partner, bu_id, client_id), "amount": cents, "company_id": company_id,
+                        "country": where, "pending": is_pending})
     return out, pending
 
 
@@ -798,7 +822,8 @@ def _share_corporate_expenses(expenses: List[Dict], corporate: Set[int], weights
         for target, share in prorated_shares(expense["amount"], weights).items():
             unit = units.get(target)
             out.append({"key": (unit.partner_user_id if unit and unit.partner_user_id else UNASSIGNED, target, client_id),
-                        "amount": share, "company_id": expense["company_id"]})
+                        "amount": share, "company_id": expense["company_id"],
+                        "country": expense.get("country"), "pending": expense.get("pending", False)})
     return out
 
 

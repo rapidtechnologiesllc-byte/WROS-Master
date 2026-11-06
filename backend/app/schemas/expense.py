@@ -17,6 +17,7 @@ class ExpenseCreateRequest(BaseModel):
     expense_category: str
     amount_usd_cents: int
     expense_date: date
+    expense_end_date: Optional[date] = None  # the last day, when it covers several
     # who the spend is on: INTERNAL / CLIENT (client_id) / SPLIT (client_splits)
     spend_for: Optional[str] = None
     client_id: Optional[str] = None
@@ -28,6 +29,27 @@ class ExpenseCreateRequest(BaseModel):
     location: Optional[str] = None
     description: Optional[str] = None
     receipt_ref: Optional[str] = None
+
+class ExpenseUpdateRequest(BaseModel):
+    """Everything the person said when logging it (the expense's receipts have their own calls)."""
+    purpose: str
+    expense_category: str
+    amount_usd_cents: int
+    expense_date: date
+    expense_end_date: Optional[date] = None
+    spend_for: Optional[str] = None
+    client_id: Optional[str] = None
+    client_splits: Optional[List[ClientSplit]] = None
+    event_id: Optional[str] = None
+    investment_label: Optional[str] = None
+    travel_type: Optional[str] = None
+    trip_label: Optional[str] = None
+    location: Optional[str] = None
+    description: Optional[str] = None
+    receipt_ref: Optional[str] = None
+
+class ExpenseRejectRequest(BaseModel):
+    reason: Optional[str] = None
 
 class ExpenseAttributionRequest(BaseModel):
     spend_for: str
@@ -44,9 +66,27 @@ class ExpenseShareItem(BaseModel):
     class Config:
         from_attributes = True
 
+class ExpenseReceiptItem(BaseModel):
+    id: str
+    file_name: Optional[str] = None
+    content_type: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class ExpenseEditItem(BaseModel):
+    summary: str
+    changed_by_name: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
 class ExpenseItem(BaseModel):
     id: str
     logged_by_user_id: str
+    logged_by_name: Optional[str] = None
     business_unit_id: Optional[int]
     purpose: str
     spend_for: Optional[str] = None
@@ -64,6 +104,10 @@ class ExpenseItem(BaseModel):
     description: Optional[str]
     receipt_ref: Optional[str]
     expense_date: date
+    expense_end_date: Optional[date] = None
+    receipts: List[ExpenseReceiptItem] = []
+    edits: List[ExpenseEditItem] = []
+    manager_review_note: Optional[str] = None
     manager_approval_status: Optional[str] = None  # PENDING -> APPROVED/REJECTED (counts in P&L once APPROVED)
     manager_approved_by: Optional[str] = None
     payment_status: str

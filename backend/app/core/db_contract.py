@@ -274,6 +274,37 @@ def _candidate_timezones_from_location(db: Session) -> int:
     return changed
 
 
+def _expense_receipts_and_review_tasks(db: Session) -> int:
+    """Each expense's one receipt becomes its first ExpenseReceipt; open approval tasks become review
+    tasks, which only a decision closes."""
+    import json
+    import os
+
+    from app.models.expense import ExpenseReceipt, ExpenseRecord
+    from app.models.task import EXPENSE_REVIEW_TASK_CATEGORY, Task
+
+    made = 0
+    for expense in db.query(ExpenseRecord).filter(ExpenseRecord.receipt_file_path.isnot(None)).all():
+        if expense.receipts:
+            continue
+        try:
+            detail = json.loads(expense.receipt_check_detail or "{}")
+        except ValueError:
+            detail = {}
+        reading = detail.get("receipt")
+        reasons = detail.get("reasons") or []
+        db.add(ExpenseReceipt(expense_id=expense.id, file_name=os.path.basename(expense.receipt_file_path),
+                              file_path=expense.receipt_file_path, content_type=expense.receipt_content_type,
+                              reading=json.dumps(reading) if reading else None,
+                              read_error=None if reading else (reasons[0] if reasons else None)))
+        made += 1
+    made += db.query(Task).filter(Task.expense_id.isnot(None), Task.title.like("Approve expense:%"),
+                                  Task.status.notin_(("COMPLETED", "CANCELLED"))).update(
+        {Task.category: EXPENSE_REVIEW_TASK_CATEGORY}, synchronize_session=False)
+    db.flush()
+    return made
+
+
 def _expense_attribution_and_events(db: Session) -> int:
     """Who the spend is on + one event per conference (CEO 2026-10-31). Existing expenses keep
     what they already said: a client expense is on that client (one 100% share), everything
@@ -320,6 +351,7 @@ DATA_MIGRATIONS = (
     ("pay_from_monthly_usd", _pay_from_monthly_usd),
     ("candidate_timezones_from_location", _candidate_timezones_from_location),
     ("expense_attribution_and_events", _expense_attribution_and_events),
+    ("expense_receipts_and_review_tasks", _expense_receipts_and_review_tasks),
 )
 
 
@@ -1836,6 +1868,8 @@ def _apply_schema_migrations(db: Session):
         ],
         # Expense receipts: attached file + automatic check (expense_receipt_service)
         "expense_records": [
+            ("expense_end_date", "DATE NULL"),
+            ("manager_review_note", "TEXT NULL"),
             ("receipt_file_path", "VARCHAR(1024) NULL"),
             ("receipt_content_type", "VARCHAR(100) NULL"),
             ("receipt_check_status", "VARCHAR(20) NOT NULL DEFAULT 'NOT_ATTACHED'"),
@@ -2015,6 +2049,7 @@ def _apply_schema_migrations(db: Session):
         ],
         "departments": [
             ("is_shared_service", "BOOLEAN NULL"),
+            ("sees_all_business_units", "BOOLEAN NOT NULL DEFAULT FALSE"),
         ],
         "interview_logs": [
             ("analysis", "JSON NULL"),

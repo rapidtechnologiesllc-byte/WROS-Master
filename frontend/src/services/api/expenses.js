@@ -40,8 +40,27 @@ export const managerApproveExpense = async (expenseId) => {
   return data;
 };
 
-export const managerRejectExpense = async (expenseId) => {
-  const { data } = await apiRequest(`/expenses/${expenseId}/manager-reject`, { method: "POST" });
+export const managerRejectExpense = async (expenseId, reason) => {
+  const { data } = await apiRequest(`/expenses/${expenseId}/manager-reject`, {
+    method: "POST",
+    body: JSON.stringify({ reason: reason || null }),
+  });
+  return data;
+};
+
+export const getExpense = async (expenseId) => {
+  const { data } = await apiRequest(`/expenses/${expenseId}`, { method: "GET" });
+  return data;
+};
+
+// Correct your own expense, until Finance approves it
+export const updateExpense = async (expenseId, payload) => {
+  const { data } = await apiRequest(`/expenses/${expenseId}`, { method: "PUT", body: JSON.stringify(payload) });
+  return data;
+};
+
+export const removeExpenseReceipt = async (expenseId, receiptId) => {
+  const { data } = await apiRequest(`/expenses/${expenseId}/receipts/${receiptId}`, { method: "DELETE" });
   return data;
 };
 
@@ -105,9 +124,68 @@ export const uploadExpenseReceipt = async (expenseId, file) => {
   return data;
 };
 
-// Open the receipt in a new tab (authenticated download)
-export const openExpenseReceipt = async (expenseId) => {
-  const response = await apiFetch(`/expenses/${expenseId}/receipt`);
+// Photos are often larger than the web server accepts in one request, and a receipt reads fine smaller
+const LARGEST_REQUEST_BYTES = 900 * 1024;
+const LONGEST_PHOTO_SIDE = 2200;
+
+const canvasToBlob = (canvas, quality) =>
+  new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+
+const fitForUpload = async (file) => {
+  if (file.size <= LARGEST_REQUEST_BYTES || !file.type.startsWith("image/")) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    let scale = Math.min(1, LONGEST_PHOTO_SIDE / Math.max(bitmap.width, bitmap.height));
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(bitmap.width * scale);
+      canvas.height = Math.round(bitmap.height * scale);
+      canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const blob = await canvasToBlob(canvas, 0.8);
+      if (blob && blob.size <= LARGEST_REQUEST_BYTES) {
+        return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+      }
+      scale *= 0.75;
+    }
+  } catch (err) {
+    console.warn("[Expenses] Could not shrink the photo, sending it as it is:", err);
+  }
+  return file;
+};
+
+// Several receipts: one request per file (the web server limits each request), checked together after the last
+export const uploadExpenseReceipts = async (expenseId, files, onProgress) => {
+  let latest = null;
+  for (let i = 0; i < files.length; i += 1) {
+    const file = await fitForUpload(files[i]);
+    if (onProgress) onProgress(i + 1, files.length);
+    const body = new FormData();
+    body.append("files", file);
+    try {
+      const { data } = await apiRequest(`/expenses/${expenseId}/receipts?check=${i === files.length - 1}`, { method: "POST", body });
+      latest = data;
+    } catch (err) {
+      if (err?.status === 413 || /413|too large/i.test(err?.message || "")) {
+        throw new Error(`${files[i].name} is too large for the server to accept. Save it as a smaller file and try again.`);
+      }
+      throw err;
+    }
+  }
+  return latest;
+};
+
+// One receipt's file, for showing on screen
+export const fetchExpenseReceiptBlob = async (expenseId, receiptId) => {
+  const response = await apiFetch(`/expenses/${expenseId}/receipts/${receiptId}`);
+  if (!response.ok) {
+    throw new Error(`Receipt download failed (HTTP ${response.status})`);
+  }
+  return response.blob();
+};
+
+// Open a receipt in a new tab (authenticated download); the first one when none is named
+export const openExpenseReceipt = async (expenseId, receiptId) => {
+  const response = await apiFetch(receiptId ? `/expenses/${expenseId}/receipts/${receiptId}` : `/expenses/${expenseId}/receipt`);
   if (!response.ok) {
     throw new Error(`Receipt download failed (HTTP ${response.status})`);
   }

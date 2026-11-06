@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 from app.core.logging import logger
 from app.models.client import Client, ClientHistory
 from app.models.expense import (
-    CLIENT_DIRECTED_PURPOSES, FULL_SHARE_BPS, SPEND_FOR, ExpenseClientShare, ExpenseRecord,
+    CLIENT_DIRECTED_PURPOSES, FULL_SHARE_BPS, SPEND_FOR, ExpenseClientShare, ExpenseEdit, ExpenseRecord,
 )
 from app.models.invoice import Invoice
 from app.models.user import Users
@@ -184,6 +184,7 @@ def log_expense(
     amount_usd_cents: int,
     expense_date: date,
     receipt_ref: str,  # PRIORITY-3: Receipt is now mandatory (not optional)
+    expense_end_date: Optional[date] = None,
     client_id: Optional[str] = None,
     spend_for: Optional[str] = None,
     client_splits: Optional[Sequence[dict]] = None,
@@ -205,6 +206,7 @@ def log_expense(
     """
     if amount_usd_cents <= 0:
         raise ExpenseValidationError("amount_usd_cents must be positive.")
+    expense_end_date = _checked_end_date(expense_date, expense_end_date)
 
     if not receipt_ref or not receipt_ref.strip():
         raise ExpenseValidationError("receipt_ref is mandatory for all expenses.")
@@ -226,7 +228,7 @@ def log_expense(
         expense_category=expense_category,
         travel_type=travel_type, trip_label=trip_label, amount_usd_cents=amount_usd_cents,
         location=location, description=description, receipt_ref=receipt_ref,
-        expense_date=expense_date,
+        expense_date=expense_date, expense_end_date=expense_end_date,
         manager_approval_status="PENDING",  # PRIORITY-3: Start with pending manager approval
     )
     _apply_attribution(expense, spend_for, client_id, shares)
@@ -236,6 +238,115 @@ def log_expense(
     # PRIORITY-3: Create manager approval task
     _create_manager_approval_task(db, expense, logged_by_user)
 
+    db.commit()
+    db.refresh(expense)
+    return expense
+
+
+def _checked_end_date(first: date, last: Optional[date]) -> Optional[date]:
+    """The last day of a multi-day expense; the same day as the first counts as one day."""
+    if last is None or last == first:
+        return None
+    if last < first:
+        raise ExpenseValidationError("The last date can't be before the first date.")
+    return last
+
+
+def expense_dates_text(expense: ExpenseRecord) -> str:
+    if expense.expense_end_date:
+        return f"{expense.expense_date} to {expense.expense_end_date}"
+    return str(expense.expense_date)
+
+
+def can_edit_expense(expense: ExpenseRecord, user: Users) -> bool:
+    """The person who logged it, until Finance approves it for payment."""
+    return user.UserID == expense.logged_by_user_id and expense.payment_status == "PENDING"
+
+
+def record_edit(db: Session, expense: ExpenseRecord, user: Optional[Users], summary: str) -> None:
+    db.add(ExpenseEdit(expense_id=expense.id, changed_by_user_id=user.UserID if user else None, summary=summary))
+    logger.info(f"[ExpenseService] {expense.id} edited by {user.UserID if user else 'system'}: {summary}")
+
+
+def return_to_manager(db: Session, expense: ExpenseRecord, note: Optional[str] = None) -> None:
+    """A change after (or before) a decision: the manager decides again, on what it says now. The old
+    approval task names the old figures, so a new one replaces it."""
+    expense.manager_approval_status = "PENDING"
+    expense.manager_approved_by = None
+    expense.manager_approved_at = None
+    expense.manager_review_note = None
+    db.add(expense)
+    _close_open_tasks(db, expense)
+    logged_by = db.query(Users).filter(Users.UserID == expense.logged_by_user_id).first()
+    _create_manager_approval_task(db, expense, logged_by, note=note)
+
+
+def _readable_values(expense: ExpenseRecord) -> Dict[str, str]:
+    """What the person can change, as they read it, money-affecting fields first."""
+    return {
+        "Amount": f"${expense.amount_usd_cents / 100:,.2f}", "Dates": expense_dates_text(expense),
+        "Purpose": expense.purpose, "For": _attribution_line(expense),
+        "Split": ", ".join(f"{s.client_id}={s.amount_usd_cents}" for s in expense.client_shares or []),
+        "Conference": expense.event_id or "", "Investment": expense.investment_label or "",
+        "Category": expense.expense_category, "Travel type": expense.travel_type or "",
+        "Trip": expense.trip_label or "", "Location": expense.location or "",
+        "Description": expense.description or "", "Receipt ref": expense.receipt_ref or "",
+    }
+
+
+NOTE_ONLY_FIELDS = {"Trip", "Location", "Description", "Receipt ref"}  # don't change what was approved
+HIDDEN_FROM_SUMMARY = {"Split", "Conference"}  # "For" and the event's own name say these
+
+
+def update_expense(
+    db: Session, expense: ExpenseRecord, user: Users, *, purpose: str, expense_category: str, amount_usd_cents: int,
+    expense_date: date, expense_end_date: Optional[date] = None, spend_for: Optional[str] = None,
+    client_id: Optional[str] = None, client_splits: Optional[Sequence[dict]] = None, event_id: Optional[str] = None,
+    investment_label: Optional[str] = None, travel_type: Optional[str] = None, trip_label: Optional[str] = None,
+    location: Optional[str] = None, description: Optional[str] = None, receipt_ref: Optional[str] = None,
+) -> ExpenseRecord:
+    """Correct your own expense (CEO 2026-11-06): the same rules as logging it. A change to what it costs
+    or who it is on goes back to the manager; every change is recorded for them to see."""
+    from app.services.expense_receipt_service import recheck
+
+    if not can_edit_expense(expense, user):
+        raise PermissionError("Finance has approved this expense, so it can't be changed any more.")
+    if amount_usd_cents <= 0:
+        raise ExpenseValidationError("amount_usd_cents must be positive.")
+    expense_end_date = _checked_end_date(expense_date, expense_end_date)
+    if purpose == "INVESTMENT" and not investment_label:
+        raise ExpenseValidationError("purpose=INVESTMENT requires investment_label.")
+    event = _resolve_event(db, user, purpose, event_id)
+    spend_for, client_id, shares = resolve_attribution(
+        db, user, purpose=purpose, amount_usd_cents=amount_usd_cents, spend_for=spend_for,
+        client_id=client_id, client_splits=client_splits)
+
+    before = _readable_values(expense)
+    expense.purpose, expense.expense_category, expense.amount_usd_cents = purpose, expense_category, amount_usd_cents
+    expense.expense_date, expense.expense_end_date = expense_date, expense_end_date
+    expense.event_id, expense.conference_name = (event.id, event.name) if event else (None, None)
+    expense.investment_label = investment_label if purpose == "INVESTMENT" else None
+    expense.travel_type, expense.trip_label = travel_type, trip_label
+    expense.location, expense.description = location, description
+    if receipt_ref and receipt_ref.strip():
+        expense.receipt_ref = receipt_ref
+    expense.client_shares = []
+    db.flush()  # the old shares go before the new ones (unique per expense and client)
+    _apply_attribution(expense, spend_for, client_id, shares)
+    db.flush()
+    db.refresh(expense, ["client_shares", "client"])
+
+    after = _readable_values(expense)
+    changed = [field for field in after if after[field] != before[field]]
+    if not changed:
+        db.commit()
+        return expense
+    summary = "; ".join(f"{field}: {before[field] or '(empty)'} -> {after[field] or '(empty)'}"
+                        for field in changed if field not in HIDDEN_FROM_SUMMARY)
+    record_edit(db, expense, user, summary or "Who it is on changed")
+    if set(changed) - NOTE_ONLY_FIELDS or expense.manager_approval_status == "REJECTED":
+        return_to_manager(db, expense, note=f"Changed by the person who logged it: {summary}")
+        recheck(db, expense)
     db.commit()
     db.refresh(expense)
     return expense
@@ -295,43 +406,55 @@ def _attribution_line(expense: ExpenseRecord) -> str:
 
 
 def _get_employee_manager(db: Session, employee_user: Users) -> Optional[Users]:
-    """PRIORITY-3: Find the employee's manager via org hierarchy.
+    """Who reviews this person's expenses: the person in the parent seat of the org chart, else their
+    reporting manager on their employee record, else the partner of their business unit. Most people
+    have no seat yet, and a task with nobody on it is seen by nobody. Never the person themselves."""
+    from app.models.business_unit import BusinessUnit
+    from app.models.employee import Employee
 
-    Uses org_node_id relationship to find the employee's manager.
-    If no manager found, returns None (will be handled in approval task creation).
-    """
-    if not hasattr(employee_user, 'org_node_id') or not employee_user.org_node_id:
-        return None
+    org_node = (db.query(OrgNode).filter(OrgNode.id == employee_user.org_node_id).first()
+                if employee_user.org_node_id else None)
+    candidates = []
+    if org_node and org_node.parent_id:
+        # the person sitting in the parent seat (Users.org_node_id); OrgNode has no user column
+        seat = db.query(Users).filter(Users.org_node_id == org_node.parent_id,
+                                      Users.tenant_id == employee_user.tenant_id).first()
+        candidates.append(seat.UserID if seat else None)
+    employee = db.query(Employee).filter(Employee.wros_user_id == employee_user.UserID).first()
+    if employee is not None:
+        candidates.append(employee.reporting_manager_user_id)
+        manager = db.query(Employee).filter(Employee.id == employee.manager_id).first() if employee.manager_id else None
+        candidates.append(manager.wros_user_id if manager else None)
+    if employee_user.business_unit_id:
+        unit = db.query(BusinessUnit).filter(BusinessUnit.id == employee_user.business_unit_id).first()
+        candidates.append(unit.partner_user_id if unit else None)
+    for user_id in candidates:
+        if user_id and user_id != employee_user.UserID:
+            return db.query(Users).filter(Users.UserID == user_id).first()
+    return None
 
-    # Get the employee's org node
-    org_node = db.query(OrgNode).filter(OrgNode.id == employee_user.org_node_id).first()
-    if not org_node or not org_node.parent_id:
-        return None
-
-    # The manager is the person sitting in the parent seat (Users.org_node_id); OrgNode
-    # itself has no user column
-    return db.query(Users).filter(Users.org_node_id == org_node.parent_id,
-                                  Users.tenant_id == employee_user.tenant_id).first()
-
-def _create_manager_approval_task(db: Session, expense: ExpenseRecord, employee_user: Users) -> None:
-    """PRIORITY-3: Create a Task for the manager to approve the expense.
-
-    Task is assigned to the employee's manager (found via org hierarchy).
-    If manager not found, assigns to Finance inbox as fallback.
-    """
+def _create_manager_approval_task(db: Session, expense: ExpenseRecord, employee_user: Users,
+                                  note: Optional[str] = None) -> None:
+    """A Task for the manager to review the expense; only their decision closes it. With no manager
+    on record it goes to Finance, so it never sits with nobody."""
+    from app.models.task import EXPENSE_REVIEW_TASK_CATEGORY
     from app.services.task_service import create_task
 
     manager = _get_employee_manager(db, employee_user)
+    if manager is None:
+        finance = _finance_assignee(db, expense.tenant_id)
+        manager = finance if finance is not None and finance.UserID != employee_user.UserID else None
     manager_user_id = manager.UserID if manager else None
 
-    create_task(
+    task = create_task(
         db,
         title=f"Approve expense: {expense.expense_category} ${expense.amount_usd_cents / 100:,.2f}",
         description=(
-            f"Employee {employee_user.UserID} has logged an expense for your approval.\n"
+            f"{employee_user.UserName or employee_user.UserEmail} has logged an expense for your approval.\n"
+            f"{f'{note}{chr(10)}' if note else ''}"
             f"Category: {expense.expense_category}\n"
             f"Amount: ${expense.amount_usd_cents / 100:,.2f}\n"
-            f"Date: {expense.expense_date}\n"
+            f"Date: {expense_dates_text(expense)}\n"
             f"For: {_attribution_line(expense)}"
             f"{f' -- {expense.conference_name}' if expense.conference_name else ''}\n"
             f"Receipt: {expense.receipt_ref}\n"
@@ -340,8 +463,11 @@ def _create_manager_approval_task(db: Session, expense: ExpenseRecord, employee_
         priority="MEDIUM",
         tenant_id=expense.tenant_id,
         assigned_to_user_id=manager_user_id,
+        visibility_scope="ASSIGNEE_MANAGER_DEPARTMENT" if manager_user_id else "ORG_WIDE",
         expense_id=expense.id,
     )
+    task.category = EXPENSE_REVIEW_TASK_CATEGORY
+    db.add(task)
     logger.info(
         f"[ExpenseService] Manager approval task created for expense {expense.id} "
         f"(assigned to {manager_user_id or 'fallback'})"
@@ -406,7 +532,8 @@ def approve_manager_step(db: Session, expense: ExpenseRecord, *, approved_by: st
     return expense
 
 
-def reject_manager_step(db: Session, expense: ExpenseRecord, *, rejected_by: str) -> ExpenseRecord:
+def reject_manager_step(db: Session, expense: ExpenseRecord, *, rejected_by: str,
+                        reason: Optional[str] = None) -> ExpenseRecord:
     """Manager rejection: the expense never counts in the P&L."""
     if expense.manager_approval_status != "PENDING":
         raise ExpenseValidationError(
@@ -415,6 +542,7 @@ def reject_manager_step(db: Session, expense: ExpenseRecord, *, rejected_by: str
     if rejected_by == expense.logged_by_user_id:
         raise ExpenseValidationError("You can't review your own expense.")
     expense.manager_approval_status = "REJECTED"
+    expense.manager_review_note = reason.strip() if reason and reason.strip() else None
     expense.manager_approved_by = rejected_by
     expense.manager_approved_at = datetime.utcnow()
     db.add(expense)

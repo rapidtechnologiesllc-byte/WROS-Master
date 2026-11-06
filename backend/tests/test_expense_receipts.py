@@ -74,11 +74,13 @@ def test_an_unreadable_receipt_waits_for_the_manager(db):
     assert e.receipt_check_status == "UNREADABLE" and e.manager_approval_status == "PENDING"
 
 
-def test_only_receipt_files_are_accepted_and_a_decided_expense_is_locked(db):
+def test_only_receipt_files_are_accepted_and_a_finance_approved_expense_is_locked(db):
     e = expense(db)
     with pytest.raises(ReceiptError):
         attach_and_check(db, e, "r.exe", "application/x-msdownload", b"MZ")
     with reads(total=123.45, date="2026-10-01"):
         attach_and_check(db, e, "r.png", "image/png", PNG)
+    e.payment_status = "APPROVED"
+    db.commit()
     with pytest.raises(ReceiptError):
         attach_and_check(db, e, "r2.png", "image/png", PNG)

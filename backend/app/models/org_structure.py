@@ -48,6 +48,9 @@ class Department(Base):
     # Its people's cost is shared equally across the BUs with revenue (revenue_chain_service). None = the default
     # for its name (settings.SHARED_SERVICE_FUNCTIONS)
     is_shared_service = Column(Boolean, nullable=True)
+    # Its people serve every business unit, so they may see the records of all of them
+    # (app.core.visibility.sees_every_business_unit). What they may do stays with their permissions.
+    sees_all_business_units = Column(Boolean, nullable=False, default=False, server_default="false")
 
     # Cost center or profit center for finance reporting
     cost_center_code = Column(String(512), nullable=True)

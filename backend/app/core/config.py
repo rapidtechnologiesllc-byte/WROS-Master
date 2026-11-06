@@ -171,6 +171,7 @@ class Settings:
     # Expense receipts: a receipt whose amount and date match the entry approves the manager step
     # automatically; anything else goes to the manager with the reasons
     EXPENSE_RECEIPT_MAX_BYTES: int = int(os.getenv("EXPENSE_RECEIPT_MAX_BYTES", str(10 * 1024 * 1024)))
+    EXPENSE_RECEIPT_MAX_FILES: int = int(os.getenv("EXPENSE_RECEIPT_MAX_FILES", "25"))
     # Employee profile / cover photo upload limit
     EMPLOYEE_PHOTO_MAX_BYTES: int = int(os.getenv("EMPLOYEE_PHOTO_MAX_BYTES", str(5 * 1024 * 1024)))
     EXPENSE_RECEIPT_AMOUNT_TOLERANCE_PCT: float = float(os.getenv("EXPENSE_RECEIPT_AMOUNT_TOLERANCE_PCT", "2"))

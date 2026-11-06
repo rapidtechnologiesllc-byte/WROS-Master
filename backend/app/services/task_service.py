@@ -173,8 +173,10 @@ def get_daily_task_list(db: Session, *, assigned_to_user_id: str, now: Optional[
     """Layer 1 (hard filter): every open/in-progress task assigned to
     this user that's due today OR overdue is unconditionally included,
     regardless of Priority -- a Low-priority task due today is never
-    buried. Layer 2 (ordering): Priority, highest first, then soonest
-    due_date as the tiebreaker within the same priority tier."""
+    buried. So is one with no due date, or its owner could see it nowhere
+    (an expense approval sat unseen that way; 2026-11-06). Layer 2 (ordering):
+    Priority, highest first, then soonest due_date as the tiebreaker within
+    the same priority tier."""
     now = now or datetime.utcnow()
     today_start = _start_of_today(now)
     tomorrow_start = today_start + timedelta(days=1)
@@ -182,8 +184,7 @@ def get_daily_task_list(db: Session, *, assigned_to_user_id: str, now: Optional[
     tasks = db.query(Task).filter(
         Task.assigned_to_user_id == assigned_to_user_id,
         Task.status.in_(("NEW", "IN_PROGRESS", "ON_HOLD")),
-        Task.due_date.isnot(None),
-        Task.due_date < tomorrow_start,  # due today or overdue -- the hard floor
+        (Task.due_date.is_(None)) | (Task.due_date < tomorrow_start),  # the hard floor
     ).all()
 
     return sorted(

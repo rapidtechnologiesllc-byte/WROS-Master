@@ -319,6 +319,7 @@ class DepartmentRequest(BaseModel):
     description: Optional[str] = None
     cost_center_code: Optional[str] = None
     org_level: Optional[bool] = None  # True: its people's cost sits at org level in the P&L, not in a business unit
+    sees_all_business_units: Optional[bool] = None  # True: its people see the records of every business unit
     active: Optional[bool] = None  # False retires the function, True restores it
 
 def _function_templates(db: Session, tenant_id: int, name: str) -> list:
@@ -395,6 +396,7 @@ def create_department_endpoint(
         description=request.description,
         cost_center_code=request.cost_center_code,
         is_shared_service=request.org_level,
+        sees_all_business_units=bool(request.sees_all_business_units),
         active=True,
     )
     db.add(dept)
@@ -454,6 +456,8 @@ def update_department_endpoint(
     dept.cost_center_code = request.cost_center_code
     if request.org_level is not None:
         dept.is_shared_service = request.org_level
+    if request.sees_all_business_units is not None:
+        dept.sees_all_business_units = request.sees_all_business_units
     if request.active is not None:
         dept.active = request.active
     db.commit()

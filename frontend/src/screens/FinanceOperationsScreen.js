@@ -6,6 +6,7 @@
 // that BU/period, matching the "fewer clicks, more outcome" mandate.
 import { useCallback, useEffect, useState } from "react";
 import ReceiptCheck from "../components/ReceiptCheck";
+import { expenseDates } from "../utils/expenseAttribution";
 import { Wallet, DollarSign, Building2, RefreshCw, Search, Receipt, CheckCircle2 } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
 import { listBusinessUnits } from "../services/api/rbac";
@@ -672,7 +673,7 @@ export default function FinanceOperationsScreen() {
               { key: "actions", header: "" },
             ]}
             rows={allExpenses.map((e) => ({
-              date: e.expense_date,
+              date: expenseDates(e),
               purpose: e.purpose.replace("_", " "),
               subject: expenseSubject(e),
               category: `${e.expense_category}${e.travel_type ? ` / ${e.travel_type}` : ""}`,
