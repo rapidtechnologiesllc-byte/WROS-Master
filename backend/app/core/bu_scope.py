@@ -35,7 +35,7 @@ from sqlalchemy.orm import Query, Session
 from app.models.candidate import Candidate
 from app.models.candidate_ownership import CandidateOwnership, POOL_ORG
 from app.models.user import Users
-from app.core.visibility import should_bypass_bu_filter, get_user_bu_ids
+from app.core.visibility import get_user_bu_ids, sees_every_business_unit
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ def is_bu_restricted(db: Session, user: Users) -> bool:
     """
     # Everyone who is not org-level is restricted -- a user with no BU assigned sees the
     # Org Pool only (fail closed), same rule as apply_bu_scope_to_candidate_query
-    return not should_bypass_bu_filter(user)
+    return not sees_every_business_unit(user)
 
 def apply_bu_scope_to_candidate_query(db: Session, query: Query, current_user: Users) -> Query:
     """
@@ -69,7 +69,7 @@ def apply_bu_scope_to_candidate_query(db: Session, query: Query, current_user: U
     - role_template.org_level_access=False → BU-scoped (filter by business_unit_id)
     """
     # Check if user should bypass BU filtering (org-level user)
-    if should_bypass_bu_filter(current_user):
+    if sees_every_business_unit(current_user):
         # Org-level user: return unmodified query, they see everything
         logger.debug(f"BU scoping bypassed for org-level user: {current_user.UserEmail}")
         return query

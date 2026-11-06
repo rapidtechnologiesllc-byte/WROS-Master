@@ -3,6 +3,11 @@ Partner/BU spend tracking, 2026-08-05.
 Prefix: /expenses
 
 POST /expenses                       -- self-service: log YOUR OWN expense
+PUT  /expenses/{id}                  -- correct your own expense, until Finance approves it
+GET  /expenses/{id}                  -- one expense with its receipts and check (owner or reviewer)
+POST /expenses/{id}/receipts         -- add one or more receipts to your own expense
+GET  /expenses/{id}/receipts/{rid}   -- one receipt's file
+DELETE /expenses/{id}/receipts/{rid} -- remove a receipt from your own expense
 GET  /expenses/mine                  -- your own logged expenses
 GET  /expenses                       -- all expenses (revenue.view -- BU Head/Partner/Finance/CEO review)
 POST /expenses/{id}/manager-approve  -- the assigned manager (or finance): counts in the P&L from now
@@ -22,7 +27,7 @@ employee so they need to login to their portal and add their expense."
 logged_by_user_id is always the authenticated caller, never a request
 field, same ownership boundary as the existing self-service timesheet.
 """
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -37,7 +42,7 @@ from app.models.user import Users
 from app.schemas.expense import (
     ClientInvestmentPositionResponse, ExpenseAttributionRequest, ExpenseCreateRequest, ExpenseEventCreateRequest,
     ExpenseEventItem, ExpenseEventListResponse, ExpenseEventMergeRequest, ExpenseEventSummaryResponse, ExpenseItem,
-    ExpenseListResponse,
+    ExpenseListResponse, ExpenseRejectRequest, ExpenseUpdateRequest,
 )
 from app.services.expense_event_service import (
     ExpenseEventError, NearDuplicateEventError, event_rollup, find_or_create_event, get_event, merge_events,
@@ -46,6 +51,7 @@ from app.services.expense_event_service import (
 from app.services.expense_service import (
     ExpenseValidationError, approve_expense, approve_manager_step, can_review_as_manager,
     get_client_investment_position, log_expense, mark_expense_paid, reject_manager_step, update_attribution,
+    update_expense,
 )
 
 router = APIRouter(tags=["expenses"])
@@ -65,7 +71,8 @@ def create_expense(
         expense = log_expense(
             db, logged_by_user=current_user, purpose=body.purpose,
             expense_category=body.expense_category, amount_usd_cents=body.amount_usd_cents,
-            expense_date=body.expense_date, client_id=body.client_id, spend_for=body.spend_for,
+            expense_date=body.expense_date, expense_end_date=body.expense_end_date,
+            client_id=body.client_id, spend_for=body.spend_for,
             client_splits=[s.model_dump() for s in body.client_splits] if body.client_splits else None,
             event_id=body.event_id, investment_label=body.investment_label,
             travel_type=body.travel_type, trip_label=body.trip_label, location=body.location,
@@ -132,10 +139,67 @@ def _expense_or_404(db: Session, expense_id: str, user: Users) -> ExpenseRecord:
     return expense
 
 
+def _own_expense(db: Session, expense_id: str, user: Users) -> Optional[ExpenseRecord]:
+    return db.query(ExpenseRecord).filter(ExpenseRecord.id == expense_id, ExpenseRecord.tenant_id == user.tenant_id,
+                                          ExpenseRecord.logged_by_user_id == user.UserID).first()
+
+
+def _own_expense_or_404(db: Session, expense_id: str, user: Users) -> ExpenseRecord:
+    expense = _own_expense(db, expense_id, user)
+    if expense is None:
+        raise HTTPException(status_code=404, detail=f"Expense {expense_id!r} not found.")
+    return expense
+
+
+@router.get(
+    "/expenses/{expense_id}",
+    response_model=ExpenseItem,
+    dependencies=[Depends(require_resource_permission("my-tasks", "view"))],
+)
+def get_expense(
+    expense_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """One expense for its review: the person who logged it, the manager reviewing it, or anyone who
+    may see it."""
+    return _own_expense(db, expense_id, current_user) or _expense_or_404(db, expense_id, current_user)
+
+
+@router.put(
+    "/expenses/{expense_id}",
+    response_model=ExpenseItem,
+    dependencies=[Depends(require_resource_permission("my-expenses", "create"))],
+)
+def edit_expense(
+    expense_id: str,
+    body: ExpenseUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Correct your own expense, until Finance approves it."""
+    expense = _own_expense_or_404(db, expense_id, current_user)
+    try:
+        return update_expense(
+            db, expense, current_user, purpose=body.purpose, expense_category=body.expense_category,
+            amount_usd_cents=body.amount_usd_cents, expense_date=body.expense_date,
+            expense_end_date=body.expense_end_date, spend_for=body.spend_for, client_id=body.client_id,
+            client_splits=[s.model_dump() for s in body.client_splits] if body.client_splits else None,
+            event_id=body.event_id, investment_label=body.investment_label, travel_type=body.travel_type,
+            trip_label=body.trip_label, location=body.location, description=body.description,
+            receipt_ref=body.receipt_ref)
+    except PermissionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except ExpenseValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+# A manager reviews from My Tasks: being the assigned reviewer (or finance) is what is checked, not a
+# finance screen's permission, or most managers could open the task and not decide it.
 @router.post(
     "/expenses/{expense_id}/manager-approve",
     response_model=ExpenseItem,
-    dependencies=[Depends(require_resource_permission("expenses", "view"))]
+    dependencies=[Depends(require_resource_permission("my-tasks", "view"))]
 )
 def manager_approve_expense(
     expense_id: str,
@@ -154,10 +218,11 @@ def manager_approve_expense(
 @router.post(
     "/expenses/{expense_id}/manager-reject",
     response_model=ExpenseItem,
-    dependencies=[Depends(require_resource_permission("expenses", "view"))]
+    dependencies=[Depends(require_resource_permission("my-tasks", "view"))]
 )
 def manager_reject_expense(
     expense_id: str,
+    body: Optional[ExpenseRejectRequest] = None,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
@@ -165,7 +230,7 @@ def manager_reject_expense(
     if not can_review_as_manager(db, expense, current_user):
         raise HTTPException(status_code=403, detail="Only the assigned manager or finance can review this expense.")
     try:
-        return reject_manager_step(db, expense, rejected_by=current_user.UserID)
+        return reject_manager_step(db, expense, rejected_by=current_user.UserID, reason=body.reason if body else None)
     except ExpenseValidationError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
 
@@ -199,7 +264,7 @@ def mark_expense_paid_endpoint(
 ):
     expense = _expense_or_404(db, expense_id, current_user)
     try:
-        return mark_expense_paid(db, expense)
+        return mark_expense_paid(db, expense, paid_by=current_user.UserID)
     except ExpenseValidationError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
 
@@ -240,15 +305,72 @@ async def upload_expense_receipt(
     (app.services.expense_receipt_service)."""
     from app.services.expense_receipt_service import ReceiptError, attach_and_check
 
-    expense = db.query(ExpenseRecord).filter(ExpenseRecord.id == expense_id,
-                                             ExpenseRecord.tenant_id == current_user.tenant_id,
-                                             ExpenseRecord.logged_by_user_id == current_user.UserID).first()
-    if expense is None:
-        raise HTTPException(status_code=404, detail=f"Expense {expense_id!r} not found.")
+    expense = _own_expense_or_404(db, expense_id, current_user)
     try:
         return attach_and_check(db, expense, file.filename, file.content_type, await file.read())
     except ReceiptError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post(
+    "/expenses/{expense_id}/receipts",
+    response_model=ExpenseItem,
+    dependencies=[Depends(require_resource_permission("my-expenses", "create"))],
+)
+async def add_expense_receipts(
+    expense_id: str,
+    files: List[UploadFile] = File(...),
+    check: bool = True,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Add receipts to your own expense. check=false holds the check until the last of a batch sent
+    one file at a time."""
+    from app.services.expense_receipt_service import ReceiptError, attach_receipts
+
+    expense = _own_expense_or_404(db, expense_id, current_user)
+    try:
+        return attach_receipts(db, expense, [(f.filename, f.content_type, await f.read()) for f in files],
+                               user=current_user, check=check)
+    except ReceiptError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.delete(
+    "/expenses/{expense_id}/receipts/{receipt_id}",
+    response_model=ExpenseItem,
+    dependencies=[Depends(require_resource_permission("my-expenses", "create"))],
+)
+def delete_expense_receipt(
+    expense_id: str,
+    receipt_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    from app.services.expense_receipt_service import ReceiptError, remove_receipt
+
+    expense = _own_expense_or_404(db, expense_id, current_user)
+    try:
+        return remove_receipt(db, expense, receipt_id, user=current_user)
+    except ReceiptError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/expenses/{expense_id}/receipts/{receipt_id}")
+def download_one_receipt(
+    expense_id: str,
+    receipt_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """One receipt's file: the person who logged it, their reviewer, or anyone who may see the expense."""
+    import os
+
+    expense = _own_expense(db, expense_id, current_user) or _expense_or_404(db, expense_id, current_user)
+    receipt = next((r for r in expense.receipts if r.id == receipt_id), None)
+    if receipt is None or not os.path.isfile(receipt.file_path):
+        raise HTTPException(status_code=404, detail="Receipt not found")
+    return FileResponse(receipt.file_path, media_type=receipt.content_type)
 
 
 @router.get("/expenses/{expense_id}/receipt")
@@ -260,10 +382,7 @@ def download_expense_receipt(
     """The receipt file: the person who logged it, their reviewer, or anyone who may see the expense."""
     import os
 
-    expense = db.query(ExpenseRecord).filter(ExpenseRecord.id == expense_id,
-                                             ExpenseRecord.tenant_id == current_user.tenant_id,
-                                             ExpenseRecord.logged_by_user_id == current_user.UserID).first() \
-        or _expense_or_404(db, expense_id, current_user)
+    expense = _own_expense(db, expense_id, current_user) or _expense_or_404(db, expense_id, current_user)
     if not expense.receipt_file_path or not os.path.isfile(expense.receipt_file_path):
         raise HTTPException(status_code=404, detail="No receipt attached")
     return FileResponse(expense.receipt_file_path, media_type=expense.receipt_content_type)
@@ -282,10 +401,7 @@ def update_expense_attribution(
 ):
     """Who the spend is on: the person who logged it (until the manager decides) or its reviewer
     (until Finance approves). Same rules as logging it."""
-    expense = db.query(ExpenseRecord).filter(ExpenseRecord.id == expense_id,
-                                             ExpenseRecord.tenant_id == current_user.tenant_id,
-                                             ExpenseRecord.logged_by_user_id == current_user.UserID).first() \
-        or _expense_or_404(db, expense_id, current_user)
+    expense = _own_expense(db, expense_id, current_user) or _expense_or_404(db, expense_id, current_user)
     try:
         return update_attribution(
             db, expense, current_user, spend_for=body.spend_for, client_id=body.client_id,

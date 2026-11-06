@@ -6,6 +6,8 @@
 // that BU/period, matching the "fewer clicks, more outcome" mandate.
 import { useCallback, useEffect, useState } from "react";
 import ReceiptCheck from "../components/ReceiptCheck";
+import ExpenseReviewModal from "../components/ExpenseReviewModal";
+import { expenseDates } from "../utils/expenseAttribution";
 import { Wallet, DollarSign, Building2, RefreshCw, Search, Receipt, CheckCircle2 } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
 import { listBusinessUnits } from "../services/api/rbac";
@@ -31,7 +33,7 @@ import {
   createIncentiveRule,
 } from "../services/api/partnerIncentives";
 import {
-  listAllExpenses, approveExpense, managerApproveExpense, managerRejectExpense, markExpensePaid,
+  listAllExpenses, approveExpense, markExpensePaid,
 } from "../services/api/expenses";
 import { apiRequest } from "../services/api/client";
 import { expenseSubject } from "../utils/expenseAttribution";
@@ -119,6 +121,7 @@ export default function FinanceOperationsScreen() {
   const [expensesLoading, setExpensesLoading] = useState(false);
   const [expensesError, setExpensesError] = useState("");
   const [approvingExpenseId, setApprovingExpenseId] = useState(null);
+  const [reviewingExpenseId, setReviewingExpenseId] = useState(null);
 
   const loadAllExpenses = async () => {
     setExpensesLoading(true);
@@ -672,7 +675,7 @@ export default function FinanceOperationsScreen() {
               { key: "actions", header: "" },
             ]}
             rows={allExpenses.map((e) => ({
-              date: e.expense_date,
+              date: expenseDates(e),
               purpose: e.purpose.replace("_", " "),
               subject: expenseSubject(e),
               category: `${e.expense_category}${e.travel_type ? ` / ${e.travel_type}` : ""}`,
@@ -683,45 +686,44 @@ export default function FinanceOperationsScreen() {
                 </span>
               ),
               receipt: <ReceiptCheck expense={e} />,
-              actions:
-                e.manager_approval_status === "PENDING" || !e.manager_approval_status ? (
-                  <div className="flex gap-2">
+              // The review shows the receipts, the system's check and the full history; a rejection needs its reason there
+              actions: (
+                <div className="flex flex-col items-start gap-1">
+                  <Button variant="ghost" onClick={() => setReviewingExpenseId(e.id)}>
+                    {e.manager_approval_status === "PENDING" || !e.manager_approval_status ? "Review" : "History"}
+                  </Button>
+                  {e.manager_approval_status === "APPROVED" && e.payment_status === "PENDING" ? (
                     <Button
                       variant="success"
                       disabled={approvingExpenseId === e.id}
-                      onClick={() => runExpenseAction(e.id, managerApproveExpense)}
+                      onClick={() => runExpenseAction(e.id, approveExpense)}
                     >
-                      <CheckCircle2 className="h-4 w-4" /> Approve
+                      <CheckCircle2 className="h-4 w-4" /> Approve for payment
                     </Button>
+                  ) : null}
+                  {e.payment_status === "APPROVED" ? (
                     <Button
                       variant="ghost"
                       disabled={approvingExpenseId === e.id}
-                      onClick={() => runExpenseAction(e.id, managerRejectExpense)}
+                      onClick={() => runExpenseAction(e.id, markExpensePaid)}
                     >
-                      Reject
+                      Mark paid
                     </Button>
-                  </div>
-                ) : e.manager_approval_status === "APPROVED" && e.payment_status === "PENDING" ? (
-                  <Button
-                    variant="success"
-                    disabled={approvingExpenseId === e.id}
-                    onClick={() => runExpenseAction(e.id, approveExpense)}
-                  >
-                    <CheckCircle2 className="h-4 w-4" /> Approve for payment
-                  </Button>
-                ) : e.payment_status === "APPROVED" ? (
-                  <Button
-                    variant="ghost"
-                    disabled={approvingExpenseId === e.id}
-                    onClick={() => runExpenseAction(e.id, markExpensePaid)}
-                  >
-                    Mark paid
-                  </Button>
-                ) : null,
+                  ) : null}
+                </div>
+              ),
             }))}
           />
         )}
       </Card>
+
+      {reviewingExpenseId ? (
+        <ExpenseReviewModal
+          expenseId={reviewingExpenseId}
+          onClose={() => setReviewingExpenseId(null)}
+          onDone={() => { setReviewingExpenseId(null); loadAllExpenses(); }}
+        />
+      ) : null}
 
       <ConferenceCostCard />
     </div>

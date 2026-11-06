@@ -28,6 +28,8 @@ const MONEY_COLUMNS = [
   { key: "shared", header: "Corporate share", cell: (r) => usd(r.shared_cost_usd_cents) },
   { key: "htd", header: "HTD training", cell: (r) => usd(r.htd_cost_usd_cents) },
   { key: "expense", header: "Expenses", cell: (r) => usd(r.expense_cost_usd_cents ?? r.expense_usd_cents) },
+  // logged but not yet a cost: they count once the manager approves
+  { key: "expense_pending", header: "Expenses awaiting approval", cell: (r) => (r.pending_expense_usd_cents == null ? "—" : usd(r.pending_expense_usd_cents)) },
   { key: "margin", header: "Margin", cell: (r) => usd(r.margin_usd_cents) },
   { key: "margin_pct", header: "Margin %", cell: (r) => pct(r.margin_pct) },
 ];

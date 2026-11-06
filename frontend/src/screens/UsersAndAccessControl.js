@@ -1056,7 +1056,7 @@ function OrganizationalHierarchySection() {
       await apiRequest(editingDept ? `/org/departments/${editingDept.id}` : "/org/departments", {
         method: editingDept ? "PUT" : "POST",
         // Functions are org-wide (HR, Recruitment, Finance ...)
-        body: JSON.stringify({ name: form.name.trim(), description: form.description || null, org_level: Boolean(form.org_level) }),
+        body: JSON.stringify({ name: form.name.trim(), description: form.description || null, org_level: Boolean(form.org_level), sees_all_business_units: Boolean(form.sees_all_business_units) }),
       });
       setActionSuccess(editingDept ? "Function updated" : "Function added");
       setEditingDept(null);
@@ -1460,6 +1460,7 @@ function OrganizationalHierarchySection() {
                     <span className="text-sm font-medium text-gray-900">{dept.name}</span>
                     {dept.active === false && <span className="ml-2 text-xs text-gray-500">Retired</span>}
                     {dept.org_level && <span className="ml-2 text-xs text-gray-500">Org level in P&amp;L</span>}
+                    {dept.sees_all_business_units && <span className="ml-2 text-xs text-gray-500">Sees every business unit</span>}
                     <div className="text-[11px] text-gray-500">
                       {dept.access_note
                         ? dept.access_note
@@ -1478,7 +1479,7 @@ function OrganizationalHierarchySection() {
                       {dept.active === false ? "Restore" : "Retire"}
                     </button>
                     <button
-                      onClick={() => setEditingDept({ id: dept.id, name: dept.name, description: dept.description || "", org_level: Boolean(dept.org_level) })}
+                      onClick={() => setEditingDept({ id: dept.id, name: dept.name, description: dept.description || "", org_level: Boolean(dept.org_level), sees_all_business_units: Boolean(dept.sees_all_business_units) })}
                       className="p-1 text-blue-600 hover:bg-blue-50 rounded"
                       aria-label={`Edit ${dept.name}`}
                     >
@@ -1517,6 +1518,16 @@ function OrganizationalHierarchySection() {
                   : setDeptForm(d => ({ ...d, org_level: e.target.checked }))}
               />
               Org level in the P&amp;L (this function&apos;s people are not charged to one business unit)
+            </label>
+            <label className="flex items-center gap-2 text-xs text-gray-700">
+              <input
+                type="checkbox"
+                checked={Boolean((editingDept || deptForm).sees_all_business_units)}
+                onChange={(e) => editingDept
+                  ? setEditingDept(d => ({ ...d, sees_all_business_units: e.target.checked }))
+                  : setDeptForm(d => ({ ...d, sees_all_business_units: e.target.checked }))}
+              />
+              Sees every business unit (this function serves them all; permissions still decide what they can do)
             </label>
             <div className="flex gap-2 justify-end">
               {editingDept && (

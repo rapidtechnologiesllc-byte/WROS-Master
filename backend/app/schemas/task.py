@@ -52,6 +52,7 @@ class TaskResponse(BaseModel):
     interview_id: Optional[int] = None
     # Doing this is what closes the task (My Tasks shows it instead of Log update and Mark complete)
     system_action: Optional[str] = None
+    expense_id: Optional[str] = None  # the expense a review task opens
     recurrence: Optional[str] = None
     # In-app path the task opens; My Tasks follows it first
     link: Optional[str] = None

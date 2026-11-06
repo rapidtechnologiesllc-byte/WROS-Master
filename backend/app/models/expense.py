@@ -80,8 +80,10 @@ class ExpenseRecord(Base):
     location = Column(String(512), nullable=True)
     description = Column(Text, nullable=True)
     receipt_ref = Column(String(300), nullable=False)  # PRIORITY-3: Receipt is mandatory
-    expense_date = Column(Date, nullable=False)
-    # Attached receipt and its automatic check (app.services.expense_receipt_service):
+    expense_date = Column(Date, nullable=False)  # the first day; the P&L counts the expense on this date
+    expense_end_date = Column(Date, nullable=True)  # the last day, when it covers several (a client visit)
+    # The automatic check over all its receipts (app.services.expense_receipt_service); the file
+    # columns point at the first receipt, every receipt is an ExpenseReceipt:
     # NOT_ATTACHED -> MATCHED (manager step auto-approved) | MISMATCH | UNREADABLE (manager reviews)
     receipt_file_path = Column(String(1024), nullable=True)
     receipt_content_type = Column(String(100), nullable=True)
@@ -95,6 +97,7 @@ class ExpenseRecord(Base):
     )
     manager_approved_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     manager_approved_at = Column(DateTime, nullable=True)
+    manager_review_note = Column(Text, nullable=True)  # why it was rejected, for the person who logged it
 
     # Finance approval (after manager approval)
     payment_status = Column(
@@ -109,10 +112,50 @@ class ExpenseRecord(Base):
     event = relationship("ExpenseEvent", foreign_keys=[event_id])
     client_shares = relationship("ExpenseClientShare", cascade="all, delete-orphan",
                                  order_by="ExpenseClientShare.id")
+    logged_by = relationship("Users", foreign_keys=[logged_by_user_id])
+    receipts = relationship("ExpenseReceipt", cascade="all, delete-orphan",
+                            order_by="ExpenseReceipt.created_at, ExpenseReceipt.id")
+    edits = relationship("ExpenseEdit", cascade="all, delete-orphan", order_by="ExpenseEdit.id")
+
+    @property
+    def logged_by_name(self):
+        return (self.logged_by.UserName or self.logged_by.UserEmail) if self.logged_by else None
 
     @property
     def client_name(self):
         return self.client.company_name if self.client else None
+
+
+class ExpenseReceipt(Base):
+    """One receipt of an expense (CEO 2026-11-06: a transaction can have several). `reading` is what
+    the file says (JSON, app.services.expense_receipt_reader); `read_error` why it couldn't be read."""
+    __tablename__ = "expense_receipts"
+
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    expense_id = Column(String(512), ForeignKey("expense_records.id", ondelete="CASCADE"), nullable=False, index=True)
+    file_name = Column(String(300), nullable=True)
+    file_path = Column(String(1024), nullable=False)
+    content_type = Column(String(100), nullable=True)
+    reading = Column(Text, nullable=True)
+    read_error = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class ExpenseEdit(Base):
+    """What changed on an expense after it was logged, and who changed it: the reviewer sees this."""
+    __tablename__ = "expense_edits"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    expense_id = Column(String(512), ForeignKey("expense_records.id", ondelete="CASCADE"), nullable=False, index=True)
+    changed_by_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True)
+    summary = Column(Text, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+    changed_by = relationship("Users", foreign_keys=[changed_by_user_id])
+
+    @property
+    def changed_by_name(self):
+        return (self.changed_by.UserName or self.changed_by.UserEmail) if self.changed_by else None
 
 
 class ExpenseEvent(Base):

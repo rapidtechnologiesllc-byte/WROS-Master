@@ -27,6 +27,23 @@ def is_org_level_user(user: Users) -> bool:
     return authority.is_org_level(db, user)
 
 
+def sees_every_business_unit(user: Users) -> bool:
+    """Whose records are not narrowed to a business unit: org-level users, and people in a function
+    that serves every BU (Department.sees_all_business_units, CEO 2026-11-06: HR, recruitment). Their
+    role's permissions still decide what they may open or do; other org-level authority (acting on
+    anyone's task, partner pay) stays with is_org_level_user."""
+    from sqlalchemy.orm import object_session
+
+    from app.models.org_structure import Department
+
+    if is_org_level_user(user):
+        return True
+    if user is None or not user.department_id:
+        return False
+    department = object_session(user).get(Department, user.department_id)
+    return bool(department and department.sees_all_business_units)
+
+
 def should_bypass_bu_filter(user: Users) -> bool:
     """
     Determine if BU filtering should be skipped for this user.
@@ -51,7 +68,7 @@ def get_user_bu_id(user: Users) -> int | None:
         else:
             candidates = db.query(Candidate).all()
     """
-    if should_bypass_bu_filter(user):
+    if sees_every_business_unit(user):
         return None
 
     return user.business_unit_id
@@ -65,7 +82,7 @@ def scope_bu_ids(db, user: Users) -> set[int] | None:
     """
     from app.services.bu_leadership import led_business_units
 
-    if should_bypass_bu_filter(user):
+    if sees_every_business_unit(user):
         return None
     ids = led_business_units(db, user)
     if user.business_unit_id is not None:
@@ -124,7 +141,7 @@ def resolve_dashboard_head_bu(db, user: Users, requested_bu_id: int | None) -> t
     from fastapi import HTTPException
     from app.models.business_unit import BusinessUnit
 
-    if should_bypass_bu_filter(user):
+    if sees_every_business_unit(user):
         allowed = business_unit_choices(db)
     else:
         rows = db.query(BusinessUnit).filter(
@@ -137,7 +154,7 @@ def resolve_dashboard_head_bu(db, user: Users, requested_bu_id: int | None) -> t
         if requested_bu_id not in allowed_ids:
             raise HTTPException(status_code=403, detail="You can only view business units you head or own")
         return requested_bu_id, allowed
-    if len(allowed) == 1 or (allowed and not should_bypass_bu_filter(user)):
+    if len(allowed) == 1 or (allowed and not sees_every_business_unit(user)):
         return allowed[0]["id"], allowed
     return None, allowed
 

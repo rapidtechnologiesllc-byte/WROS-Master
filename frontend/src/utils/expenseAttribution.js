@@ -10,6 +10,9 @@ export const expenseOnWhom = (e) => {
   return "Internal";
 };
 
+// One date, or both ends of a multi-day expense
+export const expenseDates = (e) => (e.expense_end_date ? `${e.expense_date} to ${e.expense_end_date}` : e.expense_date);
+
 export const expenseSubject = (e) => {
   const what = e.conference_name || e.investment_label;
   return what ? `${what} -- ${expenseOnWhom(e)}` : expenseOnWhom(e);

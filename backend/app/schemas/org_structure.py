@@ -71,6 +71,7 @@ class DepartmentResponse(BaseModel):
     access_template_name: Optional[str] = None
     access_org_level: bool = False
     org_level: bool = False  # its people's cost sits at org level in the P&L
+    sees_all_business_units: bool = False  # its people see the records of every business unit
     access_note: Optional[str] = None
 
     class Config:

@@ -126,6 +126,9 @@ _JOBS = (
     ScheduledJob("task_due_reminders", "app.services.task_notification_service:run_due_reminders",
                  timedelta(minutes=5), timeout_s=120,
                  backlog_guard="app.services.task_notification_service:backlog_guard"),
+    # internal only: an expense step left waiting past its due date goes up the chain, once per step
+    ScheduledJob("expense_escalations", "app.services.expense_service:run_expense_escalations",
+                 timedelta(hours=1), timeout_s=120),
     # internal only: P1/P2 notifications held outside the recipient's business hours are sent once
     # the hold ends (notification_service); nothing released them before this job
     ScheduledJob("notification_release", "app.services.notification_service:release_pending_notifications",

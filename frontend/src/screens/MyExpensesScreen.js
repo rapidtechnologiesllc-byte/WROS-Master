@@ -6,10 +6,10 @@ import { useCallback, useEffect, useState } from "react";
 import { Receipt, Plus } from "lucide-react";
 import { Card, Button, Input, Select, TextArea, Table } from "../components/ui";
 import { listClients, createClient } from "../services/api/clients";
-import { createExpense, listMyExpenses, uploadExpenseReceipt } from "../services/api/expenses";
+import { createExpense, listMyExpenses, openExpenseReceipt, removeExpenseReceipt, updateExpense, uploadExpenseReceipts } from "../services/api/expenses";
 import ReceiptCheck from "../components/ReceiptCheck";
 import ExpenseEventPicker from "../components/ExpenseEventPicker";
-import { expenseSubject } from "../utils/expenseAttribution";
+import { expenseDates, expenseSubject } from "../utils/expenseAttribution";
 
 const PURPOSES = [
   { label: "Current client", value: "CLIENT_CURRENT" },
@@ -53,14 +53,41 @@ const emptyForm = {
   tripLabel: "",
   amount: "",
   expenseDate: "",
+  expenseEndDate: "",
   location: "",
   description: "",
   receiptRef: "",
-  receiptFile: null,
+  receiptFiles: [],
 };
 
-function LogExpenseForm({ clients, onCancel, onSaved, reloadClients }) {
-  const [form, setForm] = useState(emptyForm);
+// The form as it was filled in, to correct a logged expense
+const formOf = (e) => ({
+  ...emptyForm,
+  purpose: e.purpose,
+  spendFor: e.spend_for || defaultSpendFor(e.purpose),
+  clientId: e.spend_for === "CLIENT" ? e.client_id || "" : "",
+  splitBy: "amount",
+  splits: e.spend_for === "SPLIT" && (e.client_shares || []).length
+    ? e.client_shares.map((s) => ({ clientId: s.client_id, value: (s.amount_usd_cents / 100).toFixed(2) }))
+    : [emptySplitLine(), emptySplitLine()],
+  event: e.event_id ? { id: e.event_id, name: e.conference_name } : null,
+  investmentLabel: e.investment_label || "",
+  expenseCategory: e.expense_category,
+  travelType: e.travel_type || "AIRFARE",
+  tripLabel: e.trip_label || "",
+  amount: (e.amount_usd_cents / 100).toFixed(2),
+  expenseDate: e.expense_date,
+  expenseEndDate: e.expense_end_date || "",
+  location: e.location || "",
+  description: e.description || "",
+  receiptRef: e.receipt_ref || "",
+});
+
+function LogExpenseForm({ clients, onCancel, onSaved, reloadClients, expense }) {
+  const [form, setForm] = useState(() => (expense ? formOf(expense) : emptyForm));
+  // The record once it exists: if a receipt then fails to upload, saving again doesn't log it twice
+  const [record, setRecord] = useState(expense || null);
+  const [progress, setProgress] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [addingProspect, setAddingProspect] = useState(false);
@@ -123,8 +150,12 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients }) {
       setError("Expense date is required.");
       return;
     }
-    if (!form.receiptFile) {
-      setError("Attach the receipt (photo or PDF).");
+    if (form.expenseEndDate && form.expenseEndDate < form.expenseDate) {
+      setError("The last date can't be before the first date.");
+      return;
+    }
+    if (!form.receiptFiles.length && !(record?.receipts || []).length) {
+      setError("Attach at least one receipt (photo or PDF).");
       return;
     }
     if (form.purpose === "CONFERENCE" && !form.event) {
@@ -157,7 +188,7 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients }) {
     setSaving(true);
     setError("");
     try {
-      const created = await createExpense({
+      const payload = {
         purpose: form.purpose,
         spend_for: form.spendFor,
         client_id: form.spendFor === "CLIENT" ? form.clientId : null,
@@ -169,17 +200,32 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients }) {
         trip_label: form.tripLabel || null,
         amount_usd_cents: amountCents,
         expense_date: form.expenseDate,
+        expense_end_date: form.expenseEndDate || null,
         location: form.location || null,
         description: form.description || null,
-        receipt_ref: form.receiptRef || form.receiptFile.name,
-      });
-      // The receipt is read and checked on upload: a match approves the manager step by itself
-      await uploadExpenseReceipt(created.id, form.receiptFile);
+        receipt_ref: form.receiptRef || form.receiptFiles[0]?.name || record?.receipt_ref,
+      };
+      const saved = record ? await updateExpense(record.id, payload) : await createExpense(payload);
+      setRecord(saved);
+      // Receipts are read and checked on upload: a match approves the manager step by itself
+      if (form.receiptFiles.length) {
+        await uploadExpenseReceipts(saved.id, form.receiptFiles, (done, total) => setProgress(`Uploading receipt ${done} of ${total}…`));
+      }
       onSaved();
     } catch (err) {
-      setError(err.message || "Failed to log expense.");
+      setError(record || err.message ? err.message || "Failed to save the expense." : "Failed to save the expense.");
     } finally {
+      setProgress("");
       setSaving(false);
+    }
+  };
+
+  const removeReceipt = async (receiptId) => {
+    setError("");
+    try {
+      setRecord(await removeExpenseReceipt(record.id, receiptId));
+    } catch (err) {
+      setError(err.message || "Couldn't remove the receipt.");
     }
   };
 
@@ -206,7 +252,10 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients }) {
 
   return (
     <div className="mb-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-      <div className="mb-3 text-sm font-semibold text-gray-900">Log an expense</div>
+      <div className="mb-3 text-sm font-semibold text-gray-900">{expense ? "Correct this expense" : "Log an expense"}</div>
+      {expense && expense.manager_approval_status !== "PENDING" ? (
+        <div className="mb-3 text-xs text-amber-700">Changing what it costs, its dates or who it is on sends it back to your manager.</div>
+      ) : null}
       {error ? <div className="mb-3 text-xs text-rose-700">{error}</div> : null}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Select label="Purpose" value={form.purpose} onChange={setPurpose} options={PURPOSES} />
@@ -302,18 +351,37 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients }) {
         ) : null}
         <Input label="Trip Label (optional)" value={form.tripLabel} onChange={set("tripLabel")} placeholder="Seattle - Goldenbear - Aug 2026" />
         <Input label="Amount (USD)" value={form.amount} onChange={set("amount")} placeholder="450.00" />
-        <Input label="Expense Date" type="date" value={form.expenseDate} onChange={set("expenseDate")} />
+        <Input label="Date (first day)" type="date" value={form.expenseDate} onChange={set("expenseDate")} />
+        <Input label="Last day (if it covers several)" type="date" value={form.expenseEndDate} onChange={set("expenseEndDate")} />
         <Input label="Location" value={form.location} onChange={set("location")} />
-        <label className="block">
-          <div className="mb-1 text-xs font-semibold text-gray-700">Receipt * (photo or PDF)</div>
+        <div className="block">
+          <label htmlFor="expense-receipts" className="mb-1 block text-xs font-semibold text-gray-700">
+            {(record?.receipts || []).length ? "Add more receipts" : "Receipts * (photos or PDFs)"}
+          </label>
           <input
+            id="expense-receipts"
             type="file"
+            multiple
             accept="image/jpeg,image/png,image/webp,application/pdf"
-            onChange={(e) => setForm((f) => ({ ...f, receiptFile: e.target.files?.[0] || null }))}
+            onChange={(e) => setForm((f) => ({ ...f, receiptFiles: Array.from(e.target.files || []) }))}
             className="block w-full text-sm"
           />
-          <div className="mt-1 text-xs text-gray-500">Checked automatically against the amount and date.</div>
-        </label>
+          <div className="mt-1 text-xs text-gray-500">
+            {form.receiptFiles.length > 1
+              ? `${form.receiptFiles.length} receipts selected. Together they should add up to the amount.`
+              : "Select several at once if needed. Together they are checked against the amount and dates."}
+          </div>
+          {(record?.receipts || []).map((r, i) => (
+            <div key={r.id} className="mt-1 flex items-center gap-2 text-xs">
+              <button type="button" className="text-blue-600 hover:underline" onClick={() => openExpenseReceipt(record.id, r.id).catch((err) => setError(err.message))}>
+                Receipt {i + 1}: {r.file_name || "file"}
+              </button>
+              {record.receipts.length > 1 ? (
+                <button type="button" className="text-rose-700 hover:underline" onClick={() => removeReceipt(r.id)}>Remove</button>
+              ) : null}
+            </div>
+          ))}
+        </div>
         <Input label="Receipt Ref (optional)" value={form.receiptRef} onChange={set("receiptRef")} placeholder="Invoice ID or email ref" />
       </div>
       <div className="mt-3">
@@ -321,7 +389,7 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients }) {
       </div>
       <div className="mt-3 flex gap-2">
         <Button onClick={handleSave} disabled={saving}>
-          {saving ? "Saving…" : "Log Expense"}
+          {saving ? progress || "Saving…" : expense ? "Save changes" : "Log Expense"}
         </Button>
         <Button variant="ghost" onClick={onCancel} disabled={saving}>
           Cancel
@@ -337,6 +405,7 @@ export default function MyExpensesScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState(null);
 
   // the client list is the caller's own tenant and business units (server-scoped)
   const loadClients = useCallback(async () => {
@@ -388,7 +457,7 @@ export default function MyExpensesScreen() {
     }
 
     return {
-      date: e.expense_date,
+      date: expenseDates(e),
       purpose: e.purpose.replace("_", " "),
       subject: expenseSubject(e),
       category: `${e.expense_category}${e.travel_type ? ` / ${e.travel_type}` : ""}`,
@@ -398,7 +467,16 @@ export default function MyExpensesScreen() {
           {statusDisplay}
         </span>
       ),
-      receipt: <ReceiptCheck expense={e} />,
+      receipt: (
+        <div>
+          <ReceiptCheck expense={e} />
+          {e.manager_review_note ? <div className="mt-1 text-xs text-rose-700">Manager: {e.manager_review_note}</div> : null}
+        </div>
+      ),
+      // until Finance approves it (the server holds the same rule)
+      actions: e.payment_status === "PENDING" ? (
+        <Button variant="ghost" onClick={() => { setShowForm(false); setEditing(e); window.scrollTo({ top: 0 }); }}>Edit</Button>
+      ) : null,
     };
   });
 
@@ -409,18 +487,21 @@ export default function MyExpensesScreen() {
         subtitle="Log your own travel and BD spend -- tagged to a client, prospect, conference, or investment."
         icon={<Receipt className="h-4 w-4" />}
         right={
-          <Button onClick={() => setShowForm((v) => !v)}>
+          <Button onClick={() => { setEditing(null); setShowForm((v) => !v); }}>
             <Plus className="h-4 w-4" /> Log Expense
           </Button>
         }
       >
-        {showForm ? (
+        {showForm || editing ? (
           <LogExpenseForm
+            key={editing?.id || "new"}
+            expense={editing}
             clients={clients}
             reloadClients={loadClients}
-            onCancel={() => setShowForm(false)}
+            onCancel={() => { setShowForm(false); setEditing(null); }}
             onSaved={() => {
               setShowForm(false);
+              setEditing(null);
               load();
             }}
           />
@@ -439,6 +520,7 @@ export default function MyExpensesScreen() {
               { key: "amount", header: "Amount" },
               { key: "status", header: "Status" },
               { key: "receipt", header: "Receipt" },
+              { key: "actions", header: "" },
             ]}
             rows={rows}
           />

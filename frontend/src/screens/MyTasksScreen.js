@@ -13,6 +13,7 @@ import {
   getScheduledTasks, getTaskReplyDraft, getUpcomingUrgentTasks,
 } from "../services/api/tasks";
 import TaskUpdateModal from "../components/TaskUpdateModal";
+import ExpenseReviewModal from "../components/ExpenseReviewModal";
 import { SubmitFeedbackModal } from "./tabs/InterviewsTab";
 import { getFeedbackForm, markCandidateNoShow, submitInterviewFeedback } from "../services/api/interviews";
 import { ROUTES } from "../utils/Routes";
@@ -38,6 +39,8 @@ function isOverdue(task, now) {
 // task and what has to be done on it"): what is needed, who it is about, the email behind it and, when
 // the system drafted an answer, that reply to approve (edit first if needed) or discard.
 const SUBMIT_FEEDBACK = "SUBMIT_FEEDBACK";
+const REVIEW_EXPENSE = "REVIEW_EXPENSE";
+const OPEN_FINANCE = "OPEN_FINANCE";
 
 // The same form as the candidate's Interviews tab; submitting it is what closes the task.
 function TaskFeedbackModal({ task, onClose, onDone }) {
@@ -263,6 +266,16 @@ function TaskRow({ task, now, onComplete, onConfirmUrgent, onNavigate, onLogUpda
             Submit feedback
           </button>
         )}
+        {task.status !== "COMPLETED" && task.system_action === OPEN_FINANCE && (
+          <button className="text-xs font-semibold text-bx-orange hover:underline" onClick={() => onOpen(task)}>
+            Open in Finance
+          </button>
+        )}
+        {task.status !== "COMPLETED" && task.system_action === REVIEW_EXPENSE && (
+          <button className="text-xs font-semibold text-bx-orange hover:underline" onClick={() => onOpen(task)}>
+            Review expense
+          </button>
+        )}
         {task.status !== "COMPLETED" && !task.system_action && (
           <div className="flex flex-col items-start gap-1">
             <button
@@ -349,6 +362,7 @@ export default function MyTasksScreen() {
   const [updatingTask, setUpdatingTask] = useState(null);
   const [feedbackTask, setFeedbackTask] = useState(null);
   const [openTask, setOpenTask] = useState(null);
+  const [reviewTask, setReviewTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [mode, setMode] = useState("TASK"); // TASK | TICKET
@@ -391,10 +405,12 @@ export default function MyTasksScreen() {
     const taskId = Number(searchParams.get("task"));
     if (!taskId || loading) return;
     const found = [...tasks, ...upcoming, ...scheduled].find((t) => t.id === taskId);
-    if (found) setUpdatingTask(found);
+    if (found?.system_action === REVIEW_EXPENSE) setReviewTask(found);
+    else if (found?.system_action === OPEN_FINANCE) navigate(found.link);
+    else if (found) setUpdatingTask(found);
     else setActionError(`Task #${taskId} is not open on your list (it may be completed or assigned to someone else).`);
     setSearchParams({}, { replace: true });
-  }, [searchParams, setSearchParams, loading, tasks, upcoming, scheduled]);
+  }, [searchParams, setSearchParams, loading, tasks, upcoming, scheduled, navigate]);
 
   useEffect(() => {
     load();
@@ -409,6 +425,13 @@ export default function MyTasksScreen() {
     } catch {
       setActionError("Could not complete task.");
     }
+  };
+
+  // An expense task opens its review; any other task its panel
+  const openOrReview = (task) => {
+    if (task.system_action === REVIEW_EXPENSE) setReviewTask(task);
+    else if (task.system_action === OPEN_FINANCE) navigate(task.link);
+    else setOpenTask(task);
   };
 
   const handleConfirmUrgent = async (taskId) => {
@@ -544,7 +567,7 @@ export default function MyTasksScreen() {
 
       <div className="flex items-center justify-between mb-4">
         <div>
-          <p className="text-sm text-gray-500">Due today or overdue -- guaranteed on this list regardless of priority.</p>
+          <p className="text-sm text-gray-500">Due today, overdue or with no due date -- guaranteed on this list regardless of priority.</p>
         </div>
         <div className="flex items-center gap-4">
           <OutlookConnection onError={setActionError} />
@@ -640,7 +663,7 @@ export default function MyTasksScreen() {
                   <tr><td colSpan={8} className="py-6 text-center text-sm text-gray-400">Nothing due today. Nice.</td></tr>
                 ) : (
                   tasks.map((t) => (
-                    <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} onSubmitFeedback={setFeedbackTask} onOpen={setOpenTask} />
+                    <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} onSubmitFeedback={setFeedbackTask} onOpen={openOrReview} />
                   ))
                 )}
               </tbody>
@@ -654,7 +677,7 @@ export default function MyTasksScreen() {
                 <table className="w-full text-left">
                   <tbody>
                     {scheduled.map((t) => (
-                      <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} onSubmitFeedback={setFeedbackTask} onOpen={setOpenTask} />
+                      <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} onSubmitFeedback={setFeedbackTask} onOpen={openOrReview} />
                     ))}
                   </tbody>
                 </table>
@@ -669,7 +692,7 @@ export default function MyTasksScreen() {
                 <table className="w-full text-left">
                   <tbody>
                     {upcoming.map((t) => (
-                      <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} onSubmitFeedback={setFeedbackTask} onOpen={setOpenTask} />
+                      <TaskRow key={t.id} task={t} now={now} onComplete={handleComplete} onConfirmUrgent={handleConfirmUrgent} onNavigate={handleNavigateTask} onLogUpdate={setUpdatingTask} onSubmitFeedback={setFeedbackTask} onOpen={openOrReview} />
                     ))}
                   </tbody>
                 </table>
@@ -682,6 +705,11 @@ export default function MyTasksScreen() {
       {openTask && (
         <TaskPanel task={openTask} onClose={() => setOpenTask(null)} onNavigate={handleNavigateTask}
           onComplete={handleComplete} onLogUpdate={setUpdatingTask} onSubmitFeedback={setFeedbackTask} onChanged={load} />
+      )}
+
+      {reviewTask && (
+        <ExpenseReviewModal expenseId={reviewTask.expense_id} onClose={() => setReviewTask(null)}
+          onDone={(message) => { setReviewTask(null); setActionSuccess(message); load(); }} />
       )}
 
       {feedbackTask && (
