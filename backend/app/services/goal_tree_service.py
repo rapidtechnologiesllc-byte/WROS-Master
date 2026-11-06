@@ -194,7 +194,9 @@ def build_company_tree(db: Session, tenant_id: int, year: int, partner_user_id: 
     rollup = rolled_up_targets(db, tenant_id, year)
     actuals, intercompany = company_bu_actuals(db, tenant_id, year)
     companies = {l.id: l for l in db.query(Location).filter(Location.tenant_id == tenant_id).order_by(Location.name).all()}
-    bus = {b.id: b for b in db.query(BusinessUnit).filter(BusinessUnit.tenant_id == tenant_id).all()}
+    # a Corporate BU earns nothing and has no targets
+    bus = {b.id: b for b in db.query(BusinessUnit).filter(BusinessUnit.tenant_id == tenant_id,
+                                                          BusinessUnit.is_corporate.is_(False)).all()}
 
     # (company, bu) cells to show: every BU in every company it operates in,
     # plus any cell that has actuals (e.g. a client/employee with no company)

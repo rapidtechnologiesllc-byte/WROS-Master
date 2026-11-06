@@ -42,6 +42,7 @@ function BusinessUnitForm() {
     description: '',
     company_ids: [],
     partner_user_id: '',
+    is_corporate: false,
     // BU head per company: { company_id: user_id }. AXION has one partner but its own
     // head in BX-US and in BX-IN; one person may head several.
     location_heads: {}
@@ -76,6 +77,7 @@ function BusinessUnitForm() {
           description: data.description || '',
           company_ids: (data.companies || []).map((c) => c.id),
           partner_user_id: data.partner?.user_id || '',
+          is_corporate: !!data.is_corporate,
           location_heads: Object.fromEntries(
             (data.companies || []).map((c) => [c.id, c.head?.user_id || ''])
           )
@@ -117,6 +119,7 @@ function BusinessUnitForm() {
         company_ids: formData.company_ids,
         // "" clears the link on the backend
         partner_user_id: formData.partner_user_id,
+        is_corporate: formData.is_corporate,
         // only companies the BU operates in; "" clears that company's head
         location_heads: Object.fromEntries(
           formData.company_ids.map((id) => [id, formData.location_heads[id] || ''])
@@ -215,6 +218,17 @@ function BusinessUnitForm() {
               disabled={saving}
             />
           </div>
+
+          <label className="flex items-start gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={formData.is_corporate}
+              disabled={saving}
+              onChange={(e) => setField('is_corporate')(e.target.checked)}
+            />
+            <span>Corporate: earns no income, and its cost is shared across the other business units by employee headcount</span>
+          </label>
 
           <div>
             <div className="block text-sm font-medium text-gray-700 mb-1">Companies</div>

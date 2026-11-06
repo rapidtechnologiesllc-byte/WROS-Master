@@ -436,14 +436,15 @@ class Settings:
     # registered job (all internal: drafts, staff reminders, AR tasks, metrics); set it to ""
     # in .env to switch them all off, or to a shorter list
     # Only client jobs opened this recently go to sub-vendors, so older open jobs are never sent in one blast
-    # Functions whose people's cost is split across the BUs with revenue unless a function says otherwise
+    # Functions whose people's cost is shared across the BUs unless a function says otherwise
     SHARED_SERVICE_FUNCTIONS: str = os.getenv("SHARED_SERVICE_FUNCTIONS", "HR,Recruitment,Finance,Resource Management")
     # Thunder answers replies and books calls itself (thunder_autonomy_service); false hands them to a person
     THUNDER_AUTO_REPLY: bool = os.getenv("THUNDER_AUTO_REPLY", "true").lower() == "true"
     WELCOME_RESEND_DAYS: int = int(os.getenv("WELCOME_RESEND_DAYS", "3"))
     WELCOME_MAX_SENDS: int = int(os.getenv("WELCOME_MAX_SENDS", "3"))
-    # False: org-level staff stay in an Org level row. True: that cost is split equally across BUs with revenue
-    SHARED_COST_SPLIT_TO_BUS: bool = os.getenv("SHARED_COST_SPLIT_TO_BUS", "false").lower() == "true"
+    # True: Corporate and org-level staff cost is shared across the other BUs by employee headcount (CEO 2026-11-05).
+    # False: it stays in an Org level row
+    SHARED_COST_SPLIT_TO_BUS: bool = os.getenv("SHARED_COST_SPLIT_TO_BUS", "true").lower() == "true"
     FLASH_AUTO_MISSION_DAYS: int = int(os.getenv("FLASH_AUTO_MISSION_DAYS", "14"))
     SUB_VENDOR_ROLE_WINDOW_DAYS: int = int(os.getenv("SUB_VENDOR_ROLE_WINDOW_DAYS", "7"))
     SCHEDULED_JOBS_ENABLED: str = os.getenv(

@@ -38,6 +38,9 @@ class BusinessUnit(Base):
 
     # Status
     active = Column(Boolean, nullable=False, default=True)
+    # Earns no income (admin, HR, finance, recruitment, resource management): its cost is shared across
+    # the other BUs by employee headcount (CEO 2026-11-05, revenue_chain_service.headcount_weights)
+    is_corporate = Column(Boolean, nullable=False, default=False, server_default="false")
 
     # Audit
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
