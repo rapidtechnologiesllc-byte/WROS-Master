@@ -181,7 +181,7 @@ def compare(expense: ExpenseRecord, receipts: Sequence[ExpenseReceipt]) -> Tuple
 def recheck(db: Session, expense: ExpenseRecord, *, auto_approve: bool = True) -> None:
     """Check all the expense's receipts against what it says now, from what was already read (no second
     read), and approve the manager step when they match. Doesn't commit."""
-    from app.services.expense_service import _close_open_tasks, attribution_gaps
+    from app.services.expense_service import _close_open_tasks, attribution_gaps, create_finance_review_task, record_event
 
     db.flush()
     db.expire(expense, ["receipts"])
@@ -195,6 +195,8 @@ def recheck(db: Session, expense: ExpenseRecord, *, auto_approve: bool = True) -
     status, reasons = compare(expense, receipts)
     readings = [_reading(r) for r in receipts]
     expense.receipt_check_status = status
+    record_event(db, expense, None, f"System check of {len(receipts)} receipt{'s' if len(receipts) > 1 else ''}: "
+                                    + ("the receipts match" if status == "MATCHED" else f"{status.lower()}: {'; '.join(reasons)}"))
     expense.receipt_check_detail = json.dumps({
         "receipt": readings[0], "reasons": reasons, "checked_at": datetime.utcnow().isoformat(timespec="seconds"),
         "entered_usd": expense.amount_usd_cents / 100,
@@ -211,9 +213,38 @@ def recheck(db: Session, expense: ExpenseRecord, *, auto_approve: bool = True) -
         expense.manager_approval_status = "APPROVED"
         expense.manager_approved_by = SYSTEM_APPROVER
         expense.manager_approved_at = datetime.utcnow()
+        db.add(expense)
+        record_event(db, expense, None, "Approved automatically: the receipts match the entry")
         _close_open_tasks(db, expense)
+        create_finance_review_task(db, expense)
         logger.info(f"[ExpenseReceipt] {expense.id}: receipts match - manager step approved automatically")
     db.add(expense)
+
+
+def check_notes(expense: ExpenseRecord) -> List[str]:
+    """What the last check found, for an email."""
+    try:
+        reasons = json.loads(expense.receipt_check_detail or "{}").get("reasons") or []
+    except ValueError:
+        logger.warning(f"[ExpenseReceipt] {expense.id}: stored check detail is not JSON")
+        reasons = []
+    return [f"System check: {reason}" for reason in reasons]
+
+
+def announce_after_check(db: Session, expense: ExpenseRecord, was: str, *, first: bool = False) -> None:
+    """Tell the person what the change led to; was = the manager step before it. Committed by now."""
+    from app.services.action_emails.expenses import (notify_auto_approved, notify_finance_ready, notify_logged,
+                                                     notify_returned)
+
+    now = expense.manager_approval_status
+    if first:
+        notify_logged(db, expense)
+    elif now == "APPROVED" and was != "APPROVED":
+        notify_auto_approved(db, expense)
+    elif now == "PENDING" and was != "PENDING":
+        notify_returned(db, expense)
+    if now == "APPROVED" and was != "APPROVED":
+        notify_finance_ready(db, expense)
 
 
 def read_into(receipt: ExpenseReceipt, data: bytes, content_type: str) -> None:
@@ -241,6 +272,8 @@ def attach_receipts(db: Session, expense: ExpenseRecord, files: Sequence[Tuple[s
     _ensure_changeable(expense)
     if not files:
         raise ReceiptError("Attach at least one receipt")
+    was = expense.manager_approval_status
+    first = expense.receipt_check_status == "NOT_ATTACHED"
     if len(expense.receipts) + len(files) > settings.EXPENSE_RECEIPT_MAX_FILES:
         raise ReceiptError(f"An expense can have at most {settings.EXPENSE_RECEIPT_MAX_FILES} receipts")
     for _, content_type, data in files:
@@ -261,6 +294,8 @@ def attach_receipts(db: Session, expense: ExpenseRecord, files: Sequence[Tuple[s
         recheck(db, expense)
     db.commit()
     db.refresh(expense)
+    if check:
+        announce_after_check(db, expense, was, first=first)
     return expense
 
 
@@ -278,6 +313,7 @@ def remove_receipt(db: Session, expense: ExpenseRecord, receipt_id: str, *, user
     if len(expense.receipts) == 1:
         raise ReceiptError("Every expense needs a receipt: add the right one first, then remove this one")
     path, name = receipt.file_path, receipt.file_name
+    was = expense.manager_approval_status
     expense.receipts.remove(receipt)
     record_edit(db, expense, user, f"Removed {name or 'a receipt'}")
     if expense.manager_approval_status != "PENDING":
@@ -285,6 +321,7 @@ def remove_receipt(db: Session, expense: ExpenseRecord, receipt_id: str, *, user
     recheck(db, expense)
     db.commit()
     db.refresh(expense)
+    announce_after_check(db, expense, was)
     try:
         os.remove(path)
     except OSError as exc:  # the record is already right; a leftover file harms nothing

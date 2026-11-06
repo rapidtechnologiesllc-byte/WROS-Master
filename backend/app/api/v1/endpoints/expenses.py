@@ -264,7 +264,7 @@ def mark_expense_paid_endpoint(
 ):
     expense = _expense_or_404(db, expense_id, current_user)
     try:
-        return mark_expense_paid(db, expense)
+        return mark_expense_paid(db, expense, paid_by=current_user.UserID)
     except ExpenseValidationError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
 

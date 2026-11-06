@@ -174,7 +174,7 @@ export default function ExpenseReviewModal({ expenseId, onClose, onDone }) {
               <SystemCheck expense={expense} />
               {(expense.edits || []).length > 0 && (
                 <div className="rounded-lg border p-3">
-                  <div className="text-xs font-semibold uppercase text-gray-500">Changes since it was logged</div>
+                  <div className="text-xs font-semibold uppercase text-gray-500">History</div>
                   <ul className="mt-1 space-y-1 text-sm text-gray-700">
                     {expense.edits.map((edit, i) => (
                       <li key={`${edit.created_at}-${i}`}>

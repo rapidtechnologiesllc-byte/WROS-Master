@@ -40,6 +40,7 @@ function isOverdue(task, now) {
 // the system drafted an answer, that reply to approve (edit first if needed) or discard.
 const SUBMIT_FEEDBACK = "SUBMIT_FEEDBACK";
 const REVIEW_EXPENSE = "REVIEW_EXPENSE";
+const OPEN_FINANCE = "OPEN_FINANCE";
 
 // The same form as the candidate's Interviews tab; submitting it is what closes the task.
 function TaskFeedbackModal({ task, onClose, onDone }) {
@@ -265,6 +266,11 @@ function TaskRow({ task, now, onComplete, onConfirmUrgent, onNavigate, onLogUpda
             Submit feedback
           </button>
         )}
+        {task.status !== "COMPLETED" && task.system_action === OPEN_FINANCE && (
+          <button className="text-xs font-semibold text-bx-orange hover:underline" onClick={() => onOpen(task)}>
+            Open in Finance
+          </button>
+        )}
         {task.status !== "COMPLETED" && task.system_action === REVIEW_EXPENSE && (
           <button className="text-xs font-semibold text-bx-orange hover:underline" onClick={() => onOpen(task)}>
             Review expense
@@ -400,10 +406,11 @@ export default function MyTasksScreen() {
     if (!taskId || loading) return;
     const found = [...tasks, ...upcoming, ...scheduled].find((t) => t.id === taskId);
     if (found?.system_action === REVIEW_EXPENSE) setReviewTask(found);
+    else if (found?.system_action === OPEN_FINANCE) navigate(found.link);
     else if (found) setUpdatingTask(found);
     else setActionError(`Task #${taskId} is not open on your list (it may be completed or assigned to someone else).`);
     setSearchParams({}, { replace: true });
-  }, [searchParams, setSearchParams, loading, tasks, upcoming, scheduled]);
+  }, [searchParams, setSearchParams, loading, tasks, upcoming, scheduled, navigate]);
 
   useEffect(() => {
     load();
@@ -421,7 +428,11 @@ export default function MyTasksScreen() {
   };
 
   // An expense task opens its review; any other task its panel
-  const openOrReview = (task) => (task.system_action === REVIEW_EXPENSE ? setReviewTask(task) : setOpenTask(task));
+  const openOrReview = (task) => {
+    if (task.system_action === REVIEW_EXPENSE) setReviewTask(task);
+    else if (task.system_action === OPEN_FINANCE) navigate(task.link);
+    else setOpenTask(task);
+  };
 
   const handleConfirmUrgent = async (taskId) => {
     try {

@@ -16,13 +16,14 @@ PRIORITY-3 (2026-08-12): Expense Approval Chain
 - Flow: Employee logs (receipt required) â†’ Manager approves (via Task) â†’ Finance reviews â†’ marks paid
 """
 from app.services.task_service import create_task
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.logging import logger
 from app.models.client import Client, ClientHistory
 from app.models.expense import (
@@ -36,6 +37,36 @@ FINANCE_INBOX_EMAIL = "accounts@blitzenx.com"
 
 class ExpenseValidationError(Exception):
     pass
+
+
+def notify_approved(db, expense, **kw):
+    from app.services.action_emails.expenses import notify_approved as send
+    return send(db, expense, **kw)
+
+
+def notify_rejected(db, expense, **kw):
+    from app.services.action_emails.expenses import notify_rejected as send
+    return send(db, expense, **kw)
+
+
+def notify_finance_ready(db, expense):
+    from app.services.action_emails.expenses import notify_finance_ready as send
+    return send(db, expense)
+
+
+def notify_finance_approved(db, expense, **kw):
+    from app.services.action_emails.expenses import notify_finance_approved as send
+    return send(db, expense, **kw)
+
+
+def notify_paid(db, expense, **kw):
+    from app.services.action_emails.expenses import notify_paid as send
+    return send(db, expense, **kw)
+
+
+def notify_escalated(db, expense, **kw):
+    from app.services.action_emails.expenses import notify_escalated as send
+    return send(db, expense, **kw)
 
 def _client_in_scope(db: Session, user: Users, client_id: str) -> Client:
     """The client, when it is in the caller's tenant and business units (prospects without a BU
@@ -234,6 +265,7 @@ def log_expense(
     _apply_attribution(expense, spend_for, client_id, shares)
     db.add(expense)
     db.flush()
+    record_event(db, expense, logged_by_user.UserID, f"Logged: ${amount_usd_cents / 100:,.2f}, {expense_dates_text(expense)}")
 
     # PRIORITY-3: Create manager approval task
     _create_manager_approval_task(db, expense, logged_by_user)
@@ -263,9 +295,17 @@ def can_edit_expense(expense: ExpenseRecord, user: Users) -> bool:
     return user.UserID == expense.logged_by_user_id and expense.payment_status == "PENDING"
 
 
+def record_event(db: Session, expense: ExpenseRecord, user_id: Optional[str], summary: str) -> None:
+    """One line of the expense's history (CEO 2026-11-06: Finance sees the full audit history): who did
+    what and when, every step from logging to payment. No user = the system."""
+    db.add(ExpenseEdit(expense_id=expense.id, changed_by_user_id=user_id, summary=summary))
+    db.flush()
+    db.expire(expense, ["edits"])
+    logger.info(f"[ExpenseService] {expense.id} by {user_id or 'system'}: {summary}")
+
+
 def record_edit(db: Session, expense: ExpenseRecord, user: Optional[Users], summary: str) -> None:
-    db.add(ExpenseEdit(expense_id=expense.id, changed_by_user_id=user.UserID if user else None, summary=summary))
-    logger.info(f"[ExpenseService] {expense.id} edited by {user.UserID if user else 'system'}: {summary}")
+    record_event(db, expense, user.UserID if user else None, summary)
 
 
 def return_to_manager(db: Session, expense: ExpenseRecord, note: Optional[str] = None) -> None:
@@ -276,6 +316,7 @@ def return_to_manager(db: Session, expense: ExpenseRecord, note: Optional[str] =
     expense.manager_approved_at = None
     expense.manager_review_note = None
     db.add(expense)
+    record_event(db, expense, None, "Returned to the manager for review")
     _close_open_tasks(db, expense)
     logged_by = db.query(Users).filter(Users.UserID == expense.logged_by_user_id).first()
     _create_manager_approval_task(db, expense, logged_by, note=note)
@@ -307,7 +348,7 @@ def update_expense(
 ) -> ExpenseRecord:
     """Correct your own expense (CEO 2026-11-06): the same rules as logging it. A change to what it costs
     or who it is on goes back to the manager; every change is recorded for them to see."""
-    from app.services.expense_receipt_service import recheck
+    from app.services.expense_receipt_service import announce_after_check, recheck
 
     if not can_edit_expense(expense, user):
         raise PermissionError("Finance has approved this expense, so it can't be changed any more.")
@@ -322,6 +363,7 @@ def update_expense(
         client_id=client_id, client_splits=client_splits)
 
     before = _readable_values(expense)
+    was = expense.manager_approval_status
     expense.purpose, expense.expense_category, expense.amount_usd_cents = purpose, expense_category, amount_usd_cents
     expense.expense_date, expense.expense_end_date = expense_date, expense_end_date
     expense.event_id, expense.conference_name = (event.id, event.name) if event else (None, None)
@@ -349,6 +391,7 @@ def update_expense(
         recheck(db, expense)
     db.commit()
     db.refresh(expense)
+    announce_after_check(db, expense, was)
     return expense
 
 
@@ -464,10 +507,12 @@ def _create_manager_approval_task(db: Session, expense: ExpenseRecord, employee_
         tenant_id=expense.tenant_id,
         assigned_to_user_id=manager_user_id,
         visibility_scope="ASSIGNEE_MANAGER_DEPARTMENT" if manager_user_id else "ORG_WIDE",
+        due_date=datetime.utcnow() + timedelta(days=settings.EXPENSE_REVIEW_DUE_DAYS),
         expense_id=expense.id,
     )
     task.category = EXPENSE_REVIEW_TASK_CATEGORY
     db.add(task)
+    record_event(db, expense, None, f"Sent for review to {(manager.UserName or manager.UserEmail) if manager else 'anyone in Finance'}")
     logger.info(
         f"[ExpenseService] Manager approval task created for expense {expense.id} "
         f"(assigned to {manager_user_id or 'fallback'})"
@@ -521,7 +566,9 @@ def approve_manager_step(db: Session, expense: ExpenseRecord, *, approved_by: st
     expense.manager_approved_by = approved_by
     expense.manager_approved_at = datetime.utcnow()
     db.add(expense)
+    record_event(db, expense, approved_by, "Approved by the manager: counts in the P&L from now")
     _close_open_tasks(db, expense)
+    create_finance_review_task(db, expense)
     db.commit()
     db.refresh(expense)
 
@@ -529,6 +576,8 @@ def approve_manager_step(db: Session, expense: ExpenseRecord, *, approved_by: st
         f"[ExpenseService] Manager approval completed for expense {expense.id} "
         f"(approved by {approved_by}), now ready for Finance review"
     )
+    notify_approved(db, expense, approved_by=approved_by)
+    notify_finance_ready(db, expense)
     return expense
 
 
@@ -546,10 +595,71 @@ def reject_manager_step(db: Session, expense: ExpenseRecord, *, rejected_by: str
     expense.manager_approved_by = rejected_by
     expense.manager_approved_at = datetime.utcnow()
     db.add(expense)
+    record_event(db, expense, rejected_by, f"Rejected by the manager{f': {expense.manager_review_note}' if expense.manager_review_note else ''}")
     _close_open_tasks(db, expense)
     db.commit()
     db.refresh(expense)
+    notify_rejected(db, expense, rejected_by=rejected_by)
     return expense
+
+def _finance_task(db: Session, expense: ExpenseRecord, *, title: str, description: str, due_days: int) -> None:
+    from app.models.task import EXPENSE_FINANCE_TASK_CATEGORY
+
+    assignee = _finance_assignee(db, expense.tenant_id)
+    task = create_task(
+        db, title=title, description=description, priority="MEDIUM", tenant_id=expense.tenant_id,
+        assigned_to_user_id=assignee.UserID if assignee else None,
+        visibility_scope="ASSIGNEE_MANAGER_DEPARTMENT" if assignee else "ORG_WIDE",
+        due_date=datetime.utcnow() + timedelta(days=due_days), expense_id=expense.id,
+    )
+    task.category, task.link = EXPENSE_FINANCE_TASK_CATEGORY, "/pnl?view=operations"
+    db.add(task)
+
+
+def create_finance_review_task(db: Session, expense: ExpenseRecord) -> None:
+    """The manager step is done, by a person or by the receipts matching: Finance now has work to do."""
+    _finance_task(db, expense, title=f"Approve expense for payment: {expense.expense_category} ${expense.amount_usd_cents / 100:,.2f}",
+                  description=f"{expense.logged_by_name or expense.logged_by_user_id}, {expense_dates_text(expense)}. "
+                              f"For: {_attribution_line(expense)}. Review it in Finance Operations.",
+                  due_days=settings.EXPENSE_FINANCE_DUE_DAYS)
+
+
+ESCALATING_CATEGORIES = ("EXPENSE_REVIEW", "EXPENSE_FINANCE")
+
+
+def run_expense_escalations(db: Session, *, now: Optional[datetime] = None) -> Dict[str, int]:
+    """Job: a step past its due date goes to the assignee's manager, else to Finance; the person who
+    logged it is told. Once per step: the next step has its own task and its own due date."""
+    from app.models.task import Task
+    from app.services.invoice_service import invoice_approvers
+    from app.services.task_assignment_service import resolve_reporting_manager
+    from app.services.task_escalation_service import _bump_one_tier_capped
+
+    now = now or datetime.utcnow()
+    escalated = 0
+    for task in db.query(Task).filter(Task.expense_id.isnot(None), Task.category.in_(ESCALATING_CATEGORIES),
+                                      Task.status.in_(("NEW", "IN_PROGRESS", "ON_HOLD")), Task.due_date.isnot(None),
+                                      Task.due_date < now, Task.is_escalated.is_(False)).all():
+        expense = db.query(ExpenseRecord).filter(ExpenseRecord.id == task.expense_id).first()
+        if expense is None:
+            logger.error(f"[ExpenseService] task {task.id} points at unknown expense {task.expense_id}")
+            continue
+        assignee = db.query(Users).filter(Users.UserID == task.assigned_to_user_id).first() if task.assigned_to_user_id else None
+        manager = resolve_reporting_manager(db, task.assigned_to_user_id) if task.assigned_to_user_id else None
+        targets = [manager] if manager is not None else [
+            u for u in invoice_approvers(db, expense.tenant_id)
+            if u.UserID not in (task.assigned_to_user_id, expense.logged_by_user_id)]
+        task.is_escalated, task.escalated_at = True, now
+        task.priority = _bump_one_tier_capped(task.priority)
+        db.add(task)
+        names = ", ".join(u.UserName or u.UserEmail for u in targets) or "nobody: no one is above them and Finance has no one else"
+        record_event(db, expense, None, f"Overdue and escalated to {names}: {task.title}")
+        db.commit()
+        db.refresh(expense)
+        notify_escalated(db, expense, task_title=task.title, assignee=assignee, escalate_to=targets)
+        escalated += 1
+    return {"escalated": escalated}
+
 
 def approve_expense(db: Session, expense: ExpenseRecord, *, approved_by: str) -> ExpenseRecord:
     """PRIORITY-3: Finance approval step (only after manager approval).
@@ -573,11 +683,16 @@ def approve_expense(db: Session, expense: ExpenseRecord, *, approved_by: str) ->
     expense.payment_status = "APPROVED"
     expense.approved_by = approved_by
     db.add(expense)
+    record_event(db, expense, approved_by, "Approved for payment by Finance")
+    _close_open_tasks(db, expense)
     db.commit()
     db.refresh(expense)
 
     _notify_finance_of_approval(db, expense)
     _create_mark_paid_task(db, expense)
+    db.commit()
+    db.refresh(expense)
+    notify_finance_approved(db, expense, approved_by=approved_by)
     return expense
 
 def _notify_finance_of_approval(db: Session, expense: ExpenseRecord) -> None:
@@ -606,19 +721,11 @@ def _notify_finance_of_approval(db: Session, expense: ExpenseRecord) -> None:
 
 def _create_mark_paid_task(db: Session, expense: ExpenseRecord) -> None:
 
-    assignee = _finance_assignee(db, expense.tenant_id)
-    create_task(
-        db,
-        title=f"Mark expense as paid: {expense.expense_category} ${expense.amount_usd_cents / 100:,.2f}",
-        description=f"Approved expense {expense.id} (purpose={expense.purpose}) -- mark REIMBURSED once payment is sent.",
-        priority="MEDIUM",
-        tenant_id=expense.tenant_id,
-        assigned_to_user_id=assignee.UserID if assignee else None,
-        visibility_scope="ASSIGNEE_MANAGER_DEPARTMENT" if assignee else "ORG_WIDE",
-        expense_id=expense.id,
-    )
+    _finance_task(db, expense, title=f"Mark expense as paid: {expense.expense_category} ${expense.amount_usd_cents / 100:,.2f}",
+                  description=f"Approved expense {expense.id} (purpose={expense.purpose}) -- mark REIMBURSED once payment is sent.",
+                  due_days=settings.EXPENSE_PAYMENT_DUE_DAYS)
 
-def mark_expense_paid(db: Session, expense: ExpenseRecord) -> ExpenseRecord:
+def mark_expense_paid(db: Session, expense: ExpenseRecord, *, paid_by: Optional[str] = None) -> ExpenseRecord:
     """Completes the loop: flips the expense to REIMBURSED and closes
     its "mark as paid" Task (if one exists -- older/manually-created
     expenses may not have one)."""
@@ -632,6 +739,7 @@ def mark_expense_paid(db: Session, expense: ExpenseRecord) -> ExpenseRecord:
 
     expense.payment_status = "REIMBURSED"
     db.add(expense)
+    record_event(db, expense, paid_by, "Marked paid by Finance")
 
     task = db.query(Task).filter(Task.expense_id == expense.id, Task.status != "COMPLETED").first()
     if task:
@@ -639,6 +747,7 @@ def mark_expense_paid(db: Session, expense: ExpenseRecord) -> ExpenseRecord:
 
     db.commit()
     db.refresh(expense)
+    notify_paid(db, expense, paid_by=paid_by)
     return expense
 
 def get_client_investment_position(db: Session, client_id: str) -> dict:

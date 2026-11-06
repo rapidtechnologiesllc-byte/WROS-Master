@@ -275,15 +275,20 @@ def _candidate_timezones_from_location(db: Session) -> int:
 
 
 def _expense_receipts_and_review_tasks(db: Session) -> int:
-    """Each expense's one receipt becomes its first ExpenseReceipt; open approval tasks become review
-    tasks, which only a decision closes."""
+    """Each expense's one receipt becomes its first ExpenseReceipt and its history starts with what is
+    already known; open approval tasks become review tasks, which only a decision closes, due from now."""
     import json
     import os
+    from datetime import datetime, timedelta
 
-    from app.models.expense import ExpenseReceipt, ExpenseRecord
+    from app.core.config import settings
+    from app.models.expense import ExpenseEdit, ExpenseReceipt, ExpenseRecord
     from app.models.task import EXPENSE_REVIEW_TASK_CATEGORY, Task
 
     made = 0
+    for expense in db.query(ExpenseRecord).all():
+        db.add(ExpenseEdit(expense_id=expense.id, changed_by_user_id=expense.logged_by_user_id, created_at=expense.created_at,
+                           summary=f"Logged: ${expense.amount_usd_cents / 100:,.2f}, {expense.expense_date}"))
     for expense in db.query(ExpenseRecord).filter(ExpenseRecord.receipt_file_path.isnot(None)).all():
         if expense.receipts:
             continue
@@ -300,7 +305,8 @@ def _expense_receipts_and_review_tasks(db: Session) -> int:
         made += 1
     made += db.query(Task).filter(Task.expense_id.isnot(None), Task.title.like("Approve expense:%"),
                                   Task.status.notin_(("COMPLETED", "CANCELLED"))).update(
-        {Task.category: EXPENSE_REVIEW_TASK_CATEGORY}, synchronize_session=False)
+        {Task.category: EXPENSE_REVIEW_TASK_CATEGORY,
+         Task.due_date: datetime.utcnow() + timedelta(days=settings.EXPENSE_REVIEW_DUE_DAYS)}, synchronize_session=False)
     db.flush()
     return made
 

@@ -172,6 +172,10 @@ class Settings:
     # automatically; anything else goes to the manager with the reasons
     EXPENSE_RECEIPT_MAX_BYTES: int = int(os.getenv("EXPENSE_RECEIPT_MAX_BYTES", str(10 * 1024 * 1024)))
     EXPENSE_RECEIPT_MAX_FILES: int = int(os.getenv("EXPENSE_RECEIPT_MAX_FILES", "25"))
+    # Days each step may wait before it is escalated (expense_service.run_expense_escalations)
+    EXPENSE_REVIEW_DUE_DAYS: int = int(os.getenv("EXPENSE_REVIEW_DUE_DAYS", "2"))
+    EXPENSE_FINANCE_DUE_DAYS: int = int(os.getenv("EXPENSE_FINANCE_DUE_DAYS", "3"))
+    EXPENSE_PAYMENT_DUE_DAYS: int = int(os.getenv("EXPENSE_PAYMENT_DUE_DAYS", "5"))
     # Employee profile / cover photo upload limit
     EMPLOYEE_PHOTO_MAX_BYTES: int = int(os.getenv("EMPLOYEE_PHOTO_MAX_BYTES", str(5 * 1024 * 1024)))
     EXPENSE_RECEIPT_AMOUNT_TOLERANCE_PCT: float = float(os.getenv("EXPENSE_RECEIPT_AMOUNT_TOLERANCE_PCT", "2"))
@@ -450,7 +454,7 @@ class Settings:
     SUB_VENDOR_ROLE_WINDOW_DAYS: int = int(os.getenv("SUB_VENDOR_ROLE_WINDOW_DAYS", "7"))
     SCHEDULED_JOBS_ENABLED: str = os.getenv(
         "SCHEDULED_JOBS_ENABLED",
-        "timesheet_draft_creation,timesheet_reminders,ar_follow_up,expire_bu_ownerships,"
+        "timesheet_draft_creation,timesheet_reminders,ar_follow_up,expire_bu_ownerships,expense_escalations,"
         "daily_revenue_scan,engagement_metrics,hiring_pipeline_sweep,client_start_date,auto_invoicing,"
         "utilization_snapshot,renewal_alerts,po_expiry_alerts,performance_reviews,task_due_reminders,"
         "notification_release,certification_expiry,reconciliation_scan,sub_vendor_new_roles,interview_transcripts,flash_auto_missions,welcome_followup,occasion_emails,interview_feedback,resume_refresh,submitted_candidates_backfill",
