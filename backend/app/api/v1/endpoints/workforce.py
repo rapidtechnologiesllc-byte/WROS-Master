@@ -27,7 +27,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
 from app.models.user import Users
 from app.schemas.workforce import WorkforceOverviewResponse
-from app.services.workforce_report_service import FLAG_KEYS, GROUP_KEYS, workforce_overview
+from app.services.workforce_report_service import FLAG_KEYS, GROUP_KEYS, workforce_filters, workforce_overview
 
 router = APIRouter(prefix="/workforce", tags=["workforce"])
 
@@ -44,6 +44,10 @@ router = APIRouter(prefix="/workforce", tags=["workforce"])
 def get_workforce_overview(
     group: Optional[str] = None,
     flag: Optional[str] = None,
+    function_id: Optional[str] = None,
+    business_unit_id: Optional[int] = None,
+    company_id: Optional[str] = None,
+    location: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
@@ -53,7 +57,17 @@ def get_workforce_overview(
         raise HTTPException(status_code=404, detail=f"Unknown workforce group '{group}'.")
     if flag and flag not in FLAG_KEYS:
         raise HTTPException(status_code=404, detail=f"Unknown workforce flag '{flag}'.")
-    return workforce_overview(db, current_user, group=group, flag=flag)
+    return workforce_overview(db, current_user, group=group, flag=flag, function_id=function_id,
+                              business_unit_id=business_unit_id, company_id=company_id, location=location)
+
+
+@router.get(
+    "/overview/filters",
+    dependencies=[Depends(require_resource_permission("workforce-overview", "view"))],
+    summary="Filter choices: functions, business units, companies and locations of the people you may see",
+)
+def get_workforce_filters(db: Session = Depends(get_db), current_user: Users = Depends(get_current_internal_user)):
+    return workforce_filters(db, current_user)
 
 
 @router.get(
@@ -67,6 +81,9 @@ def get_workforce_overview(
 def get_bench(
     group: Optional[str] = None,
     business_unit_id: Optional[int] = None,
+    function_id: Optional[str] = None,
+    company_id: Optional[str] = None,
+    location: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
@@ -75,6 +92,7 @@ def get_bench(
     from app.services.bench_service import bench_report
 
     try:
-        return bench_report(db, current_user, group=group, business_unit_id=business_unit_id)
+        return bench_report(db, current_user, group=group, business_unit_id=business_unit_id, function_id=function_id,
+                            company_id=company_id, location=location)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))

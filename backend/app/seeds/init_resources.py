@@ -134,7 +134,8 @@ NAV_LABELS = {
 # CEO, CFO, partners and BU heads see it under Recruitment, not only recruiters.
 RESOURCE_EXTRA_PAGES = {
     "invoices": [{"key": "sub-vendors", "label": "Sub-vendors", "route": "/sub-vendors"}],
-    "candidates": [{"key": "linkedin-pipeline", "label": "LinkedIn Pipeline", "route": "/linkedin-pipeline"}],
+    "candidates": [{"key": "linkedin-pipeline", "label": "LinkedIn Pipeline", "route": "/linkedin-pipeline"},
+                   {"key": "recruitment-dashboard", "label": "Recruitment Dashboard", "route": "/recruitment-dashboard"}],
     # My Performance (CEO 2026-10-24): everyone who has My Tasks; its self-service endpoints check
     # my-tasks too (app/api/v1/endpoints/performance.py)
     "my-tasks": [{"key": "my-performance", "label": "My Performance", "route": "/my-performance"}],

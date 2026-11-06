@@ -262,14 +262,14 @@ def _make_head(db, user):
 
 @pytest.mark.parametrize("job_title,template_level,heads_bu,expected", [
     ("CEO", 5, False, "ceo"),                       # CEO on a level-5 Super Admin template (production)
-    ("Senior Consultant", 5, False, "default"),     # admin template holding every permission
-    ("Senior Consultant", 17, False, "default"),    # template level never picks the dashboard
+    ("Senior Consultant", 5, False, "profile"),     # admin template holding every permission
+    ("Senior Consultant", 17, False, "profile"),    # template level never picks the dashboard
     ("Partner", 5, False, "partner"),
     ("CFO", 5, False, "cfo"),                       # CFO is the role's designation, not a department
     ("BU Head", 5, True, "bu_head"),
-    ("BU Head", 5, False, "default"),               # the BU Head home needs an actual BU to head
+    ("BU Head", 5, False, "profile"),               # the BU Head home needs an actual BU to head
     ("Vice President", 5, True, "bu_head"),         # managed role at a BU-head level who heads a BU
-    ("", 5, False, "default"),
+    ("", 5, False, "profile"),
 ])
 def test_home_dashboard_follows_the_role_position_not_the_template(db, job_title, template_level,
                                                                       heads_bu, expected):
@@ -299,4 +299,4 @@ def test_home_dashboard_still_needs_the_dashboard_permission(db):
                         org_level_access=True, enabled=True)
     db.add(role)
     db.flush()
-    assert authority.home_dashboard(db, _person(db, role, "CEO")) == "default"
+    assert authority.home_dashboard(db, _person(db, role, "CEO")) == "profile"

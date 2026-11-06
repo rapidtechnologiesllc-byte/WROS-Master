@@ -17,6 +17,7 @@ import {
   updateEmployeeBillable,
   updateEmployeeDetails,
   updateEmployeeManager,
+  updateMyDetails,
   updateEmployeeOrganization,
 } from "../services/api/employees";
 import { DeploymentStatus, EmploymentStatus, fullName, isPast, statusLabel } from "../components/EmployeeStatus";
@@ -357,6 +358,25 @@ function Header({ profile, onChanged }) {
   );
 }
 
+// What they are on, for someone looking at their own page (without what it bills)
+function OwnAllocations({ profile }) {
+  const rows = profile.own_allocations || [];
+  if (!rows.length) return <div className="text-sm text-gray-500">No active allocations.</div>;
+  return (
+    <ul className="space-y-2 text-sm">
+      {rows.map((row) => (
+        <li key={row.id} className="rounded-lg border p-3">
+          <div className="font-medium text-gray-900">{[row.client, row.project].filter(Boolean).join(" · ") || "Allocation"}</div>
+          <div className="text-xs text-gray-500">
+            {[row.role, row.allocated_pct != null ? `${row.allocated_pct}%` : null,
+              `from ${row.start_date}${row.end_date ? ` to ${row.end_date}` : ""}`].filter(Boolean).join(" · ")}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function AboutTab({ profile }) {
   return (
     <div className="grid gap-4 lg:grid-cols-3">
@@ -373,7 +393,9 @@ function AboutTab({ profile }) {
           </div>
         </Section>
         <Section title="Current allocations">
-          <EmployeeAllocations employee={profile} onChanged={() => {}} canAdd={false} />
+          {profile.can_view_employees
+            ? <EmployeeAllocations employee={profile} onChanged={() => {}} canAdd={false} />
+            : <OwnAllocations profile={profile} />}
         </Section>
         <Section title="Notes & history" subtitle="Notes, including emails forwarded to the HRMS mailbox about this employee.">
           <ActivityTimeline entityType="employee" entityId={profile.id} />
@@ -407,7 +429,7 @@ function ProfileTab({ profile, save }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Button variant="secondary" size="sm" onClick={async () => {
+        {profile.is_self ? null : <Button variant="secondary" size="sm" onClick={async () => {
           const note = window.prompt(`What are you thanking ${profile.first_name || "them"} for? It goes in an email from you.`);
           if (!note) return;
           try {
@@ -416,7 +438,7 @@ function ProfileTab({ profile, save }) {
           } catch (err) {
             window.alert(`Could not send: ${err.message}`);
           }
-        }}>Send appreciation</Button>
+        }}>Send appreciation</Button>}
         {profile.can_edit ? (
           <Button variant="secondary" size="sm" className="ml-2" onClick={async () => {
             try {
@@ -437,15 +459,15 @@ function ProfileTab({ profile, save }) {
         { key: "marriage_date", label: "Marriage date (optional, for an anniversary wish)", type: "date" },
         { key: "nationality", label: "Nationality" },
       ]} />
-      <EditableSection title="Contact" canEdit={profile.can_edit} values={values} onSave={save} fields={[
-        { key: "email", label: "Work email", readOnly: profile.has_login,
+      <EditableSection title="Contact" canEdit={profile.can_edit || profile.is_self} values={values} onSave={save} fields={[
+        { key: "email", label: "Work email", readOnly: profile.has_login || !profile.can_edit,
           help: profile.has_login ? "They sign in with this email: change it in Users & Access." : null },
         { key: "personal_email", label: "Personal email" },
         { key: "phone", label: "Phone" },
         { key: "current_address", label: "Current address", type: "textarea" },
         { key: "permanent_address", label: "Permanent address", type: "textarea" },
       ]} />
-      <EditableSection title="Emergency contact" canEdit={profile.can_edit} values={values} onSave={save} fields={[
+      <EditableSection title="Emergency contact" canEdit={profile.can_edit || profile.is_self} values={values} onSave={save} fields={[
         { key: "emergency_contact_name", label: "Name" },
         { key: "emergency_contact_phone", label: "Phone" },
       ]} />
@@ -481,20 +503,28 @@ function JobTab({ profile, save, reload, orgOptions, managers }) {
           {!isPast(profile) && (
             <div>
               <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Hire-Train-Deploy</div>
-              <div className="mt-1"><HtdControl employee={profile} canEdit={profile.can_edit} onChanged={reload} /></div>
+              <div className="mt-1">
+                {profile.can_edit
+                  ? <HtdControl employee={profile} canEdit={profile.can_edit} onChanged={reload} />
+                  : <span className="text-sm text-gray-900">{profile.htd_track ? statusLabel(profile.htd_phase) : "Not in HTD"}</span>}
+              </div>
             </div>
           )}
         </div>
       </Section>
       <Section title="Allocations">
-        <EmployeeAllocations employee={profile} onChanged={reload} canAdd={!isPast(profile)} />
+        {profile.can_view_employees
+          ? <EmployeeAllocations employee={profile} onChanged={reload} canAdd={!isPast(profile)} />
+          : <OwnAllocations profile={profile} />}
       </Section>
       <div className="rounded-2xl border bg-white p-5 shadow-sm">
-        <EmployeeCertifications employee={profile} onChanged={reload} />
+        <EmployeeCertifications employee={profile} onChanged={reload} canEdit={profile.can_edit} />
       </div>
-      <div className="rounded-2xl border bg-white p-5 shadow-sm">
-        <EscalationsPanel employeeId={profile.id} />
-      </div>
+      {profile.can_view_employees ? (
+        <div className="rounded-2xl border bg-white p-5 shadow-sm">
+          <EscalationsPanel employeeId={profile.id} />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -579,11 +609,11 @@ function FinanceTab({ profile, save, reload }) {
         <div className="grid gap-x-6 gap-y-4 sm:grid-cols-3">
           <Field label="Billable">{profile.is_billable ? "Billable" : "Non-billable"}</Field>
           <Field label="Classification">{statusLabel(finance.billing_classification)}</Field>
-          {profile.is_billable ? (
+          {profile.is_billable && profile.can_view_employees ? (
             <Field label="Default bill rate">{money(finance.billing_rate_usd_cents)}{finance.billing_rate_usd_cents != null ? " / hr" : ""}</Field>
           ) : null}
         </div>
-        {profile.is_billable ? <div className="mt-3"><EmployeeMinimumBillRate employeeId={profile.id} current={finance.billing_rate_usd_cents} /></div> : null}
+        {profile.is_billable && profile.can_view_employees ? <div className="mt-3"><EmployeeMinimumBillRate employeeId={profile.id} current={finance.billing_rate_usd_cents} /></div> : null}
         {message ? <div className="mt-2 text-sm text-rose-700">{message}</div> : null}
       </Section>
       {finance.compensation_visible ? (
@@ -709,14 +739,17 @@ export default function EmployeeProfileScreen() {
     reload();
   }, [reload]);
 
+  // The choices for changing someone's company, unit and manager: only for those who can
+  const canEditOrg = Boolean(profile?.can_edit);
   useEffect(() => {
+    if (!canEditOrg) return;
     Promise.all([apiRequest(COMPANIES_PATH), apiRequest("/rbac/business-units")])
       .then(([c, b]) => setOrgOptions({ companies: c.data?.delivery_centers || [], businessUnits: b.data?.business_units || [] }))
       .catch((err) => setError(`Could not load companies/business units: ${err.message}`));
     getEmployeeImportTemplate()
       .then((template) => setManagers(template?.managers || []))
       .catch((err) => setError(`Could not load managers: ${err.message}`));
-  }, []);
+  }, [canEditOrg]);
 
   // Personal / job / finance edits share one endpoint; finance amounts are typed in dollars
   const save = async (changes) => {
@@ -729,7 +762,7 @@ export default function EmployeeProfileScreen() {
       body.billing_rate_usd_cents = body.billing_rate == null ? null : Math.round(body.billing_rate * 100);
       delete body.billing_rate;
     }
-    await updateEmployeeDetails(employeeId, body);
+    await (profile.can_edit ? updateEmployeeDetails(employeeId, body) : updateMyDetails(body));
     await reload();
   };
 
@@ -747,10 +780,12 @@ export default function EmployeeProfileScreen() {
 
   return (
     <div className="space-y-4">
-      <Link to={isPast(profile) ? "/employees?tab=past" : "/employees"}
-        className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline">
-        <ArrowLeft className="h-4 w-4" /> {isPast(profile) ? "Past employees" : "Employees"}
-      </Link>
+      {profile.can_view_employees ? (
+        <Link to={isPast(profile) ? "/employees?tab=past" : "/employees"}
+          className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline">
+          <ArrowLeft className="h-4 w-4" /> {isPast(profile) ? "Past employees" : "Employees"}
+        </Link>
+      ) : null}
       <Header profile={profile} onChanged={reload} />
       {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div> : null}
       <div className="flex flex-wrap gap-1 border-b" role="tablist">

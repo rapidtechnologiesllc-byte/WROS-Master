@@ -205,6 +205,14 @@ HOME_BY_POSITION = {
     "bu_head": ("bu_head", "bu-head-dashboard"),
 }
 CFO_HOME = ("cfo", "cfo-dashboard")
+# Landing pages a function can have (CEO 2026-11-06): key -> (label, the permission it needs). Someone
+# without that permission lands on their own profile, never on a page that refuses them.
+FUNCTION_HOMES = {
+    "fy_progress": ("FY progress", "revenue.view"),
+    "workforce": ("Workforce Overview", "workforce-overview.view"),
+    "recruitment": ("Recruitment dashboard", "candidates.view"),
+}
+DEFAULT_HOME = "profile"  # most people: their own employee profile, not someone else's dashboard
 
 
 def position(db: Session, user: Optional[Users]):
@@ -254,9 +262,16 @@ def _home(db: Session, user: Optional[Users]):
 
 def home_dashboard(db: Session, user: Optional[Users]) -> str:
     """CFO is a designation on the role (never a department name); the BU Head home is for
-    people who actually head a business unit (levels 13-15 share that position code)."""
+    people who actually head a business unit (levels 13-15 share that position code). Anyone else
+    lands where their function says, else on their own profile."""
     home = _home(db, user)
-    return home[0] if home else "default"
+    if home:
+        return home[0]
+    from app.models.org_structure import Department
+
+    department = db.get(Department, user.department_id) if user is not None and user.department_id else None
+    choice = FUNCTION_HOMES.get(department.home_screen) if department is not None and department.home_screen else None
+    return department.home_screen if choice and has_permission(db, user, choice[1]) else DEFAULT_HOME
 
 
 def home_resource(db: Session, user: Optional[Users]) -> Optional[str]:

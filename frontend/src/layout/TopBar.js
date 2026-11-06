@@ -8,6 +8,7 @@ import { getNotifications, markNotificationRead } from "../services/api/notifica
 import { useNavigate } from "react-router-dom";
 import cx from "../utils/cx";
 import ThunderActivityFeedPanel from "../components/activity/ThunderActivityFeedPanel";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
 import BUSwitcher from "../components/BUSwitcher";
 import { alertDialog } from "../utils/dialogs";
 
@@ -336,7 +337,7 @@ export default function TopBar({
                 )}
               </button>
               <BUSwitcher />
-              <ThunderActivityFeedPanel />
+              {hasPermission("candidates", "view") ? <ThunderActivityFeedPanel /> : null}
 
               <div className="relative" ref={notificationsRef}>
                 <button

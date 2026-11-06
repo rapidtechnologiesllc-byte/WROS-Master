@@ -20,6 +20,8 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import Shell from "../layout/Shell";
 import { adminRoutes } from "./AdminRoutes";
 import { hasPermission, homeDashboard, isCandidateUser } from "../utils/permissionsRoleTemplate";
+import { getMyEmployeeId } from "../services/api/employees";
+import WorkforceOverviewScreen from "../screens/WorkforceOverviewScreen";
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "../utils/Routes";
 import ConversationSearchBar from "../components/ConversationSearchBar";
@@ -112,16 +114,39 @@ const DashboardRouter = ({ candidates, jobs, interviews, offers }) => {
   if (home === "bu_head") {
     return <BuHeadDashboardScreen />;
   }
+  // By function (Manage Functions): Finance, HR, Recruitment
+  if (home === "fy_progress") {
+    return <CEOUnifiedDashboard />;
+  }
+  if (home === "workforce") {
+    return <WorkforceOverviewScreen />;
+  }
+  if (home === "recruitment") {
+    return (
+      <Dashboard
+        candidates={candidates}
+        jobs={jobs}
+        interviews={interviews}
+        offers={offers}
+      />
+    );
+  }
+  // Everyone else: their own employee profile
+  return <MyProfileRedirect />;
+};
 
-  // Everyone else gets the generic dashboard
-  return (
-    <Dashboard
-      candidates={candidates}
-      jobs={jobs}
-      interviews={interviews}
-      offers={offers}
-    />
-  );
+// Their own profile; a login with no employee record goes to My Tasks
+const MyProfileRedirect = () => {
+  const [target, setTarget] = useState(null);
+  useEffect(() => {
+    getMyEmployeeId()
+      .then((id) => setTarget(id ? `/employees/${id}` : "/my-tasks"))
+      .catch((err) => {
+        console.error("[Home] Could not find your employee record:", err);
+        setTarget("/my-tasks");
+      });
+  }, []);
+  return target ? <Navigate to={target} replace /> : null;
 };
 
 const mapCandidateFromApi = (c) => {
@@ -410,7 +435,8 @@ function AuthenticatedApp() {
   useEffect(() => {
     const path = location.pathname;
     const needs = ["/candidates", "/jobs", "/offers-listing"].some((prefix) => path.startsWith(prefix))
-      || (path === "/" && homeDashboard() === "default");
+      || path === "/recruitment-dashboard"
+      || (path === "/" && homeDashboard() === "recruitment");
     if (needs) setDataWanted(true);
   }, [location.pathname]);
 
@@ -570,6 +596,15 @@ function AuthenticatedApp() {
                 interviews={interviews}
                 offers={offers}
               />
+            }
+          />
+
+          <Route
+            path="recruitment-dashboard"
+            element={
+              hasPermission("candidates", "view")
+                ? <Dashboard candidates={candidates} jobs={jobs} interviews={interviews} offers={offers} />
+                : <Navigate to="/" replace />
             }
           />
 

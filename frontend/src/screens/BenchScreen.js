@@ -17,6 +17,10 @@ export default function BenchScreen() {
   const [searchParams, setSearchParams] = useSearchParams();
   const group = searchParams.get("group") || "";
   const businessUnitId = searchParams.get("business_unit_id") || "";
+  // passed on from the Workforce Overview's filters, so this lists the people the tile counted
+  const functionId = searchParams.get("function_id") || "";
+  const companyId = searchParams.get("company_id") || "";
+  const location = searchParams.get("location") || "";
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -25,14 +29,14 @@ export default function BenchScreen() {
     setLoading(true);
     setError("");
     try {
-      setData(await getBench({ group, businessUnitId }));
+      setData(await getBench({ group, businessUnitId, functionId, companyId, location }));
     } catch (err) {
       setData(null);
       setError(err.message || "Failed to load the bench.");
     } finally {
       setLoading(false);
     }
-  }, [group, businessUnitId]);
+  }, [group, businessUnitId, functionId, companyId, location]);
 
   useEffect(() => {
     load();

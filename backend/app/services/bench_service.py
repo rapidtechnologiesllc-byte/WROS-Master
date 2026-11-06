@@ -161,6 +161,7 @@ def headcount_snapshot(db: Session, *, tenant_id: Optional[int] = None, bu_ids=N
 
 
 def bench_report(db: Session, user, *, group: Optional[str] = None, business_unit_id: Optional[int] = None,
+                 function_id: Optional[str] = None, company_id: Optional[str] = None, location: Optional[str] = None,
                  today: Optional[date] = None, financials: Optional[bool] = None) -> Dict:
     """The bench screen: everyone in the Workforce Overview bench groups the caller can see, with
     days on bench, the cost of that bench time (loaded payroll from the P&L's CostBook for each
@@ -180,7 +181,7 @@ def bench_report(db: Session, user, *, group: Optional[str] = None, business_uni
     labels = {key: label for key, label, _ in GROUPS}
     people = []
     for key in ((group,) if group else BENCH_GROUPS):
-        for person in workforce_overview(db, user, group=key)["selection"]["people"]:
+        for person in workforce_overview(db, user, group=key, function_id=function_id, company_id=company_id, location=location)["selection"]["people"]:
             people.append((key, person))
     employees = {e.id: e for e in db.query(Employee).filter(Employee.id.in_([p["employee_id"] for _, p in people]))} \
         if people else {}

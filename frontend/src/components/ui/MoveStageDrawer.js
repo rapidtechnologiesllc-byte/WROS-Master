@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { Drawer, Select, Button, Space } from "antd";
 import { updateCandidateStatus } from "../../services/api/candidates";
 import { X, CheckCircle } from "lucide-react";
-import ScreenErrorDisplay from "../ScreenErrorDisplay";
 
 const MoveStageDrawer = ({ open, onClose, onSubmit, data }) => {
   const [stage, setStage] = useState();
@@ -29,16 +28,15 @@ const MoveStageDrawer = ({ open, onClose, onSubmit, data }) => {
         );
         onSubmit(result?.data);
       }
-    } catch (err) {
-      setScreenError(err?.message || String(err))
-    } finally {
       onClose();
+    } catch (err) {
+      // stays open: a refused move says what is still needed
+      console.error("[MoveStage] Move refused:", err);
+      setScreenError(err?.message || String(err));
     }
   };
   return (
     <>
-      <ScreenErrorDisplay error={screenError} onDismiss={() => setScreenError(null)} />
-
       {/* Success Banner */}
       {actionSuccess && (
         <div className="mb-4 border border-green-200 bg-green-50 rounded-lg p-4 flex items-center justify-between">
@@ -59,6 +57,9 @@ const MoveStageDrawer = ({ open, onClose, onSubmit, data }) => {
 
       <Drawer title="Move Stage" open={open} onClose={onClose} width={400}>
         <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+        {screenError ? (
+          <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{screenError}</div>
+        ) : null}
         <Select
           placeholder="Current Stage"
           options={stageOptions}
