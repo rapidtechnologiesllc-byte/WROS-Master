@@ -679,6 +679,7 @@ def company_loans(db: Session, by_company: List[Dict], *, end: date, tenant_id: 
     if not funded:
         return []
     costs = costs or CostBook(db)
+    end = min(end, date.today())  # lent so far: a period can run past today
     totals = {company_id: 0 for company_id in funded}
     complete = {company_id: True for company_id in funded}
     ever_there = db.query(EmployeeOrgHistory.employee_id).filter(EmployeeOrgHistory.company_id.in_(funded))

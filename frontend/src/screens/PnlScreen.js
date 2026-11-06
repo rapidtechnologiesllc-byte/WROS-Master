@@ -250,8 +250,8 @@ export default function PnlScreen() {
             columns={[
               { key: "company", header: "Borrower", cell: (r) => r.company },
               { key: "lender", header: "Lender", cell: (r) => r.lender },
-              { key: "period", header: "This period", cell: (r) => usd(r.period_usd_cents) },
-              { key: "to_date", header: "Total lent", cell: (r) => (r.cost_data_complete ? usd(r.to_date_usd_cents) : `${usd(r.to_date_usd_cents)} (some costs missing)`) },
+              { key: "period", header: "This period", cell: (r) => (r.cost_data_complete ? usd(r.period_usd_cents) : "—") },
+              { key: "to_date", header: "Total lent", cell: (r) => (r.cost_data_complete ? usd(r.to_date_usd_cents) : "Needs cost rates or salaries") },
             ]}
             rows={report.company_loans}
           />

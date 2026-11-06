@@ -1,13 +1,15 @@
 """A company whose costs a sister company pays as a loan (CEO 2026-11-05): each company keeps its own
 P&L and all roll up to the parent. The borrower carries the costs, the lender shows money lent and
 no expense, and the parent's total counts them once."""
+from datetime import date, timedelta
+
 import pytest
 
 from app.models.employee import Employee
 from app.models.employee_org_history import EmployeeOrgHistory
 from app.models.location import Location
 from app.models.tenant import Tenant
-from app.services.revenue_chain_service import CostBook, pnl
+from app.services.revenue_chain_service import CostBook, company_loans, pnl
 from tests.scope_fixtures import ApiClient, two_bu_world
 from tests.test_billable import MONTH_END, MONTH_START, _person
 from tests.test_core_certification import _uid, db  # noqa: F401 -- fixture
@@ -106,3 +108,13 @@ def test_the_companies_list_names_the_legal_parent_and_the_lender(db, api):
     assert body["parent_company"]["name"] == "Parent Group Test"
     row = next(c for c in body["delivery_centers"] if c["id"] == borrower.id)
     assert row["funded_by_company_name"] == lender.name
+
+
+def test_total_lent_stops_at_today(db, world):
+    person = _person(db, world, billable=False, status="ACTIVE")
+    borrower = _borrower(db, world.company)
+    _move_from_day_one(db, person, borrower)
+    today = date.today()
+    far = today + timedelta(days=90)
+    row = next(r for r in company_loans(db, [], end=far, tenant_id=1) if r["company_id"] == borrower.id)
+    assert row["to_date_usd_cents"] == CostBook(db).period(person, person.joining_date, today)
