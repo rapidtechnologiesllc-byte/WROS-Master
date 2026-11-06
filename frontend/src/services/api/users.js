@@ -15,6 +15,12 @@ export const getAllUsers = async () => {
   return data?.users || [];
 };
 
+// Colleagues for pickers and names on working screens: needs no user-admin access.
+export const getUserDirectory = async () => {
+  const { data } = await apiRequest("/hr/users/directory", { method: "GET" });
+  return data?.users || [];
+};
+
 export const getAssignedCandidates = async () => {
   const { data } = await apiRequest("/hr/assignments/candidates", {
     method: "GET",

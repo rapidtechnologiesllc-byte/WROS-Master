@@ -124,6 +124,25 @@ class AllUsersResponse(BaseModel):
     total_users: int
     users: list[UserResponse]
 
+
+class UserDirectoryEntry(BaseModel):
+    """A colleague in a picker: who they are, nothing about their access."""
+    user_id: str
+    user_name: str
+    user_email: str
+    job_title: Optional[str] = None
+    department_id: Optional[str] = None
+    department_name: Optional[str] = None
+    business_unit_id: Optional[int] = None
+    business_unit_name: Optional[str] = None
+    active: bool = True
+
+
+class UserDirectoryResponse(BaseModel):
+    total_users: int
+    users: list[UserDirectoryEntry]
+
+
 # Job Skills Schema - Structured skill objects with metadata
 class SkillRequirement(BaseModel):
     """Skill requirement with metadata for matching and recency validation."""

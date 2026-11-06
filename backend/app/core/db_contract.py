@@ -636,7 +636,7 @@ def _place_contract_resources(db, modules) -> int:
 
 # Partner / BU Head role templates. Not system templates (those are seeded
 # with every permission); created once with this starting set, after which
-# the Role Templates editor owns them. "v" = view, "vce" = view/create/edit.
+# the Role Templates editor owns them. "v" = view, "ve" = view/edit, "vce" = view/create/edit.
 LEADERSHIP_ROLES = {
     "Finance Manager": {
         "display_name": "Finance Manager",
@@ -664,6 +664,34 @@ LEADERSHIP_ROLES = {
             "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
                     "activity-feed", "ask-flash", "clients", "opportunities", "pipeline-management"],
             "v": ["demand-confirmation", "projects", "jobs", "business-units"],
+        },
+    },
+    # Function add-ons (CEO 2026-11-06). Their level stays low: the person's Manage Role sets it, and
+    # the function's sees_all_business_units sets the reach. Pay stays with finance-operations.
+    "Recruitment": {
+        "display_name": "Recruitment",
+        "description": "Works candidates, jobs, interviews and offers",
+        "hierarchy_level": 2,
+        "specialization": "Recruitment",
+        "org_level_access": False,
+        "permissions": {
+            "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
+                    "activity-feed", "ask-flash", "candidates", "jobs", "interviews", "offer-letters", "submissions"],
+            # the hiring pipeline's stages; its "create" makes a candidate an employee, which stays with HR's process
+            "ve": ["convert-to-employee"],
+            "v": ["clients", "business-units", "delivery-centers"],
+        },
+    },
+    "HR": {
+        "display_name": "HR",
+        "description": "Works employee records and sees the Workforce Overview, without pay",
+        "hierarchy_level": 2,
+        "specialization": "HR",
+        "org_level_access": False,
+        "permissions": {
+            "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
+                    "activity-feed", "ask-flash", "employees"],
+            "v": ["workforce-overview", "business-units", "delivery-centers"],
         },
     },
     # Every converted employee gets this: their own work only. (The system "User" role is
@@ -719,7 +747,7 @@ def ensure_role(db, name: str, spec: dict, tenant_id: int) -> bool:
                 raise RuntimeError(f"Role {name}: unknown resource {resource_name!r}")
             db.add(RoleTemplatePermission(
                 role_template_id=role.id, resource_id=resource.id, tenant_id=tenant_id,
-                can_view=True, can_create=mode == "vce", can_edit=mode == "vce", can_delete=False,
+                can_view=True, can_create=mode == "vce", can_edit=mode in ("ve", "vce"), can_delete=False,
             ))
             granted += 1
     db.commit()

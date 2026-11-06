@@ -12,7 +12,7 @@ import {
   postJobOnLinkedIn,
 } from "../services/api/jobs";
 import { getAllOffers } from "../services/api/offerLetters";
-import { getAllUsers } from "../services/api/users";
+import { getUserDirectory } from "../services/api/users";
 import { getAllCandidateStatuses } from "../services/api/candidateStatus";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -507,7 +507,12 @@ function AuthenticatedApp() {
           getAllJobs(),
           getAllInterviews(),
           getAllOffers(),
-          getAllUsers(),
+          // names only: if this fails the screens still load, and the person is told
+          getUserDirectory().catch((err) => {
+            console.error("[AppRoutes] Colleague list unavailable:", err);
+            notify("Colleagues", `Could not load the colleague list: ${err.message}`);
+            return [];
+          }),
           loadCandidateStatusesOptional(),
         ]);
         if (!isMounted) return;

@@ -29,7 +29,7 @@ import {
 } from "../services/api/interviews";
 import { sendPlainEmail, sendInterviewInvite } from "../services/api/email";
 import { getCandidateDocuments } from "../services/api/documents";
-import { getAllUsers } from "../services/api/users";
+import { getUserDirectory } from "../services/api/users";
 import { deleteCandidate, updateCandidate } from "../services/api/candidates";
 import {
   getOnlineInterviewEmailTemplate,
@@ -101,8 +101,7 @@ function UsersBUDetailsPanel({ candidate, onUpdate }) {
     const loadData = async () => {
       try {
         setLoadingRecruiters(true);
-        const allUsers = await getAllUsers();
-        const users = Array.isArray(allUsers) ? allUsers : allUsers?.users || [];
+        const users = await getUserDirectory();
         // Recruitment department (or a recruiter job title); everyone if none
         const isRecruiter = (u) =>
           /recruit/i.test(u.department_name || "") || /recruit/i.test(u.job_title || "");
@@ -480,8 +479,7 @@ export default function CandidateDetailsScreen({
     const fetchUsers = async () => {
       try {
         setLoadingUsers(true);
-        const res = await getAllUsers();
-        setUsers(Array.isArray(res) ? res : []);
+        setUsers(await getUserDirectory());
       } catch (err) {
         console.error("Failed to fetch users", err);
         showNotice("Failed to load panel members", "error");
@@ -498,7 +496,7 @@ export default function CandidateDetailsScreen({
       .filter((user) => user?.user_id)
       .map((user) => ({
         value: user.user_id,
-        label: `${user.user_name || "Unknown"} (${user.user_role || "role not set"})`,
+        label: user.job_title ? `${user.user_name || "Unknown"} (${user.job_title})` : user.user_name || "Unknown",
       }));
   }, [users]);
 
