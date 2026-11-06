@@ -233,9 +233,27 @@ export default function PnlScreen() {
               },
               { key: "ic_rev", header: "Intercompany income", cell: (r) => usd(r.intercompany_revenue_usd_cents) },
               { key: "ic_cost", header: "Intercompany cost", cell: (r) => usd(r.intercompany_cost_usd_cents) },
+              { key: "loaned", header: "Lent to others", cell: (r) => usd(r.loaned_out_usd_cents) },
               ...MONEY_COLUMNS.filter((c) => !["collected", "unbilled"].includes(c.key)),
             ]}
             rows={report.by_company}
+          />
+        </Card>
+      ) : null}
+
+      {report?.company_loans?.length ? (
+        <Card
+          title="Loans between companies"
+          subtitle="Costs one company pays for another. They sit on the borrower's P&L, not the lender's, and count once at the parent. The total is what has been lent so far; repayments are not recorded here yet."
+        >
+          <Table
+            columns={[
+              { key: "company", header: "Borrower", cell: (r) => r.company },
+              { key: "lender", header: "Lender", cell: (r) => r.lender },
+              { key: "period", header: "This period", cell: (r) => usd(r.period_usd_cents) },
+              { key: "to_date", header: "Total lent", cell: (r) => (r.cost_data_complete ? usd(r.to_date_usd_cents) : `${usd(r.to_date_usd_cents)} (some costs missing)`) },
+            ]}
+            rows={report.company_loans}
           />
         </Card>
       ) : null}

@@ -21,6 +21,9 @@ class Tenant(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(512), nullable=False)
+    # The legal parent the companies roll up to, when it is not the trading name above. `name` stays
+    # what emails and invoices say to people; this one is only for the company structure.
+    parent_company_name = Column(String(512), nullable=True)
     created_at = Column(DateTime(timezone=False), server_default=func.now())
     is_active = Column(Boolean, nullable=False, default=True)
 

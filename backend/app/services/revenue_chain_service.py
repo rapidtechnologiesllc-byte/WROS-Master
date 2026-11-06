@@ -585,6 +585,9 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
                                     lambda k: f"{bu_names.get(k[0]) or 'No BU'} x {k[1] or 'unknown location'}")],
         "by_client": sorted(by_client.values(), key=lambda r: r["earned_usd_cents"], reverse=True),
         "by_company": by_company,
+        # the whole picture only: a slice of one BU or country would understate what was lent
+        "company_loans": (company_loans(db, by_company, end=end, tenant_id=tenant_id, costs=costs)
+                          if business_unit_ids is None and country is None else []),
     }
 
 
@@ -598,6 +601,8 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
       expenses         client expenses on its clients
       intercompany     settlements: revenue for the receiving company, cost for the paying one;
                        they cancel out at org level, so the org P&L is unchanged
+      loans            a company funded by a sister (Location.funded_by_company_id) carries its own
+                       costs; the lender shows them as money lent, not as its expense
     Work that can't be attributed to a company stays with the parent ("Group", key None)."""
     from app.models.client import Client
     from app.models.intercompany_ledger import IntercompanySettlement
@@ -633,6 +638,9 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
         rows[s.from_company_id]["ic_cost"] += s.amount_usd_cents
 
     names = {c.id: (c.name, c.company_code) for c in companies}
+    funded = {c.id: c.funded_by_company_id for c in companies if c.funded_by_company_id and c.id in rows}
+    for lender in funded.values():
+        rows[lender]  # the lender gets a row even with no cost of its own
     out = []
     for key, r in rows.items():
         revenue = r["revenue"] + r["ic_revenue"]
@@ -645,9 +653,54 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
             "delivery_cost_usd_cents": r["delivery"], "bench_cost_usd_cents": r["bench"],
             "overhead_cost_usd_cents": r["overhead"], "htd_cost_usd_cents": r["htd"],
             "expense_cost_usd_cents": r["expense"], "total_cost_usd_cents": cost,
-            "cost_data_complete": r["complete"],
+            "cost_data_complete": r["complete"], "funded_by": names.get(funded.get(key), (None, None))[0],
+            "loaned_out_usd_cents": 0,
         }, revenue, cost, r["complete"]))
+    by_key = {row["key"]: row for row in out}
+    for borrower, lender in funded.items():
+        by_key[lender]["loaned_out_usd_cents"] += by_key[borrower]["total_cost_usd_cents"]
     return sorted(out, key=lambda r: (r["key"] is None, -r["revenue_usd_cents"]))
+
+
+def company_loans(db: Session, by_company: List[Dict], *, end: date, tenant_id: Optional[int] = None,
+                  costs: Optional["CostBook"] = None) -> List[Dict]:
+    """What each lender has paid for a company it funds: in the period (that company's P&L cost) and
+    in total up to `end` (every day its people sat in it, plus its people's approved own spend).
+    Repayments are not recorded yet, so the total is what was lent, not what is still owed."""
+    from app.models.employee_org_history import EmployeeOrgHistory
+    from app.models.location import Location
+
+    query = db.query(Location)
+    if tenant_id is not None:
+        query = query.filter(Location.tenant_id == tenant_id)
+    companies = query.all()
+    names = {c.id: c.name for c in companies}
+    funded = {c.id: c.funded_by_company_id for c in companies if c.funded_by_company_id}
+    if not funded:
+        return []
+    costs = costs or CostBook(db)
+    totals = {company_id: 0 for company_id in funded}
+    complete = {company_id: True for company_id in funded}
+    ever_there = db.query(EmployeeOrgHistory.employee_id).filter(EmployeeOrgHistory.company_id.in_(funded))
+    staff = db.query(Employee).filter(Employee.joining_date <= end, Employee.status != "PRE_JOINING",
+                                      Employee.sub_vendor_id.is_(None),
+                                      (Employee.id.in_(ever_there)) | (Employee.company_id.in_(funded)))
+    for employee in staff.all():
+        for segment in costs.segments(employee, employee.joining_date, end):
+            if segment["company_id"] in funded:
+                if segment["cost"] is None:
+                    complete[segment["company_id"]] = False
+                else:
+                    totals[segment["company_id"]] += segment["cost"]
+    units = {u.id: u for u in db.query(BusinessUnit).all()}
+    for expense in _expenses(db, date.min, end, tenant_id, units, None, costs)[0]:
+        if expense["company_id"] in funded:
+            totals[expense["company_id"]] += expense["amount"]
+    period = {row["key"]: row["total_cost_usd_cents"] for row in by_company}
+    return [{"company_id": company_id, "company": names.get(company_id), "lender_id": lender,
+             "lender": names.get(lender), "period_usd_cents": period.get(company_id, 0),
+             "to_date_usd_cents": round(totals[company_id]), "cost_data_complete": complete[company_id]}
+            for company_id, lender in funded.items()]
 
 
 def _expenses(db: Session, start: date, end: date, tenant_id: Optional[int], units: Dict,

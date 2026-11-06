@@ -79,6 +79,8 @@ class DeliveryCenterCreateRequest(BaseModel):
     headcount: Optional[int] = 0
     # Required for a subsidiary: the parent company it belongs to
     parent_company_id: Optional[str] = None
+    # The sister company paying this one's costs as a loan ("" clears it)
+    funded_by_company_id: Optional[str] = None
 
 
 PARENT_COMPANY_TYPE = "HQ"
@@ -95,6 +97,21 @@ def _validate_company_structure(db: Session, tenant_id, center_type, parent_comp
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="The parent must be another company of the same holding company")
     return parent.id
+
+
+def _validate_lender(db: Session, tenant_id, lender_id, company_id=None):
+    """The company funding this one's costs: another company of the same tenant, itself self-funded."""
+    if not lender_id:
+        return None
+    lender = db.query(Location).filter(Location.id == lender_id, Location.tenant_id == tenant_id).first()
+    if lender is None or lender.id == company_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="The lender must be another company of the same parent")
+    if lender.funded_by_company_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"{lender.name} is itself funded by another company")
+    return lender.id
+
 
 @router.get(
     "/delivery-centers",
@@ -143,6 +160,8 @@ def list_delivery_centers(
                 "state": getattr(l, 'state', None),
                 "parent_company_id": l.parent_company_id,
                 "parent_company_name": names.get(l.parent_company_id),
+                "funded_by_company_id": l.funded_by_company_id,
+                "funded_by_company_name": names.get(l.funded_by_company_id),
                 "country": getattr(l, 'country', None),
                 "center_type": getattr(l, 'location_type', 'Delivery'),
                 "headcount": headcount.get(l.id, 0),
@@ -152,7 +171,8 @@ def list_delivery_centers(
             for l in locations
         ],
         # The parent company is the tenant: it owns the org-wide P&L of all its companies
-        "parent_company": {"tenant_id": tenant_id, "name": tenant.name if tenant else None,
+        "parent_company": {"tenant_id": tenant_id,
+                           "name": (tenant.parent_company_name or tenant.name) if tenant else None,
                            "company_code": str(tenant_id)},
         "total": total,
         "skip": skip,
@@ -174,12 +194,14 @@ def create_delivery_center(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Company name is required")
     tenant_id = tenant_id_of(current_user)
     parent_id = _validate_company_structure(db, tenant_id, req.center_type, req.parent_company_id)
+    lender_id = _validate_lender(db, tenant_id, req.funded_by_company_id)
 
     # Next number inside the tenant (code "<tenant>-<n>"); the unique index makes a race fail loudly
     from sqlalchemy import func as sql_func
     next_seq = (db.query(sql_func.max(Location.company_seq)).filter(Location.tenant_id == tenant_id).scalar() or 0) + 1
     new_dc = Location(
         parent_company_id=parent_id,
+        funded_by_company_id=lender_id,
         name=req.name,
         city=req.city,
         state=req.state,
@@ -228,6 +250,11 @@ def update_delivery_center(
                                 detail="This parent company has subsidiaries; move them first")
         dc.parent_company_id = _validate_company_structure(db, dc.tenant_id, new_type, new_parent or None, dc.id)
     # None leaves a field unchanged; "" clears it
+    if req.funded_by_company_id is not None:
+        if req.funded_by_company_id and db.query(Location).filter(Location.funded_by_company_id == dc.id).first():
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                                detail="This company funds another company, so it cannot be funded itself")
+        dc.funded_by_company_id = _validate_lender(db, dc.tenant_id, req.funded_by_company_id, dc.id)
     if req.city is not None:
         dc.city = req.city or None
     if req.state is not None:

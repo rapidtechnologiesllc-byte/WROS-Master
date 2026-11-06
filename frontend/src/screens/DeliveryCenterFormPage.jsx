@@ -29,10 +29,13 @@ export default function DeliveryCenterFormPage() {
     // Country -> State -> City picker value (same component as Add Candidate)
     location: { countryCode: '', stateCode: '', city: '' },
     parent_company_id: '',
+    funded_by_company_id: '',
     headcount: 0
   });
   // Parent companies a subsidiary can belong to
   const [parents, setParents] = useState([]);
+  // Sister companies that could pay this one's costs as a loan
+  const [lenders, setLenders] = useState([]);
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState(null);
@@ -48,6 +51,7 @@ export default function DeliveryCenterFormPage() {
           center_type: dc.center_type || 'Delivery',
           location: parseLocation([dc.city, dc.state, dc.country].filter(Boolean).join(', ')),
           parent_company_id: dc.parent_company_id || '',
+          funded_by_company_id: dc.funded_by_company_id || '',
           headcount: dc.headcount || 0
         });
       } else {
@@ -73,10 +77,7 @@ export default function DeliveryCenterFormPage() {
       .then((res) => {
         const parentList = (res.data?.delivery_centers || []).filter((c) => c.center_type === 'HQ' && String(c.id) !== String(dcId));
         setParents(parentList);
-        // With no parent company yet, the first company added is the parent
-        if (mode === 'create' && parentList.length === 0) {
-          setFormData((prev) => ({ ...prev, center_type: 'HQ' }));
-        }
+        setLenders((res.data?.delivery_centers || []).filter((c) => !c.funded_by_company_id && String(c.id) !== String(dcId)));
       })
       .catch((err) => {
         console.error('[DeliveryCenterFormPage] Failed to load companies:', err);
@@ -212,28 +213,39 @@ export default function DeliveryCenterFormPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
               disabled={saving}
             >
-              <option value="HQ">Parent company</option>
-              <option value="Delivery" disabled={parents.length === 0}>Subsidiary / subcontracting company</option>
+              <option value="Delivery">Company under the parent</option>
+              <option value="HQ">Parent of other companies here</option>
             </select>
-            {parents.length === 0 && (
-              <p className="mt-1 text-xs text-gray-500">Add the parent company first; subsidiaries are added under it.</p>
-            )}
           </div>
 
-          {formData.center_type !== 'HQ' && (
+          {formData.center_type !== 'HQ' && parents.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Parent company *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Parent company here (optional)</label>
               <select
                 value={formData.parent_company_id}
                 onChange={setField('parent_company_id')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
                 disabled={saving}
               >
-                <option value="">Select parent company</option>
+                <option value="">None: reports straight to the holding parent</option>
                 {parents.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
           )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Costs loaned by</label>
+            <select
+              value={formData.funded_by_company_id}
+              onChange={setField('funded_by_company_id')}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-bx-orange"
+              disabled={saving}
+            >
+              <option value="">No one: pays its own costs</option>
+              {lenders.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <p className="mt-1 text-xs text-gray-500">The costs stay on this company&apos;s P&amp;L. The lender shows them as money lent, not as its own expense.</p>
+          </div>
 
           <div>
             <div className="block text-sm font-medium text-gray-700 mb-1">Location</div>

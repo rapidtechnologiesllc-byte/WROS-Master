@@ -1928,11 +1928,15 @@ def _apply_schema_migrations(db: Session):
         "invoice_line_items": [
             ("po_number", "VARCHAR(512) NULL"),
         ],
+        "tenants": [
+            ("parent_company_name", "VARCHAR(512) NULL"),
+        ],
         "locations": [
             ("state", "VARCHAR(512) NULL"),
             ("parent_company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE RESTRICT"),
             # Company code "<tenant>-<n>" (Location.company_seq)
             ("company_seq", "INTEGER NULL"),
+            ("funded_by_company_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE RESTRICT"),
         ],
         "intercompany_settlements": [
             ("business_unit_id", "INTEGER NULL REFERENCES app_schema.business_units(id) ON DELETE SET NULL"),
