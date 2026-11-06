@@ -178,18 +178,18 @@ def test_a_person_with_org_wide_authority_is_org_level_without_a_function(db, w,
     from app.core import authority
 
     monkeypatch.setattr(authority, "is_org_level", lambda session, user: True)
-    pool, _, by_function = None, None, None
     employee = Employee(tenant_id=1, first_name="C", last_name="E", email=f"{uuid.uuid4().hex[:6]}@x.com", wros_user_id=w.org_user.UserID,
                         employee_number=f"T-{uuid.uuid4().hex[:6]}", joining_date=date(2026, 1, 1), bu_id=w.bu_b.id, is_billable=False, status="ACTIVE")
     db.add(employee)
     db.commit()
     monkeypatch.setattr(chain, "chain_lines", lambda *a, **k: [])
     book = SimpleNamespace(by_object=lambda e, s, n: {(w.bu_b.id, "C1", "US"): 5_000} if e.id == employee.id else {})
-    pool, _, by_function = chain.shared_service_moves(db, start=date(2026, 11, 1), end=date(2026, 11, 30), tenant_id=None, costs=book)
+    pool, by_function = chain.shared_service_moves(db, start=date(2026, 11, 1), end=date(2026, 11, 30), tenant_id=None, costs=book)
     assert pool[(w.bu_b.id, "US")] >= 5_000 and by_function["Leadership"] >= 5_000
 
 
-def test_the_split_setting_moves_it_to_the_bus_with_revenue(db, w, monkeypatch):
+def test_the_split_setting_moves_it_to_the_bus_by_their_weight(db, w, monkeypatch):
+    monkeypatch.setattr(chain, "headcount_weights", lambda *a, **k: {w.bu_a.id: 1, w.bu_b.id: 1})
     lines = [{"business_unit_id": bu, "earned_usd_cents": 100, "employee_id": "x", "cost_usd_cents": 0, "cost_business_unit_id": bu,
               "cost_company_id": "C1", "country": "US", "partner_user_id": None, "partner_name": None, "client_id": None, "client_name": None,
               "billable_hours": 0, "billed_usd_cents": 0, "collected_usd_cents": 0, "unbilled_usd_cents": 0, "vendor_cost_usd_cents": 0,

@@ -24,11 +24,12 @@ never disagree:
   invoiced) billable hours x their vendor rate. They carry no bench or overhead. Lines report
   vendor_cost / vendor_invoiced / vendor_paid, so the P&L shows what is owed to vendors beside cash
   collected from clients (pay-when-paid: vendor_invoice_service).
-- *Org-level staff* (CEO 2026-11-05: HR, resource management, recruitment, finance and the CEO "broken at org level", "BU
-  specific non billable should be at BU level"): the cost of non-billable people in a shared function
-  (Department.is_shared_service) or with org-wide authority leaves the BU they sit in and shows in an Org level row, broken
-  down by function. SHARED_COST_SPLIT_TO_BUS splits it equally across the BUs with revenue instead. Other non-billable
-  people stay overhead of their BU. A move never changes the org total. Company rows keep the real cost.
+- *Corporate share* (CEO 2026-11-05: "count the corporate employees and prorate it to the business unit based on employee
+  headcount"): the cost of everyone in a Corporate BU (BusinessUnit.is_corporate), and of non-billable people in a shared
+  function (Department.is_shared_service) or with org-wide authority, leaves the BU they sit in and is shared across every
+  other BU by its employee headcount, billable or not: a BU with no employees pays nothing. Corporate spend follows.
+  SHARED_COST_SPLIT_TO_BUS off keeps it in an Org level row. Other non-billable people stay overhead of their BU. A move
+  never changes the org total. Company rows keep the real cost with the employer.
 - *Expense cost* = manager-approved expenses dated in the period, attributed through
   the expense's client (else the business unit of whoever logged it).
 - *Partner* = the partner of the business unit that owns the client
@@ -364,15 +365,45 @@ def summarize(lines: List[Dict], group_by: str) -> List[Dict]:
     return sorted(rows, key=lambda r: r["earned_usd_cents"], reverse=True)
 
 
-def equal_shares(amount: int, business_units: Iterable[int]) -> Dict[int, int]:
-    """amount split equally; the cents left over go one each to the first BUs, so the shares add up exactly."""
-    ordered = sorted(business_units)
-    share, left = divmod(amount, len(ordered))
-    return {bu: share + (1 if index < left else 0) for index, bu in enumerate(ordered)}
+def prorated_shares(amount: int, weights: Dict[int, int]) -> Dict[int, int]:
+    """amount split in proportion to the weights; the cents left over go to the largest remainders, so the
+    shares add up exactly."""
+    total = sum(weights.values())
+    shares = {bu: amount * weight // total for bu, weight in weights.items()}
+    left = amount - sum(shares.values())
+    by_remainder = sorted(weights, key=lambda bu: (-(amount * weights[bu] % total), bu))
+    for bu in by_remainder[:left]:
+        shares[bu] += 1
+    return shares
+
+
+def corporate_unit_ids(db: Session, tenant_id: Optional[int] = None) -> Set[int]:
+    query = db.query(BusinessUnit.id).filter(BusinessUnit.is_corporate.is_(True))
+    if tenant_id is not None:
+        query = query.filter(BusinessUnit.tenant_id == tenant_id)
+    return {row[0] for row in query}
+
+
+def headcount_weights(db: Session, *, start: date, end: date, tenant_id: Optional[int], costs: CostBook,
+                      corporate: Set[int]) -> Dict[int, int]:
+    """{BU: employee-days in the period} for every non-Corporate BU, billable or not, so someone who joined
+    mid-month counts for the days they were there. A BU with no employees is absent and pays nothing."""
+    staff = db.query(Employee).filter(Employee.joining_date <= end, Employee.status != "PRE_JOINING",
+                                      (Employee.exit_date.is_(None)) | (Employee.exit_date >= start))
+    if tenant_id is not None:
+        staff = staff.filter(Employee.tenant_id == tenant_id)
+    weights: Dict[int, int] = defaultdict(int)
+    for employee in staff.all():
+        if employee.status == "EXITED" and employee.exit_date is None:
+            continue
+        for segment in costs.segments(employee, start, end):
+            if segment["bu_id"] is not None and segment["bu_id"] not in corporate:
+                weights[segment["bu_id"]] += (segment["end"] - segment["start"]).days + 1
+    return dict(weights)
 
 
 def shared_service_moves(db: Session, *, start: date, end: date, tenant_id: Optional[int], costs: CostBook):
-    """({(home bu, country): cost of org-level people who sat there}, [BUs with revenue], {function: cost}). Always
+    """({(home bu, country): cost of Corporate and org-level people who sat there}, {function: cost}). Always
     org-wide, so a partner's view shows the same share as the CEO's."""
     from app.core import authority
     from app.core.config import settings as config
@@ -385,24 +416,24 @@ def shared_service_moves(db: Session, *, start: date, end: date, tenant_id: Opti
     names = {d.id: d.name for d in departments.all()}
     shared = {d.id for d in departments.all()
               if (d.is_shared_service if d.is_shared_service is not None else d.name.strip().lower() in default)}
-    all_lines = chain_lines(db, start=start, end=end, tenant_id=tenant_id, costs=costs, business_unit_ids=None)
-    targets = sorted({line["business_unit_id"] for line in all_lines if line["business_unit_id"] and line["earned_usd_cents"]})
+    corporate = corporate_unit_ids(db, tenant_id)
     pool: Dict = defaultdict(int)
     by_function: Dict = defaultdict(int)
-    people = (db.query(Employee, Users).join(Users, Users.UserID == Employee.wros_user_id)
+    # outer join: Corporate staff need no login to be Corporate (facilities, for example)
+    people = (db.query(Employee, Users).outerjoin(Users, Users.UserID == Employee.wros_user_id)
               .filter(Employee.is_billable.is_(False), Employee.sub_vendor_id.is_(None),
                       Employee.joining_date <= end, (Employee.exit_date.is_(None)) | (Employee.exit_date >= start),
                       Employee.status != "PRE_JOINING").all())
     for employee, user in people:
-        in_function = user.department_id in shared
-        if not in_function and not authority.is_org_level(db, user):
-            continue  # BU-specific: stays overhead of their BU
-        label = names.get(user.department_id) if in_function else "Leadership"
+        in_function = user is not None and user.department_id in shared
+        org_level = user is not None and authority.is_org_level(db, user)
+        label = names.get(user.department_id) if in_function else "Leadership" if org_level else "Corporate"
         for (bu_id, _, where), payroll in costs.by_object(employee, start, end).items():
-            if payroll:
+            # anyone else is BU-specific: stays overhead of their BU
+            if payroll and (in_function or org_level or bu_id in corporate):
                 pool[(bu_id, where)] += payroll
                 by_function[label] += payroll
-    return dict(pool), targets, dict(by_function)
+    return dict(pool), dict(by_function)
 
 
 def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
@@ -477,8 +508,10 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
 
     from app.core.config import settings as config
 
-    pool, revenue_units, by_function = shared_service_moves(db, start=start, end=end, tenant_id=tenant_id, costs=costs)
-    split = config.SHARED_COST_SPLIT_TO_BUS and bool(revenue_units)
+    pool, by_function = shared_service_moves(db, start=start, end=end, tenant_id=tenant_id, costs=costs)
+    corporate = corporate_unit_ids(db, tenant_id)
+    weights = headcount_weights(db, start=start, end=end, tenant_id=tenant_id, costs=costs, corporate=corporate)
+    split = config.SHARED_COST_SPLIT_TO_BUS and bool(weights)
 
     def staff_bucket(bu_id, where):
         unit = units.get(bu_id)
@@ -490,13 +523,19 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
         if business_unit_ids is None or home in business_unit_ids:
             bench_rows[staff_bucket(home, where)]["overhead_cost_usd_cents"] -= amount
         if split:
-            for bu_id, share in equal_shares(amount, revenue_units).items():
+            for bu_id, share in prorated_shares(amount, weights).items():
                 if business_unit_ids is None or bu_id in business_unit_ids:
                     bench_rows[staff_bucket(bu_id, where)]["shared_cost_usd_cents"] += share
         elif business_unit_ids is None:  # the Org level row is for those who see the whole org
             bench_rows[(UNASSIGNED, None, where)]["shared_cost_usd_cents"] += amount
 
-    expenses, pending_expenses = _expenses(db, start, end, tenant_id, units, business_unit_ids, costs)
+    # every BU's first: a Corporate expense is shared, including with a BU a partner is looking at
+    expenses, _ = _expenses(db, start, end, tenant_id, units, None, costs)
+    if split:
+        expenses = _share_corporate_expenses(expenses, corporate, weights, units)
+    if business_unit_ids is not None:
+        expenses = [e for e in expenses if e["key"][1] in business_unit_ids]
+    pending_expenses = _expenses(db, start, end, tenant_id, units, business_unit_ids, costs)[1]
     if country is not None:
         expenses = []  # a client expense has no location
 
@@ -746,6 +785,21 @@ def _expenses(db: Session, start: date, end: date, tenant_id: Optional[int], uni
             company_id = client.contracting_company_id if client is not None else logger_company(record)
             out.append({"key": (partner, bu_id, client_id), "amount": cents, "company_id": company_id})
     return out, pending
+
+
+def _share_corporate_expenses(expenses: List[Dict], corporate: Set[int], weights: Dict[int, int], units: Dict) -> List[Dict]:
+    """A Corporate BU's own spend goes the way of its people's cost; its company stays the one that paid."""
+    out = []
+    for expense in expenses:
+        partner, bu_id, client_id = expense["key"]
+        if bu_id not in corporate:
+            out.append(expense)
+            continue
+        for target, share in prorated_shares(expense["amount"], weights).items():
+            unit = units.get(target)
+            out.append({"key": (unit.partner_user_id if unit and unit.partner_user_id else UNASSIGNED, target, client_id),
+                        "amount": share, "company_id": expense["company_id"]})
+    return out
 
 
 def month_bounds(year: int, month: int):

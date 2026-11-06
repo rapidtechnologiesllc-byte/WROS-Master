@@ -1898,6 +1898,7 @@ def _apply_schema_migrations(db: Session):
         ],
         # Goal tree Org -> Location (legal entity, e.g. BXUS/BXIN) -> Partner -> BU
         "business_units": [
+            ("is_corporate", "BOOLEAN NOT NULL DEFAULT FALSE"),
             ("location_id", "VARCHAR(512) NULL REFERENCES app_schema.locations(id) ON DELETE SET NULL"),
             ("partner_user_id", 'VARCHAR(512) NULL REFERENCES app_schema.users("UserID") ON DELETE SET NULL'),
         ],

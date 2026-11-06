@@ -281,7 +281,7 @@ def _executive_extras(db: Session, *, client_ids, pipeline_by_bu: dict, total_pi
     bu_targets = _annual_bu_targets_usd_cents(db, year)
     visible_bus = None if client_ids is None else {bu for bu in revenue_by_bu} | {bu for bu in pipeline_by_bu}
     bu_metrics = []
-    for bu in db.query(BusinessUnit).filter(BusinessUnit.active.is_(True)).order_by(BusinessUnit.name).all():
+    for bu in db.query(BusinessUnit).filter(BusinessUnit.active.is_(True), BusinessUnit.is_corporate.is_(False)).order_by(BusinessUnit.name).all():
         if visible_bus is not None and bu.id not in visible_bus:
             continue
         target = bu_targets.get(bu.id)

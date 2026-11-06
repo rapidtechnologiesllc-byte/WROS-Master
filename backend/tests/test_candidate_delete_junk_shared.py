@@ -154,18 +154,17 @@ def _moves(monkeypatch, db, w, *, revenue_bus, amount=9_000_001):
     return revenue_chain_service.shared_service_moves(db, start=date(2026, 11, 1), end=date(2026, 11, 30), tenant_id=None, costs=book)
 
 
-def test_the_split_when_switched_on_goes_equally_to_the_bus_with_revenue_and_nothing_is_lost(db, w, monkeypatch):
-    pool, targets, by_function = _moves(monkeypatch, db, w, revenue_bus=[w.bu_a.id, w.bu_b.id])
+def test_the_split_goes_by_weight_and_nothing_is_lost(db, w, monkeypatch):
+    pool, by_function = _moves(monkeypatch, db, w, revenue_bus=[w.bu_a.id, w.bu_b.id])
     assert list(by_function.values()) == [9_000_001]
     assert pool == {(w.bu_a.id, "US"): 9_000_001}
-    assert sorted(targets) == sorted([w.bu_a.id, w.bu_b.id])
-    shares = revenue_chain_service.equal_shares(9_000_001, targets)
-    assert sum(shares.values()) == 9_000_001 and max(shares.values()) - min(shares.values()) <= 1
+    shares = revenue_chain_service.prorated_shares(9_000_001, {w.bu_a.id: 15, w.bu_b.id: 4})
+    assert sum(shares.values()) == 9_000_001
+    assert abs(shares[w.bu_a.id] - 9_000_001 * 15 / 19) <= 1
 
 
 def test_with_no_revenue_the_pool_is_still_known(db, w, monkeypatch):
-    pool, targets, _ = _moves(monkeypatch, db, w, revenue_bus=[])
-    assert targets == []
+    pool, _ = _moves(monkeypatch, db, w, revenue_bus=[])
     assert pool == {(w.bu_a.id, "US"): 9_000_001}
 
 

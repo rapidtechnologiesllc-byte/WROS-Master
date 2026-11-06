@@ -39,7 +39,8 @@ from app.models.client import Client
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
 from app.models.invoice import Invoice
-from app.services.revenue_chain_service import UNASSIGNED, CostBook, chain_lines
+from app.services.revenue_chain_service import (UNASSIGNED, CostBook, chain_lines, corporate_unit_ids,
+                                                headcount_weights, prorated_shares)
 
 logger = logging.getLogger(__name__)
 
@@ -192,10 +193,18 @@ def outlook(db: Session, *, start: date, end: date, today: Optional[date] = None
 
     by_unit: Dict[Optional[int], Dict[str, int]] = defaultdict(_empty)
     for (bu_id, company_id), figures in rows.items():
-        if not in_scope(bu_id):
-            continue
         for k in FIGURES:
             by_unit[bu_id][k] += figures[k]
+    # A Corporate BU's figures go to the other BUs by headcount, the same as the P&L
+    corporate = corporate_unit_ids(db, tenant_id)
+    weights = headcount_weights(db, start=start, end=end, tenant_id=tenant_id, costs=costs, corporate=corporate) if corporate else {}
+    if settings.SHARED_COST_SPLIT_TO_BUS and weights:
+        for bu_id in corporate & set(by_unit):
+            figures = by_unit.pop(bu_id)
+            for k in FIGURES:
+                for target, share in prorated_shares(figures[k], weights).items():
+                    by_unit[target][k] += share
+    by_unit = defaultdict(_empty, {bu_id: figures for bu_id, figures in by_unit.items() if in_scope(bu_id)})
     if scope is not None:
         for bu_id in scope:
             by_unit[bu_id]  # every BU in scope gets a row, even with no activity

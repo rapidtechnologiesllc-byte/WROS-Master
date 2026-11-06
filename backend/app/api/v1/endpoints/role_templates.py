@@ -614,6 +614,8 @@ class BusinessUnitCreateRequest(BaseModel):
     # BU head per company the BU operates in: {company_id: user_id, "" clears that company}.
     # None leaves all heads unchanged; companies not listed are left as they are.
     location_heads: Optional[Dict[str, str]] = None
+    # Earns no income: its cost is shared across the other BUs by headcount. None leaves it unchanged.
+    is_corporate: Optional[bool] = None
 
 
 # Who may be named on a BU: by role template hierarchy level (app.core.authority), not role name
@@ -691,6 +693,7 @@ def _bu_dict(db: Session, bu: BusinessUnit) -> dict:
         "display_name": bu.display_name,
         "description": bu.description,
         "active": bu.active,
+        "is_corporate": bool(bu.is_corporate),
         # each company the BU operates in, with the BU head there
         "companies": [{"id": c.id, "name": c.name, "head": person(heads[c.id].head) if c.id in heads else None}
                       for c in companies],
@@ -755,7 +758,8 @@ def create_business_unit_rbac(
         description=req.description,
         bu_code=req.name.upper().replace(" ", ""),
         tenant_id=tenant_id,
-        active=True
+        active=True,
+        is_corporate=bool(req.is_corporate),
     )
 
     db.add(new_bu)
@@ -792,6 +796,8 @@ def update_business_unit_rbac(
         bu.display_name = req.display_name
     if req.description is not None:
         bu.description = req.description
+    if req.is_corporate is not None:
+        bu.is_corporate = req.is_corporate
     _set_bu_structure(db, bu, bu.tenant_id, req)
 
     db.commit()
