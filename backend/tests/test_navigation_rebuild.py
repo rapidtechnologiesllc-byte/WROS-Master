@@ -97,7 +97,8 @@ SEEDED_ROLES = {**{name: BEFORE_RESOURCES for name in SYSTEM_ROLES}, **BEFORE_LE
 # the Employees > Allocations tab, Ask Thunder is a QA simulator. "Forecasts" now opens Forecast vs Actual
 # (its API checks forecasts), so a role holding only forecasts swaps /forecast for /forecast-vs-actual.
 INTENDED_REMOVALS = {"/ceo-fy-progress", "/cfo-dashboard", "/bu-head-dashboard", "/allocations", "/thunder", "/"}
-INTENDED_ADDITIONS = {"/sub-vendors": "invoices", "/my-performance": "my-tasks"}  # route -> resource whose view grant adds it
+# route -> resource whose view grant adds it (CEO 2026-11-06: the recruitment dashboard is a screen of its own)
+INTENDED_ADDITIONS = {"/sub-vendors": "invoices", "/my-performance": "my-tasks", "/recruitment-dashboard": "candidates"}
 # Decision 3: merged screens. The old route redirects to the merged screen's tab; every role that
 # reached any of the parts reaches the merged screen (its tabs follow the same permissions).
 ROUTE_MOVES = {

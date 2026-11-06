@@ -39,6 +39,12 @@ BENCH_TASK = "hiring_convert_to_bench"
 ACTIVE_SUBMISSION = ("SUBMITTED", "SHORTLISTED", "CLIENT_INTERVIEW_REQUESTED")
 SWEEP_STALE_AFTER = timedelta(hours=1)
 SWEEP_BACKFILL_LIMIT = 200
+# The candidate list's pipeline status is a label of the stage, never a second truth: the furthest
+# label each status needs the facts to have reached (CEO 2026-11-06: a candidate moved to Pre-Onboarding
+# by hand after one screening, with the page saying L1 and the stepper Engaged).
+STATUS_NEEDS_STAGE = {"Pre-onboarding-Approval": "OFFER", "OfferApproval": "OFFER", "Pre-Onboarding": "OFFER",
+                      "Onboarded": "BENCH", "Hired": "BENCH"}
+EARLY_STATUSES = ("Applied", "Screening", "Interview")
 
 
 class PipelineGateBlocked(Exception):
@@ -248,20 +254,53 @@ def evaluate(db: Session, pipeline: HiringPipeline, *, trigger: str = "evaluate"
         pipeline.stage, pipeline.stage_entered_at = stage, datetime.utcnow()
     if stage in ("REJECTED", "ALLOCATED"):
         pipeline.closed_at = datetime.utcnow()
-    _status_follows_interviews(db, pipeline.candidate_id)
+    _status_follows_stage(db, pipeline)
+    _close_finished_schedule_tasks(db, pipeline.candidate_id)
     db.flush()
     return pipeline
 
 
-def _status_follows_interviews(db: Session, candidate_id: str) -> None:
-    """A candidate with an interview on record is in the Interview stage, however it was booked or logged."""
+def _status_follows_stage(db: Session, pipeline: HiringPipeline) -> None:
+    """The pipeline status label says what the stage says, however it came to differ. An employee from
+    before the pipeline keeps theirs; a rejection is recorded by those who reject."""
+    from app.models.candidate_history import CandidateHistory
     from app.models.user import Interview
 
-    rows = db.query(CandidateStatus).filter(CandidateStatus.candidateID == candidate_id,
-                                            CandidateStatus.piplineStatus.in_(("Applied", "Screening"))).all()
-    if rows and db.query(Interview.id).filter(Interview.candidate_id == candidate_id, Interview.status != "Cancelled").first():
-        for row in rows:
+    if pipeline.grandfathered or pipeline.stage in ("REJECTED", "WITHDRAWN"):
+        return
+    candidate_id, stage = pipeline.candidate_id, pipeline.stage
+    interviewed = db.query(Interview.id).filter(Interview.candidate_id == candidate_id,
+                                                Interview.status != "Cancelled").first() is not None
+    for row in db.query(CandidateStatus).filter(CandidateStatus.candidateID == candidate_id).all():
+        current = row.piplineStatus
+        needs = STATUS_NEEDS_STAGE.get(current)
+        if needs and stage_index(stage) < stage_index(needs):  # ahead of the facts
+            row.piplineStatus = "Interview" if interviewed else "Applied"
+            db.add(CandidateHistory(candidateID=candidate_id, event_type="Custom Status Change", event_at=datetime.utcnow(),
+                                    note=f"{current} -> {row.piplineStatus}: corrected to match the hiring stage ({stage}). "
+                                         f"{'; '.join(pipeline.blockers or [])}".strip(),
+                                    performed_by_id="system", performed_by_name="Hiring pipeline"))
+        elif current in ("Applied", "Screening") and interviewed:
             row.piplineStatus = "Interview"
+        elif stage in ("ONBOARDING", "BGV") and (current in EARLY_STATUSES or current in ("Pre-onboarding-Approval", "OfferApproval")):
+            row.piplineStatus = "Pre-Onboarding"
+        elif stage_index(stage) >= stage_index("BENCH") and current not in ("Onboarded", "Hired"):
+            row.piplineStatus = "Onboarded"
+
+
+def _close_finished_schedule_tasks(db: Session, candidate_id: str) -> None:
+    """Asked to schedule a round that now exists, however it got there: the task is done."""
+    from app.models.task import Task
+    from app.services.interview_verdict_service import candidate_verdicts
+
+    tasks = db.query(Task).filter(Task.candidate_id == candidate_id, Task.category == "INTERVIEW_SCHEDULING",
+                                  Task.status.notin_(("COMPLETED", "CANCELLED"))).all()
+    if not tasks:
+        return
+    levels = {verdict.level for _, verdict in candidate_verdicts(db, candidate_id)}
+    for task in tasks:
+        if any(task.title.startswith(f"Schedule {level} ") for level in levels):
+            task.status, task.completed_at = "COMPLETED", datetime.utcnow()
 
 
 def get_or_create_pipeline(db: Session, candidate_id: str, job_id: Optional[str] = None, *,
@@ -311,6 +350,16 @@ def record_screen_decision(db: Session, candidate_id: str, decision: str, user_i
     pipeline = get_or_create_pipeline(db, candidate_id)
     pipeline.screen_decision, pipeline.screen_decided_by = decision, user_id
     return evaluate(db, pipeline, trigger="screen", ref=decision, actor=user_id)
+
+
+def assert_status_allowed(db: Session, candidate_id: str, pipeline_status: str) -> None:
+    """A manual move can't claim more than the facts: raises PipelineGateBlocked with what is missing.
+    Moving back, or to a status no stage guards (Rejected), is always allowed."""
+    needs = STATUS_NEEDS_STAGE.get(pipeline_status)
+    if needs:
+        pipeline = get_or_create_pipeline(db, candidate_id)
+        if not pipeline.grandfathered:
+            assert_gate(db, candidate_id, needs)
 
 
 def assert_gate(db: Session, candidate_id: str, required_stage: str) -> HiringPipeline:

@@ -34,6 +34,7 @@ import {
   logCompletedInterview,
 } from "../../services/api/interviews";
 import { listAccountManagerOptions } from "../../services/api/clients";
+import { getCandidateApplications } from "../../services/api/jobs";
 import {
   deleteInterviewMail,
   sendInterviewInvite,
@@ -1741,15 +1742,19 @@ function formatLabel(key) {
   return String(key).replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+const IN_PERSON = "In person";
+
 // Record an interview that already happened (CEO 2026-11-02): date, type, panel members, platform,
 // the interviewer's recommendation, and a summary and/or the transcript (pasted or a Word document).
 // The date and length are read from a Teams transcript header when not given.
 function LogInterviewModal({ candidateId, onClose, onLogged }) {
+  const [jobs, setJobs] = useState([]);
+  const [mode, setMode] = useState("online");
   const [options, setOptions] = useState(null);
   const [users, setUsers] = useState([]);
   const [form, setForm] = useState({
-    interview_date: "", interview_time: "", duration_minutes: "", interview_type: "", meeting_platform: "",
-    recommendation: "", summary: "", transcript_text: "", panel_member_ids: [],
+    interview_date: "", interview_time: "", duration_minutes: "60", interview_type: "", meeting_platform: "", timezone: "Asia/Kolkata",
+    job_id: "", recommendation: "", summary: "", transcript_text: "", panel_member_ids: [],
   });
   const [file, setFile] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -1763,14 +1768,25 @@ function LogInterviewModal({ candidateId, onClose, onLogged }) {
         console.error("[LogInterview] Failed to load form options:", err);
         setError(`Could not load the form: ${err.message}`);
       });
+    getCandidateApplications(candidateId)
+      .then((res) => {
+        const applied = res?.applications ?? [];
+        setJobs(applied);
+        if (applied.length === 1) setForm((f) => ({ ...f, job_id: String(applied[0].job_id) }));
+      })
+      .catch((err) => {
+        console.error("[LogInterview] Failed to load the candidate's jobs:", err);
+        setError(`Could not load the candidate's jobs: ${err.message}`);
+      });
     listAccountManagerOptions()
       .then((list) => setUsers(Array.isArray(list) ? list : []))
       .catch((err) => {
         console.error("[LogInterview] Failed to load users:", err);
         setError(`Could not load the people list: ${err.message}`);
       });
-  }, []);
+  }, [candidateId]);
 
+  const platforms = (options?.meeting_platforms || []).filter((p) => p !== IN_PERSON);
   const toggleMember = (id) => setForm((f) => ({
     ...f,
     panel_member_ids: f.panel_member_ids.includes(id) ? f.panel_member_ids.filter((m) => m !== id) : [...f.panel_member_ids, id],
@@ -1778,8 +1794,9 @@ function LogInterviewModal({ candidateId, onClose, onLogged }) {
 
   const save = async () => {
     setError("");
-    if (!form.interview_type || !form.meeting_platform || !form.recommendation) {
-      setError("Choose the interview type, the meeting platform and your recommendation.");
+    const platform = mode === "inperson" ? IN_PERSON : form.meeting_platform;
+    if (!form.interview_type || !platform || !form.recommendation) {
+      setError("Choose the round, the meeting platform and your recommendation.");
       return;
     }
     if (!form.summary.trim() && !form.transcript_text.trim() && !file) {
@@ -1788,8 +1805,10 @@ function LogInterviewModal({ candidateId, onClose, onLogged }) {
     }
     const data = new FormData();
     data.append("candidate_id", candidateId);
-    ["interview_type", "meeting_platform", "recommendation", "summary", "transcript_text", "interview_date",
-      "interview_time", "duration_minutes"].forEach((key) => { if (String(form[key]).trim()) data.append(key, form[key]); });
+    data.append("meeting_platform", platform);
+    ["interview_type", "recommendation", "summary", "transcript_text", "interview_date", "interview_time",
+      "duration_minutes", "job_id"].forEach((key) => { if (String(form[key]).trim()) data.append(key, form[key]); });
+    if (form.interview_date) data.append("timezone", form.timezone);
     if (form.panel_member_ids.length) data.append("panel_member_ids", form.panel_member_ids.join(","));
     if (file) data.append("transcript_file", file);
     setSaving(true);
@@ -1815,37 +1834,57 @@ function LogInterviewModal({ candidateId, onClose, onLogged }) {
         </div>
         <div className="p-6 space-y-4">
           {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div><label className={label}>Interview date</label><input type="date" className={field} value={form.interview_date} onChange={set("interview_date")} /></div>
-            <div><label className={label}>Start time</label><input type="time" className={field} value={form.interview_time} onChange={set("interview_time")} /></div>
-            <div><label className={label}>Length (minutes)</label><input type="number" min="1" className={field} value={form.duration_minutes} onChange={set("duration_minutes")} /></div>
-          </div>
-          <div className="text-[11px] text-gray-500 -mt-2">Leave the date empty to read it (and the length) from a Teams transcript.</div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className={label}>Interview type *</label>
+              <label className={label}>Interview Type</label>
+              <select className={field} value={mode} onChange={(e) => setMode(e.target.value)}>
+                <option value="inperson">Face to Face Interview</option>
+                <option value="online">Online Interview</option>
+              </select>
+            </div>
+            <div>
+              <label className={label}>Applied Job</label>
+              <select className={field} value={form.job_id} onChange={set("job_id")}>
+                <option value="">{jobs.length ? "Select Job" : "Not submitted to a job yet"}</option>
+                {jobs.map((job) => <option key={job.job_id} value={job.job_id}>{job.job_title ?? `Job ${job.job_id}`}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={label}>Round Name *</label>
               <select className={field} value={form.interview_type} onChange={set("interview_type")}>
-                <option value="">Select…</option>
+                <option value="">Select Round Name</option>
                 {(options?.interview_types || []).map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
+            {mode === "online" ? (
+              <div>
+                <label className={label}>Meeting Platform *</label>
+                <select className={field} value={form.meeting_platform} onChange={set("meeting_platform")}>
+                  <option value="">Select…</option>
+                  {platforms.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+            ) : null}
+            <div><label className={label}>Interview Date</label><input type="date" className={field} value={form.interview_date} onChange={set("interview_date")} /></div>
             <div>
-              <label className={label}>Meeting platform *</label>
-              <select className={field} value={form.meeting_platform} onChange={set("meeting_platform")}>
-                <option value="">Select…</option>
-                {(options?.meeting_platforms || []).map((t) => <option key={t} value={t}>{t}</option>)}
+              <label className={label}>Timezone</label>
+              <select className={field} value={form.timezone} onChange={set("timezone")}>
+                {(options?.timezones || []).map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
-            <div>
-              <label className={label}>Your recommendation *</label>
-              <select className={field} value={form.recommendation} onChange={set("recommendation")}>
-                <option value="">Select…</option>
-                {(options?.recommendations || []).map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
+            <div><label className={label}>Duration (minutes)</label><input type="number" min="1" className={field} value={form.duration_minutes} onChange={set("duration_minutes")} /></div>
+            <div><label className={label}>Start Time</label><input type="time" className={field} value={form.interview_time} onChange={set("interview_time")} /></div>
+          </div>
+          <div className="text-[11px] text-gray-500 -mt-2">Leave the date empty to read it (and the length) from a Teams transcript.</div>
+          <div>
+            <label className={label}>Your recommendation *</label>
+            <select className={field} value={form.recommendation} onChange={set("recommendation")}>
+              <option value="">Select…</option>
+              {(options?.recommendations || []).map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
           </div>
           <div>
-            <label className={label}>Panel members (you are included when none are picked)</label>
+            <label className={label}>Panel Members (you are included when none are picked)</label>
             <div className="max-h-32 overflow-y-auto rounded-lg border border-gray-200 p-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
               {users.map((u) => (
                 <label key={u.user_id} className="flex items-center gap-2 text-sm text-gray-700">
@@ -1861,10 +1900,10 @@ function LogInterviewModal({ candidateId, onClose, onLogged }) {
               placeholder="Discussion, strengths, concerns and your recommendation" />
           </div>
           <div>
-            <label className={label}>Transcript (paste, or upload the Word document below)</label>
+            <label className={label}>Transcript (paste, or upload a .txt, .md, .vtt or .docx file below; only the text is kept)</label>
             <textarea className={`${field} h-24 resize-none`} value={form.transcript_text} onChange={set("transcript_text")}
               placeholder="Paste the meeting transcript" disabled={Boolean(file)} />
-            <input type="file" accept=".docx,.txt,.vtt" className="mt-2 text-sm" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+            <input type="file" accept=".txt,.md,.vtt,.docx" className="mt-2 text-sm" onChange={(e) => setFile(e.target.files?.[0] || null)} />
             {file ? <div className="mt-1 text-xs text-gray-600">Uploading {file.name} instead of pasted text.</div> : null}
           </div>
           <div className="flex gap-3 pt-2">

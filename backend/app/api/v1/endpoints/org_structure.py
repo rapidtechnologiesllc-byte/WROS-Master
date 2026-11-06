@@ -320,7 +320,24 @@ class DepartmentRequest(BaseModel):
     cost_center_code: Optional[str] = None
     org_level: Optional[bool] = None  # True: its people's cost sits at org level in the P&L, not in a business unit
     sees_all_business_units: Optional[bool] = None  # True: its people see the records of every business unit
+    home_screen: Optional[str] = None  # where its people land (authority.FUNCTION_HOMES); "" = their own profile
     active: Optional[bool] = None  # False retires the function, True restores it
+
+def _checked_home(key: Optional[str]) -> Optional[str]:
+    from app.core.authority import FUNCTION_HOMES
+
+    if key and key not in FUNCTION_HOMES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown landing page {key!r}.")
+    return key or None
+
+
+@router.get("/departments/home-options", summary="Landing pages a function can have",
+            dependencies=[Depends(require_resource_permission("users-access-control", "view"))])
+def function_home_options() -> List[dict]:
+    from app.core.authority import FUNCTION_HOMES
+
+    return [{"key": key, "label": label} for key, (label, _) in FUNCTION_HOMES.items()]
+
 
 def _function_templates(db: Session, tenant_id: int, name: str) -> list:
     """The enabled function add-ons for this function (specialization = its name), never a job-title
@@ -397,6 +414,7 @@ def create_department_endpoint(
         cost_center_code=request.cost_center_code,
         is_shared_service=request.org_level,
         sees_all_business_units=bool(request.sees_all_business_units),
+        home_screen=_checked_home(request.home_screen),
         active=True,
     )
     db.add(dept)
@@ -458,6 +476,8 @@ def update_department_endpoint(
         dept.is_shared_service = request.org_level
     if request.sees_all_business_units is not None:
         dept.sees_all_business_units = request.sees_all_business_units
+    if request.home_screen is not None:
+        dept.home_screen = _checked_home(request.home_screen)
     if request.active is not None:
         dept.active = request.active
     db.commit()

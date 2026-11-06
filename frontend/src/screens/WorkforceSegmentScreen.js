@@ -10,6 +10,13 @@ import {
   flagKeyFromSlug, getWorkforceSelection, groupKeyFromSlug, groupPath, isBenchGroup, toSlug, BENCH_PATH,
 } from "../services/api/workforce";
 
+// The overview's filters, passed on in the link so this page lists the people the tile counted
+const passedFilters = () => {
+  const params = new URLSearchParams(window.location.search);
+  params.delete("group");
+  return params.toString();
+};
+
 const Th = ({ children }) => <th className="px-4 py-3 text-xs font-semibold text-gray-700">{children}</th>;
 
 function Flags({ person, windowDays }) {
@@ -37,7 +44,7 @@ export default function WorkforceSegmentScreen() {
     setLoading(true);
     setError("");
     try {
-      setData(await getWorkforceSelection(flagSlug ? { flag: flagKeyFromSlug(flagSlug) } : { group: groupKeyFromSlug(groupSlug) }));
+      setData(await getWorkforceSelection(flagSlug ? { flag: flagKeyFromSlug(flagSlug), filters: passedFilters() } : { group: groupKeyFromSlug(groupSlug), filters: passedFilters() }));
     } catch (err) {
       setData(null);
       setError(err.message || "Failed to load this group.");

@@ -1,3 +1,4 @@
+import { homeDashboard } from "../utils/permissionsRoleTemplate";
 import { Link } from "react-router-dom";
 import FinancialOutlookPanel from "../components/FinancialOutlookPanel";
 import { useEffect, useState } from "react";
@@ -369,7 +370,7 @@ export default function CEOUnifiedDashboard() {
       <div>
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">CEO Dashboard</h1>
+            <h1 className="text-3xl font-bold text-gray-900">{homeDashboard() === "ceo" ? "CEO Dashboard" : "FY Progress"}</h1>
             <p className="mt-1 text-gray-600">Unified view of FY progress and executive metrics</p>
           </div>
           <Button variant="ghost" onClick={loadDashboard} disabled={loading}>

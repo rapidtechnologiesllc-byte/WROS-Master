@@ -24,9 +24,9 @@ Real architecture adaptations:
                        most-recent-record resolution S-053 already
                        established for the identical no-single-bridge
                        problem.
-    4. INTERVIEW   -- a SubmissionInterview row exists for the
-                       candidate's most recent Submission (same
-                       most-recent-submission resolution S-053 uses).
+    4. INTERVIEW   -- an interview is on record for the candidate (Interview, however it was
+                       booked or logged; 2026-11-06: reading only SubmissionInterview, a table
+                       production never fills, left every candidate on Engaged).
     5. OFFER       -- an OfferLetter row exists for the candidate.
     6. PREBOARDING -- OfferLetter.offer_status == "Accepted" (the real
                        substitute this whole session has used since
@@ -150,6 +150,9 @@ def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dic
     earliest_score = _earliest_job_score(db, candidate_id)
     latest_score = _latest_job_score(db, candidate_id)
     submission = _relevant_submission(db, candidate_id)
+    from app.models.user import Interview
+    from app.services.interview_verdict_service import candidate_verdicts
+
     interviews = (
         db.query(SubmissionInterview)
         .filter(SubmissionInterview.candidate_id == candidate_id, SubmissionInterview.superseded_at.is_(None))
@@ -157,6 +160,23 @@ def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dic
         .all()
         if submission is not None else []
     )
+    held = (db.query(Interview).filter(Interview.candidate_id == candidate_id, Interview.status != "Cancelled")
+            .order_by(Interview.start_time.asc()).all())
+    verdicts = [verdict for _, verdict in candidate_verdicts(db, candidate_id)]
+    screen_passed = next((v for v in verdicts if v.level in ("SCREEN", "L1", "L2") and v.verdict == "PASS"), None)
+    first_interview_at = (interviews[0].created_at if interviews else None) or (held[0].start_time if held else None)
+    from app.models.thunder_email import ThunderEmailMessage
+
+    first_email_reply = (db.query(ThunderEmailMessage).filter(ThunderEmailMessage.candidate_id == candidate_id,
+                                                              ThunderEmailMessage.direction == "IN")
+                         .order_by(ThunderEmailMessage.received_at.asc()).first())
+    replied_at = (first_reply.created_at if first_reply else None) or (first_email_reply.received_at if first_email_reply else None)
+    screened_at = (earliest_score.calculated_at if earliest_score else None) or (screen_passed.decided_at if screen_passed else None)
+    if screened_at and first_interview_at:  # a round logged later happened when it says it did
+        screened_at = min(screened_at, first_interview_at)
+    def level_outcome(level):
+        rows = [v for v in verdicts if v.level == level]
+        return rows[-1].verdict if rows else None
     offer = (
         db.query(OfferLetter)
         .filter(OfferLetter.candidate_id == candidate_id)
@@ -180,9 +200,9 @@ def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dic
 
     reached = [
         conversation is not None,
-        first_reply is not None,
-        earliest_score is not None,
-        len(interviews) > 0,
+        replied_at is not None,
+        screened_at is not None or earliest_score is not None,
+        first_interview_at is not None,
         offer is not None,
         offer is not None and offer.offer_status == "Accepted",
         employee is not None,
@@ -196,9 +216,9 @@ def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dic
     try:
         # Stage 1: ENGAGED
         response_time = None
-        if conversation and first_reply:
+        if conversation and replied_at:
             try:
-                response_time = round((first_reply.created_at - conversation.created_at).total_seconds() / 3600, 1)
+                response_time = round((replied_at - conversation.created_at).total_seconds() / 3600, 1)
             except (TypeError, AttributeError) as e:
                 from app.core.logging import logger
                 logger.warning(f"[Journey] Stage 1 (ENGAGED) response_time calc failed for {candidate_id}: {e}")
@@ -206,7 +226,7 @@ def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dic
         stages.append({
             "stage_name": "ENGAGED", "stage_label": "Engaged", "status": statuses[0],
             "entered_at": conversation.created_at if conversation else None,
-            "exited_at": first_reply.created_at if first_reply else None,
+            "exited_at": replied_at,
             "metrics": {
                 "channel": conversation.channel_preference if conversation else None,
                 "response_time_hours": response_time,
@@ -229,10 +249,10 @@ def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dic
             logger.warning(f"[Journey] Stage 2 (QUALIFYING) TOTAL_PROFILE_FIELDS is 0 for {candidate_id}")
 
         days_in_stage = None
-        if first_reply:
+        if replied_at:
             try:
-                stage_end_time = earliest_score.calculated_at if earliest_score else datetime.utcnow()
-                days_in_stage = (stage_end_time - first_reply.created_at).days
+                stage_end_time = screened_at or first_interview_at or datetime.utcnow()
+                days_in_stage = (stage_end_time - replied_at).days
             except (TypeError, AttributeError) as e:
                 logger.warning(f"[Journey] Stage 2 (QUALIFYING) days_in_stage calc failed for {candidate_id}: {e}")
 
@@ -245,8 +265,8 @@ def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dic
 
         stages.append({
             "stage_name": "QUALIFYING", "stage_label": "Qualifying", "status": statuses[1],
-            "entered_at": first_reply.created_at if first_reply else None,
-            "exited_at": earliest_score.calculated_at if earliest_score else None,
+            "entered_at": replied_at,
+            "exited_at": screened_at,
             "metrics": {
                 "profile_completeness_pct": profile_completeness_pct,
                 "missing_fields_count": len(missing_fields),
@@ -262,8 +282,8 @@ def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dic
     # Stage 3: SCREENED
     stages.append({
         "stage_name": "SCREENED", "stage_label": "Screened", "status": statuses[2],
-        "entered_at": earliest_score.calculated_at if earliest_score else None,
-        "exited_at": interviews[0].created_at if interviews else None,
+        "entered_at": screened_at,
+        "exited_at": first_interview_at,
         "metrics": {
             "overall_score": latest_score.overall_score if latest_score else None,
             "technical_score": latest_score.technical_score if latest_score else None,
@@ -278,12 +298,13 @@ def get_candidate_journey(db: Session, candidate_id: str, tenant_id: str) -> Dic
     l2 = next((i for i in interviews if i.level == "L2"), None)
     stages.append({
         "stage_name": "INTERVIEW", "stage_label": "Interview", "status": statuses[3],
-        "entered_at": interviews[0].created_at if interviews else None,
+        "entered_at": first_interview_at,
         "exited_at": offer.created_at if offer else None,
         "metrics": {
-            "l1_outcome": l1.outcome if l1 else None,
+            "screening_outcome": level_outcome("SCREEN"),
+            "l1_outcome": (l1.outcome if l1 else None) or level_outcome("L1"),
             "l1_scheduled_at": l1.scheduled_at if l1 else None,
-            "l2_outcome": l2.outcome if l2 else None,
+            "l2_outcome": (l2.outcome if l2 else None) or level_outcome("L2"),
             "l2_scheduled_at": l2.scheduled_at if l2 else None,
         },
     })

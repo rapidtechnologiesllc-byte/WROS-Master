@@ -19,7 +19,7 @@ const dateOnly = (value) => (value ? String(value).slice(0, 10) : "");
 const today = () => new Date().toISOString().slice(0, 10);
 const EMPTY_FORM = { certificationId: "", earnedDate: "", expiresDate: "", issuer: "", certNumber: "" };
 
-function CertificateRow({ record, statuses, employeeId, onChanged }) {
+function CertificateRow({ record, statuses, employeeId, onChanged, canEdit }) {
   const [editing, setEditing] = useState(false);
   const [status, setStatus] = useState(record.status);
   const [expiresDate, setExpiresDate] = useState(dateOnly(record.expires_date));
@@ -69,14 +69,16 @@ function CertificateRow({ record, statuses, employeeId, onChanged }) {
             {record.cert_number ? ` · #${record.cert_number}` : ""}
           </div>
         </div>
-        <div className="flex gap-1">
-          <Button variant="ghost" size="sm" onClick={() => setEditing((v) => !v)}>
-            <Pencil className="h-3 w-3" />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={remove}>
-            <Trash2 className="h-3 w-3" />
-          </Button>
-        </div>
+        {canEdit ? (
+          <div className="flex gap-1">
+            <Button variant="ghost" size="sm" onClick={() => setEditing((v) => !v)}>
+              <Pencil className="h-3 w-3" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={remove}>
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
+        ) : null}
       </div>
       {editing ? (
         <div className="mt-2 flex flex-wrap items-end gap-2">
@@ -101,7 +103,7 @@ function CertificateRow({ record, statuses, employeeId, onChanged }) {
   );
 }
 
-export default function EmployeeCertifications({ employee, onChanged }) {
+export default function EmployeeCertifications({ employee, onChanged, canEdit = true }) {
   const [options, setOptions] = useState(null);
   const [records, setRecords] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -113,14 +115,14 @@ export default function EmployeeCertifications({ employee, onChanged }) {
 
   const load = useCallback(async () => {
     try {
-      const [opts, list] = await Promise.all([getCertificationOptions(), listEmployeeCertificates(employee.id)]);
+      const [opts, list] = await Promise.all([canEdit ? getCertificationOptions() : null, listEmployeeCertificates(employee.id)]);
       setOptions(opts);
       setRecords(list.certificates || []);
       setCurrentLevel(list.guidewire_certification_current || null);
     } catch (err) {
       setError(err.message || "Failed to load certificates.");
     }
-  }, [employee.id]);
+  }, [employee.id, canEdit]);
 
   useEffect(() => {
     load();
@@ -185,6 +187,7 @@ export default function EmployeeCertifications({ employee, onChanged }) {
         </div>
         <div>
           <label className="mb-1 block font-semibold text-gray-700">Target level</label>
+          {!canEdit ? <div>{target}</div> : (
           <div className="flex gap-2">
             <select value={target} onChange={(e) => setTarget(e.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm">
               {(options?.guidewire_levels || ["None"]).map((level) => (
@@ -193,6 +196,7 @@ export default function EmployeeCertifications({ employee, onChanged }) {
             </select>
             <Button variant="secondary" size="sm" onClick={saveTarget}>Save</Button>
           </div>
+          )}
         </div>
       </div>
 
@@ -200,11 +204,11 @@ export default function EmployeeCertifications({ employee, onChanged }) {
         {records.length === 0 ? <div className="text-sm text-gray-500">No certificates recorded.</div> : null}
         {records.map((record) => (
           <CertificateRow key={record.id} record={record} statuses={options?.statuses || []} employeeId={employee.id}
-            onChanged={changed} />
+            onChanged={changed} canEdit={canEdit} />
         ))}
       </div>
 
-      {adding ? (
+      {!canEdit ? null : adding ? (
         <div className="mt-3 grid grid-cols-2 gap-2 rounded border p-3 text-sm">
           <label className="col-span-2">
             <span className="text-xs font-semibold text-gray-700">Certificate</span>

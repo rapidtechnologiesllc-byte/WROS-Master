@@ -51,6 +51,8 @@ class Department(Base):
     # Its people serve every business unit, so they may see the records of all of them
     # (app.core.visibility.sees_every_business_unit). What they may do stays with their permissions.
     sees_all_business_units = Column(Boolean, nullable=False, default=False, server_default="false")
+    # Where its people land after signing in (app.core.authority.FUNCTION_HOMES); empty: their own profile
+    home_screen = Column(String(40), nullable=True)
 
     # Cost center or profit center for finance reporting
     cost_center_code = Column(String(512), nullable=True)

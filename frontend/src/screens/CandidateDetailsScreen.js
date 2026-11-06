@@ -25,6 +25,7 @@ import {
   createInterviewPanel,
   assignPanelMember,
   createInterview,
+  getInterviewLogOptions,
 } from "../services/api/interviews";
 import { sendPlainEmail, sendInterviewInvite } from "../services/api/email";
 import { getCandidateDocuments } from "../services/api/documents";
@@ -80,11 +81,6 @@ const timezoneOptions = [
 ];
 
 const meetingPlatformOptions = ["Microsoft Teams", "Other"];
-
-const roundNameOptions = [
-  { label: "L1 Interview", value: "L1 Interview" },
-  { label: "L2 Interview", value: "L2 Interview" },
-];
 
 function UsersBUDetailsPanel({ candidate, onUpdate }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -325,6 +321,16 @@ export default function CandidateDetailsScreen({
   const [activityNote, setActivityNote] = useState("");
   const [activityLogging, setActivityLogging] = useState(false);
   const [candidateJobs, setCandidateJobs] = useState([]);
+  // The same rounds as Log Interview, from the server
+  const [roundNameOptions, setRoundNameOptions] = useState([]);
+  useEffect(() => {
+    getInterviewLogOptions()
+      .then((options) => setRoundNameOptions((options?.interview_types || []).map((name) => ({ label: name, value: name }))))
+      .catch((err) => {
+        console.error("[Candidate] Interview rounds unavailable:", err);
+        showNotice(`Could not load the interview rounds: ${err.message}`, "error");
+      });
+  }, []);
   const [selectedJobId, setSelectedJobId] = useState("");
   const [loadingCandidateJobs, setLoadingCandidateJobs] = useState(false);
   // Where the candidate is in screen -> L1 -> L2 -> offer, and what is needed next

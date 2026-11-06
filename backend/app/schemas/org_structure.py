@@ -72,6 +72,7 @@ class DepartmentResponse(BaseModel):
     access_org_level: bool = False
     org_level: bool = False  # its people's cost sits at org level in the P&L
     sees_all_business_units: bool = False  # its people see the records of every business unit
+    home_screen: Optional[str] = None  # where its people land after signing in
     access_note: Optional[str] = None
 
     class Config:

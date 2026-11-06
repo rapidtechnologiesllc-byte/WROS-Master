@@ -898,6 +898,12 @@ function OrganizationalHierarchySection() {
 
   const [showDepartments, setShowDepartments] = useState(false);
   const [deptForm, setDeptForm] = useState({ name: "", description: "" });
+  const [homeOptions, setHomeOptions] = useState([]);
+  useEffect(() => {
+    apiRequest("/org/departments/home-options")
+      .then((res) => setHomeOptions(res.data || []))
+      .catch((err) => console.error("[Functions] Landing page choices unavailable:", err));
+  }, []);
   const [editingDept, setEditingDept] = useState(null);
 
   // Roles: the job titles people hold and the org level each one sits at
@@ -1056,7 +1062,7 @@ function OrganizationalHierarchySection() {
       await apiRequest(editingDept ? `/org/departments/${editingDept.id}` : "/org/departments", {
         method: editingDept ? "PUT" : "POST",
         // Functions are org-wide (HR, Recruitment, Finance ...)
-        body: JSON.stringify({ name: form.name.trim(), description: form.description || null, org_level: Boolean(form.org_level), sees_all_business_units: Boolean(form.sees_all_business_units) }),
+        body: JSON.stringify({ name: form.name.trim(), description: form.description || null, org_level: Boolean(form.org_level), sees_all_business_units: Boolean(form.sees_all_business_units), home_screen: form.home_screen || "" }),
       });
       setActionSuccess(editingDept ? "Function updated" : "Function added");
       setEditingDept(null);
@@ -1479,7 +1485,7 @@ function OrganizationalHierarchySection() {
                       {dept.active === false ? "Restore" : "Retire"}
                     </button>
                     <button
-                      onClick={() => setEditingDept({ id: dept.id, name: dept.name, description: dept.description || "", org_level: Boolean(dept.org_level), sees_all_business_units: Boolean(dept.sees_all_business_units) })}
+                      onClick={() => setEditingDept({ id: dept.id, name: dept.name, description: dept.description || "", org_level: Boolean(dept.org_level), sees_all_business_units: Boolean(dept.sees_all_business_units), home_screen: dept.home_screen || "" })}
                       className="p-1 text-blue-600 hover:bg-blue-50 rounded"
                       aria-label={`Edit ${dept.name}`}
                     >
@@ -1528,6 +1534,19 @@ function OrganizationalHierarchySection() {
                   : setDeptForm(d => ({ ...d, sees_all_business_units: e.target.checked }))}
               />
               Sees every business unit (this function serves them all; permissions still decide what they can do)
+            </label>
+            <label className="block text-xs text-gray-700">
+              Landing page after sign-in
+              <select
+                value={(editingDept || deptForm).home_screen || ""}
+                onChange={(e) => editingDept
+                  ? setEditingDept(d => ({ ...d, home_screen: e.target.value }))
+                  : setDeptForm(d => ({ ...d, home_screen: e.target.value }))}
+                className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-bx-orange"
+              >
+                <option value="">Their own employee profile</option>
+                {homeOptions.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+              </select>
             </label>
             <div className="flex gap-2 justify-end">
               {editingDept && (

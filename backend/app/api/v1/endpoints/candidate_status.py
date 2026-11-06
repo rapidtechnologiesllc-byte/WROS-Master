@@ -314,6 +314,17 @@ def update_candidate_status(
     if not candidate:
         raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found.")
 
+    # The status is a label of the hiring stage: it can't be moved ahead of what has happened
+    if request.pipeline_status is not None:
+        from app.services.hiring_pipeline_service import PipelineGateBlocked, assert_status_allowed
+
+        try:
+            assert_status_allowed(db, candidate_id, request.pipeline_status)
+        except PipelineGateBlocked as exc:
+            db.rollback()
+            missing = "; ".join(exc.blockers) or "earlier steps"
+            raise HTTPException(status_code=409, detail=f"{_candidate_display_name(candidate)} can't move to {request.pipeline_status} yet. Still needed: {missing}.")
+
     # Get or create the CandidateStatus row
     cs = db.query(CandidateStatus).filter(CandidateStatus.candidateID == candidate_id).first()
     if not cs:

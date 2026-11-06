@@ -182,6 +182,12 @@ export const getEmployeeEditOptions = async () => {
 };
 
 // Name, email (only without a login), title, work location
+// Your own contact details and emergency contact
+export const updateMyDetails = async (details) => {
+  const { data } = await apiRequest("/employees/me/details", { method: "PATCH", body: JSON.stringify(details) });
+  return data;
+};
+
 export const updateEmployeeDetails = async (employeeId, details) => {
   const { data } = await apiRequest(`/employees/${employeeId}`, {
     method: "PATCH",

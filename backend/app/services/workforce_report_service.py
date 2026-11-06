@@ -75,17 +75,45 @@ def _group(employee: Employee, lines: List[Optional[str]]) -> str:
     return "BENCH_CORE_READY" if employee.core_certified else "BENCH_READY"
 
 
-def workforce_overview(db: Session, user: Users, *, group: Optional[str] = None,
-                       flag: Optional[str] = None) -> Dict:
+def workforce_filters(db: Session, user: Users) -> Dict:
+    """The choices for the overview's filters: only what exists among the people this user may see."""
+    from app.models.location import Location
+    from app.models.org_structure import Department
+    from app.models.employee_org_history import country_of_company
+
+    rows = (db.query(Employee.bu_id, Employee.company_id, Users.department_id)
+            .outerjoin(Users, Users.UserID == Employee.wros_user_id)
+            .filter(Employee.tenant_id == user.tenant_id, bu_filter(db, user, Employee.bu_id),
+                    Employee.status.notin_(NOT_HEADCOUNT)).all())
+    bu_ids, company_ids, function_ids = {r[0] for r in rows} - {None}, {r[1] for r in rows} - {None}, {r[2] for r in rows} - {None}
+    units = db.query(BusinessUnit).filter(BusinessUnit.id.in_(bu_ids)).order_by(BusinessUnit.name).all()
+    companies = db.query(Location).filter(Location.id.in_(company_ids)).order_by(Location.name).all()
+    functions = db.query(Department).filter(Department.id.in_(function_ids)).order_by(Department.name).all()
+    countries = sorted({c for c in (country_of_company(db, cid) for cid in company_ids) if c})
+    return {"functions": [{"id": f.id, "name": f.name} for f in functions],
+            "business_units": [{"id": u.id, "name": u.display_name or u.name} for u in units],
+            "companies": [{"id": c.id, "name": c.name} for c in companies], "locations": countries}
+
+
+def workforce_overview(db: Session, user: Users, *, group: Optional[str] = None, flag: Optional[str] = None,
+                       function_id: Optional[str] = None, business_unit_id: Optional[int] = None,
+                       company_id: Optional[str] = None, location: Optional[str] = None) -> Dict:
     """Counts for every group and flag; the people only for the one group or flag asked for
-    (the dashboard needs numbers, each number's page needs its people)."""
-    employees = (
-        db.query(Employee)
-        .filter(Employee.tenant_id == user.tenant_id, bu_filter(db, user, Employee.bu_id),
-                Employee.status.notin_(NOT_HEADCOUNT))
-        .order_by(Employee.first_name, Employee.last_name)
-        .all()
-    )
+    (the dashboard needs numbers, each number's page needs its people). The filters narrow everyone
+    counted, inside what this user may see."""
+    query = db.query(Employee).filter(Employee.tenant_id == user.tenant_id, bu_filter(db, user, Employee.bu_id),
+                                      Employee.status.notin_(NOT_HEADCOUNT))
+    if function_id:
+        query = query.join(Users, Users.UserID == Employee.wros_user_id).filter(Users.department_id == function_id)
+    if business_unit_id:
+        query = query.filter(Employee.bu_id == business_unit_id)
+    if company_id:
+        query = query.filter(Employee.company_id == company_id)
+    employees = query.order_by(Employee.first_name, Employee.last_name).all()
+    if location:
+        from app.models.employee_org_history import country_of_company
+
+        employees = [e for e in employees if country_of_company(db, e.company_id) == location]
     ids = [e.id for e in employees]
     allocations = defaultdict(list)
     for a in (db.query(EmployeeAllocation).filter(EmployeeAllocation.employee_id.in_(ids),

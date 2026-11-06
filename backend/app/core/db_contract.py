@@ -2056,6 +2056,7 @@ def _apply_schema_migrations(db: Session):
         "departments": [
             ("is_shared_service", "BOOLEAN NULL"),
             ("sees_all_business_units", "BOOLEAN NOT NULL DEFAULT FALSE"),
+            ("home_screen", "VARCHAR(40) NULL"),
         ],
         "interview_logs": [
             ("analysis", "JSON NULL"),

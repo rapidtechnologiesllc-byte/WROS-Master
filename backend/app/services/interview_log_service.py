@@ -29,8 +29,11 @@ from app.models.user import Interview, InterviewFeedback, InterviewPanel, Jobs, 
 logger = logging.getLogger(__name__)
 
 RECOMMENDATIONS = ("No Hire", "Not sure", "Average", "Hire", "Must Hire")  # the feedback scale
-# rounds a logged interview can be (InterviewPanel.round_name)
-INTERVIEW_TYPES = ("Screening", "HR", "Technical", "Manager", "Client", "Final")
+# The rounds, for scheduling an interview and for logging one (InterviewPanel.round_name). The name
+# decides the level (interview_verdict_service.infer_level), so both forms lead to the same stage.
+INTERVIEW_TYPES = ("Screening", "L1 Interview", "L2 Interview", "HR", "Client", "Final")
+INTERVIEW_TIMEZONES = ("Asia/Kolkata", "UTC", "America/New_York", "America/Chicago", "America/Los_Angeles",
+                       "Europe/London", "Asia/Dubai", "Asia/Singapore")
 MAX_TRANSCRIPT_CHARS = 200_000
 DEFAULT_MINUTES = 60
 HEADER = re.compile(r"([A-Z][a-z]+ \d{1,2}, \d{4}),?\s+(\d{1,2}:\d{2}\s*[AP]M)(?:\s+(?:(\d+)h\s*)?(\d+)m(?:\s*\d+s)?)?")
@@ -161,6 +164,12 @@ def log_completed_interview(db: Session, actor: Users, candidate: Candidate, *, 
                             performed_by_id=actor.UserID, performed_by_name=actor.UserName, job_id=job_id,
                             interview_id=interview.id))
     db.commit()
+    # the same as an interview whose feedback came in: the round's verdict moves the candidate
+    from app.services import hiring_pipeline_service as pipeline
+
+    if job_id:
+        pipeline.link_job(db, candidate.candidateID, job_id)
+    pipeline.evaluate_and_act(db, candidate.candidateID, "interview_logged", ref=str(interview.id), actor=actor.UserID)
     logger.info(f"[InterviewLog] {candidate.candidateID}: interview {interview.id} logged by {actor.UserID} "
                 f"({interview_type}, {recommendation}{', experience unverified' if unverified else ''})")
     return interview

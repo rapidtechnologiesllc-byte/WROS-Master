@@ -555,7 +555,29 @@ def get_employee_profile(
     employee = _profile_employee_or_404(db, employee_id, current_user)
     profile = build_profile(db, employee, current_user, _to_item(db, employee, viewer=current_user).dict())
     profile["is_self"] = _is_self(employee, current_user)
+    from app.core import authority
+
+    profile["can_view_employees"] = authority.has_permission(db, current_user, "employees.view")
+    if profile["is_self"]:  # their own page: what they are on, without what it bills
+        profile["own_allocations"] = _own_allocations(db, employee)
+    if not profile["can_view_employees"]:
+        profile["finance"]["billing_rate_usd_cents"] = None
     return profile
+
+
+def _own_allocations(db: Session, employee: Employee) -> list:
+    from app.models.client import Client
+    from app.models.employee_allocation import EmployeeAllocation
+    from app.models.project import Project
+
+    rows = db.query(EmployeeAllocation).filter(EmployeeAllocation.employee_id == employee.id,
+                                               EmployeeAllocation.status == "ACTIVE").all()
+    clients = {c.id: c.company_name for c in db.query(Client).filter(Client.id.in_({r.client_id for r in rows}))} if rows else {}
+    projects = {p.id: p.name for p in db.query(Project).filter(Project.id.in_({r.project_id for r in rows if r.project_id}))} if rows else {}
+    return [{"id": r.id, "client": clients.get(r.client_id), "project": projects.get(r.project_id), "role": r.role,
+             "allocated_pct": float(r.utilization_pct) if r.utilization_pct is not None else None,
+             "start_date": r.start_date.isoformat() if r.start_date else None,
+             "end_date": r.end_date.isoformat() if r.end_date else None} for r in rows]
 
 
 PHOTO_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
@@ -721,6 +743,35 @@ def employee_edit_options():
     from app.models.employee import HTD_PHASES, WORK_LOCATIONS
 
     return {"work_locations": list(WORK_LOCATIONS), "htd_phases": list(HTD_PHASES)}
+
+
+# What someone may correct on their own record (CEO 2026-11-06: an employee's page has to work for them).
+# Name, dates, job and pay stay with HR.
+OWN_DETAILS = ("personal_email", "phone", "current_address", "permanent_address", "emergency_contact_name",
+               "emergency_contact_phone")
+
+
+@router.patch("/me/details", dependencies=[Depends(require_resource_permission("my-tasks", "view"))])
+def update_my_details(
+    body: EmployeeDetailsUpdate,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Your own contact details and emergency contact."""
+    employee = db.query(Employee).filter(Employee.wros_user_id == current_user.UserID,
+                                         Employee.tenant_id == current_user.tenant_id).first()
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Your login has no employee record")
+    updates = body.dict(exclude_unset=True)
+    refused = sorted(set(updates) - set(OWN_DETAILS))
+    if refused:
+        raise HTTPException(status_code=403, detail=f"HR changes these: {', '.join(refused)}")
+    if (updates.get("personal_email") or "@") and "@" not in (updates.get("personal_email") or "@"):
+        raise HTTPException(status_code=400, detail="Personal email is not a valid email")
+    for field, value in updates.items():
+        setattr(employee, field, (value or "").strip() or None)
+    db.commit()
+    return {"employee_id": employee.id}
 
 
 @router.patch("/{employee_id}", dependencies=[Depends(require_resource_permission("employees", "edit"))])
@@ -974,16 +1025,17 @@ def certification_options(
     }
 
 
-@router.get("/{employee_id}/certificates", dependencies=[Depends(require_resource_permission("employees", "view"))])
+@router.get("/{employee_id}/certificates", dependencies=[Depends(require_resource_permission("my-tasks", "view"))])
 def list_certificates(
     employee_id: str,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    """Every certificate the employee holds, newest first, and the Guidewire level they give."""
+    """Every certificate the employee holds, newest first, and the Guidewire level they give: anyone
+    who may see employees, and everyone their own."""
     from app.services.employee_certification_service import current_guidewire_levels, list_records
 
-    employee = _get_employee_or_404(db, employee_id, current_user)
+    employee = _profile_employee_or_404(db, employee_id, current_user)
     return {
         "certificates": [_certificate_item(r) for r in list_records(db, employee)],
         "guidewire_certification_current": current_guidewire_levels(db, [employee.id]).get(employee.id),

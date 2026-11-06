@@ -1192,8 +1192,9 @@ def get_interview_statistics(
 def get_log_options():
     """Choices for the Log Interview form (types, platforms, the recommendation scale)."""
     from app.models.interview_log import MEETING_PLATFORMS
-    from app.services.interview_log_service import INTERVIEW_TYPES, RECOMMENDATIONS
+    from app.services.interview_log_service import INTERVIEW_TIMEZONES, INTERVIEW_TYPES, RECOMMENDATIONS
     return {"interview_types": list(INTERVIEW_TYPES), "meeting_platforms": list(MEETING_PLATFORMS),
+            "timezones": list(INTERVIEW_TIMEZONES),
             "recommendations": list(RECOMMENDATIONS)}
 
 
@@ -2172,7 +2173,8 @@ TRANSCRIPT_MAX_BYTES = 10 * 1024 * 1024
 
 
 async def _read_transcript_upload(transcript_text: Optional[str], transcript_file: Optional[UploadFile]):
-    """(text, file name) from the pasted text or the uploaded .docx / .txt / .vtt."""
+    """(text, file name) from the pasted text or the uploaded .docx / .txt / .md / .vtt. Only the text
+    is kept, never the file."""
     from app.services.interview_log_service import InterviewLogError, read_docx_text
     from app.services.interview_transcript_service import vtt_to_text
 
@@ -2187,10 +2189,10 @@ async def _read_transcript_upload(transcript_text: Optional[str], transcript_fil
             text = read_docx_text(content)
         elif name.endswith(".vtt"):
             text = vtt_to_text(content.decode("utf-8", errors="replace"))
-        elif name.endswith(".txt"):
+        elif name.endswith((".txt", ".md")):
             text = content.decode("utf-8", errors="replace")
         else:
-            raise InterviewLogError("Upload the transcript as a Word document (.docx) or a text file (.txt, .vtt).")
+            raise InterviewLogError("Upload the transcript as a text file (.txt, .md, .vtt) or a Word document (.docx).")
     except InterviewLogError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return text, transcript_file.filename[:255]
@@ -2232,7 +2234,8 @@ async def log_completed_interview_endpoint(
     meeting_platform: str = Form(...),
     recommendation: str = Form(...),
     interview_date: Optional[str] = Form(None),   # YYYY-MM-DD; else read from the transcript
-    interview_time: Optional[str] = Form(None),   # HH:MM
+    interview_time: Optional[str] = Form(None),   # HH:MM, in `timezone`
+    timezone: Optional[str] = Form(None),         # default: stored as given
     duration_minutes: Optional[int] = Form(None),
     panel_member_ids: Optional[str] = Form(None),  # comma-separated user ids; default: the logger
     job_id: Optional[str] = Form(None),
@@ -2254,6 +2257,13 @@ async def log_completed_interview_endpoint(
             start = datetime.strptime(f"{interview_date} {interview_time or '09:00'}", "%Y-%m-%d %H:%M")
         except ValueError:
             raise HTTPException(status_code=400, detail="Interview date must be YYYY-MM-DD and time HH:MM.")
+        if timezone:  # times are stored in UTC, the same as a scheduled interview
+            from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+            try:
+                start = start.replace(tzinfo=ZoneInfo(timezone)).astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+            except (ZoneInfoNotFoundError, ValueError):
+                raise HTTPException(status_code=400, detail=f"Unknown timezone {timezone!r}.")
     try:
         interview = log_completed_interview(
             db, user, candidate, interview_type=interview_type, meeting_platform=meeting_platform,
