@@ -1648,6 +1648,9 @@ function LocationsSection() {
                   <div><span className="font-medium">Business units:</span> {dc.business_unit_count}</div>
                   <div><span className="font-medium">Employees:</span> {dc.headcount}</div>
                 </div>
+                {dc.funded_by_company_name ? (
+                  <p className="mt-1 text-sm text-gray-600"><span className="font-medium">Costs loaned by:</span> {dc.funded_by_company_name}</p>
+                ) : null}
               </div>
               <div className="flex gap-2">
                 <button

@@ -28,6 +28,9 @@ class Location(Base):
     # order of creation and never reused; the tenant itself is the parent company (code "<tenant id>")
     company_seq = Column(Integer, nullable=True)
     parent_company_id = Column(String(MAX_STRING_COLUMN_LENGTH), ForeignKey("locations.id", ondelete="RESTRICT"), nullable=True, index=True)
+    # The sister company paying this one's costs as a loan: this company's P&L carries them, and for the
+    # lender they are money lent, never its expense. The parent's rollup counts them once.
+    funded_by_company_id = Column(String(MAX_STRING_COLUMN_LENGTH), ForeignKey("locations.id", ondelete="RESTRICT"), nullable=True, index=True)
     headcount = Column(Integer, default=0)
     status = Column(String(MAX_STRING_COLUMN_LENGTH), default=DEFAULT_LOCATION_STATUS)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
