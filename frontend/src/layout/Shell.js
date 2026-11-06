@@ -349,7 +349,7 @@ export default function Shell({
           </div>
         </aside>
 
-        <main className="flex-1">
+        <main className="min-w-0 flex-1">
           <TopBar
             role={role}
             screen={screen}

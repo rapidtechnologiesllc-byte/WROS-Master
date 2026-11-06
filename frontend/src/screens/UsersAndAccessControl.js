@@ -1663,18 +1663,28 @@ function LocationsSection() {
         <p className="text-sm text-gray-500">No companies yet. Add BX-US and BX-IN: business units, the org chart, clients and employees are all tagged to a company.</p>
       ) : (
         <div className="space-y-3">
+          {parentCompany ? (
+            <div className="rounded-lg border-2 border-gray-300 bg-gray-50 p-4">
+              <h4 className="font-semibold text-gray-900">
+                {parentCompany.name}
+                {parentCompany.company_code ? <span className="ml-2 rounded bg-white px-1.5 py-0.5 text-xs font-medium text-gray-600">ID {parentCompany.company_code}</span> : null}
+                <span className="ml-3 rounded bg-purple-100 px-2 py-1 text-xs font-medium text-purple-800">Parent company</span>
+              </h4>
+              <div className="mt-2 grid grid-cols-3 gap-4 text-sm text-gray-600">
+                <div><span className="font-medium">Companies:</span> {deliveryCenters.length}</div>
+                <div><span className="font-medium">Employees:</span> {deliveryCenters.reduce((sum, dc) => sum + (dc.headcount || 0), 0)}</div>
+              </div>
+            </div>
+          ) : null}
+          <div className="ml-6 space-y-3 border-l-2 border-gray-200 pl-4">
           {deliveryCenters.map((dc) => (
             <div key={dc.id} className="border border-gray-200 rounded-lg p-4 flex items-start justify-between hover:bg-gray-50">
               <div className="flex-1">
                 <div className="flex items-center gap-3">
                   <h4 className="font-semibold text-gray-900">{dc.name}{dc.company_code ? <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600">ID {dc.company_code}</span> : null}</h4>
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    dc.center_type === "HQ"
-                      ? "bg-purple-100 text-purple-800"
-                      : "bg-blue-100 text-blue-800"
-                  }`}>
-                    {`Reports to ${dc.parent_company_name || (parentCompany ? `${parentCompany.name} (holding, ID ${parentCompany.company_code})` : "the holding company")}`}
-                  </span>
+                  {dc.parent_company_name ? (
+                    <span className="rounded bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800">{`Reports to ${dc.parent_company_name}`}</span>
+                  ) : null}
                 </div>
                 <div className="grid grid-cols-3 gap-4 mt-2 text-sm text-gray-600">
                   <div><span className="font-medium">Location:</span> {[dc.city, dc.state, dc.country].filter(Boolean).join(", ") || "-"}</div>
@@ -1701,6 +1711,7 @@ function LocationsSection() {
               </div>
             </div>
           ))}
+          </div>
         </div>
       )}
     </div>
