@@ -638,11 +638,22 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
                                     lambda k: f"{bu_names.get(k[0]) or 'No BU'} x {k[1] or 'unknown location'}",
                                     lambda e: (e["key"][1], e["country"]))],
         "by_client": sorted(by_client.values(), key=lambda r: r["earned_usd_cents"], reverse=True),
+        "group": _group(db, tenant_id),
         "by_company": by_company,
         # the whole picture only: a slice of one BU or country would understate what was lent
         "company_loans": (company_loans(db, by_company, end=end, tenant_id=tenant_id, costs=costs)
                           if business_unit_ids is None and country is None else []),
     }
+
+
+def _group(db: Session, tenant_id: Optional[int]) -> Optional[Dict]:
+    """The parent company the companies report to: the tenant, under its legal name when it has one."""
+    from app.models.tenant import Tenant
+
+    tenant = db.get(Tenant, tenant_id) if tenant_id is not None else None
+    if tenant is None:
+        return None
+    return {"name": tenant.parent_company_name or tenant.name, "company_code": str(tenant.id)}
 
 
 def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: List[Dict], start: date, end: date,
@@ -657,7 +668,8 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
                        they cancel out at org level, so the org P&L is unchanged
       loans            a company funded by a sister (Location.funded_by_company_id) carries its own
                        costs; the lender shows them as money lent, not as its expense
-    Work that can't be attributed to a company stays with the parent ("Group", key None)."""
+    Every company has a row, in company order, so the group always reads the same way. Work that can't
+    be attributed to a company stays with the parent (key None), so the rows add up to the group."""
     from app.models.client import Client
     from app.models.intercompany_ledger import IntercompanySettlement
     from app.models.location import Location
@@ -693,7 +705,10 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
         rows[s.to_company_id]["ic_revenue"] += s.amount_usd_cents
         rows[s.from_company_id]["ic_cost"] += s.amount_usd_cents
 
+    for company in companies:
+        rows[company.id]  # a company with nothing this period still shows
     names = {c.id: (c.name, c.company_code) for c in companies}
+    order = {c.id: (c.company_seq or 0, c.name) for c in companies}
     funded = {c.id: c.funded_by_company_id for c in companies if c.funded_by_company_id and c.id in rows}
     for lender in funded.values():
         rows[lender]  # the lender gets a row even with no cost of its own
@@ -702,7 +717,7 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
         revenue = r["revenue"] + r["ic_revenue"]
         cost = r["delivery"] + r["bench"] + r["overhead"] + r["htd"] + r["expense"] + r["ic_cost"]
         out.append(_with_margin({
-            "key": key, "name": names.get(key, ("Group (parent company)", None))[0],
+            "key": key, "name": names.get(key, ("Not tagged to a company", None))[0],
             "company_code": names.get(key, (None, None))[1],
             "revenue_usd_cents": revenue, "external_revenue_usd_cents": r["revenue"],
             "intercompany_revenue_usd_cents": r["ic_revenue"], "intercompany_cost_usd_cents": r["ic_cost"],
@@ -715,7 +730,7 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
     by_key = {row["key"]: row for row in out}
     for borrower, lender in funded.items():
         by_key[lender]["loaned_out_usd_cents"] += by_key[borrower]["total_cost_usd_cents"]
-    return sorted(out, key=lambda r: (r["key"] is None, -r["revenue_usd_cents"]))
+    return sorted(out, key=lambda r: (r["key"] is None, order.get(r["key"], (0, ""))))
 
 
 def company_loans(db: Session, by_company: List[Dict], *, end: date, tenant_id: Optional[int] = None,

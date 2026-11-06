@@ -1,10 +1,17 @@
-// Partner & Org P&L: income, delivery cost, bench cost and approved expenses for a month,
-// for the whole org and broken down by partner, business unit and client. Clicking a partner
+// Group & Partner P&L: income, delivery cost, bench cost and approved expenses for a month, for the
+// parent company, then each company under it, then by partner, business unit and client. Clicking a partner
 // shows every timesheet behind their numbers, from employee and job to invoice and payment.
 import { useCallback, useEffect, useState } from "react";
 import { BarChart3, RefreshCw } from "lucide-react";
-import { Card, Button, Input, Table } from "../components/ui";
+import { Card, Button, Input, Table as WideTable } from "../components/ui";
 import { getChainLines, getChainSummary, getPnl } from "../services/api/revenueChain";
+
+// Many money columns: they scroll inside their card on a narrow window, not the whole page
+const Table = (props) => (
+  <div className="overflow-x-auto">
+    <WideTable {...props} />
+  </div>
+);
 
 const usd = (cents) =>
   cents == null ? "—" : `$${(cents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -41,6 +48,37 @@ const PROJECT_COLUMNS = [
   { key: "hours", header: "Billable hours", cell: (r) => r.billable_hours },
   ...MONEY_COLUMNS.filter((c) => ["revenue", "collected", "unbilled", "delivery", "margin", "margin_pct"].includes(c.key)),
   { key: "complete", header: "Cost known", cell: (r) => (r.cost_data_complete ? "Yes" : "No: salary or cost rate missing") },
+];
+
+// The parent company first, then its companies under it: the rows add up to the group's line.
+const COMPANY_COLUMNS = [
+  {
+    key: "name",
+    header: "Company",
+    cell: (r) => (
+      <span className={r.isGroup ? "font-semibold text-gray-900" : "ml-5 inline-block border-l-2 border-gray-200 pl-3"}>
+        {r.name}
+        {r.company_code ? <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-normal text-gray-600">{r.company_code}</span> : null}
+        {r.funded_by ? <span className="block text-xs text-gray-500">Costs loaned by {r.funded_by}</span> : null}
+      </span>
+    ),
+  },
+  { key: "ic_rev", header: "Intercompany income", cell: (r) => (r.isGroup ? "cancels out" : usd(r.intercompany_revenue_usd_cents)) },
+  { key: "ic_cost", header: "Intercompany cost", cell: (r) => (r.isGroup ? "cancels out" : usd(r.intercompany_cost_usd_cents)) },
+  { key: "loaned", header: "Lent to others", cell: (r) => (r.isGroup ? "—" : usd(r.loaned_out_usd_cents)) },
+  ...MONEY_COLUMNS.filter((c) => !["collected", "unbilled", "shared"].includes(c.key)),
+];
+
+const groupThenCompanies = (report) => [
+  {
+    ...report,
+    key: "group",
+    isGroup: true,
+    name: report.group?.name || "All companies",
+    company_code: report.group?.company_code,
+    pending_expense_usd_cents: report.pending_expenses_usd_cents,
+  },
+  ...report.by_company,
 ];
 
 function Tile({ label, value, hint }) {
@@ -101,8 +139,8 @@ export default function PnlScreen() {
   return (
     <div className="space-y-4">
       <Card
-        title="P&L — Organization and Partners"
-        subtitle="Income is work delivered in the month (billed or approved), costs are delivery, bench (billable staff off projects), internal staff overhead and approved expenses."
+        title={report?.group?.name ? `P&L — ${report.group.name}` : "P&L"}
+        subtitle="All companies together. Income is work delivered in the month (billed or approved), costs are delivery, bench (billable staff off projects), internal staff overhead and approved expenses."
         icon={<BarChart3 className="h-4 w-4" />}
         right={
           <div className="flex items-center gap-2">
@@ -147,6 +185,32 @@ export default function PnlScreen() {
           </>
         ) : null}
       </Card>
+
+      {report?.by_company?.length ? (
+        <Card
+          title="By company"
+          subtitle="The group, then each company's own P&L: income on the clients it contracts, cost of the people it employs, and intercompany charges. The companies add up to the group."
+        >
+          <Table columns={COMPANY_COLUMNS} rows={groupThenCompanies(report)} />
+        </Card>
+      ) : null}
+
+      {report?.company_loans?.length ? (
+        <Card
+          title="Loans between companies"
+          subtitle="Costs one company pays for another. They sit on the borrower's P&L, not the lender's, and count once at the parent. The total is what has been lent so far; repayments are not recorded here yet."
+        >
+          <Table
+            columns={[
+              { key: "company", header: "Borrower", cell: (r) => r.company },
+              { key: "lender", header: "Lender", cell: (r) => r.lender },
+              { key: "period", header: "This period", cell: (r) => (r.cost_data_complete ? usd(r.period_usd_cents) : "—") },
+              { key: "to_date", header: "Total lent", cell: (r) => (r.cost_data_complete ? usd(r.to_date_usd_cents) : "Needs cost rates or salaries") },
+            ]}
+            rows={report.company_loans}
+          />
+        </Card>
+      ) : null}
 
       {report?.by_cost_object?.length ? (
         <Card title="Corporate cost by function" subtitle="Corporate staff, shared functions and org-wide leaders. Each business unit carries a share in proportion to its employee headcount, shown as Corporate share below.">
@@ -213,50 +277,6 @@ export default function PnlScreen() {
               rows={lines}
             />
           )}
-        </Card>
-      ) : null}
-
-      {report?.by_company?.length ? (
-        <Card
-          title="By company"
-          subtitle="The parent company owns the org-wide P&L above (all companies together). Each company's own P&L: income on the clients it contracts, cost of the people it employs, and intercompany charges (which cancel out at org level)."
-        >
-          <Table
-            columns={[
-              {
-                key: "name",
-                header: "Company",
-                cell: (r) => (
-                  <span>
-                    {r.name}
-                    {r.company_code ? <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">{r.company_code}</span> : null}
-                  </span>
-                ),
-              },
-              { key: "ic_rev", header: "Intercompany income", cell: (r) => usd(r.intercompany_revenue_usd_cents) },
-              { key: "ic_cost", header: "Intercompany cost", cell: (r) => usd(r.intercompany_cost_usd_cents) },
-              { key: "loaned", header: "Lent to others", cell: (r) => usd(r.loaned_out_usd_cents) },
-              ...MONEY_COLUMNS.filter((c) => !["collected", "unbilled"].includes(c.key)),
-            ]}
-            rows={report.by_company}
-          />
-        </Card>
-      ) : null}
-
-      {report?.company_loans?.length ? (
-        <Card
-          title="Loans between companies"
-          subtitle="Costs one company pays for another. They sit on the borrower's P&L, not the lender's, and count once at the parent. The total is what has been lent so far; repayments are not recorded here yet."
-        >
-          <Table
-            columns={[
-              { key: "company", header: "Borrower", cell: (r) => r.company },
-              { key: "lender", header: "Lender", cell: (r) => r.lender },
-              { key: "period", header: "This period", cell: (r) => (r.cost_data_complete ? usd(r.period_usd_cents) : "—") },
-              { key: "to_date", header: "Total lent", cell: (r) => (r.cost_data_complete ? usd(r.to_date_usd_cents) : "Needs cost rates or salaries") },
-            ]}
-            rows={report.company_loans}
-          />
         </Card>
       ) : null}
 
