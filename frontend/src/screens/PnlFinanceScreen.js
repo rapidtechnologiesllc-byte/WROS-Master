@@ -8,12 +8,14 @@ import FinanceOperationsScreen from "./FinanceOperationsScreen";
 import RateCardScreen from "./RateCardScreen";
 import ForecastVsActualScreen from "./ForecastVsActualScreen";
 import RevenueScreen from "./RevenueScreen";
+import BankReconciliationScreen from "./BankReconciliationScreen";
 
 const TABS = [
   { key: "pnl", label: "P&L", resource: "revenue", render: () => <PnlScreen /> },
   { key: "forecast", label: "Forecast vs Actual", resource: "forecasts", render: () => <ForecastVsActualScreen /> },
   { key: "revenue-health", label: "Revenue Health", resource: "sales-ops", render: () => <RevenueScreen /> },
   { key: "operations", label: "Finance Operations", resource: "finance-operations", render: () => <FinanceOperationsScreen /> },
+  { key: "bank", label: "Bank Reconciliation", resource: "finance-operations", render: () => <BankReconciliationScreen /> },
   { key: "rate-card", label: "Rate Card", resource: "finance-operations", render: () => <RateCardScreen /> },
 ];
 

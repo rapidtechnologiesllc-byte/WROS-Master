@@ -32,6 +32,7 @@ import { confirmDialog, alertDialog } from "../utils/dialogs";
 
 // Screens load when first opened (one chunk each), not all in the bundle every page downloads
 const Dashboard = lazy(() => import("../screens/Dashboard"));
+const HiringAnalyticsScreen = lazy(() => import("../screens/HiringAnalyticsScreen"));
 const JobCreate = lazy(() => import("../screens/JobCreate"));
 const JobsOverview = lazy(() => import("../screens/JobsOverview"));
 const TemplatesAndChecklistsScreen = lazy(() => import("../screens/TemplatesAndChecklistsScreen"));
@@ -605,6 +606,7 @@ function AuthenticatedApp() {
               <TabbedScreen title="Recruitment Dashboard" showTitle={false} tabs={[
                 { key: "overview", label: "Overview", resource: "candidates",
                   render: () => <Dashboard candidates={candidates} jobs={jobs} interviews={interviews} offers={offers} /> },
+                { key: "hiring", label: "Hiring Analytics", resource: "candidates", render: () => <HiringAnalyticsScreen /> },
                 ...RECRUITER_WATCH_TABS,
               ]} />
             }

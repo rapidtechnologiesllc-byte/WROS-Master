@@ -5,7 +5,7 @@ as markup_rate_pct and revenue leakage detail elsewhere.
 """
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -16,7 +16,8 @@ from app.schemas.cost_rate import (
     BlendedDeliveryRateResponse, CostRateConfigResponse, FullyLoadedCostResponse, SetCostRateConfigRequest,
 )
 from app.schemas.bank_reconciliation import (
-    BankTransactionResponse, MatchTransactionRequest, RecordBankTransactionRequest, UnmatchedPaidInvoiceResponse,
+    BankTransactionResponse, MatchTransactionRequest, ReconciliationResponse, RecordBankTransactionRequest,
+    StatementImportResponse, UnmatchedPaidInvoiceResponse,
 )
 from app.schemas.hiring_affordability import HiringAffordabilityResponse
 from app.schemas.intercompany_ledger import (
@@ -33,8 +34,8 @@ from app.services.cost_rate_service import (
 )
 from app.models.invoice import Invoice
 from app.services.bank_reconciliation_service import (
-    BankReconciliationError, get_unmatched_paid_invoices, get_unreconciled_transactions,
-    match_transaction_to_invoice, record_bank_transaction,
+    BankReconciliationError, get_unmatched_paid_invoices, get_unreconciled_transactions, import_statement,
+    match_transaction_to_invoice, reconciliation_view, record_bank_transaction,
 )
 from app.services.hiring_affordability_service import check_hiring_affordability
 from app.services.intercompany_ledger_service import (
@@ -317,6 +318,38 @@ def match_bank_transaction(
     except BankReconciliationError as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail=str(exc))
+
+
+@router.get(
+    "/bank-transactions/reconciliation",
+    response_model=ReconciliationResponse,
+    summary="Unmatched bank credits with the sent invoices for that amount, and paid invoices no bank credit confirms",
+    dependencies=[Depends(require_resource_permission("finance-operations", "view"))]
+)
+def get_reconciliation(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
+):
+    return reconciliation_view(db, tenant_id=current_user.tenant_id)
+
+
+@router.post(
+    "/bank-transactions/import",
+    response_model=StatementImportResponse,
+    summary="Record every credit on a bank statement (CSV); a credit already recorded is not recorded twice",
+    dependencies=[Depends(require_resource_permission("finance-operations", "create"))]
+)
+async def import_bank_statement(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(require_resource_permission("finance-operations", "view")),
+):
+    content = await file.read()
+    try:
+        return import_statement(db, content, created_by=current_user.UserID, tenant_id=current_user.tenant_id)
+    except BankReconciliationError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 @router.get(
