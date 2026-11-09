@@ -245,3 +245,92 @@ def test_partner_dashboard_counts_the_approved_certification(db, org):
     db.flush()
     names = [row["name"] for row in get_core_certified_employees(db, org.unit.id)]
     assert f"Ravi {e.last_name}" in names
+
+
+# --------------------------------------------------------------------------- set on the employee page (CEO 2026-11-09)
+
+def _set(api, user, employee, eligible, reason=None):
+    return api.put(f"/api/v1/core-certification/employees/{employee.id}", headers=_h(user),
+                   json={"eligible": eligible, "reason": reason})
+
+
+def test_a_bu_leader_sets_core_eligible_and_the_override_is_on_record(db, org, api):
+    from app.models.employee import EmployeeEmploymentHistory
+
+    e = _employee(db, org, buddy="IN_PROGRESS")  # the rules say not yet
+    db.commit()
+    response = _set(api, org.head, e, True, "Assessed on the client's Direct project")
+    assert response.status_code == 200, response.text
+    assert response.json()["rules_agree"] is False
+    db.refresh(e)
+    assert e.core_certified and e.core_certified_date == date.today()
+    row = db.query(EmployeeEmploymentHistory).filter_by(employee_id=e.id, change_type="CORE_ELIGIBLE").one()
+    assert row.new_value == "true" and row.changed_by == "Head"
+    assert "Assessed on the client's Direct project" in row.reason and "the rules say not yet" in row.reason
+
+
+def test_setting_it_closes_a_pending_request(db, org, api):
+    e, request = _pending(db, org)
+    assert _set(api, org.head, e, True).status_code == 200
+    db.refresh(request)
+    assert request.status == "APPROVED" and request.decided_by_user_id == org.head.UserID
+    assert db.query(Task).filter_by(id=request.task_id).one().status == "COMPLETED"
+
+
+def test_someone_who_does_not_lead_the_unit_cannot_set_it(db, org, api):
+    e = _employee(db, org)
+    outsider = _user(db, org.role, "Outsider")
+    db.commit()
+    assert _set(api, outsider, e, True).status_code == 403
+    db.refresh(e)
+    assert not e.core_certified
+
+
+def test_someone_on_the_core_engine_cannot_be_set_to_not_eligible(db, org, api):
+    e = _employee(db, org)
+    e.core_certified, e.delivery_engine = True, "CORE"
+    db.commit()
+    response = _set(api, org.head, e, False)
+    assert response.status_code == 409 and "Core engine" in response.json()["detail"]
+
+
+def test_setting_the_same_value_says_so(db, org, api):
+    e = _employee(db, org)
+    db.commit()
+    assert "Already not eligible" in _set(api, org.head, e, False).json()["detail"]
+
+
+def test_the_employee_page_shows_the_flag_the_rules_and_who_may_set_it(db, org, api):
+    e = _employee(db, org, buddy="IN_PROGRESS")
+    db.commit()
+    core = api.get(f"/api/v1/employees/{e.id}/profile", headers=_h(org.head)).json()["core"]
+    assert core["eligible"] is False and core["can_set"] is True
+    assert core["rules"]["eligible"] is False and any("Buddy Program" in r for r in core["rules"]["reasons"])
+    outsider = _user(db, org.role, "Outsider")
+    db.commit()
+    assert api.get(f"/api/v1/employees/{e.id}/profile", headers=_h(outsider)).json()["core"]["can_set"] is False
+
+
+def test_a_direct_pull_conflict_is_a_task_for_the_bu_head_and_closes_when_decided(db, org, monkeypatch):
+    """CEO 2026-11-09: the Direct Pull screen is off the menu; each conflict is a decision task."""
+    from app.core import authority
+    from app.services import core_pull_service as pull
+
+    e = _employee(db, org)
+    e.core_certified = True
+    allocation = _billable(db, e, org.staff_aug, 1)
+    db.get(Demand, allocation.demand_id).delivery_engine = "SPECIALITY"
+    wanted = Demand(tenant_id=1, client_id=org.core.id, job_title="Direct architect", work_location="REMOTE",
+                    status="OPEN", delivery_engine="CORE")
+    db.add(wanted)
+    db.flush()
+    event = pull.detect_core_pull_conflict(db, e, wanted)
+    task = db.query(Task).filter_by(link=pull.decision_link(event.id)).one()
+    assert task.assigned_to_user_id == org.head.UserID and task.title.startswith("Decide a Direct Pull")
+    assert pull.detect_core_pull_conflict(db, e, wanted).id == event.id  # the same conflict: no second task
+    assert db.query(Task).filter_by(link=pull.decision_link(event.id)).count() == 1
+
+    monkeypatch.setattr(authority, "is_bu_leader", lambda db, user: True)
+    pull.override_core_pull(db, event, actor=org.head, justification="Client renewal depends on them this quarter; moving them now would put the account at risk " * 2)
+    db.refresh(task)
+    assert task.status == "COMPLETED"

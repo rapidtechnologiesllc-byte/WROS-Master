@@ -5,7 +5,8 @@ import TabbedScreen from "../components/TabbedScreen";
 import AdminAgentStateDashboard from "./AdminAgentStateDashboard";
 import AdminWeeklyRecapDashboard from "./AdminWeeklyRecapDashboard";
 
-const TABS = [
+// exported: the merged screens of 2026-11-09 show these tabs directly
+export const TABS = [
   { key: "state", label: "Agent State", resource: "admin-agent-state", render: () => <AdminAgentStateDashboard /> },
   { key: "recap", label: "Weekly Recap", resource: "admin-weekly-recap", render: () => <AdminWeeklyRecapDashboard /> },
 ];

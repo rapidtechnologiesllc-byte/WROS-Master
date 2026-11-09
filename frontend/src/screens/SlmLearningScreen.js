@@ -7,7 +7,8 @@ import SLMDashboard from "./SLMDashboard";
 import SLMTrainingData from "./SLMTrainingData";
 import SLMLearningTranscript from "./SLMLearningTranscript";
 
-const TABS = [
+// exported: the merged screens of 2026-11-09 show these tabs directly
+export const TABS = [
   { key: "dashboard", label: "Model", resource: "slm-dashboard", render: () => <SLMDashboard /> },
   { key: "training", label: "Training Data", resource: "slm-training-data", render: () => <SLMTrainingData /> },
   { key: "transcript", label: "Learning Transcript", resource: "slm-dashboard", render: () => <SLMLearningTranscript /> },

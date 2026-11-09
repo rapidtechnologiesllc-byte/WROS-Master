@@ -9,6 +9,15 @@ export const getCoreCertificationRequests = async (status) => {
   return data;
 };
 
+// A leader of the employee's business unit sets Core eligibility on the employee page (CEO 2026-11-09)
+export const setCoreEligible = async (employeeId, eligible, reason) => {
+  const { data } = await apiRequest(`/core-certification/employees/${encodeURIComponent(employeeId)}`, {
+    method: "PUT",
+    body: JSON.stringify({ eligible, reason: reason || null }),
+  });
+  return data;
+};
+
 export const closeCoreCertification = async (requestId) => {
   const { data } = await apiRequest(`/core-certification/requests/${requestId}/close`, { method: "POST" });
   return data;

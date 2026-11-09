@@ -96,19 +96,32 @@ SEEDED_ROLES = {**{name: BEFORE_RESOURCES for name in SYSTEM_ROLES}, **BEFORE_LE
 # Dashboards module duplicated them, "Forecasts" duplicated Resource Forecast's /forecast, Allocations is
 # the Employees > Allocations tab, Ask Thunder is a QA simulator. "Forecasts" now opens Forecast vs Actual
 # (its API checks forecasts), so a role holding only forecasts swaps /forecast for /forecast-vs-actual.
-INTENDED_REMOVALS = {"/ceo-fy-progress", "/cfo-dashboard", "/bu-head-dashboard", "/allocations", "/thunder", "/"}
+# CEO 2026-11-09: Demand Confirmation (a form for typed-in ids, never used) is gone
+INTENDED_REMOVALS = {"/ceo-fy-progress", "/cfo-dashboard", "/bu-head-dashboard", "/allocations", "/thunder", "/",
+                     "/demand-confirmation", "/core-pull",
+                     # menu clean-up 2026-11-09: Hiring Manager Review opens from My Tasks, LinkedIn Pipeline is a
+                     # tab of Candidates, Ticket Routing is retired
+                     "/hm-review", "/hm-candidate-review", "/recruiter/rehire-approvals", "/linkedin-pipeline",
+                     "/admin/ticket-routing"}
 # route -> resource whose view grant adds it (CEO 2026-11-06: the recruitment dashboard is a screen of its own)
 INTENDED_ADDITIONS = {"/sub-vendors": "invoices", "/my-performance": "my-tasks", "/recruitment-dashboard": "candidates"}
 # Decision 3: merged screens. The old route redirects to the merged screen's tab; every role that
 # reached any of the parts reaches the merged screen (its tabs follow the same permissions).
 ROUTE_MOVES = {
     "/submissions": "/pipeline", "/hiring-pipeline": "/pipeline",
-    "/recruiter/intervention-queue": "/recruiter/watch", "/recruiter/risk-dashboard": "/recruiter/watch",
-    "/recruiter/thunder-analytics": "/recruiter/watch",
-    "/hm-candidate-review": "/hm-review", "/recruiter/rehire-approvals": "/hm-review",
-    "/utilization-dashboard": "/workforce", "/forecast": "/demand-vs-bench", "/finance-operations": "/pnl", "/revenue": "/pnl", "/forecast-vs-actual": "/pnl",
-    "/admin/agent-state-dashboard": "/admin/agent-health", "/admin/weekly-recap": "/admin/agent-health",
-    "/admin/slm-dashboard": "/admin/slm", "/admin/slm-training": "/admin/slm",
+    # 2026-11-09: Recruiter Watch is part of the Recruitment Dashboard; Buddy Program, HTD Intake and Demand vs
+    # Bench are tabs of Workforce Overview; the technical screens are one System page; Certifications is a tab of
+    # Templates & Checklists
+    "/recruiter/intervention-queue": "/recruitment-dashboard", "/recruiter/risk-dashboard": "/recruitment-dashboard",
+    "/recruiter/thunder-analytics": "/recruitment-dashboard", "/recruiter/watch": "/recruitment-dashboard",
+    "/utilization-dashboard": "/workforce", "/forecast": "/workforce", "/demand-vs-bench": "/workforce",
+    "/buddy-program": "/workforce", "/htd-intake": "/workforce",
+    "/finance-operations": "/pnl", "/revenue": "/pnl", "/forecast-vs-actual": "/pnl",
+    "/admin/agent-state-dashboard": "/admin/system", "/admin/weekly-recap": "/admin/system",
+    "/admin/agent-health": "/admin/system", "/admin/slm-dashboard": "/admin/system", "/admin/slm-training": "/admin/system",
+    "/admin/slm": "/admin/system", "/admin/messagequeue": "/admin/system", "/admin/ai-config": "/admin/system",
+    "/admin/error-log": "/admin/system", "/system-health": "/admin/system",
+    "/admin/certifications": "/checklist-templates",
 }
 
 
@@ -198,7 +211,7 @@ def test_every_seeded_role_keeps_its_screens_except_the_intended_removals(db, ro
 def test_menu_is_grouped_into_the_approved_modules_in_order(db):
     groups = [g["label"] for g in _menu(db, _user_with(db, BEFORE_RESOURCES))]
     assert groups == ["Personal", "Recruitment", "Workforce", "Sales & Delivery", "Finance", "Leadership",
-                      "AI Operations", "Admin & Settings"]
+                      "Admin & Settings"]  # AI Operations is the System page under Admin & Settings (2026-11-09)
 
 
 def test_renamed_labels(db):
@@ -274,11 +287,11 @@ def test_merged_screens_have_one_menu_item_each(db):
             assert new in _routes(db, _user_with(db, {part}))
 
 
-def test_linkedin_pipeline_follows_candidates(db):
+def test_linkedin_pipeline_is_a_tab_of_candidates_not_a_menu_item(db):
     groups = _menu(db, _user_with(db, {"candidates"}))
     recruitment = [item["route"] for g in groups if g["label"] == "Recruitment" for item in g["items"]]
-    assert recruitment.index("/linkedin-pipeline") == recruitment.index("/candidates") + 1
-    assert not {"/candidates", "/linkedin-pipeline"} & _routes(db, _user_with(db, {"jobs"}))
+    assert "/candidates" in recruitment and "/linkedin-pipeline" not in recruitment
+    assert "/candidates" not in _routes(db, _user_with(db, {"jobs"}))
 
 
 # ---------------------------------------------------------------------------------------------

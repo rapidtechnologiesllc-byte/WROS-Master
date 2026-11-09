@@ -859,8 +859,29 @@ def update_employee_details(
             if not value:
                 raise HTTPException(status_code=400, detail=f"{field.replace('_', ' ').capitalize()} is required")
             setattr(employee, field, value)
+    role_changed = False
     if "current_title" in updates:
-        employee.current_title = (updates["current_title"] or "").strip() or None
+        # The job title is a role from Manage Roles (CEO 2026-11-09). For someone with a login it is their role,
+        # which sets their access: only those who manage Users & Access change it, and never their own.
+        from app.core import authority
+        from app.services.org_roles_service import change_role, require_role
+
+        title = (updates["current_title"] or "").strip()
+        login = db.query(Users).filter(Users.UserID == employee.wros_user_id).first() if employee.wros_user_id else None
+        try:
+            if login is not None:
+                if not authority.has_permission(db, current_user, "users-access-control.edit"):
+                    raise PermissionError("This person's job title is their role, which sets their access: "
+                                          "ask someone who manages Users & Access")
+                if not title:
+                    raise ValueError("Pick their role: someone who signs in always has one")
+                role_changed = change_role(db, login, title, current_user)
+            else:
+                employee.current_title = require_role(db, employee.tenant_id, title).name if title else None
+        except PermissionError as exc:  # nothing is committed: the request's session is discarded
+            raise HTTPException(status_code=403, detail=str(exc))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
     if "work_location" in updates:
         if updates["work_location"] not in WORK_LOCATIONS:
             raise HTTPException(status_code=400, detail=f"Work location must be one of {list(WORK_LOCATIONS)}")
@@ -878,6 +899,10 @@ def update_employee_details(
             raise HTTPException(status_code=409, detail=f"Another employee already has {email}")
         employee.email = email
     db.commit()
+    if role_changed:
+        from app.services.role_template_permission_service import invalidate_permissions
+
+        invalidate_permissions()
     db.refresh(employee)
     return _to_item(db, employee, viewer=current_user)
 

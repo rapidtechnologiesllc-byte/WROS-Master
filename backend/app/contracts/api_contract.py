@@ -147,29 +147,31 @@ class NavigationResponse(BaseModel):
 MODULES_AND_RESOURCES = {
     "Personal": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "ask-flash", "notifications",
                  "activity-feed"],
-    "Recruitment": ["candidates", "jobs", "submissions", "convert-to-employee", "offer-letters",
+    # CEO 2026-11-09 menu clean-up: Recruiter Watch is part of the Recruitment Dashboard, Hiring Manager Review is
+    # reached from My Tasks, Bulk Launch is recruiting work (was under Admin)
+    "Recruitment": ["candidates", "jobs", "submissions", "convert-to-employee", "offer-letters", "bulk-launch",
                     "intervention-queue", "risk-dashboard", "thunder-analytics",
                     "candidate-review", "rehire-approval", "interviews", "flash-missions"],
     "Workforce": ["workforce-overview", "employees", "allocations", "timesheets", "buddy-program", "htd-intake",
                   "resource-forecast", "utilization-dashboard"],
-    "Sales & Delivery": ["clients", "opportunities", "pipeline-management", "demand-confirmation", "projects",
+    "Sales & Delivery": ["clients", "opportunities", "pipeline-management", "projects",
                          "core-pull", "resources", "work-orders"],
     "Finance": ["invoices", "revenue", "finance-operations", "sales-ops", "forecasts", "expenses"],
     # ceo/cfo/bu-head-dashboard: permission-only -- each is that person's Home (authority.home_dashboard)
     "Leadership": ["ceo-dashboard", "cfo-dashboard", "bu-head-dashboard", "goals", "executive-signal",
                    "partner-dashboard", "bi-explorer"],
-    "AI Operations": ["admin-agent-state", "admin-weekly-recap", "message-queue", "slm-dashboard",
-                      "slm-training-data", "ai-config", "agents", "ask-thunder"],
+    # AI Operations, Error Logs and System Health are one System page (CEO 2026-11-09)
     "Admin & Settings": ["users-access-control", "role-templates", "business-units", "delivery-centers",
-                         "organizational-hierarchy", "org-roles", "certifications", "checklists", "locale-currency",
-                         "bulk-launch", "api-keys", "error-logs", "system-health", "ticket-routing",
-                         "configuration", "admin-settings", "newsletters"],
+                         "organizational-hierarchy", "org-roles", "checklists", "certifications", "locale-currency",
+                         "api-keys", "system-health", "error-logs", "admin-agent-state", "admin-weekly-recap",
+                         "message-queue", "slm-dashboard", "slm-training-data", "ai-config", "agents", "ask-thunder",
+                         "ticket-routing", "configuration", "admin-settings", "newsletters"],
 }
 
 # Menu group icon per module (lucide icon names the client maps to components).
 MODULE_ICONS = {
     "Personal": "LayoutDashboard", "Recruitment": "Users", "Workforce": "Users2", "Sales & Delivery": "Briefcase",
-    "Finance": "BadgeDollarSign", "Leadership": "TrendingUp", "AI Operations": "Bot", "Admin & Settings": "Settings",
+    "Finance": "BadgeDollarSign", "Leadership": "TrendingUp", "Admin & Settings": "Settings",
 }
 
 # ============================================================================

@@ -26,6 +26,8 @@ import { useNavigate } from "react-router-dom";
 import { ROUTES } from "../utils/Routes";
 import ConversationSearchBar from "../components/ConversationSearchBar";
 import SLABreachBanner from "../components/SLABreachBanner";
+import TabbedScreen from "../components/TabbedScreen";
+import { TABS as RECRUITER_WATCH_TABS } from "../screens/RecruiterWatchScreen";
 import { confirmDialog, alertDialog } from "../utils/dialogs";
 
 // Screens load when first opened (one chunk each), not all in the bundle every page downloads
@@ -40,7 +42,6 @@ const EmployeeProfileScreen = lazy(() => import("../screens/EmployeeProfileScree
 const MyPerformanceScreen = lazy(() => import("../screens/MyPerformanceScreen"));
 const BusinessUnitFormPage = lazy(() => import("../screens/BusinessUnitFormPage"));
 const DeliveryCenterFormPage = lazy(() => import("../screens/DeliveryCenterFormPage"));
-const SystemHealth = lazy(() => import("../screens/SystemHealth"));
 const OfferListing = lazy(() => import("../screens/OfferListing"));
 const AuthPage = lazy(() => import("../pages/AuthPage"));
 const CandidateCreate = lazy(() => import("../screens/CandidateCreate"));
@@ -49,7 +50,6 @@ const CandidateSelfService = lazy(() => import("../screens/CandidateSelfService"
 const CandidateDetailsWrapper = lazy(() => import("./wrappers/CandidateDetailsWrapper"));
 const JobWorkspaceWrapper = lazy(() => import("./wrappers/JobWorkspaceWrapper"));
 const ThunderChatScreen = lazy(() => import("../screens/ThunderChatScreen"));
-const DemandVsBenchScreen = lazy(() => import("../screens/DemandVsBenchScreen"));
 const CorePullScreen = lazy(() => import("../screens/CorePullScreen"));
 const ClientManagementScreen = lazy(() => import("../screens/ClientManagementScreen"));
 const OpportunityPipelineScreen = lazy(() => import("../screens/OpportunityPipelineScreen"));
@@ -58,10 +58,8 @@ const ExecutiveRevenueDashboardScreen = lazy(() => import("../screens/ExecutiveR
 const PnlFinanceScreen = lazy(() => import("../screens/PnlFinanceScreen"));
 const ActivateAccount = lazy(() => import("../pages/ActivateAccount"));
 const ClientTimesheetApproval = lazy(() => import("../pages/ClientTimesheetApproval"));
-const DemandConfirmationScreen = lazy(() => import("../screens/DemandConfirmationScreen"));
 const PipelineAndSubmissionsScreen = lazy(() => import("../screens/PipelineAndSubmissionsScreen"));
 const ProjectsScreen = lazy(() => import("../screens/ProjectsScreen"));
-const HtdIntakeScreen = lazy(() => import("../screens/HtdIntakeScreen"));
 const HmReviewScreen = lazy(() => import("../screens/HmReviewScreen"));
 const TimesheetsScreen = lazy(() => import("../screens/TimesheetsScreen"));
 const ManageSubVendorsScreen = lazy(() => import("../screens/ManageSubVendorsScreen"));
@@ -70,24 +68,17 @@ const TenantLocaleScreen = lazy(() => import("../screens/TenantLocaleScreen"));
 const PublicThunderChatScreen = lazy(() => import("../screens/PublicThunderChatScreen"));
 const CandidatePortalScreen = lazy(() => import("../screens/CandidatePortalScreen"));
 const APIKeysSettings = lazy(() => import("../screens/APIKeysSettings"));
-const RecruiterWatchScreen = lazy(() => import("../screens/RecruiterWatchScreen"));
 const BulkLaunchScreen = lazy(() => import("../screens/BulkLaunchScreen"));
-const TenantAIConfigScreen = lazy(() => import("../screens/TenantAIConfigScreen"));
 const MyTasksScreen = lazy(() => import("../screens/MyTasksScreen"));
 const TimesheetApprovalScreen = lazy(() => import("../screens/TimesheetApprovalScreen"));
 const MyTimesheetScreen = lazy(() => import("../screens/MyTimesheetScreen"));
-const TicketRoutingAdminScreen = lazy(() => import("../screens/TicketRoutingAdminScreen"));
-const BuddyProgramListScreen = lazy(() => import("../screens/BuddyProgramListScreen"));
 const BuddyProgramScreen = lazy(() => import("../screens/BuddyProgramScreen"));
 const ExecutiveSignalScreen = lazy(() => import("../screens/ExecutiveSignalScreen"));
-const ErrorLogScreen = lazy(() => import("../screens/ErrorLogScreen"));
 const PartnerHomeScreen = lazy(() => import("../screens/PartnerHomeScreen"));
 const CEOUnifiedDashboard = lazy(() => import("../screens/CEOUnifiedDashboard"));
 const CFOAgentScreen = lazy(() => import("../screens/CFOAgentScreen"));
-const AgentHealthScreen = lazy(() => import("../screens/AgentHealthScreen"));
 const EmployeeConversionScreen = lazy(() => import("../screens/EmployeeConversionScreen"));
 const ForcePasswordReset = lazy(() => import("../pages/ForcePasswordReset"));
-const CertificationManagementScreen = lazy(() => import("../screens/CertificationManagementScreen"));
 const BIExplorerScreen = lazy(() => import("../screens/BIExplorerScreen"));
 const BuHeadDashboardScreen = lazy(() => import("../screens/BuHeadDashboardScreen"));
 const MyReferralsScreen = lazy(() => import("../screens/MyReferralsScreen"));
@@ -607,40 +598,42 @@ function AuthenticatedApp() {
             }
           />
 
+          {/* Recruitment Dashboard: the counts, then Recruiter Watch's tabs (CEO 2026-11-09) */}
           <Route
             path="recruitment-dashboard"
             element={
-              hasPermission("candidates", "view")
-                ? <Dashboard candidates={candidates} jobs={jobs} interviews={interviews} offers={offers} />
-                : <Navigate to="/" replace />
+              <TabbedScreen title="Recruitment Dashboard" showTitle={false} tabs={[
+                { key: "overview", label: "Overview", resource: "candidates",
+                  render: () => <Dashboard candidates={candidates} jobs={jobs} interviews={interviews} offers={offers} /> },
+                ...RECRUITER_WATCH_TABS,
+              ]} />
             }
           />
 
           {/* Candidate-chat test simulator: not in the menu, reachable by URL for QA (ask-thunder) */}
           <Route path="thunder" element={hasPermission("ask-thunder", "view") ? <ThunderChatScreen /> : <Navigate to="/" replace />} />
 
-          <Route path="resource-management" element={<Navigate to="/demand-vs-bench?view=bench" replace />} />
+          <Route path="resource-management" element={<Navigate to="/workforce?view=bench" replace />} />
 
           <Route path="core-pull" element={<CorePullScreen />} />
           <Route path="client-management" element={<ClientManagementScreen />} />
-          <Route path="demand-confirmation" element={<DemandConfirmationScreen />} />
           <Route path="employees" element={<EmployeesConsolidatedScreen />} />
           <Route path="employees/:employeeId" element={<EmployeeProfileScreen />} />
           <Route path="my-performance" element={<MyPerformanceScreen />} />
           <Route path="employee-conversion" element={<EmployeeConversionScreen />} />
           <Route path="pipeline" element={<PipelineAndSubmissionsScreen />} />
           <Route path="hiring-pipeline" element={<Navigate to="/pipeline?view=pipeline" replace />} />
-          <Route path="linkedin-pipeline" element={<LinkedInPipelineScreen />} />
+          <Route path="linkedin-pipeline" element={<Navigate to="/candidates?view=linkedin" replace />} />
           <Route path="submissions" element={<Navigate to="/pipeline?view=submissions" replace />} />
           <Route path="allocations" element={<Navigate to="/employees?tab=allocations" replace />} />
           <Route path="projects" element={<ProjectsScreen />} />
-          <Route path="htd-intake" element={<HtdIntakeScreen />} />
+          <Route path="htd-intake" element={<Navigate to="/workforce?view=htd" replace />} />
           <Route path="hm-review" element={<HmReviewScreen />} />
           <Route path="hm-candidate-review" element={<Navigate to="/hm-review?view=candidates" replace />} />
           <Route path="utilization-dashboard" element={<Navigate to="/workforce?view=utilization" replace />} />
           <Route path="timesheets" element={<TimesheetsScreen />} />
-          <Route path="demand-vs-bench" element={<DemandVsBenchScreen />} />
-          <Route path="forecast" element={<Navigate to="/demand-vs-bench?view=forecast" replace />} />
+          <Route path="demand-vs-bench" element={<Navigate to="/workforce?view=forecast" replace />} />
+          <Route path="forecast" element={<Navigate to="/workforce?view=forecast" replace />} />
           <Route path="forecast-vs-actual" element={<Navigate to="/pnl?view=forecast" replace />} />
           <Route path="invoices" element={new URLSearchParams(window.location.search).get("tab") === "vendor" ? <Navigate to="/sub-vendors?view=bills" replace /> : <InvoicesScreen />} />
           <Route path="invoice-management" element={<Navigate to="/invoices" replace />} />
@@ -656,37 +649,36 @@ function AuthenticatedApp() {
           <Route path="settings/locale" element={<TenantLocaleScreen />} />
           <Route path="settings/templates" element={<Navigate to="/checklist-templates?view=email" replace />} />
           <Route path="api-keys" element={<APIKeysSettings />} />
-          <Route path="system-health" element={<SystemHealth />} />
-          <Route path="recruiter/watch" element={<RecruiterWatchScreen />} />
-          <Route path="recruiter/intervention-queue" element={<Navigate to="/recruiter/watch?view=queue" replace />} />
+          <Route path="system-health" element={<Navigate to="/admin/system?view=health" replace />} />
+          <Route path="recruiter/watch" element={<Navigate to="/recruitment-dashboard?view=queue" replace />} />
+          <Route path="recruiter/intervention-queue" element={<Navigate to="/recruitment-dashboard?view=queue" replace />} />
           <Route path="recruiter/rehire-approvals" element={<Navigate to="/hm-review?view=rehire" replace />} />
           <Route path="ceo-dashboard" element={<Navigate to="/" replace />} />
-          <Route path="recruiter/risk-dashboard" element={<Navigate to="/recruiter/watch?view=risk" replace />} />
-          <Route path="recruiter/thunder-analytics" element={<Navigate to="/recruiter/watch?view=thunder" replace />} />
+          <Route path="recruiter/risk-dashboard" element={<Navigate to="/recruitment-dashboard?view=risk" replace />} />
+          <Route path="recruiter/thunder-analytics" element={<Navigate to="/recruitment-dashboard?view=thunder" replace />} />
           <Route path="recruiter/bulk-launch" element={<BulkLaunchScreen />} />
-          <Route path="admin/ai-config" element={<TenantAIConfigScreen />} />
+          <Route path="admin/ai-config" element={<Navigate to="/admin/system?view=ai" replace />} />
           <Route path="my-tasks" element={<MyTasksScreen />} />
           <Route path="my-timesheet" element={<MyTimesheetScreen />} />
           <Route path="timesheet-approvals" element={<TimesheetApprovalScreen />} />
           <Route path="timesheet-approvals/:timesheetId" element={<TimesheetApprovalScreen />} />
           <Route path="my-expenses" element={<MyExpensesScreen />} />
           <Route path="my-referrals" element={<MyReferralsScreen />} />
-          <Route path="admin/ticket-routing" element={<TicketRoutingAdminScreen />} />
-          <Route path="buddy-program" element={<BuddyProgramListScreen />} />
+          <Route path="buddy-program" element={<Navigate to="/workforce?view=buddy" replace />} />
           <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
           <Route path="executive-signal" element={<ExecutiveSignalScreen />} />
-          <Route path="admin/error-log" element={<ErrorLogScreen />} />
-          <Route path="admin/agent-config" element={<Navigate to="/admin/ai-config?tab=agents" replace />} />
+          <Route path="admin/error-log" element={<Navigate to="/admin/system?view=errors" replace />} />
+          <Route path="admin/agent-config" element={<Navigate to="/admin/system?view=ai&tab=agents" replace />} />
           <Route path="admin/users-access-control" element={<UsersAndAccessControl />} />
           <Route path="admin/users-access-control/:section" element={<UsersAndAccessControl />} />
           <Route path="admin/users-access-control/users/create" element={<UserFormPage />} />
           <Route path="admin/users-access-control/users/:userId/edit" element={<UserFormPage />} />
           {/* Business units are managed in one place: Users & Access Control > Business Units */}
           <Route path="admin/business-units" element={<Navigate to="/admin/users-access-control/business-units" replace />} />
-          <Route path="admin/certifications" element={<CertificationManagementScreen />} />
-          <Route path="admin/agent-health" element={<AgentHealthScreen />} />
-          <Route path="admin/agent-state-dashboard" element={<Navigate to="/admin/agent-health?view=state" replace />} />
-          <Route path="admin/weekly-recap" element={<Navigate to="/admin/agent-health?view=recap" replace />} />
+          <Route path="admin/certifications" element={<Navigate to="/checklist-templates?view=certifications" replace />} />
+          <Route path="admin/agent-health" element={<Navigate to="/admin/system?view=state" replace />} />
+          <Route path="admin/agent-state-dashboard" element={<Navigate to="/admin/system?view=state" replace />} />
+          <Route path="admin/weekly-recap" element={<Navigate to="/admin/system?view=recap" replace />} />
           <Route path="admin/users-access-control/business-units/create" element={<BusinessUnitFormPage />} />
           <Route path="admin/users-access-control/business-units/:buId/edit" element={<BusinessUnitFormPage />} />
           <Route path="admin/users-access-control/delivery-centers/create" element={<DeliveryCenterFormPage />} />
@@ -696,19 +688,25 @@ function AuthenticatedApp() {
           <Route path="bi-explorer" element={<BIExplorerScreen />} />
           <Route path="bu-head-dashboard" element={<BuHeadDashboardScreen />} />
 
+          {/* Candidates, with the LinkedIn Pipeline as a tab (CEO 2026-11-09) */}
           <Route
             path="candidates"
             element={
-              <>
-                <SLABreachBanner />
-                <ConversationSearchBar />
-                <CandidateSearch
-                  candidates={candidates}
-                  jobs={jobs}
-                  onRefreshCandidates={refreshCandidates}
-                  onCreateCandidate={() => navigate("/candidates/create")}
-                />
-              </>
+              <TabbedScreen title="Candidates" showTitle={false} tabs={[
+                { key: "all", label: "Candidates", resource: "candidates", render: () => (
+                  <>
+                    <SLABreachBanner />
+                    <ConversationSearchBar />
+                    <CandidateSearch
+                      candidates={candidates}
+                      jobs={jobs}
+                      onRefreshCandidates={refreshCandidates}
+                      onCreateCandidate={() => navigate("/candidates/create")}
+                    />
+                  </>
+                ) },
+                { key: "linkedin", label: "LinkedIn Pipeline", resource: "candidates", render: () => <LinkedInPipelineScreen /> },
+              ]} />
             }
           />
 

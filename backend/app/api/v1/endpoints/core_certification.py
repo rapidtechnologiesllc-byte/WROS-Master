@@ -17,10 +17,12 @@ Routes:
   GET  /core-certification/eligibility/{employee_id}
   POST /core-certification/requests/{id}/approve
   POST /core-certification/requests/{id}/close          (no longer eligible)
+  PUT  /core-certification/employees/{id}              (a leader sets Core eligibility)
 """
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.data_scope import bu_filter
@@ -113,3 +115,24 @@ def close_request(request_id: str, db: Session = Depends(get_db),
     request, employee = _request_or_404(db, request_id, current_user)
     _decide(service.close, db, request, current_user)
     return _item(db, request, employee, current_user)
+
+
+class CoreEligibleRequest(BaseModel):
+    eligible: bool
+    reason: Optional[str] = None
+
+
+@router.put("/employees/{employee_id}",
+            dependencies=[Depends(require_resource_permission("employees", "view")), Depends(get_current_internal_user)],
+            summary="Set Core eligibility on the employee page (a leader of the employee's business unit)")
+def set_core_eligible(employee_id: str, body: CoreEligibleRequest, db: Session = Depends(get_db),
+                      current_user: Users = Depends(get_current_internal_user)):
+    employee = (db.query(Employee).filter(Employee.id == employee_id, Employee.tenant_id == current_user.tenant_id,
+                                          bu_filter(db, current_user, Employee.bu_id)).first())
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Employee not found.")
+    try:
+        return service.set_core_eligible(db, employee, body.eligible, current_user, body.reason)
+    except service.CertificationError as exc:
+        db.rollback()
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))

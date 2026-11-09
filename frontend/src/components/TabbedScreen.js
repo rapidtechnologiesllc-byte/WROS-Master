@@ -6,7 +6,7 @@ import { hasPermission } from "../utils/permissionsRoleTemplate";
 import useTabParam from "../utils/useTabParam";
 import cx from "../utils/cx";
 
-export default function TabbedScreen({ title, subtitle, tabs }) {
+export default function TabbedScreen({ title, subtitle, tabs, showTitle = true }) {
   const visible = tabs.filter((tab) => hasPermission(tab.resource, "view"));
   const [activeKey, setActiveKey] = useTabParam(visible.map((tab) => tab.key), "view");
   const active = visible.find((tab) => tab.key === activeKey);
@@ -21,10 +21,12 @@ export default function TabbedScreen({ title, subtitle, tabs }) {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{title}</h1>
-        {subtitle && <p className="text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>}
-      </div>
+      {showTitle ? (
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{title}</h1>
+          {subtitle && <p className="text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>}
+        </div>
+      ) : null}
       {visible.length > 1 && (
         <div className="flex flex-wrap gap-2 border-b pb-2" role="tablist">
           {visible.map((tab) => (

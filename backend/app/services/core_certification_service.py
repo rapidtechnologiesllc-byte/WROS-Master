@@ -19,6 +19,7 @@ bypass (CEO 2026-10-11). An escalation raised after certification does not revok
 rules make none; revoking would also break ck_core_requires_certification for people on Direct).
 """
 import copy
+import json
 import logging
 import re
 import uuid
@@ -113,6 +114,53 @@ def eligibility(db: Session, employee: Employee, counted: Optional[Tuple[int, Op
         reasons.append(f"{days} of {settings.CORE_CERT_BILLABLE_DAYS} approved billable Staff Aug days{since}.")
     return {"eligible": not reasons, "billable_days": days, "required_days": settings.CORE_CERT_BILLABLE_DAYS,
             "counted_from": counted_from, "reasons": reasons}
+
+
+# --------------------------------------------------------------------------- set on the employee page
+
+def may_set(db: Session, employee: Employee, user: Users) -> bool:
+    """Who may set Core eligibility directly: the CEO, or a leader (partner or head) of the employee's business unit
+    -- the same people who approve a certification request. From the role template, never a role name."""
+    from app.core import authority
+    from app.services.bu_leadership import led_business_units
+
+    return authority.is_ceo(db, user) or (employee.bu_id is not None and employee.bu_id in led_business_units(db, user))
+
+
+def set_core_eligible(db: Session, employee: Employee, eligible: bool, user: Users, reason: Optional[str] = None) -> Dict:
+    """A leader sets Core eligibility (CEO 2026-11-09: an editable field, for when the rules' count is wrong or
+    a decision is made on other grounds). The history keeps who, when, why and what the rules said, so an
+    override is visible; a pending request is closed. Commits."""
+    from app.models.employee import EmployeeEmploymentHistory
+
+    if not may_set(db, employee, user):
+        raise CertificationError("Only a leader of this employee's business unit can set Core eligibility.", 403)
+    if bool(employee.core_certified) == eligible:
+        raise CertificationError(f"Already {'eligible' if eligible else 'not eligible'} for Core.")
+    if not eligible and employee.delivery_engine == "CORE":
+        raise CertificationError("They are working on the Core engine now: move them off Core first.")
+    check = eligibility(db, employee)
+    rules_agree = check["eligible"] == eligible
+    rules = ("the rules agree" if rules_agree else
+             "the rules say " + ("eligible" if check["eligible"] else "not yet: " + " ".join(check["reasons"])))
+    employee.core_certified = eligible
+    employee.core_certified_date = date.today() if eligible else None
+    note = "; ".join(part for part in ((reason or "").strip(), f"set on the employee page ({rules})") if part)
+    db.add(EmployeeEmploymentHistory(tenant_id=employee.tenant_id, employee_id=employee.id, change_type="CORE_ELIGIBLE",
+                                     old_value=json.dumps(not eligible), new_value=json.dumps(eligible),
+                                     effective_date=date.today(), reason=note[:2000],
+                                     changed_by=user.UserName or user.UserEmail))
+    for request in db.query(CoreCertificationRequest).filter(CoreCertificationRequest.employee_id == employee.id,
+                                                             CoreCertificationRequest.status == "PENDING").all():
+        _claim(db, request, "APPROVED" if eligible else "CLOSED", user,
+               rejection_reason=None if eligible else "Set to not eligible on the employee page")
+        _close_task(db, request)
+    db.commit()
+    logger.info(f"[CoreCertification] {employee.id} set {'eligible' if eligible else 'not eligible'} by {user.UserID}"
+                f"{'' if rules_agree else ' (overriding the rules)'}")
+    if eligible:
+        _notify(db, employee, f"You are now eligible for Core (set by {user.UserName or 'a leader'} on {date.today()}).")
+    return {"eligible": eligible, "rules_agree": rules_agree, "rules": check}
 
 
 # --------------------------------------------------------------------------- the daily sweep

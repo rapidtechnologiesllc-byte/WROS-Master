@@ -17,6 +17,7 @@ import ExpenseReviewModal from "../components/ExpenseReviewModal";
 import { SubmitFeedbackModal } from "./tabs/InterviewsTab";
 import { getFeedbackForm, markCandidateNoShow, submitInterviewFeedback } from "../services/api/interviews";
 import { ROUTES } from "../utils/Routes";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
 import { connectOutlook, disconnectOutlook, getOutlookStatus } from "../services/api/msgraph";
 import { createTicket, getTicketCategories } from "../services/api/tickets";
 
@@ -478,7 +479,7 @@ export default function MyTasksScreen() {
       navigate("/candidates");
     } else if (title.startsWith("LinkedIn:")) {
       // Candidate record not created yet: work the item in the pipeline
-      navigate("/linkedin-pipeline");
+      navigate("/candidates?view=linkedin");
     } else {
       // No record behind it (e.g. a forwarded email): the task itself is the work -- open it
       setUpdatingTask(task);
@@ -571,6 +572,10 @@ export default function MyTasksScreen() {
         </div>
         <div className="flex items-center gap-4">
           <OutlookConnection onError={setActionError} />
+          {/* Hiring Manager Review opens from here, not the menu (CEO 2026-11-09) */}
+          {hasPermission("candidate-review", "view") || hasPermission("rehire-approval", "view") ? (
+            <Button variant="ghost" onClick={() => navigate("/hm-review")}>Hiring Manager Review</Button>
+          ) : null}
           <Button onClick={() => setShowCreate((s) => !s)}>+ New Task</Button>
         </div>
       </div>

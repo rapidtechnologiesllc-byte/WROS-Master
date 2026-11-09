@@ -4,16 +4,12 @@ Success Agent and the Partner dashboard."""
 import asyncio
 import pathlib
 import re
-from datetime import date
 
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models.business_unit import BusinessUnitCompany, BusinessUnitLocationHead
-from app.models.employee import Employee
-from app.models.location import Location
 from app.models.strategic_goal import GoalTarget
-from tests.scope_fixtures import ApiClient, person, two_bu_world, uid
+from tests.scope_fixtures import ApiClient, person, two_bu_world
 
 
 @pytest.fixture
@@ -38,24 +34,6 @@ def test_new_logo_partner_is_the_bus_partner_not_any_member(db, w):
     person(db, w.partner_role, "Recruiter in BU A", business_unit_id=w.bu_a.id)  # a member, not the partner
     db.commit()
     assert get_partner_for_bu(db, w.bu_a.id).UserID == w.partner_a.UserID
-
-
-def test_alignment_call_parties_come_from_the_demand(db, w):
-    from app.services.demand_confirmation_service import schedule_alignment_call
-
-    company = Location(tenant_id=1, name=f"Co {uid()}")
-    db.add(company)
-    db.flush()
-    head = person(db, w.partner_role, "Head of A")
-    db.add_all([BusinessUnitCompany(tenant_id=1, business_unit_id=w.bu_a.id, company_id=company.id),
-                BusinessUnitLocationHead(tenant_id=1, business_unit_id=w.bu_a.id, company_id=company.id, head_user_id=head.UserID)])
-    worker = Employee(tenant_id=1, first_name="Sam", last_name=uid(), email=f"{uid()}@x.com", bu_id=w.bu_a.id,
-                      joining_date=date(2025, 1, 1))
-    db.add(worker)
-    db.flush()
-    call = schedule_alignment_call(db, w.job_a, worker)
-    assert call.partner_user_id == w.partner_a.UserID
-    assert call.bu_head_user_id == head.UserID
 
 
 def test_partner_success_agent_coaches_any_partner_against_the_goals_screen(db, w):
@@ -88,8 +66,7 @@ def test_partner_dashboard_route_has_no_person_in_it(w, db):
 
 
 def test_no_person_names_in_application_code():
-    """Names of people belong in the users table. The one allowed hit is the legacy column
-    name of DemandAlignmentCall.partner_user_id (production tables are never renamed)."""
+    """Names of people belong in the users table."""
     root = pathlib.Path(__file__).resolve().parents[2]
     names = re.compile(r"troy|curtis", re.IGNORECASE)
     hits = []

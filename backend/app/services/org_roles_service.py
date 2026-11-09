@@ -103,6 +103,40 @@ def require_role(db: Session, tenant_id: int, title: Optional[str]) -> OrgRole:
     return role
 
 
+def change_role(db: Session, target, title: str, actor) -> bool:
+    """A person's Job Title is their role: it sets their level and access (CEO 2026-11-09: the employee page picks it
+    from the same list as Users & Access). Moves their org-chart seat to the new level, keeping its manager and
+    company, and writes the title on their employee record so the two never disagree. Nobody changes their own role.
+    Returns False when nothing changed. Flushes, does not commit; the caller invalidates permissions after commit.
+    Raises PermissionError or ValueError."""
+    from app.models.employee import Employee
+    from app.models.org_structure import OrgNode
+    from app.services.org_structure_service import place_user_in_org
+
+    if (title or "").strip().lower() == (target.job_title or "").strip().lower():
+        return False
+    if target.UserID == actor.UserID:
+        raise PermissionError("You can't change your own role or access; ask another administrator")
+    role = require_role(db, target.tenant_id, title)
+    ensure_single_holder(db, role, target.UserID)
+    target.job_title = role.name
+    seat = db.query(OrgNode).filter(OrgNode.id == target.org_node_id).first() if target.org_node_id else None
+    if seat is not None:
+        place_user_in_org(db, target, hierarchy_level=role.hierarchy_level, specialization=None,
+                          parent_id=seat.parent_id, company_id=seat.company_id, department_id=target.department_id)
+    sync_employee_title(db, target)
+    db.flush()
+    return True
+
+
+def sync_employee_title(db: Session, user) -> None:
+    """The employee record of a login carries its role as its job title."""
+    from app.models.employee import Employee
+
+    db.query(Employee).filter(Employee.wros_user_id == user.UserID).update(
+        {"current_title": user.job_title}, synchronize_session=False)
+
+
 def ensure_single_holder(db: Session, role: OrgRole, user_id: Optional[str] = None) -> None:
     """A CEO-designated role is held by one person."""
     from app.models.user import Users

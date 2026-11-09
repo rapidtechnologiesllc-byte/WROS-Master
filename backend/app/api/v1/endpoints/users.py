@@ -920,6 +920,9 @@ def update_user(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc))
         target.job_title = new_role.name
+        from app.services.org_roles_service import sync_employee_title
+
+        sync_employee_title(db, target)  # their employee record shows the same title (2026-11-09)
     if addon_changed:
         from app.services.role_template_permission_service import validate_addon_template
         try:

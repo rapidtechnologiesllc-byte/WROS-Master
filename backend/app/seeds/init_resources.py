@@ -27,10 +27,11 @@ RESOURCE_ROUTES = {
     "submissions": "/pipeline",
     "convert-to-employee": "/pipeline",
     "offer-letters": "/offers-listing",
-    # Recruiter Watch: intervention queue + risk + Thunder analytics, a tab each
-    "intervention-queue": "/recruiter/watch",
-    "risk-dashboard": "/recruiter/watch",
-    "thunder-analytics": "/recruiter/watch",
+    # Recruiter Watch (intervention queue, risk, Thunder analytics) is a tab each of the Recruitment Dashboard
+    # (CEO 2026-11-09)
+    "intervention-queue": "/recruitment-dashboard",
+    "risk-dashboard": "/recruitment-dashboard",
+    "thunder-analytics": "/recruitment-dashboard",
     # Hiring Manager Review: candidate review + rehire approvals, a tab each
     "candidate-review": "/hm-review",
     "rehire-approval": "/hm-review",
@@ -39,14 +40,14 @@ RESOURCE_ROUTES = {
     "workforce-overview": "/workforce",
     "employees": "/employees",
     "timesheets": "/timesheets",
-    "buddy-program": "/buddy-program",
-    "htd-intake": "/htd-intake",
-    "resource-forecast": "/demand-vs-bench",  # Demand vs Bench (forecast + bench matches tabs)
+    # Buddy Program, HTD Intake and Demand vs Bench are tabs of Workforce Overview (CEO 2026-11-09)
+    "buddy-program": "/workforce",
+    "htd-intake": "/workforce",
+    "resource-forecast": "/workforce",
     "utilization-dashboard": "/workforce",  # a tab of Workforce Overview
     # Sales & Delivery
     "clients": "/client-management",
     "opportunities": "/opportunity-pipeline",
-    "demand-confirmation": "/demand-confirmation",
     "projects": "/projects",
     "core-pull": "/core-pull",
     # Finance
@@ -61,28 +62,27 @@ RESOURCE_ROUTES = {
     "executive-signal": "/executive-signal",
     "partner-dashboard": "/partner-dashboard",
     "bi-explorer": "/bi-explorer",
-    # AI Operations
-    # Agent Health: agent state + weekly recap, a tab each
-    "admin-agent-state": "/admin/agent-health",
-    "admin-weekly-recap": "/admin/agent-health",
-    "message-queue": "/admin/messagequeue",
-    # SLM Learning: model + training data + learning transcript, a tab each
-    "slm-dashboard": "/admin/slm",
-    "slm-training-data": "/admin/slm",
-    "ai-config": "/admin/ai-config",
+    # System (CEO 2026-11-09): health, error logs, agent health, message queue, SLM learning and AI config, a tab each
+    "admin-agent-state": "/admin/system",
+    "admin-weekly-recap": "/admin/system",
+    "message-queue": "/admin/system",
+    "slm-dashboard": "/admin/system",
+    "slm-training-data": "/admin/system",
+    "ai-config": "/admin/system",
     # Admin & Settings
     "users-access-control": "/admin/users-access-control/users",
     "role-templates": "/admin/users-access-control/role-templates",
     "business-units": "/admin/users-access-control/business-units",
     "delivery-centers": "/admin/users-access-control/delivery-centers",
     "organizational-hierarchy": "/admin/users-access-control/organizational-hierarchy",
-    "certifications": "/admin/certifications",
-    "checklists": "/checklist-templates",  # Templates & Checklists: checklists + email templates tabs
+    # Templates & Checklists: messages, checklists, email templates and certifications, a tab each
+    "certifications": "/checklist-templates",
+    "checklists": "/checklist-templates",
     "locale-currency": "/settings/locale",
     "bulk-launch": "/recruiter/bulk-launch",
     "api-keys": "/api-keys",
-    "error-logs": "/admin/error-log",
-    "system-health": "/system-health",
+    "error-logs": "/admin/system",
+    "system-health": "/admin/system",
     "ticket-routing": "/admin/ticket-routing",
 }
 
@@ -96,14 +96,15 @@ NAV_LABELS = {
     "submissions": "Pipeline & Submissions",
     "convert-to-employee": "Pipeline & Submissions",
     "offer-letters": "Offers",
-    "intervention-queue": "Recruiter Watch",
-    "risk-dashboard": "Recruiter Watch",
-    "thunder-analytics": "Recruiter Watch",
+    "intervention-queue": "Recruitment Dashboard",
+    "risk-dashboard": "Recruitment Dashboard",
+    "thunder-analytics": "Recruitment Dashboard",
     "candidate-review": "Hiring Manager Review",
     "rehire-approval": "Hiring Manager Review",
     "workforce-overview": "Workforce Overview",
-    "htd-intake": "HTD Intake",
-    "resource-forecast": "Demand vs Bench",
+    "buddy-program": "Workforce Overview",
+    "htd-intake": "Workforce Overview",
+    "resource-forecast": "Workforce Overview",
     "utilization-dashboard": "Workforce Overview",
     "revenue": "P&L",
     "finance-operations": "P&L",
@@ -111,16 +112,19 @@ NAV_LABELS = {
     "forecasts": "P&L",
     "goals": "Goals & Revenue",
     "bi-explorer": "BI Explorer",
-    "admin-agent-state": "Agent Health",
-    "slm-dashboard": "SLM Learning",
-    "admin-weekly-recap": "Agent Health",
-    "slm-training-data": "SLM Learning",
-    "ai-config": "AI Config",
+    "admin-agent-state": "System",
+    "slm-dashboard": "System",
+    "admin-weekly-recap": "System",
+    "slm-training-data": "System",
+    "ai-config": "System",
+    "message-queue": "System",
+    "system-health": "System",
+    "certifications": "Templates & Checklists",
     "users-access-control": "Users & Access",
     "checklists": "Templates & Checklists",
     "locale-currency": "Locale & Currency",
     "api-keys": "API Keys",
-    "error-logs": "Error Logs",
+    "error-logs": "System",
 }
 
 # Not menu items, on purpose: allocations (Employees > Allocations tab; /allocations redirects there)
@@ -134,11 +138,15 @@ NAV_LABELS = {
 # CEO, CFO, partners and BU heads see it under Recruitment, not only recruiters.
 RESOURCE_EXTRA_PAGES = {
     "invoices": [{"key": "sub-vendors", "label": "Sub-vendors", "route": "/sub-vendors"}],
-    "candidates": [{"key": "linkedin-pipeline", "label": "LinkedIn Pipeline", "route": "/linkedin-pipeline"},
-                   {"key": "recruitment-dashboard", "label": "Recruitment Dashboard", "route": "/recruitment-dashboard"}],
+    # LinkedIn Pipeline is a tab of Candidates (CEO 2026-11-09)
+    "candidates": [{"key": "recruitment-dashboard", "label": "Recruitment Dashboard", "route": "/recruitment-dashboard"}],
     # My Performance (CEO 2026-10-24): everyone who has My Tasks; its self-service endpoints check
     # my-tasks too (app/api/v1/endpoints/performance.py)
     "my-tasks": [{"key": "my-performance", "label": "My Performance", "route": "/my-performance"}],
 }
 
-NAV_TAB_RESOURCES = {"role-templates", "business-units", "delivery-centers", "organizational-hierarchy"}
+# Off the menu: reached as a tab of another screen, or from a task (core-pull: each conflict is a decision task for
+# the business unit's leader, CEO 2026-11-09)
+# candidate-review / rehire-approval: Hiring Manager Review opens from My Tasks; ticket-routing: retired from the menu
+NAV_TAB_RESOURCES = {"role-templates", "business-units", "delivery-centers", "organizational-hierarchy", "core-pull",
+                     "candidate-review", "rehire-approval", "ticket-routing"}
