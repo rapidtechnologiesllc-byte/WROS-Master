@@ -14,6 +14,9 @@ export const evaluatePipeline = (candidateId) =>
   post(`/hiring-pipeline/candidate/${encodeURIComponent(candidateId)}/evaluate`);
 export const recordScreen = (candidateId, decision) =>
   post(`/hiring-pipeline/candidate/${encodeURIComponent(candidateId)}/screen`, { decision });
+// a leader lets the candidate past L1 or L2 with a reason on record
+export const waiveRound = (candidateId, level, reason) =>
+  post(`/hiring-pipeline/candidate/${encodeURIComponent(candidateId)}/waive`, { level, reason });
 export const getOnboarding = (candidateId) =>
   get(`/hiring-pipeline/candidate/${encodeURIComponent(candidateId)}/onboarding`);
 export const reviewDocument = (docId, decision) =>

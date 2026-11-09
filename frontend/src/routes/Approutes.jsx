@@ -507,12 +507,15 @@ function AuthenticatedApp() {
           getAllJobs(),
           getAllInterviews(),
           getAllOffers(),
-          // names only: if this fails the screens still load, and the person is told
-          getUserDirectory().catch((err) => {
-            console.error("[AppRoutes] Colleague list unavailable:", err);
-            notify("Colleagues", `Could not load the colleague list: ${err.message}`);
-            return [];
-          }),
+          // names only, for people the directory serves (a sub-vendor contractor isn't); if it fails the
+          // screens still load and the person is told
+          hasPermission("my-referrals", "view")
+            ? getUserDirectory().catch((err) => {
+                console.error("[AppRoutes] Colleague list unavailable:", err);
+                notify("Colleagues", `Could not load the colleague list: ${err.message}`);
+                return [];
+              })
+            : Promise.resolve([]),
           loadCandidateStatusesOptional(),
         ]);
         if (!isMounted) return;

@@ -27,7 +27,7 @@ from app.models.candidate import Candidate, CandidateStatus
 from app.models.client_onboarding import ClientOnboarding
 from app.models.employee import Employee
 from app.models.employee_allocation import EmployeeAllocation
-from app.models.hiring_pipeline import STAGES, HiringPipeline, HiringPipelineEvent
+from app.models.hiring_pipeline import STAGES, HiringPipeline, HiringPipelineEvent, HiringRoundWaiver
 from app.models.offer_letter import OfferLetter
 from app.models.submission import Submission
 
@@ -45,6 +45,9 @@ SWEEP_BACKFILL_LIMIT = 200
 STATUS_NEEDS_STAGE = {"Pre-onboarding-Approval": "OFFER", "OfferApproval": "OFFER", "Pre-Onboarding": "OFFER",
                       "Onboarded": "BENCH", "Hired": "BENCH"}
 EARLY_STATUSES = ("Applied", "Screening", "Interview")
+# Rounds a leader may waive with a reason (CEO 2026-11-09); screening has its own SKIP decision
+WAIVABLE_LEVELS = ("L1", "L2")
+WAIVER_REASON_MIN = 15
 
 
 class PipelineGateBlocked(Exception):
@@ -142,11 +145,12 @@ def _walk(db: Session, pipeline: HiringPipeline) -> Tuple[str, List[str], Dict]:
         levels = {}
         for v in verdicts:  # latest round per level wins
             levels[v.level] = v.verdict
+        waived = _waived_levels(db, pipeline)
         # SCREEN -> L1
         if pipeline.screen_decision == "FAIL" or levels.get("SCREEN") == "FAIL":
             return "REJECTED", ["recruiter screen failed"], refs
         screened = (not pipeline.screen_required or pipeline.screen_decision in ("PASS", "SKIP")
-                    or levels.get("SCREEN") == "PASS" or "L1" in levels or "L2" in levels)
+                    or levels.get("SCREEN") == "PASS" or "L1" in levels or "L2" in levels or bool(waived))
         if not screened:
             return reached, ["recruiter screen pending"], refs
         # CEO decision 2026-10-10: nobody under 5 years' experience is interviewed, offered or
@@ -167,8 +171,10 @@ def _walk(db: Session, pipeline: HiringPipeline) -> Tuple[str, List[str], Dict]:
         # L1 -> L2 -> OFFER
         for level, nxt in (("L1", "L2"), ("L2", "OFFER")):
             verdict = levels.get(level)
-            if verdict == "FAIL":
+            if verdict == "FAIL":  # a No Hire stands: a waiver is for a round never sat
                 return "REJECTED", [f"{level} interview: No Hire"], refs
+            if level in waived:
+                verdict = "PASS"
             if verdict != "PASS":
                 label = "technical" if level == "L1" else "management"
                 waiting = {None: "not scheduled", "PENDING": "in progress",
@@ -298,9 +304,60 @@ def _close_finished_schedule_tasks(db: Session, candidate_id: str) -> None:
     if not tasks:
         return
     levels = {verdict.level for _, verdict in candidate_verdicts(db, candidate_id)}
+    levels |= {w.level for w in db.query(HiringRoundWaiver).filter(HiringRoundWaiver.candidate_id == candidate_id)}
     for task in tasks:
         if any(task.title.startswith(f"Schedule {level} ") for level in levels):
             task.status, task.completed_at = "COMPLETED", datetime.utcnow()
+
+
+def _waived_levels(db: Session, pipeline: HiringPipeline) -> set:
+    if pipeline.id is None:
+        return set()
+    return {w.level for w in db.query(HiringRoundWaiver).filter(HiringRoundWaiver.pipeline_id == pipeline.id)}
+
+
+class WaiverRefused(Exception):
+    """Why a round can't be waived, in words the person can act on."""
+
+
+def waive_round(db: Session, candidate_id: str, level: str, reason: str, user) -> HiringPipeline:
+    """A leader (BU Head level and above, from the role template) lets the candidate past a round they
+    did not sit. Records who, when and why, notes it on the candidate's history, then re-derives the
+    stage. Flushes, does not commit. Raises PermissionError or WaiverRefused."""
+    from app.core import authority
+    from app.models.candidate_history import CandidateHistory
+    from app.services.interview_verdict_service import candidate_verdicts
+
+    level = (level or "").strip().upper()
+    if level not in WAIVABLE_LEVELS:
+        raise WaiverRefused(f"Only {' and '.join(WAIVABLE_LEVELS)} can be waived.")
+    reason = (reason or "").strip()
+    if len(reason) < WAIVER_REASON_MIN:
+        raise WaiverRefused(f"Say why this round is waived (at least {WAIVER_REASON_MIN} characters): it stays on record.")
+    if not authority.is_bu_leader(db, user):
+        raise PermissionError("Only a BU Head or above can waive an interview round.")
+    pipeline = get_or_create_pipeline(db, candidate_id)
+    if pipeline.grandfathered:
+        raise WaiverRefused("This candidate was already an employee: their interview rounds don't apply.")
+    verdicts = {}
+    for _, verdict in candidate_verdicts(db, candidate_id):
+        verdicts[verdict.level] = verdict.verdict
+    if verdicts.get(level) == "FAIL":  # said first: it is why the hiring closed
+        raise WaiverRefused(f"{level} ended in No Hire. A waiver is for a round not sat, not to overturn a decision.")
+    if pipeline.closed_at is not None or pipeline.stage in ("REJECTED", "WITHDRAWN"):
+        raise WaiverRefused(f"The candidate's hiring is closed ({pipeline.stage}).")
+    if verdicts.get(level) == "PASS":
+        raise WaiverRefused(f"{level} is already passed: there is nothing to waive.")
+    if level in _waived_levels(db, pipeline):
+        raise WaiverRefused(f"{level} is already waived.")
+    db.add(HiringRoundWaiver(pipeline_id=pipeline.id, candidate_id=candidate_id, level=level, reason=reason,
+                             waived_by_user_id=user.UserID))
+    db.add(CandidateHistory(candidateID=candidate_id, event_type="Interview Round Waived", event_at=datetime.utcnow(),
+                            note=f"{level} waived: {reason}", performed_by_id=user.UserID,
+                            performed_by_name=user.UserName or user.UserEmail))
+    db.flush()
+    logger.info(f"[Pipeline] {candidate_id}: {level} waived by {user.UserID}")
+    return evaluate(db, pipeline, trigger="waiver", ref=level, actor=user.UserID)
 
 
 def get_or_create_pipeline(db: Session, candidate_id: str, job_id: Optional[str] = None, *,
@@ -371,8 +428,14 @@ def assert_gate(db: Session, candidate_id: str, required_stage: str) -> HiringPi
 
 
 def snapshot(db: Session, pipeline: HiringPipeline) -> Dict:
+    from app.models.user import Users
+
     events = db.query(HiringPipelineEvent).filter(HiringPipelineEvent.pipeline_id == pipeline.id) \
         .order_by(HiringPipelineEvent.id).all()
+    waivers = db.query(HiringRoundWaiver).filter(HiringRoundWaiver.pipeline_id == pipeline.id) \
+        .order_by(HiringRoundWaiver.id).all()
+    names = {u.UserID: u.UserName or u.UserEmail for u in db.query(Users).filter(
+        Users.UserID.in_({w.waived_by_user_id for w in waivers}))} if waivers else {}
     return {
         "pipeline_id": pipeline.id, "candidate_id": pipeline.candidate_id, "job_id": pipeline.job_id,
         "stage": pipeline.stage, "stage_entered_at": pipeline.stage_entered_at, "blockers": pipeline.blockers or [],
@@ -380,6 +443,8 @@ def snapshot(db: Session, pipeline: HiringPipeline) -> Dict:
         "grandfathered": pipeline.grandfathered, "offer_letter_id": pipeline.offer_letter_id,
         "employee_id": pipeline.employee_id, "submission_id": pipeline.submission_id,
         "closed_at": pipeline.closed_at,
+        "waivers": [{"level": w.level, "reason": w.reason, "waived_by": names.get(w.waived_by_user_id),
+                     "at": w.created_at} for w in waivers],
         "events": [{"from_stage": e.from_stage, "to_stage": e.to_stage, "trigger": e.trigger, "ref": e.ref,
                     "actor": e.actor, "note": e.note, "at": e.created_at} for e in events],
     }

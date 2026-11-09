@@ -69,3 +69,36 @@ def test_companies_keep_their_order_whatever_they_earned(db, world):
     keys = [r["key"] for r in _report(db)["by_company"]]
     assert keys.index(first.id) < keys.index(second.id)
     assert None not in keys[:-1]  # untagged work, if any, comes last
+
+
+def test_a_business_unit_with_nothing_yet_and_its_partner_still_show(db, world):
+    from app.models.business_unit import BusinessUnit
+    from app.models.user import Users
+
+    partner = Users(UserID=f"P-{_uid()}", UserName=f"Partner {_uid()}", UserEmail=f"{_uid()}@x.test", UserPassword="x",
+                    UserRole="x", tenant_id=1, role_template_id=db.query(Users.role_template_id).filter(
+                        Users.role_template_id.isnot(None)).first()[0])
+    db.add(partner)
+    db.flush()
+    unit = BusinessUnit(tenant_id=1, name=f"Empty-{_uid()}", display_name="Empty", partner_user_id=partner.UserID)
+    db.add(unit)
+    db.commit()
+    report = _report(db)
+    row = next(r for r in report["by_business_unit"] if r["key"] == unit.id)
+    assert row["name"] == unit.name and row["total_cost_usd_cents"] == 0
+    by_partner = next(r for r in report["by_partner"] if r["key"] == partner.UserID)
+    assert by_partner["name"] == partner.UserName and by_partner["revenue_usd_cents"] == 0
+
+
+def test_a_retired_business_unit_is_left_out_when_it_has_nothing(db, world):
+    from app.models.business_unit import BusinessUnit
+
+    unit = BusinessUnit(tenant_id=1, name=f"Retired-{_uid()}", display_name="Retired", active=False)
+    db.add(unit)
+    db.commit()
+    assert unit.id not in {r["key"] for r in _report(db)["by_business_unit"]}
+
+
+def test_a_business_unit_slice_lists_only_that_unit(db, world):
+    report = pnl(db, start=MONTH_START, end=MONTH_END, tenant_id=1, business_unit_ids={world.unit.id})
+    assert {r["key"] for r in report["by_business_unit"]} <= {world.unit.id, None}

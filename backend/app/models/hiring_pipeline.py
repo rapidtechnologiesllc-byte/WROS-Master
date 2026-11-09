@@ -40,6 +40,22 @@ class HiringPipeline(Base):
     )
 
 
+class HiringRoundWaiver(Base):
+    """A leader let a candidate past an interview round they did not sit (CEO 2026-11-09), with the
+    reason on record. The round then counts as passed; every later gate still applies."""
+    __tablename__ = "hiring_round_waivers"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    pipeline_id = Column(Integer, ForeignKey("hiring_pipelines.id", ondelete="CASCADE"), nullable=False, index=True)
+    candidate_id = Column(String(512), ForeignKey("candidates.candidateID"), nullable=False, index=True)
+    level = Column(String(10), nullable=False)  # L1 / L2
+    reason = Column(Text, nullable=False)
+    waived_by_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (Index("ix_one_waiver_per_round", "pipeline_id", "level", unique=True),)
+
+
 class HiringPipelineEvent(Base):
     __tablename__ = "hiring_pipeline_events"
 

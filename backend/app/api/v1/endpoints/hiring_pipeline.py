@@ -4,6 +4,7 @@ GET  /hiring-pipeline                          open pipelines (filter by stage)
 GET  /hiring-pipeline/candidate/{id}           stage, blockers and history (created on first read)
 POST /hiring-pipeline/candidate/{id}/screen    recruiter screen decision: PASS / SKIP / FAIL
 POST /hiring-pipeline/candidate/{id}/evaluate  re-derive the stage now
+POST /hiring-pipeline/candidate/{id}/waive     a leader waives L1 or L2 with a reason
 GET  /hiring-pipeline/candidate/{id}/onboarding  pre-joining documents and checklists
 POST /hiring-pipeline/preboarding-documents/{doc_id}/review  VERIFIED / WAIVED / PENDING (re-upload)
 """
@@ -23,6 +24,11 @@ router = APIRouter(prefix="/hiring-pipeline", tags=["hiring-pipeline"])
 
 class DocumentReviewRequest(BaseModel):
     decision: str
+
+
+class WaiveRoundRequest(BaseModel):
+    level: str
+    reason: str
 
 
 class ScreenDecisionRequest(BaseModel):
@@ -64,6 +70,27 @@ def screen_candidate(candidate_id: str, request: ScreenDecisionRequest, db: Sess
     except ValueError as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc))
+    db.commit()
+    pipelines.queue_stage_actions(pipeline)
+    return pipelines.snapshot(db, pipeline)
+
+
+@router.post("/candidate/{candidate_id}/waive",
+             dependencies=[Depends(require_resource_permission("convert-to-employee", "edit"))])
+def waive_round(candidate_id: str, request: WaiveRoundRequest, db: Session = Depends(get_db),
+                user=Depends(get_current_internal_user)):
+    """BU Head and above (role template level); the reason is recorded on the pipeline and the candidate."""
+    try:
+        pipeline = pipelines.waive_round(db, candidate_id, request.level, request.reason, user)
+    except PermissionError as exc:
+        db.rollback()
+        raise HTTPException(status_code=403, detail=str(exc))
+    except pipelines.WaiverRefused as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc))
+    except ValueError as exc:  # no such candidate
+        db.rollback()
+        raise HTTPException(status_code=404, detail=str(exc))
     db.commit()
     pipelines.queue_stage_actions(pipeline)
     return pipelines.snapshot(db, pipeline)

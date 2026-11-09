@@ -1,7 +1,8 @@
 import { apiFetch } from "../services/api/client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../components/ui";
-import { hasPermission } from "../utils/permissionsRoleTemplate";
+import { hasPermission, isBuLeader } from "../utils/permissionsRoleTemplate";
+import RoundWaiverModal from "../components/RoundWaiverModal";
 import ProfileTabEditable from "./tabs/ProfileTabEditable";
 import FeedbackTab from "./tabs/FeedbackTab";
 import DocumentsTab from "./tabs/DocumentsTab";
@@ -334,6 +335,11 @@ export default function CandidateDetailsScreen({
   const [loadingCandidateJobs, setLoadingCandidateJobs] = useState(false);
   // Where the candidate is in screen -> L1 -> L2 -> offer, and what is needed next
   const [hiringStage, setHiringStage] = useState(null);
+  // a BU Head or above may waive the round the candidate is waiting on (the server checks too)
+  const [waivingLevel, setWaivingLevel] = useState(null);
+  const waivableLevel =
+    isBuLeader() && hasPermission("convert-to-employee", "edit") && !hiringStage?.closed_at &&
+    ["L1", "L2"].includes(hiringStage?.stage) ? hiringStage.stage : null;
   useEffect(() => {
     if (!candidate?.id) return undefined;
     let live = true;
@@ -1368,7 +1374,35 @@ ${formattedJD}
                     <span className="text-gray-700">
                       Hiring stage: <strong>{hiringStage.stage}</strong>
                       {hiringStage.blockers?.length ? ` · Next: ${hiringStage.blockers.join("; ")}` : ""}
+                      {(hiringStage.waivers || []).map((w) => (
+                        <span key={w.level} className="ml-1 text-amber-700" title={w.reason}>
+                          · {w.level} waived{w.waived_by ? ` by ${w.waived_by}` : ""}: {w.reason}
+                        </span>
+                      ))}
+                      {waivableLevel ? (
+                        <button
+                          type="button"
+                          className="ml-2 rounded-lg border border-amber-300 px-2 py-0.5 text-xs font-semibold text-amber-800 hover:bg-amber-50"
+                          onClick={() => setWaivingLevel(waivableLevel)}
+                        >
+                          Waive {waivableLevel}
+                        </button>
+                      ) : null}
                     </span>
+                  ) : null}
+                  {waivingLevel ? (
+                    <RoundWaiverModal
+                      candidateId={candidate.id}
+                      candidateName={candidate?.name}
+                      level={waivingLevel}
+                      onClose={() => setWaivingLevel(null)}
+                      onWaived={async (pipeline) => {
+                        setWaivingLevel(null);
+                        setHiringStage(pipeline);
+                        showNotice(`${waivingLevel} waived. Hiring stage is now ${pipeline.stage}.`, "success");
+                        await onRefreshCandidates?.();
+                      }}
+                    />
                   ) : null}
                 </div>
               </div>
