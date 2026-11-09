@@ -102,3 +102,9 @@ def test_a_retired_business_unit_is_left_out_when_it_has_nothing(db, world):
 def test_a_business_unit_slice_lists_only_that_unit(db, world):
     report = pnl(db, start=MONTH_START, end=MONTH_END, tenant_id=1, business_unit_ids={world.unit.id})
     assert {r["key"] for r in report["by_business_unit"]} <= {world.unit.id, None}
+
+
+def test_each_companys_sub_vendor_cost_adds_up_to_the_group(db, world):
+    report = _report(db)
+    assert all("vendor_cost_usd_cents" in row for row in report["by_company"])
+    assert sum(row["vendor_cost_usd_cents"] for row in report["by_company"]) == report["vendor_cost_usd_cents"]

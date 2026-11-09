@@ -184,7 +184,7 @@ def test_a_person_with_org_wide_authority_is_org_level_without_a_function(db, w,
     db.commit()
     monkeypatch.setattr(chain, "chain_lines", lambda *a, **k: [])
     book = SimpleNamespace(by_object=lambda e, s, n: {(w.bu_b.id, "C1", "US"): 5_000} if e.id == employee.id else {})
-    pool, by_function = chain.shared_service_moves(db, start=date(2026, 11, 1), end=date(2026, 11, 30), tenant_id=None, costs=book)
+    pool, by_function, _ = chain.shared_service_moves(db, start=date(2026, 11, 1), end=date(2026, 11, 30), tenant_id=None, costs=book)
     assert pool[(w.bu_b.id, "US")] >= 5_000 and by_function["Leadership"] >= 5_000
 
 
