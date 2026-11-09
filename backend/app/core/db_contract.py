@@ -347,6 +347,14 @@ def _expense_attribution_and_events(db: Session) -> int:
     return changed
 
 
+def _candidate_merges_to_one_record(db: Session) -> int:
+    """CEO 2026-11-09: a merged duplicate archived beside the record kept is folded in and removed, so one person is
+    one active record; its id, emails and phones keep leading to the record kept."""
+    from app.services.candidate_merge_service import finish_archived_merges
+
+    return finish_archived_merges(db)
+
+
 DATA_MIGRATIONS = (
     ("interview_times_to_utc", _interview_times_to_utc),
     ("employee_org_history_backfill", _employee_org_history_backfill),
@@ -358,6 +366,7 @@ DATA_MIGRATIONS = (
     ("candidate_timezones_from_location", _candidate_timezones_from_location),
     ("expense_attribution_and_events", _expense_attribution_and_events),
     ("expense_receipts_and_review_tasks", _expense_receipts_and_review_tasks),
+    ("candidate_merges_to_one_record", _candidate_merges_to_one_record),
 )
 
 

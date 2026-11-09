@@ -346,6 +346,7 @@ def _extracted(reading: ForwardReading) -> Dict:
         "resume": {"attachment_id": resume.attachment_id, "name": resume.name, "size": resume.size,
                    "text": resume.text} if resume else None,
         "unreadable_attachments": reading.unreadable_attachments,
+        "outreach": reading.outreach,
     }
 
 
@@ -492,12 +493,18 @@ def _fill_blanks(candidate: Candidate, details: Dict) -> None:
 
 
 def _note_text(row, forwarder: Users, extracted: Dict) -> str:
-    lines = [f"Forwarded by {forwarder.UserName or forwarder.UserEmail} to the HRMS mailbox"
-             f"{' on ' + row.received_at.strftime('%Y-%m-%d %H:%M UTC') if row.received_at else ''}: "
-             f"\"{row.subject or '(no subject)'}\""]
-    if extracted.get("forwarder_note"):
-        lines.append(f"Their note: {extracted['forwarder_note']}")
-    if extracted.get("original_sender_email"):
+    when = f" on {row.received_at.strftime('%Y-%m-%d %H:%M UTC')}" if row.received_at else ""
+    sender = forwarder.UserName or forwarder.UserEmail
+    if extracted.get("outreach"):  # an email we sent them, HRMS copied: not a forward
+        lines = [f"Email from {sender} to {extracted.get('original_sender_email') or 'them'}, HRMS copied{when}: "
+                 f"\"{row.subject or '(no subject)'}\""]
+        if extracted.get("forwarder_note"):
+            lines.append(f"Message: {extracted['forwarder_note']}")
+    else:
+        lines = [f"Forwarded by {sender} to the HRMS mailbox{when}: \"{row.subject or '(no subject)'}\""]
+        if extracted.get("forwarder_note"):
+            lines.append(f"Their note: {extracted['forwarder_note']}")
+    if extracted.get("original_sender_email") and not extracted.get("outreach"):
         lines.append(f"Original sender: {extracted.get('original_sender_name') or ''} "
                      f"<{extracted['original_sender_email']}>".replace("  ", " "))
     if extracted.get("summary"):

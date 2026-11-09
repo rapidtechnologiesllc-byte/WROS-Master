@@ -1,5 +1,6 @@
 // Merge candidate (CEO 2026-11-04: "THE SAME CANDIDATE GOT created twice"): pick the other record and which one to
-// keep. Everything moves to the record kept; the other is archived and its email and phone keep leading here.
+// keep. Everything moves to the record kept and the other is removed: one person, one record (CEO 2026-11-09).
+// Its old link, email and phone keep leading here.
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Input } from "./ui";
@@ -29,8 +30,8 @@ export default function MergeCandidateModal({ candidate, onClose }) {
     setBusy(true);
     setError("");
     try {
-      const [kept, archived] = keep === "this" ? [id, picked.id] : [picked.id, id];
-      const result = await mergeCandidate(archived, kept);
+      const [kept, removed] = keep === "this" ? [id, picked.id] : [picked.id, id];
+      const result = await mergeCandidate(removed, kept);
       onClose();
       navigate(`/candidates/${result.kept_candidate_id}`);
     } catch (err) {
@@ -45,8 +46,8 @@ export default function MergeCandidateModal({ candidate, onClose }) {
       <div role="dialog" aria-label="Merge candidate" className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-xl">
         <div className="text-lg font-semibold text-gray-900">Merge candidate</div>
         <p className="mt-1 text-sm text-gray-600">
-          History, interviews, documents, tasks and Thunder activity move to the record you keep. The other is archived, and its
-          email and phone keep leading to the record you keep.
+          History, interviews, documents, tasks and Thunder activity move to the record you keep, and the other record is removed:
+          one person, one record. Its old link, email and phone keep leading to the record you keep.
         </p>
         {error ? <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</div> : null}
         <div className="mt-4"><Input label="Find the other record (name or email)" value={term} onChange={setTerm} /></div>

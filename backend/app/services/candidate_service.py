@@ -124,9 +124,15 @@ def find_duplicate_candidate(
     match on their national digits, so "+91 98765 43210" and "9876543210" are one person. A record
     merged into another answers with the record kept.
     """
-    from app.services.candidate_merge_service import resolve_merged
+    from app.services.candidate_merge_service import kept_record_for_contact, resolve_merged
 
     hit, matched_on = _find_duplicate(db, email, mobile, linkedin_url)
+    if hit is None:  # a merged-away record's email or phone: the record it was merged into
+        hit = kept_record_for_contact(db, email=email)
+        matched_on = "email" if hit is not None else None
+        if hit is None:
+            hit = kept_record_for_contact(db, mobile=mobile)
+            matched_on = "phone" if hit is not None else None
     return resolve_merged(db, hit), matched_on
 
 
