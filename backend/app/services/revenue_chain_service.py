@@ -564,9 +564,15 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
         }
         return _with_margin(out, out["revenue_usd_cents"], out["total_cost_usd_cents"], complete)
 
-    def rollup(line_key: str, index: int, names: Dict) -> List[Dict]:
+    # every business unit in view, and its partner, has a row even in a month with nothing on it
+    # (CEO 2026-11-09: a BU with no people yet was missing, and so was its partner)
+    listed_units = [u for u in units.values() if getattr(u, "active", True) is not False
+                    and (tenant_id is None or u.tenant_id == tenant_id)
+                    and (business_unit_ids is None or u.id in business_unit_ids)]
+
+    def rollup(line_key: str, index: int, names: Dict, always=()) -> List[Dict]:
         keys = ({line[line_key] for line in lines} | {b[index] for b in bench_rows}
-                | {e["key"][index] for e in every_expense})
+                | {e["key"][index] for e in every_expense} | set(always))
         rows = []
         for k in keys:
             bench = [v for b, v in bench_rows.items() if b[index] == k]
@@ -577,10 +583,11 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
                 sum(b["htd_cost_usd_cents"] for b in bench), sum(b["shared_cost_usd_cents"] for b in bench),
                 waiting_for(index, k),
             )})
-        return sorted(rows, key=lambda r: r["revenue_usd_cents"], reverse=True)
+        return sorted(rows, key=lambda r: (-r["revenue_usd_cents"], str(r["name"] or "")))
 
+    unit_partners = {u.partner_user_id for u in listed_units if u.partner_user_id}
     partner_names = {line["partner_user_id"]: line["partner_name"] for line in lines}
-    partner_ids = ({b[0] for b in bench_rows} | {e["key"][0] for e in every_expense}) - {UNASSIGNED}
+    partner_ids = ({b[0] for b in bench_rows} | {e["key"][0] for e in every_expense} | unit_partners) - {UNASSIGNED}
     for user in db.query(Users).filter(Users.UserID.in_(partner_ids)).all():
         partner_names.setdefault(user.UserID, user.UserName)
     bu_names = {u.id: u.name for u in units.values()}
@@ -626,8 +633,8 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
         "org_staff_by_function": ([{"name": name, "cost_usd_cents": cost} for name, cost in sorted(by_function.items())]
                                   if business_unit_ids is None and country is None else []),
         "missing_cost_employee_ids": missing_cost,
-        "by_partner": rollup("partner_user_id", 0, partner_names),
-        "by_business_unit": rollup("business_unit_id", 1, bu_names),
+        "by_partner": rollup("partner_user_id", 0, partner_names, unit_partners),
+        "by_business_unit": rollup("business_unit_id", 1, bu_names, [u.id for u in listed_units]),
         "by_location": staff_rollup(lambda line: line["country"], lambda b: b[2], lambda k: k or "Unknown location",
                                     lambda e: e["country"]),
         "by_cost_object": [
