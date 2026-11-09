@@ -7,6 +7,25 @@
 
 Other live documents: `HANDOFF.md` (deploy procedure, prod state) · `docs/OPEN_REQUIREMENTS_BACKLOG.md` (246 open backlog stories) · `CLAUDE.md` (rules) · `LOCAL_DEVELOPMENT.md`, `DEVELOPER_ONBOARDING.md` (setup).
 
+## End-to-end check, 2026-11-09 (`main` @ `05d696e2`)
+
+Method: pyflakes over `backend/app`; the whole backend suite; the live route table (666 paths) against every API call in `frontend/src` (526), both directions; every catalogue resource against its page, API gate and frontend use; a keyword probe of the code for each open backlog story (story ids are no longer in the code, so the "Signal today" column of `docs/OPEN_REQUIREMENTS_BACKLOG.md` is out of date).
+
+Found sound: 0 undefined names; 1816 tests pass; no screen calls a route that does not exist; every resource with a menu route has a page.
+
+Built in this pass:
+
+| Item | What |
+|---|---|
+| Bank reconciliation (S-391) | The API existed with no screen. Now: P&L > Bank Reconciliation. Upload the statement as CSV (each credit recorded once; debits left out; unreadable lines listed with the reason), or type one credit. Each unmatched credit shows the sent invoices for exactly that amount and one suggested (the only one, or the one whose number is in the bank description). Finance confirms; nothing is paid by itself. Paid invoices with no bank credit are listed. `tests/test_bank_reconciliation.py` |
+| Hiring analytics (S-333, S-330, S-327) | Recruitment Dashboard > Hiring Analytics: source of hire, each recruiter's results, and open positions against people who joined, read from the hiring pipeline's stages and history, in the reader's tenant and business-unit scope. `GET /analytics/hiring`. `tests/test_hiring_analytics.py` |
+
+Built APIs that still have no screen (decide: build the screen or remove the API): ATS scores (`/ats/*`), learning dashboards (`/learning/dashboard`, `/recommendations`, `/cross-module`, analytics), cascade predictions, Spartan forecasting summary, `/agents/cfo/cost-breakdown`, `/jobs/my-jobs`, `/org/positions`, `/invoices/{id}/mark-paid` (replaced by record-payment), `/core-certification/eligibility/{id}`.
+
+Backlog epics with no code today (each is a product build, not a gap in an existing module): client portal (26 stories), boolean and saved search (14), sub-vendor portal login (vendors are served by email today), ad hoc staffing demand (8), demand plan from revenue targets and scenario planning, LinkedIn crawl and InMail (9), voice calling, job boards, Greenhouse/Lever import, payroll sync, ERP export, outbound webhook engine, GST, panel-split and experience-override workflows, nurture campaigns and relationship score, new-hire onboarding content steps (induction, policies, NDA, benefits, equipment), Teams chat dock, load testing.
+
+Left as they are because they wait on a decision or on production access: the 31 unused service files and unused jobs, the unscheduled daily digest, stale hand-off tasks in production (Thunder now acts on new replies itself; the old tasks are production data), staff notification emails are composed in code and are not in the template catalogue.
+
 ## Open now (verified 2026-10-30)
 
 Everything in the P0/P1/P2 tables further down is fixed on `main` (details in the progress log). What is still open:

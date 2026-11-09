@@ -11,13 +11,16 @@ GET /analytics/thunder?date_from={ISO}&date_to={ISO}
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import require_resource_permission
+from app.core.dependencies import get_current_internal_user, require_resource_permission
+from app.models.user import Users
+from app.schemas.hiring_analytics import HiringAnalyticsResponse
 from app.schemas.thunder_analytics import ThunderAnalyticsResponse
 from app.services.ai_conversation_service import resolve_default_tenant_id
+from app.services.hiring_analytics_service import HiringAnalyticsError, hiring_analytics
 from app.services.thunder_analytics_service import get_thunder_analytics
 
 router = APIRouter(prefix="/analytics", tags=["thunder-analytics"])
@@ -30,3 +33,18 @@ def thunder_analytics(
 ):
     tenant_id = resolve_default_tenant_id(db)
     return get_thunder_analytics(db, tenant_id, date_from=date_from, date_to=date_to)
+
+
+@router.get("/hiring", response_model=HiringAnalyticsResponse,
+            summary="Source of hire, each recruiter's results and open positions against hires (last 90 days by default)",
+            dependencies=[Depends(require_resource_permission("candidates", "view"))])
+def hiring_analytics_report(
+    date_from: Optional[date] = Query(default=None),
+    date_to: Optional[date] = Query(default=None),
+    db: Session = Depends(get_db),
+    user: Users = Depends(get_current_internal_user),
+):
+    try:
+        return hiring_analytics(db, user, date_from=date_from, date_to=date_to)
+    except HiringAnalyticsError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))

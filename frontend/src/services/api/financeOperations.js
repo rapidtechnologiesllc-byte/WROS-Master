@@ -89,6 +89,41 @@ export const linkIntercompanySettlement = async (settlementId, fromCompanyId, to
   return data;
 };
 
+// Bank reconciliation: unmatched bank credits, each with the sent invoices for exactly that amount and the
+// one suggested, plus paid invoices that no bank credit confirms
+export const getBankReconciliation = async () => {
+  const { data } = await apiRequest("/bank-transactions/reconciliation", { method: "GET" });
+  if (!data || !Array.isArray(data.transactions) || !Array.isArray(data.unmatched_paid_invoices)) {
+    throw new Error("Unexpected response: no bank reconciliation.");
+  }
+  return data;
+};
+
+// A bank statement saved as CSV: every credit is recorded once (uploading the same file again adds nothing)
+export const importBankStatement = async (file) => {
+  const body = new FormData();
+  body.append("file", file);
+  const { data } = await apiRequest("/bank-transactions/import", { method: "POST", body });
+  return data;
+};
+
+export const recordBankCredit = async ({ transactionDate, amountUsdCents, description }) => {
+  const { data } = await apiRequest("/bank-transactions", {
+    method: "POST",
+    body: JSON.stringify({ transaction_date: transactionDate, amount_usd_cents: amountUsdCents, description }),
+  });
+  return data;
+};
+
+// Finance confirms the match: a sent invoice becomes paid on the date of the credit, revenue recognised
+export const matchBankCredit = async (transactionId, invoiceId) => {
+  const { data } = await apiRequest(`/bank-transactions/${transactionId}/match`, {
+    method: "POST",
+    body: JSON.stringify({ invoice_id: invoiceId }),
+  });
+  return data;
+};
+
 // Net intercompany position of one company (by its id: settlements reference companies, not names)
 export const getCompanyNetPosition = async (companyId) => {
   const { data } = await apiRequest(`/intercompany-settlements/company/${encodeURIComponent(companyId)}/net-position`, {
