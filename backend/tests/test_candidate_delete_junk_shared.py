@@ -155,7 +155,7 @@ def _moves(monkeypatch, db, w, *, revenue_bus, amount=9_000_001):
 
 
 def test_the_split_goes_by_weight_and_nothing_is_lost(db, w, monkeypatch):
-    pool, by_function = _moves(monkeypatch, db, w, revenue_bus=[w.bu_a.id, w.bu_b.id])
+    pool, by_function, _ = _moves(monkeypatch, db, w, revenue_bus=[w.bu_a.id, w.bu_b.id])
     assert list(by_function.values()) == [9_000_001]
     assert pool == {(w.bu_a.id, "US"): 9_000_001}
     shares = revenue_chain_service.prorated_shares(9_000_001, {w.bu_a.id: 15, w.bu_b.id: 4})
@@ -164,7 +164,7 @@ def test_the_split_goes_by_weight_and_nothing_is_lost(db, w, monkeypatch):
 
 
 def test_with_no_revenue_the_pool_is_still_known(db, w, monkeypatch):
-    pool, _ = _moves(monkeypatch, db, w, revenue_bus=[])
+    pool, _, _ = _moves(monkeypatch, db, w, revenue_bus=[])
     assert pool == {(w.bu_a.id, "US"): 9_000_001}
 
 

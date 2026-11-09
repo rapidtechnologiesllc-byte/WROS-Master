@@ -66,7 +66,7 @@ const COMPANY_COLUMNS = [
   { key: "ic_rev", header: "Intercompany income", cell: (r) => (r.isGroup ? "cancels out" : usd(r.intercompany_revenue_usd_cents)) },
   { key: "ic_cost", header: "Intercompany cost", cell: (r) => (r.isGroup ? "cancels out" : usd(r.intercompany_cost_usd_cents)) },
   { key: "loaned", header: "Lent to others", cell: (r) => (r.isGroup ? "—" : usd(r.loaned_out_usd_cents)) },
-  ...MONEY_COLUMNS.filter((c) => !["collected", "unbilled", "shared"].includes(c.key)),
+  ...MONEY_COLUMNS.filter((c) => !["collected", "unbilled"].includes(c.key)),
 ];
 
 const groupThenCompanies = (report) => [
@@ -189,7 +189,7 @@ export default function PnlScreen() {
       {report?.by_company?.length ? (
         <Card
           title="By company"
-          subtitle="The group, then each company's own P&L: income on the clients it contracts, cost of the people it employs, and intercompany charges. The companies add up to the group."
+          subtitle="The group, then each company's own P&L: income on the clients it contracts, cost of the people it employs, intercompany charges, and its Corporate share by its own headcount. The companies add up to the group."
         >
           <Table columns={COMPANY_COLUMNS} rows={groupThenCompanies(report)} />
         </Card>

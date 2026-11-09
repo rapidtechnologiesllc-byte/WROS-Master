@@ -158,3 +158,75 @@ def test_the_form_sets_and_shows_corporate(db, api):
     assert api.get(w.org_user, f"/api/v1/rbac/business-units/{bu_id}").json()["is_corporate"] is True
     assert api.put(w.org_user, f"/api/v1/rbac/business-units/{bu_id}", json={"is_corporate": False, "name": ""}).status_code == 200
     assert api.get(w.org_user, f"/api/v1/rbac/business-units/{bu_id}").json()["is_corporate"] is False
+
+
+# ---- companies carry their share too (CEO 2026-11-09: "any income and expense will show in company level") ----
+
+COMPANY_MONEY = ("revenue_usd_cents", "delivery_cost_usd_cents", "bench_cost_usd_cents", "overhead_cost_usd_cents",
+                 "htd_cost_usd_cents", "expense_cost_usd_cents", "shared_cost_usd_cents", "total_cost_usd_cents")
+
+
+@pytest.fixture
+def companies(db, org):
+    """Corporate and the BU of 15 in one company, the BU of 4 in another (like Poliqs)."""
+    from app.models.employee_org_history import EmployeeOrgHistory
+    from app.models.location import Location
+
+    corp, big, small, _ = org
+    main, sister = Location(tenant_id=1, name=f"Main-{uid()}"), Location(tenant_id=1, name=f"Sister-{uid()}")
+    db.add_all([main, sister])
+    db.flush()
+    for unit, company in ((corp, main), (big, main), (small, sister)):
+        ids = [e.id for e in db.query(Employee).filter_by(bu_id=unit.id)]
+        db.query(Employee).filter(Employee.id.in_(ids)).update({"company_id": company.id}, synchronize_session=False)
+        db.query(EmployeeOrgHistory).filter(EmployeeOrgHistory.employee_id.in_(ids)).update(
+            {"company_id": company.id}, synchronize_session=False)
+    db.commit()
+    return main, sister
+
+
+def _by_company(report):
+    return {row["key"]: row for row in report["by_company"]}
+
+
+def test_each_company_carries_corporate_for_its_own_people(db, org, companies):
+    main, sister = companies
+    report = pnl(db, start=MONTH_START, end=MONTH_END, tenant_id=1)
+    rows = _by_company(report)
+    pool = 300_000  # the one Corporate person
+    assert rows[sister.id]["shared_cost_usd_cents"] == pytest.approx(pool * 4 / 19, abs=2)
+    assert rows[main.id]["shared_cost_usd_cents"] == pytest.approx(pool * 15 / 19, abs=2)
+    # the company that paid no longer carries it as its own staff cost
+    assert rows[main.id]["overhead_cost_usd_cents"] + rows[main.id]["shared_cost_usd_cents"] \
+        + rows[sister.id]["shared_cost_usd_cents"] == pytest.approx(5 * 300_000 + pool, abs=2)
+
+
+def test_every_company_column_adds_up_to_the_group(db, org, companies):
+    corp, *_ = org
+    w = two_bu_world(db)
+    db.add(ExpenseRecord(tenant_id=1, business_unit_id=corp.id, logged_by_user_id=w.org_user.UserID, expense_date=date(2026, 9, 10),
+                         amount_usd_cents=190_000, purpose=EXPENSE_PURPOSES[0], expense_category=EXPENSE_CATEGORIES[0], receipt_ref="r",
+                         description="Office", manager_approval_status="APPROVED"))
+    db.commit()
+    report = pnl(db, start=MONTH_START, end=MONTH_END, tenant_id=1)
+    for field in COMPANY_MONEY:
+        assert sum(row[field] for row in report["by_company"]) == report[field], field
+
+
+def test_a_loan_covers_the_borrowers_own_costs_not_its_corporate_share(db, org, companies):
+    main, sister = companies
+    sister.funded_by_company_id = main.id
+    db.commit()
+    report = pnl(db, start=MONTH_START, end=MONTH_END, tenant_id=1)
+    rows = _by_company(report)
+    own = rows[sister.id]["total_cost_usd_cents"] - rows[sister.id]["shared_cost_usd_cents"]
+    assert rows[sister.id]["shared_cost_usd_cents"] > 0
+    assert rows[main.id]["loaned_out_usd_cents"] == own
+    loan = next(row for row in report["company_loans"] if row["company_id"] == sister.id)
+    assert loan["period_usd_cents"] == own
+
+
+def test_a_slice_of_the_org_leaves_companies_without_a_partial_split(db, org, companies):
+    _, big, *_ = org
+    report = pnl(db, start=MONTH_START, end=MONTH_END, tenant_id=1, business_unit_ids={big.id})
+    assert all(row["shared_cost_usd_cents"] == 0 for row in report["by_company"])

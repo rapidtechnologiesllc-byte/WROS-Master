@@ -246,16 +246,18 @@ def test_income_and_delivery_land_where_they_belong(db, group):
     assert locations["IN"]["revenue_usd_cents"] > locations["US"]["revenue_usd_cents"] > 0
 
 
-def test_admin_cost_stays_on_its_company_and_is_shared_across_the_business_units(db, group):
+def test_admin_cost_is_shared_across_the_business_units_and_the_companies(db, group):
     report = chain.pnl(db, start=AUG[0], end=AUG[1], tenant_id=1)
     units = {r["key"]: r for r in report["by_business_unit"]}
     corporate = units.get(group.corp.id, {})
     assert corporate.get("overhead_cost_usd_cents", 0) == 0 and corporate.get("expense_cost_usd_cents", 0) == 0
     assert units[group.one.unit.id]["shared_cost_usd_cents"] > 0 and units[group.two.unit.id]["shared_cost_usd_cents"] > 0
     assert report["shared_cost_usd_cents"] == sum(r["shared_cost_usd_cents"] for r in report["by_business_unit"])
+    # CEO 2026-11-09: a company carries Corporate for its own people too, not the company that paid for it
     companies = {r["key"]: r for r in report["by_company"]}
-    assert companies[group.india.id]["overhead_cost_usd_cents"] >= MONTHLY  # the employer's own P&L keeps it
-    assert companies[group.us.id]["overhead_cost_usd_cents"] >= MONTHLY
+    assert companies[group.india.id]["shared_cost_usd_cents"] > 0 and companies[group.us.id]["shared_cost_usd_cents"] > 0
+    assert sum(r["shared_cost_usd_cents"] for r in report["by_company"]) == report["shared_cost_usd_cents"]
+    assert sum(r["overhead_cost_usd_cents"] for r in report["by_company"]) == report["overhead_cost_usd_cents"]
 
 
 def test_rejected_never_counts_and_awaiting_shows_beside_the_cost(db, group):
@@ -263,8 +265,9 @@ def test_rejected_never_counts_and_awaiting_shows_beside_the_cost(db, group):
     assert report["expense_cost_usd_cents"] == 50_000 + 120_000  # not the 70,000 rejected, nor the 9,000 waiting
     assert report["pending_expense_usd_cents"] == 9_000
     companies = {r["key"]: r for r in report["by_company"]}
-    assert companies[group.us.id]["expense_cost_usd_cents"] == 50_000  # the spender's own company
-    assert companies[group.india.id]["expense_cost_usd_cents"] == 120_000
+    # the spender's own company keeps its 50,000; the Corporate rent India paid is shared by each company's people
+    us, india = companies[group.us.id]["expense_cost_usd_cents"], companies[group.india.id]["expense_cost_usd_cents"]
+    assert us > 50_000 and india < 120_000 and us + india == 50_000 + 120_000
     locations = {r["key"]: r for r in report["by_location"]}
     assert locations["US"]["expense_cost_usd_cents"] == 50_000 and locations["IN"]["expense_cost_usd_cents"] == 120_000
 

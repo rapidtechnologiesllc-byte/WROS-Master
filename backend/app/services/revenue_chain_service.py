@@ -387,9 +387,10 @@ def corporate_unit_ids(db: Session, tenant_id: Optional[int] = None) -> Set[int]
 
 
 def headcount_weights(db: Session, *, start: date, end: date, tenant_id: Optional[int], costs: CostBook,
-                      corporate: Set[int]) -> Dict[int, int]:
+                      corporate: Set[int], by: str = "bu_id") -> Dict:
     """{BU: employee-days in the period} for every non-Corporate BU, billable or not, so someone who joined
-    mid-month counts for the days they were there. A BU with no employees is absent and pays nothing."""
+    mid-month counts for the days they were there. A BU with no employees is absent and pays nothing.
+    by="company_id": the same days counted by the company that employed them (company P&Ls, CEO 2026-11-09)."""
     staff = db.query(Employee).filter(Employee.joining_date <= end, Employee.status != "PRE_JOINING",
                                       (Employee.exit_date.is_(None)) | (Employee.exit_date >= start))
     if tenant_id is not None:
@@ -399,14 +400,14 @@ def headcount_weights(db: Session, *, start: date, end: date, tenant_id: Optiona
         if employee.status == "EXITED" and employee.exit_date is None:
             continue
         for segment in costs.segments(employee, start, end):
-            if segment["bu_id"] is not None and segment["bu_id"] not in corporate:
-                weights[segment["bu_id"]] += (segment["end"] - segment["start"]).days + 1
+            if segment["bu_id"] is not None and segment["bu_id"] not in corporate and segment[by] is not None:
+                weights[segment[by]] += (segment["end"] - segment["start"]).days + 1
     return dict(weights)
 
 
 def shared_service_moves(db: Session, *, start: date, end: date, tenant_id: Optional[int], costs: CostBook):
-    """({(home bu, country): cost of Corporate and org-level people who sat there}, {function: cost}). Always
-    org-wide, so a partner's view shows the same share as the CEO's."""
+    """({(home bu, country): cost of Corporate and org-level people who sat there}, {function: cost},
+    {company that employed them: cost}). Always org-wide, so a partner's view shows the same share as the CEO's."""
     from app.core import authority
     from app.core.config import settings as config
     from app.models.org_structure import Department
@@ -421,6 +422,7 @@ def shared_service_moves(db: Session, *, start: date, end: date, tenant_id: Opti
     corporate = corporate_unit_ids(db, tenant_id)
     pool: Dict = defaultdict(int)
     by_function: Dict = defaultdict(int)
+    paid_by_company: Dict = defaultdict(int)
     # outer join: Corporate staff need no login to be Corporate (facilities, for example)
     people = (db.query(Employee, Users).outerjoin(Users, Users.UserID == Employee.wros_user_id)
               .filter(Employee.is_billable.is_(False), Employee.sub_vendor_id.is_(None),
@@ -430,12 +432,13 @@ def shared_service_moves(db: Session, *, start: date, end: date, tenant_id: Opti
         in_function = user is not None and user.department_id in shared
         org_level = user is not None and authority.is_org_level(db, user)
         label = names.get(user.department_id) if in_function else "Leadership" if org_level else "Corporate"
-        for (bu_id, _, where), payroll in costs.by_object(employee, start, end).items():
+        for (bu_id, company_id, where), payroll in costs.by_object(employee, start, end).items():
             # anyone else is BU-specific: stays overhead of their BU
             if payroll and (in_function or org_level or bu_id in corporate):
                 pool[(bu_id, where)] += payroll
                 by_function[label] += payroll
-    return dict(pool), dict(by_function)
+                paid_by_company[company_id] += payroll
+    return dict(pool), dict(by_function), dict(paid_by_company)
 
 
 def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
@@ -510,7 +513,7 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
 
     from app.core.config import settings as config
 
-    pool, by_function = shared_service_moves(db, start=start, end=end, tenant_id=tenant_id, costs=costs)
+    pool, by_function, pool_by_company = shared_service_moves(db, start=start, end=end, tenant_id=tenant_id, costs=costs)
     corporate = corporate_unit_ids(db, tenant_id)
     weights = headcount_weights(db, start=start, end=end, tenant_id=tenant_id, costs=costs, corporate=corporate)
     split = config.SHARED_COST_SPLIT_TO_BUS and bool(weights)
@@ -533,6 +536,11 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
 
     # every BU's first: a Corporate expense is shared, including with a BU a partner is looking at
     every_expense, _ = _expenses(db, start, end, tenant_id, units, None, costs, include_pending=True)
+    # Corporate spend by the company that paid it, before it is spread across the business units
+    corporate_spend_by_company: Dict = defaultdict(int)
+    for e in every_expense:
+        if e["key"][1] in corporate and not e.get("pending"):
+            corporate_spend_by_company[e["company_id"]] += e["amount"]
     if split:
         every_expense = _share_corporate_expenses(every_expense, corporate, weights, units)
     if business_unit_ids is not None:
@@ -607,7 +615,17 @@ def pnl(db: Session, *, start: date, end: date, tenant_id: Optional[int] = None,
                   sum(b["overhead_cost_usd_cents"] for b in bench_rows.values()),
                   sum(b["htd_cost_usd_cents"] for b in bench_rows.values()),
                   sum(b["shared_cost_usd_cents"] for b in bench_rows.values()), pending_expenses)
-    by_company = _company_pnl(db, lines, company_staff_cost, expenses, start, end, tenant_id, pending=waiting)
+    # CEO 2026-11-09: each company carries the Corporate cost for its own people, as each BU does; the company that
+    # paid it carries it no more. The whole picture only: a slice would split a part of the pool.
+    company_split = None
+    if split and business_unit_ids is None and country is None:
+        company_weights = headcount_weights(db, start=start, end=end, tenant_id=tenant_id, costs=costs,
+                                            corporate=corporate, by="company_id")
+        if company_weights:
+            company_split = {"weights": company_weights, "payroll_paid": pool_by_company,
+                             "spend_paid": dict(corporate_spend_by_company)}
+    by_company = _company_pnl(db, lines, company_staff_cost, expenses, start, end, tenant_id, pending=waiting,
+                              corporate_split=company_split)
 
     def staff_rollup(key_of_line, key_of_bucket, names, key_of_expense) -> List[Dict]:
         """Rows for a staff-side dimension (location; cost object = BU x location): revenue and
@@ -664,7 +682,7 @@ def _group(db: Session, tenant_id: Optional[int]) -> Optional[Dict]:
 
 
 def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: List[Dict], start: date, end: date,
-                 tenant_id: Optional[int], pending: Iterable[Dict] = ()) -> List[Dict]:
+                 tenant_id: Optional[int], pending: Iterable[Dict] = (), corporate_split: Optional[Dict] = None) -> List[Dict]:
     """Each company's (legal entity's) own P&L; the parent company (tenant) owns the org-wide one.
 
       revenue          earned on the clients the company contracts (Client.contracting_company_id)
@@ -675,6 +693,9 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
                        they cancel out at org level, so the org P&L is unchanged
       loans            a company funded by a sister (Location.funded_by_company_id) carries its own
                        costs; the lender shows them as money lent, not as its expense
+      corporate share  Corporate people's payroll and Corporate spend leave the company that paid them and are
+                       shared by employee-days of each company's own people (corporate_split); a share is an
+                       allocation, never money lent
     Every company has a row, in company order, so the group always reads the same way. Work that can't
     be attributed to a company stays with the parent (key None), so the rows add up to the group."""
     from app.models.client import Client
@@ -685,10 +706,12 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
         db.query(Location).filter(Location.tenant_id == tenant_id).all()
     client_company = dict(db.query(Client.id, Client.contracting_company_id))
     rows: Dict = defaultdict(lambda: {"revenue": 0, "delivery": 0, "bench": 0, "overhead": 0, "htd": 0, "expense": 0,
-                                      "ic_revenue": 0, "ic_cost": 0, "complete": True, "pending": 0})
+                                      "ic_revenue": 0, "ic_cost": 0, "complete": True, "pending": 0, "shared": 0,
+                                      "vendor": 0})
     for line in lines:
         rows[client_company.get(line["client_id"])]["revenue"] += line.get("earned_usd_cents") or 0
         owner = rows[line["cost_company_id"]]  # the company the employee worked for that week
+        owner["vendor"] += line.get("vendor_cost_usd_cents") or 0  # part of its delivery cost, shown on its own
         if line["cost_usd_cents"] is None:
             owner["complete"] = False
         else:
@@ -712,6 +735,15 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
         rows[s.to_company_id]["ic_revenue"] += s.amount_usd_cents
         rows[s.from_company_id]["ic_cost"] += s.amount_usd_cents
 
+    if corporate_split:
+        # payroll moves from the payer's internal staff to Corporate share, spend stays spend: the same columns as
+        # the group's, so each column of the companies adds up to the group's
+        for paid_key, paid_column, share_column in (("payroll_paid", "overhead", "shared"), ("spend_paid", "expense", "expense")):
+            paid = corporate_split[paid_key]
+            for company_id, amount in paid.items():
+                rows[company_id][paid_column] -= amount
+            for company_id, share in prorated_shares(sum(paid.values()), corporate_split["weights"]).items():
+                rows[company_id][share_column] += share
     for company in companies:
         rows[company.id]  # a company with nothing this period still shows
     names = {c.id: (c.name, c.company_code) for c in companies}
@@ -722,7 +754,7 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
     out = []
     for key, r in rows.items():
         revenue = r["revenue"] + r["ic_revenue"]
-        cost = r["delivery"] + r["bench"] + r["overhead"] + r["htd"] + r["expense"] + r["ic_cost"]
+        cost = r["delivery"] + r["bench"] + r["overhead"] + r["htd"] + r["expense"] + r["ic_cost"] + r["shared"]
         out.append(_with_margin({
             "key": key, "name": names.get(key, ("Not tagged to a company", None))[0],
             "company_code": names.get(key, (None, None))[1],
@@ -731,12 +763,15 @@ def _company_pnl(db: Session, lines: List[Dict], staff_cost: Dict, expenses: Lis
             "delivery_cost_usd_cents": r["delivery"], "bench_cost_usd_cents": r["bench"],
             "overhead_cost_usd_cents": r["overhead"], "htd_cost_usd_cents": r["htd"],
             "expense_cost_usd_cents": r["expense"], "pending_expense_usd_cents": r["pending"], "total_cost_usd_cents": cost,
+            "shared_cost_usd_cents": r["shared"], "vendor_cost_usd_cents": r["vendor"],
             "cost_data_complete": r["complete"], "funded_by": names.get(funded.get(key), (None, None))[0],
             "loaned_out_usd_cents": 0,
         }, revenue, cost, r["complete"]))
     by_key = {row["key"]: row for row in out}
     for borrower, lender in funded.items():
-        by_key[lender]["loaned_out_usd_cents"] += by_key[borrower]["total_cost_usd_cents"]
+        # what the lender paid: the borrower's own costs, not its share of Corporate (an allocation)
+        borrower_row = by_key[borrower]
+        by_key[lender]["loaned_out_usd_cents"] += borrower_row["total_cost_usd_cents"] - borrower_row["shared_cost_usd_cents"]
     return sorted(out, key=lambda r: (r["key"] is None, order.get(r["key"], (0, ""))))
 
 
@@ -775,7 +810,7 @@ def company_loans(db: Session, by_company: List[Dict], *, end: date, tenant_id: 
     for expense in _expenses(db, date.min, end, tenant_id, units, None, costs)[0]:
         if expense["company_id"] in funded:
             totals[expense["company_id"]] += expense["amount"]
-    period = {row["key"]: row["total_cost_usd_cents"] for row in by_company}
+    period = {row["key"]: row["total_cost_usd_cents"] - row.get("shared_cost_usd_cents", 0) for row in by_company}
     return [{"company_id": company_id, "company": names.get(company_id), "lender_id": lender,
              "lender": names.get(lender), "period_usd_cents": period.get(company_id, 0),
              "to_date_usd_cents": round(totals[company_id]), "cost_data_complete": complete[company_id]}
