@@ -19,6 +19,26 @@ CANDIDATE_SOURCE_CHANNELS = ("DIRECT", "SUBVENDOR")
 
 logger = logging.getLogger(__name__)
 
+class CandidateMerge(Base):
+    """A candidate record folded into another and removed (CEO 2026-11-09: one person is one record, never one
+    active and one archived). Its id, emails and phones keep leading to the record kept: old links, replies and
+    duplicate checks."""
+    __tablename__ = "candidate_merges"
+
+    merged_id = Column(String(512), primary_key=True)
+    kept_id = Column(String(512), ForeignKey("candidates.candidateID", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(Integer, nullable=True, index=True)
+    name = Column(String(512), nullable=True)
+    email = Column(String(512), nullable=True, index=True)
+    secondary_email = Column(String(512), nullable=True, index=True)
+    mobile = Column(String(64), nullable=True)
+    secondary_mobile = Column(String(64), nullable=True)
+    merged_by = Column(String(512), nullable=True)
+    merged_by_name = Column(String(512), nullable=True)
+    records_moved = Column(Integer, nullable=True)
+    merged_at = Column(DateTime, server_default=func.now())
+
+
 class Candidate(Base):
     __tablename__ = "candidates"
     candidateID = Column(String(512), primary_key=True, index=True)

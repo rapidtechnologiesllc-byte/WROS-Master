@@ -52,6 +52,10 @@ def _resolve_entity(db: Session, email: str):
         return "employee", employee.id, name
 
     candidate = db.query(Candidate).filter(func.lower(Candidate.candidateEmail) == normalized).first()
+    if candidate is None:  # a merged-away record's address: the record it was merged into
+        from app.services.candidate_merge_service import kept_record_for_contact
+
+        candidate = kept_record_for_contact(db, email=normalized)
     if candidate:
         from app.services.candidate_merge_service import resolve_merged
 

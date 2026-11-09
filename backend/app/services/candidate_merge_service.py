@@ -1,12 +1,15 @@
 """Merge two candidate records of one person (CEO 2026-11-04: "THE SAME CANDIDATE GOT created twice").
 
 Everything attached to the duplicate moves to the record kept: every table with a foreign key to candidates, the
-tables that hold a candidate id without one, and the records addressed by entity or subject. The duplicate is not
-deleted: it is archived with merged_into_id set, so its email and phone keep leading to the kept record
-(resolve_merged) and its old link opens the kept record. Audit logs are not rewritten: they say what happened.
+tables that hold a candidate id without one, and the records addressed by entity or subject. Then the duplicate is
+removed (CEO 2026-11-09: "only 1 record that is active", not one active and one archived): a CandidateMerge row keeps
+its id, emails and phones, so its old link, its replies and duplicate checks all lead to the record kept, and the kept
+record's history shows both as one. Audit logs are not rewritten: they say what happened.
 
-A row that cannot move because the kept record already has its unique counterpart (one cadence, one status) stays on
-the archived record, and the kept record's own row wins.
+A one-per-candidate row the kept record already has (its status, its cadence) is combined: what only the duplicate's
+row knows fills the kept one's blanks, the live conversation carries over, and the duplicate's row goes. A second open
+hiring pipeline is closed and moved, so its events stay on the record. The merge is all or nothing: if anything still
+points at the duplicate, nothing changes and the error says what.
 """
 import logging
 import re
@@ -18,7 +21,7 @@ from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.orm import Session
 
 from app.models.base import Base
-from app.models.candidate import Candidate, CandidateStatus
+from app.models.candidate import Candidate, CandidateMerge, CandidateStatus
 from app.models.candidate_history import CandidateHistory
 
 logger = logging.getLogger(__name__)
@@ -32,8 +35,8 @@ ENTITY_COLUMNS = (("activity_timeline", "entity_id", "entity_type"), ("file_uplo
                   ("consent_records", "subject_id", "subject_type"))
 NEVER_COPIED = {"candidateID", "candidateEmail", "candidatePassword", "candidateTempPassword", "candidateCreatedAt",
                 "merged_into_id", "tenant_id", "candidateSecondaryEmail", "candidateSecondaryMobile"}
-# The archived record's own marks: its status says it is archived, its cadence says it stopped
-STAYS_ON_ARCHIVED = {"candidate_status", "thunder_cadence_state"}
+# One per candidate, settled after the move: the kept record's status wins, the conversation is carried over
+SETTLED_AFTER_MOVE = {"candidate_status", "thunder_cadence_state"}
 MIN_LOCAL_PART = 5
 CADENCE_RANK = {"STOPPED": 0, "ACTIVE": 1, "NURTURE": 2, "HANDOFF": 3}
 
@@ -48,7 +51,8 @@ def last_digits(phone: Optional[str]) -> str:
 
 
 def resolve_merged(db: Session, candidate: Optional[Candidate]) -> Optional[Candidate]:
-    """The record to use: the one this was merged into, else this one."""
+    """The record to use: the one this was merged into, else this one (merged_into_id is only on records
+    archived before 2026-11-09, until the startup migration folds them in)."""
     seen = set()
     while candidate is not None and candidate.merged_into_id and candidate.candidateID not in seen:
         seen.add(candidate.candidateID)
@@ -56,7 +60,49 @@ def resolve_merged(db: Session, candidate: Optional[Candidate]) -> Optional[Cand
     return candidate
 
 
-def _candidate_columns() -> List:
+def kept_record_for_id(db: Session, candidate_id: str) -> Optional[str]:
+    """A removed duplicate's id -> the id of the record it was merged into."""
+    row = db.get(CandidateMerge, candidate_id)
+    return row.kept_id if row is not None else None
+
+
+def kept_record_for_contact(db: Session, email: Optional[str] = None, mobile: Optional[str] = None) -> Optional[Candidate]:
+    """The record kept for a removed duplicate's email or phone."""
+    query = db.query(CandidateMerge)
+    row = None
+    if email:
+        email = email.strip().lower()
+        row = query.filter(or_(func.lower(CandidateMerge.email) == email,
+                               func.lower(CandidateMerge.secondary_email) == email)).first()
+    digits = last_digits(mobile)
+    if row is None and len(digits) >= 7:
+        row = next((m for m in query.filter(or_(CandidateMerge.mobile.isnot(None), CandidateMerge.secondary_mobile.isnot(None)))
+                    if digits in (last_digits(m.mobile), last_digits(m.secondary_mobile))), None)
+    return db.get(Candidate, row.kept_id) if row is not None else None
+
+
+def _database_only_columns(db: Session, known) -> List:
+    """Foreign keys to candidates the database has but the models don't (older tables): read from the database, so a
+    merge moves their rows too instead of being blocked by them or losing them to a cascade."""
+    from sqlalchemy import MetaData, Table, text
+
+    if db.bind is None or db.bind.dialect.name != "postgresql":
+        return []
+    rows = db.execute(text("""
+        SELECT c.conrelid::regclass::text, a.attname
+        FROM pg_constraint c JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)
+        WHERE c.contype = 'f' AND c.confrelid = to_regclass('app_schema.candidates')""")).all()
+    columns, metadata = [], MetaData()
+    for qualified, column_name in rows:
+        schema, _, name = qualified.rpartition(".")
+        if name == Candidate.__tablename__ or (name, column_name) in known:
+            continue
+        table = Table(name, metadata, schema=schema or None, autoload_with=db.connection())
+        columns.append((table, table.c[column_name], None))
+    return columns
+
+
+def _candidate_columns(db: Optional[Session] = None) -> List:
     columns = []
     for table in Base.metadata.sorted_tables:
         if table.name == Candidate.__tablename__:
@@ -69,6 +115,8 @@ def _candidate_columns() -> List:
     for name, id_column, type_column in ENTITY_COLUMNS:
         if name in tables:
             columns.append((tables[name], tables[name].c[id_column], tables[name].c[type_column]))
+    if db is not None:
+        columns += _database_only_columns(db, {(table.name, column.name) for table, column, _ in columns})
     return columns
 
 
@@ -106,7 +154,7 @@ def _move(db: Session, table, column, type_column, source_id: str, target_id: st
 def _absorb(db: Session, table, column, row, this_row, target_id: str) -> bool:
     """The kept record already has this one-per-candidate row: what only the duplicate's row knows goes onto it, and
     the duplicate's row goes. False when it has to stay."""
-    if table.name in STAYS_ON_ARCHIVED:
+    if table.name in SETTLED_AFTER_MOVE:
         return False
     key_columns = set(table.primary_key.columns)
     same = column == target_id
@@ -166,9 +214,8 @@ def _keep_contact_details(source: Candidate, target: Candidate) -> None:
 
 def merge_candidates(db: Session, source: Candidate, target: Candidate, *, merged_by: str,
                      merged_by_name: Optional[str] = None) -> Dict:
-    """Merge source (archived) into target (kept). Commits."""
+    """Fold source into target (kept) and remove source. Commits; on any failure nothing changes."""
     from app.models.employee import Employee
-    from app.models.thunder_email import ThunderCadenceState
 
     if source.candidateID == target.candidateID:
         raise CandidateMergeError("Pick a different candidate: this is the same record.")
@@ -179,8 +226,36 @@ def merge_candidates(db: Session, source: Candidate, target: Candidate, *, merge
     if db.query(Employee.id).filter(Employee.candidate_id == source.candidateID).first() \
             and db.query(Employee.id).filter(Employee.candidate_id == target.candidateID).first():
         raise CandidateMergeError("Both records are employees: an employee record cannot be merged here.")
+    try:
+        result = fold_into(db, source, target, merged_by=merged_by, merged_by_name=merged_by_name)
+    except Exception:
+        db.rollback()
+        raise
+    db.commit()
+    logger.info(f"[CandidateMerge] {result['removed_candidate_id']} -> {result['kept_candidate_id']} by {merged_by}: "
+                f"{result['records_moved']} moved")
+    return result
+
+
+def fold_into(db: Session, source: Candidate, target: Candidate, *, merged_by: str,
+              merged_by_name: Optional[str] = None, carry_conversation: bool = True) -> Dict:
+    """Move everything from source to target, settle the one-per-candidate rows, record the merge and remove source.
+    Flushes, does not commit. carry_conversation=False for a record archived before 2026-11-09, whose conversation
+    was carried over then."""
+    from app.models.hiring_pipeline import HiringPipeline
+    from app.models.thunder_email import ThunderCadenceState
 
     source_id, target_id = source.candidateID, target.candidateID
+    source_name = " ".join(p for p in (source.candidateFirstName, source.candidateLastName) if p) or None
+    contact = {"email": source.candidateEmail, "secondary_email": source.candidateSecondaryEmail,
+               "mobile": source.candidateMobile, "secondary_mobile": source.candidateSecondaryMobile}
+    # the kept record's status wins (one per candidate, though the table allows more): the duplicate's goes first
+    if db.query(CandidateStatus.id).filter(CandidateStatus.candidateID == target_id).first():
+        db.query(CandidateStatus).filter(CandidateStatus.candidateID == source_id).delete(synchronize_session=False)
+    # a second open pipeline can't sit beside the kept record's open one: closed, it moves with its history
+    if db.query(HiringPipeline.id).filter(HiringPipeline.candidate_id == target_id, HiringPipeline.closed_at.is_(None)).first():
+        db.query(HiringPipeline).filter(HiringPipeline.candidate_id == source_id, HiringPipeline.closed_at.is_(None)) \
+            .update({"closed_at": datetime.utcnow()}, synchronize_session=False)
     copied = []
     for column in Candidate.__table__.columns:
         if column.name in NEVER_COPIED:
@@ -194,7 +269,7 @@ def merge_candidates(db: Session, source: Candidate, target: Candidate, *, merge
     db.flush()
 
     moved = kept = 0
-    for table, column, type_column in _candidate_columns():
+    for table, column, type_column in _candidate_columns(db):
         result = _move(db, table, column, type_column, source_id, target_id)
         moved += result["moved"]
         kept += result["kept"]
@@ -203,28 +278,65 @@ def merge_candidates(db: Session, source: Candidate, target: Candidate, *, merge
     # Earlier merges into the duplicate now lead to the kept record
     db.query(Candidate).filter(Candidate.merged_into_id == source_id).update({"merged_into_id": target_id},
                                                                              synchronize_session=False)
+    db.query(CandidateMerge).filter(CandidateMerge.kept_id == source_id).update({"kept_id": target_id},
+                                                                                synchronize_session=False)
     source = db.get(Candidate, source_id)
     target = db.get(Candidate, target_id)
-    source.merged_into_id, source.thunder_enabled = target_id, False
     _keep_contact_details(source, target)
-    status = db.query(CandidateStatus).filter(CandidateStatus.candidateID == source_id).first()
-    if status is None:
-        db.add(CandidateStatus(candidateID=source_id, status="Inactive"))
-    else:
-        status.status = "Inactive"
+    # the conversation the kept record already had: the live one carries over, the duplicate's goes
     for state in db.query(ThunderCadenceState).filter(ThunderCadenceState.candidate_id == source_id).all():
-        _carry_live_cadence(state, db.get(ThunderCadenceState, target_id))
-        state.stage, state.stop_reason = "STOPPED", f"Merged into {target_id}"
-        state.next_step, state.next_action_at = None, None
+        if carry_conversation:
+            _carry_live_cadence(state, db.get(ThunderCadenceState, target_id))
+        db.delete(state)
+    db.flush()
 
-    other = ", ".join(v for v in (source.candidateEmail, source.candidateMobile) if v)
+    left = _still_pointing_at(db, source_id)
+    if left:  # nothing may lose its candidate: the whole merge is undone by the caller
+        raise CandidateMergeError("These records could not be moved to the record kept, so nothing was merged: "
+                                  + ", ".join(f"{table} ({count})" for table, count in sorted(left.items())))
+    db.add(CandidateMerge(merged_id=source_id, kept_id=target_id, tenant_id=target.tenant_id, name=source_name,
+                          merged_by=merged_by, merged_by_name=merged_by_name, records_moved=moved, **contact))
+    other = ", ".join(v for v in (contact["email"], contact["mobile"]) if v)
     db.add(CandidateHistory(candidateID=target_id, event_type="Custom", performed_by_id=merged_by,
                             performed_by_name=merged_by_name, event_at=datetime.utcnow(),
-                            note=f"Merged a duplicate record ({source_id}) into this one. Its contact details stay on file: {other}."))
-    db.commit()
-    logger.info(f"[CandidateMerge] {source_id} -> {target_id} by {merged_by}: {moved} moved, {kept} kept on the duplicate")
-    return {"kept_candidate_id": target_id, "archived_candidate_id": source_id, "records_moved": moved,
-            "records_left_on_duplicate": kept, "fields_filled": copied}
+                            note=f"Merged {source_name or 'a duplicate record'} ({source_id}) into this record: {moved} "
+                                 f"record{'' if moved == 1 else 's'} moved and both histories shown here as one. "
+                                 f"Its contact details stay on file: {other}."))
+    db.delete(source)
+    db.flush()
+    return {"kept_candidate_id": target_id, "removed_candidate_id": source_id, "records_moved": moved,
+            "fields_filled": copied}
+
+
+def _still_pointing_at(db: Session, candidate_id: str) -> Dict[str, int]:
+    left = {}
+    for table, column, type_column in _candidate_columns(db):
+        condition = column == candidate_id
+        if type_column is not None:
+            condition = condition & (func.lower(type_column) == "candidate")
+        try:
+            with db.begin_nested():
+                count = db.execute(table.select().with_only_columns(func.count()).where(condition)).scalar()
+        except ProgrammingError:  # a table this database does not have
+            continue
+        if count:
+            left[table.name] = count
+    return left
+
+
+def finish_archived_merges(db: Session) -> int:
+    """Records archived by a merge before 2026-11-09 are folded into the record kept and removed. Flushes."""
+    done = 0
+    for source in db.query(Candidate).filter(Candidate.merged_into_id.isnot(None)).all():
+        target = resolve_merged(db, source)
+        if target is None or target.candidateID == source.candidateID:
+            continue
+        source.merged_into_id = None
+        db.flush()
+        fold_into(db, source, target, merged_by="system", merged_by_name="Merge clean-up (one record per person)",
+                  carry_conversation=False)
+        done += 1
+    return done
 
 
 def possible_duplicates(db: Session, candidate: Candidate, query: Optional[str] = None, limit: int = 20) -> List[Dict]:

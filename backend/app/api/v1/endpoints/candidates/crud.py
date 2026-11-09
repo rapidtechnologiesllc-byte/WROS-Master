@@ -334,11 +334,15 @@ def possible_duplicates(candidate_id: str, q: Optional[str] = None, db: Session 
 )
 def merge_candidate(candidate_id: str, body: CandidateMergeRequest, db: Session = Depends(get_db),
                     user = Depends(get_current_user)):
-    """Merge this record into another: everything moves there, this one is archived and leads there."""
-    from app.services.candidate_merge_service import CandidateMergeError, merge_candidates
+    """Merge this record into another: everything moves there and this one is removed; its link leads there."""
+    from app.services.candidate_merge_service import CandidateMergeError, kept_record_for_id, merge_candidates
 
     source = get_candidate_by_id_with_bu_scope(db, candidate_id, user)
     target = get_candidate_by_id_with_bu_scope(db, body.into_candidate_id, user)
+    for missing in ([] if source else [candidate_id]) + ([] if target else [body.into_candidate_id]):
+        kept = kept_record_for_id(db, missing)
+        if kept is not None:
+            raise HTTPException(status_code=400, detail=f"{missing} was already merged into {kept}: open that record.")
     if not source or not target:
         raise HTTPException(status_code=404, detail="Candidate not found.")
     try:
@@ -380,6 +384,12 @@ def get_candidate_by_id(
     # - Job-submitted: respect BU ownership if user is bu_restricted
     candidate = get_candidate_by_id_with_bu_scope(db, candidate_id, user)
     if not candidate:
+        from app.services.candidate_merge_service import kept_record_for_id
+
+        kept_id = kept_record_for_id(db, candidate_id)
+        if kept_id is not None:  # a merged-away record's old link opens the record it was merged into
+            kept = get_candidate_by_id(kept_id, db, user)
+            return kept.model_copy(update={"merged_into_id": kept_id})
         raise HTTPException(
             status_code=404,
             detail=f"Candidate with ID '{candidate_id}' not found"
