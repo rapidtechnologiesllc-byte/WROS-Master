@@ -97,6 +97,21 @@ class DuplicateCandidateError(Exception):
 MIN_PHONE_DIGITS = 7  # shorter digit strings are not phone numbers worth matching on
 
 
+LINKEDIN_PROFILE = re.compile(r"linkedin\.com/in/([^/?#\s]+)", re.IGNORECASE)
+
+
+def normalize_linkedin_url(url: Optional[str]) -> Optional[str]:
+    """One spelling of a LinkedIn profile link, so the same profile is never two candidates. None for blank;
+    ValueError for something that is not a profile link."""
+    url = (url or "").strip().rstrip("/")
+    if not url:
+        return None
+    handle = LINKEDIN_PROFILE.search(url)
+    if not handle:
+        raise ValueError("Give the LinkedIn profile link, like https://www.linkedin.com/in/name")
+    return f"https://www.linkedin.com/in/{handle.group(1)}"
+
+
 def find_duplicate_candidate(
     db: Session, *, email: Optional[str] = None, mobile: Optional[str] = None,
     linkedin_url: Optional[str] = None,

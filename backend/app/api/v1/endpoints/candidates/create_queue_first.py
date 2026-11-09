@@ -43,6 +43,7 @@ class CreateCandidateRequest(BaseModel):
     candidate_last_name: Optional[str] = None
     mobile: Optional[str] = None
     candidate_mobile: Optional[str] = None
+    linkedin_url: Optional[str] = None
     gender: Optional[str] = None
     candidate_gender: Optional[str] = None
     current_location: Optional[str] = None
@@ -211,6 +212,16 @@ async def create_candidate(
                 )
         tenant_id = tenant_id_of(current_user)
         _validate_referral(db, request, source, tenant_id)
+        from app.services.candidate_service import find_duplicate_candidate, normalize_linkedin_url
+
+        try:
+            linkedin_url = normalize_linkedin_url(request.linkedin_url)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        if linkedin_url:
+            holder = find_duplicate_candidate(db, linkedin_url=linkedin_url)[0]
+            if holder is not None and holder.tenant_id == tenant_id:
+                raise HTTPException(status_code=409, detail=f"This LinkedIn profile already belongs to candidate {holder.candidateID}")
 
         logger.info(f"[CANDIDATE_CREATE] Queueing candidate: {email} ({first_name} {last_name})")
 
@@ -223,6 +234,7 @@ async def create_candidate(
             "candidate_first_name": first_name,
             "candidate_last_name": last_name,
             "candidate_mobile": mobile,
+            "linkedin_url": linkedin_url,
             "candidate_gender": gender,
             "candidate_current_location": current_location,
             "candidate_source": source,

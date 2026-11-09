@@ -84,6 +84,25 @@ class ForwardReading:
     phones: List[str] = field(default_factory=list)
     resume: Optional[Attachment] = None
     unreadable_attachments: List[str] = field(default_factory=list)
+    # one of our people wrote to exactly one outside person (not a forward): reaching out to them
+    outreach: bool = False
+
+
+GREETING = re.compile(r"^\s*(?:hi|hello|hey|dear|good (?:morning|afternoon|evening))\s+([A-Za-z][A-Za-z'-]+)\b",
+                      re.IGNORECASE | re.MULTILINE)
+
+
+def name_from_address(email: Optional[str], greeting_name: Optional[str] = None):
+    """(first, last) from an address like jane.doe@ or jane_doe@ (CEO 2026-11-09: an outreach email to
+    apeksha.suvarna@ named no one). A greeting ("Hello Jane,") that names someone else wins nothing:
+    the address must agree with it. (None, None) when the address doesn't spell two names."""
+    local = (email or "").split("@")[0]
+    parts = [p for p in re.split(r"[._-]+", local) if p]
+    if len(parts) < 2 or not all(re.fullmatch(r"[A-Za-z]{2,}", p) for p in (parts[0], parts[-1])):
+        return None, None
+    if greeting_name and greeting_name.lower() != parts[0].lower():
+        return None, None
+    return parts[0].capitalize(), parts[-1].capitalize()
 
 
 def _extension(name: str) -> str:
@@ -305,8 +324,10 @@ def read_forward(db: Session, tenant_id: int, subject: str, body: str, raw_attac
     if sender_email in internal:
         sender_name, sender_email = None, None
     outside = [r for r in recipients or [] if r.get("email") and r["email"].lower() not in internal]
+    outreach = False
     if sender_email is None and len(outside) == 1:  # we wrote to one outside person: them
         sender_name, sender_email = outside[0].get("name") or None, outside[0]["email"].lower()
+        outreach = True
         if sender_email not in emails:
             emails.insert(0, sender_email)
 
@@ -319,6 +340,10 @@ def read_forward(db: Session, tenant_id: int, subject: str, body: str, raw_attac
     full_name = (parsed.get("full_name") or _leading_name(resume_text) or _name_in(resume_text or body, hinted)
                  or (sender_name if sender_name and " " in sender_name.strip() else None))
     first, last = _split_name(full_name)
+    if outreach and not (first and last):  # "Hello Jane," to jane.doe@...: the address spells the name
+        greeting = GREETING.search(body or "")
+        first, last = name_from_address(sender_email, greeting.group(1) if greeting else None) if not first else (
+            first, name_from_address(sender_email, first)[1])
     candidate = {
         "first_name": first, "last_name": last,
         "email": (parsed.get("email") or "").lower() or sender_email or (emails[0] if emails else None),
@@ -330,7 +355,7 @@ def read_forward(db: Session, tenant_id: int, subject: str, body: str, raw_attac
         kind=_rule_kind(text, resume), confidence=0.5, source="rule",
         summary=(subject or "").strip()[:300], forwarder_note=_forwarder_note(body),
         original_sender_name=sender_name, original_sender_email=sender_email, candidate=candidate,
-        emails=emails, phones=phones, resume=resume, unreadable_attachments=unreadable,
+        emails=emails, phones=phones, resume=resume, unreadable_attachments=unreadable, outreach=outreach,
     )
 
     from app.services.prompt_framework_service import call_llm

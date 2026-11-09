@@ -156,6 +156,9 @@ def process_intake(db: Session, intake_id: str, mailbox=None, *, llm_call: Optio
     meeting = _meeting(mailbox, row, body, forwarder, ours)
     if meeting and reading.kind == "OTHER" and (reading.candidate or {}).get("email"):
         reading.kind = "NEW_CANDIDATE"  # a meeting with one outside person and a profile: a candidate call
+    elif reading.kind == "OTHER" and reading.outreach and _outreach_to_a_new_person(db, row, reading):
+        # CEO 2026-11-09: one of our people wrote to one outside person, copying HRMS: reaching out to a candidate
+        reading.kind = "NEW_CANDIDATE"
     row.kind, row.confidence, row.classifier_source = reading.kind, reading.confidence, reading.source
     row.extracted = {**_extracted(reading), **({"meeting": meeting} if meeting else {})}
     logger.info(f"[ForwardIntake] read intake={row.id} kind={reading.kind} source={reading.source} "
@@ -225,6 +228,19 @@ def _certification_alert(db: Session, row, forwarder: Users, mailbox) -> Dict:
     row.kind, row.status, row.processed_at = "CERT_ALERT", "PROCESSED", datetime.utcnow()
     db.commit()
     return {"status": "processed", "intake_id": row.id, **result}
+
+
+def _outreach_to_a_new_person(db: Session, row, reading: ForwardReading) -> bool:
+    """The one outside person is nobody we already know as a client contact or an employee (an existing
+    candidate is handled as an update by the filing that follows)."""
+    from app.models.employee import Employee
+    from app.services.client_email_log_service import match_clients
+
+    address = (reading.candidate or {}).get("email") or reading.original_sender_email
+    if not address or _existing_candidate(db, row, reading) is not None or match_clients(db, [address]):
+        return False
+    return db.query(Employee.id).filter(Employee.tenant_id == row.tenant_id, or_(
+        func.lower(Employee.email) == address, func.lower(Employee.personal_email) == address)).first() is None
 
 
 def _known_address(db: Session, row, reading: ForwardReading) -> bool:
