@@ -7,6 +7,8 @@ from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from sqlalchemy import func
+
 import pytest
 
 from app.models.activity_timeline import ActivityTimeline
@@ -737,3 +739,78 @@ def test_a_name_from_an_address(address, greeting, expected):
     from app.services.thunder_mail.forward_classifier import name_from_address
 
     assert name_from_address(address, greeting) == expected
+
+
+# ---- set-aside emails looked at again (CEO 2026-11-09: Apeksha was added by hand after her email was set aside) ----
+
+class OnceQueue:
+    """The queue's deterministic task id is its primary key: the same key is queued once."""
+
+    def __init__(self):
+        self.ids = []
+
+    def __call__(self, task_name, task_id, data, tenant_id, delay_seconds=0):
+        if task_id in self.ids:
+            return False
+        self.ids.append(task_id)
+        return True
+
+
+def _set_aside(db, ceo, address):
+    row, mailbox = _outreach(db, ceo, address, body="Thoughts on this?", name="Someone")
+    with patch("app.services.thunder_mail.forward_intake_service._outreach_to_a_new_person", return_value=False):
+        run_handler(db, row.id, mailbox)  # as before the outreach rule: set aside
+    db.refresh(row)
+    assert row.status == "IGNORED"
+    return row, mailbox
+
+
+def test_a_set_aside_email_is_filed_once_its_person_is_added(db, ceo):
+    from app.services.thunder_mail.forward_intake_service import recheck_set_aside
+
+    row, mailbox = _set_aside(db, ceo, "apeksha.suvarna@gmail.com")
+    queue = OnceQueue()
+    with patch("app.services.thunder_mail.cadence_service.enqueue_once", queue):
+        assert recheck_set_aside(db)["refiled"] == 0  # still nobody we know
+        candidate = Candidate(candidateID=f"CAN-{uid()}", candidateFirstName="Apeksha", candidateLastName="Suvarna",
+                              candidateEmail="apeksha.suvarna@gmail.com", tenant_id=1, candidatePassword="x")
+        db.add(candidate)  # added by hand
+        db.commit()
+        assert recheck_set_aside(db)["refiled"] == 1
+        assert queue.ids == [f"thunder_forward:{row.id}:recheck"]
+        result, _ = run_handler(db, row.id, mailbox)  # the queued re-read files it on her profile
+        assert result["status"] in ("processed", "candidate_queued"), result
+        db.refresh(row)
+        assert row.candidate_id == candidate.candidateID
+        assert recheck_set_aside(db)["refiled"] == 0  # filed: never again
+    assert db.query(Candidate).filter(func.lower(Candidate.candidateEmail) == "apeksha.suvarna@gmail.com").count() == 1
+
+
+def test_an_email_older_than_the_window_is_left_alone(db, ceo):
+    from app.services.thunder_mail.forward_intake_service import RECHECK_WINDOW, recheck_set_aside
+
+    row, _ = _set_aside(db, ceo, "late.person@gmail.com")
+    db.query(MailboxIntakeMessage).filter_by(id=row.id).update(
+        {"received_at": datetime.utcnow() - RECHECK_WINDOW - timedelta(days=1)})
+    db.add(Candidate(candidateID=f"CAN-{uid()}", candidateFirstName="Late", candidateLastName="Person",
+                     candidateEmail="late.person@gmail.com", tenant_id=1, candidatePassword="x"))
+    db.commit()
+    with patch("app.services.thunder_mail.cadence_service.enqueue_once", OnceQueue()):
+        assert recheck_set_aside(db)["refiled"] == 0
+
+
+def test_a_set_aside_email_queued_once_is_not_queued_again(db, ceo):
+    from app.services.thunder_mail.forward_intake_service import recheck_set_aside
+
+    row, _ = _set_aside(db, ceo, "twice.checked@gmail.com")
+    db.add(Candidate(candidateID=f"CAN-{uid()}", candidateFirstName="Twice", candidateLastName="Checked",
+                     candidateEmail="twice.checked@gmail.com", tenant_id=1, candidatePassword="x"))
+    db.commit()
+    queue = OnceQueue()
+    with patch("app.services.thunder_mail.cadence_service.enqueue_once", queue):
+        assert recheck_set_aside(db)["refiled"] == 1
+        db.query(MailboxIntakeMessage).filter_by(id=row.id).update({"status": "IGNORED"})  # say its filing failed
+        db.commit()
+        assert recheck_set_aside(db)["refiled"] == 0
+    db.refresh(row)
+    assert row.status == "IGNORED" and len(queue.ids) == 1

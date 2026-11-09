@@ -19,7 +19,7 @@ import base64
 import logging
 import uuid
 from datetime import datetime, timedelta
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, List, Optional
 
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
@@ -40,6 +40,13 @@ NOTE_CATEGORY = "Forwarded Email"
 ATTACH_DELAY_SECONDS = 30
 CREATION_WAIT = timedelta(minutes=1)
 MAX_NOTE_CHARS = 8000
+
+
+# CEO 2026-11-09: an email set aside as about nobody we know is looked at again while the person may still be
+# added (by hand, by another email): once an address in it is someone we know, it is filed there, once.
+RECHECK_WINDOW = timedelta(days=14)
+SET_ASIDE_REASON = "About nobody we know and no recognisable request"
+RECHECK_STAGE = "recheck"
 
 
 def forward_task_id(intake_id: str, stage: str) -> str:
@@ -276,12 +283,56 @@ def _file_by_address(db: Session, row, forwarder: Users, reading: ForwardReading
         db.commit()
         logger.info(f"[ForwardIntake] intake={row.id} processed: logged on client(s) {[c.id for c in clients]}")
         return {"status": "processed", "intake_id": row.id, "client_ids": [c.id for c in clients]}
-    # about nobody we know and no recognisable request (a newsletter, a notice): set aside, not a task for anyone
-    row.status, row.review_reason, row.processed_at = ("IGNORED", "About nobody we know and no recognisable request",
-                                                       datetime.utcnow())
+    # about nobody we know and no recognisable request (a newsletter, a notice): set aside, not a task for anyone;
+    # recheck_set_aside() files it later if one of its addresses becomes someone we know
+    row.status, row.review_reason, row.processed_at = "IGNORED", SET_ASIDE_REASON, datetime.utcnow()
     db.commit()
     logger.info(f"[ForwardIntake] intake={row.id} about nobody we know: set aside")
     return {"status": "ignored", "intake_id": row.id, "reason": row.review_reason}
+
+
+def _addresses_in(extracted: Optional[Dict]) -> List[str]:
+    extracted = extracted or {}
+    found = [(extracted.get("candidate") or {}).get("email"), extracted.get("original_sender_email"),
+             *(extracted.get("emails") or [])]
+    return list(dict.fromkeys(e.strip().lower() for e in found if e and "@" in e))
+
+
+def _someone_we_know(db: Session, tenant_id: Optional[int], addresses: List[str]) -> bool:
+    """A candidate, an employee or a client contact of this tenant has one of these addresses."""
+    from app.models.employee import Employee
+    from app.services.candidate_service import find_duplicate_candidate
+    from app.services.client_email_log_service import match_clients
+
+    for address in addresses:
+        hit = find_duplicate_candidate(db, email=address)[0]
+        if hit is not None and hit.tenant_id == tenant_id:
+            return True
+    if db.query(Employee.id).filter(Employee.tenant_id == tenant_id, or_(
+            func.lower(Employee.email).in_(addresses), func.lower(Employee.personal_email).in_(addresses))).first():
+        return True
+    return bool(match_clients(db, addresses))
+
+
+def recheck_set_aside(db: Session, now: Optional[datetime] = None) -> Dict:
+    """Emails set aside in the last RECHECK_WINDOW whose addresses now belong to someone we know go back
+    through the normal filing (a note on the candidate, the employee or the client), each at most once:
+    the queue key is the email's own, so a second run never files it twice. Run every mail sync."""
+    now = now or datetime.utcnow()
+    rows = db.query(MailboxIntakeMessage).filter(
+        MailboxIntakeMessage.status == "IGNORED", MailboxIntakeMessage.review_reason == SET_ASIDE_REASON,
+        func.coalesce(MailboxIntakeMessage.received_at, MailboxIntakeMessage.created_at) >= now - RECHECK_WINDOW).all()
+    refiled = []
+    for row in rows:
+        addresses = _addresses_in(row.extracted)
+        if addresses and _someone_we_know(db, row.tenant_id, addresses) \
+                and queue_forward(row.id, row.tenant_id, stage=RECHECK_STAGE):
+            row.status, row.review_reason = "RECEIVED", None  # the filing that follows marks it done
+            refiled.append(row.id)
+    db.commit()
+    for intake_id in refiled:
+        logger.info(f"[ForwardIntake] intake={intake_id} set aside earlier, now about someone we know: filing it")
+    return {"set_aside_checked": len(rows), "refiled": len(refiled)}
 
 
 def _extracted(reading: ForwardReading) -> Dict:
