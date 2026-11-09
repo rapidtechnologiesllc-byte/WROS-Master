@@ -7,8 +7,8 @@ Cron runs this every 15 minutes under flock (see scripts/deploy_backend.sh):
 It syncs every user who connected Outlook: new Inbox / Sent Items messages
 whose other party is a known candidate or employee are linked to that
 person's history (metadata only). Then it reads the Thunder mailbox for
-candidate replies and queues every due Thunder email (silence follow-ups,
-monthly nurture). Runs on its own rather than through the in-process
+candidate replies, files set-aside emails whose person has since been added,
+and queues every due Thunder email (silence follow-ups, monthly nurture). Runs on its own rather than through the in-process
 APScheduler, which is not started in production.
 """
 import logging
@@ -23,6 +23,7 @@ def main() -> int:
     from app.core.database import SessionLocal
     from app.services.msgraph_mail_sync_service import run_msgraph_mail_sync_job
 
+    from app.services.thunder_mail.forward_intake_service import recheck_set_aside
     from app.services.thunder_mail.mail_poll_service import (poll_connected_mailboxes, poll_thunder_mailbox,
                                                              run_cadence_sweep)
 
@@ -33,6 +34,8 @@ def main() -> int:
                       # then answered from the mailbox the thread started in
                       ("Connected mailboxes poll", poll_connected_mailboxes),
                       ("Thunder mailbox poll", poll_thunder_mailbox),
+                      # set-aside emails whose person has since been added are filed on them, once
+                      ("Set-aside email recheck", recheck_set_aside),
                       ("Thunder cadence sweep", run_cadence_sweep)):
         db = SessionLocal()
         try:
