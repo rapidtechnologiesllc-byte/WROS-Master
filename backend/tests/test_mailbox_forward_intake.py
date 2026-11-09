@@ -671,3 +671,69 @@ def test_a_meeting_with_a_candidate_creates_the_candidate_and_the_scheduled_inte
     db.commit()
     run_handler(db, row.id, mailbox)
     assert db.query(Interview).filter_by(candidate_id=candidate.candidateID).count() == 1
+
+
+# ---- reaching out (CEO 2026-11-09: "Tried reaching you" to one outside person, HRMS copied, made no candidate) ----
+
+OUTREACH_BODY = ("Hello Apeksha,\n\nHope you are doing well, tried reaching you regarding a potential opportunity. "
+                 "Let me know a good time for us to connect and discuss the opportunity in detail.\n\nThanks\nAvinash")
+
+
+def _outreach(db, ceo, address, body=OUTREACH_BODY, name=None):
+    row, plain = received_forward(db, ceo, body, subject="Tried Reaching you")
+    to = [{"emailAddress": {"name": name or address, "address": address}}]
+    return row, MeetingMailbox(plain.inbox, plain.bodies, plain.attachments, to, None)
+
+
+def test_an_email_to_one_outside_person_creates_them_as_a_candidate(db, ceo):
+    row, mailbox = _outreach(db, ceo, "apeksha.suvarna@gmail.com")
+    result, queued = run_handler(db, row.id, mailbox)  # no model: rules only, like production
+    assert result["status"] == "candidate_queued", result
+    created = run_creation(db, queued)
+    candidate = db.query(Candidate).filter_by(candidateID=created["candidate_id"]).one()
+    assert (candidate.candidateFirstName, candidate.candidateLastName) == ("Apeksha", "Suvarna")
+    assert candidate.candidateEmail == "apeksha.suvarna@gmail.com"
+
+
+def test_the_recipients_display_name_is_used_when_it_has_both_names(db, ceo):
+    row, mailbox = _outreach(db, ceo, "apeksha.s123@gmail.com", name="Apeksha Suvarna")
+    result, queued = run_handler(db, row.id, mailbox)
+    assert result["status"] == "candidate_queued", result
+    created = run_creation(db, queued)
+    candidate = db.query(Candidate).filter_by(candidateID=created["candidate_id"]).one()
+    assert (candidate.candidateFirstName, candidate.candidateLastName) == ("Apeksha", "Suvarna")
+
+
+def test_an_address_without_a_last_name_asks_the_sender(db, ceo):
+    row, mailbox = _outreach(db, ceo, "apeksha1990@gmail.com")
+    result, _ = run_handler(db, row.id, mailbox)
+    assert result["status"] == "needs_review" and "last name" in result["reason"]
+
+
+def test_an_email_to_an_employee_is_not_a_new_candidate(db, ceo):
+    from datetime import date as day
+
+    from app.models.employee import Employee
+
+    db.add(Employee(tenant_id=1, first_name="Apeksha", last_name="S", email=f"e{uid()}@blitzenx.com",
+                    personal_email="apeksha.suvarna@gmail.com", joining_date=day(2026, 1, 1), status="ACTIVE"))
+    db.commit()
+    row, mailbox = _outreach(db, ceo, "apeksha.suvarna@gmail.com")
+    result, queued = run_handler(db, row.id, mailbox)
+    assert not any(q["task_name"] == "create_candidate" for q in queued)
+    db.refresh(row)
+    assert row.kind == "EMPLOYEE_NOTE"
+
+
+@pytest.mark.parametrize("address,greeting,expected", [
+    ("apeksha.suvarna@gmail.com", "Apeksha", ("Apeksha", "Suvarna")),
+    ("jane_doe@x.com", None, ("Jane", "Doe")),
+    ("jane.m.doe@x.com", "jane", ("Jane", "Doe")),
+    ("apeksha.suvarna@gmail.com", "Priya", (None, None)),  # the greeting names someone else
+    ("apeksha1990@gmail.com", None, (None, None)),
+    ("a.suvarna@gmail.com", None, (None, None)),  # an initial is not a first name
+])
+def test_a_name_from_an_address(address, greeting, expected):
+    from app.services.thunder_mail.forward_classifier import name_from_address
+
+    assert name_from_address(address, greeting) == expected

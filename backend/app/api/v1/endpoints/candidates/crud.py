@@ -693,12 +693,13 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
             corrections['candidate_job_title'] = (old_val, request.candidate_job_title)
 
     if "linkedin_url" in request.model_fields_set:
-        url = (request.linkedin_url or "").strip().rstrip("/") or None
+        from app.services.candidate_service import normalize_linkedin_url
+
+        try:
+            url = normalize_linkedin_url(request.linkedin_url)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
         if url:
-            handle = re.search(r"linkedin\.com/in/([^/?#\s]+)", url, re.IGNORECASE)
-            if not handle:
-                raise HTTPException(status_code=400, detail="Give the LinkedIn profile link, like https://www.linkedin.com/in/name")
-            url = f"https://www.linkedin.com/in/{handle.group(1)}"
             holder = find_duplicate_candidate(db, linkedin_url=url)[0]
             if holder is not None and holder.candidateID != candidate_id:
                 raise HTTPException(status_code=409, detail=f"This LinkedIn profile already belongs to candidate {holder.candidateID}")

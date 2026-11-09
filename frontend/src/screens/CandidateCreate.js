@@ -54,12 +54,16 @@ const EMPTY_CERTIFICATION_ROW = { name: "", organization: "", issue_date: "", ex
 
 export default function CandidateCreate({ onBack, onSave }) {
   const { banner, showSuccess, showError, dismiss } = useScreenBanner();
+  // the banner's functions are new each render: effects call the latest through a ref, so they don't re-run for it
+  const showErrorRef = useRef(showError);
+  showErrorRef.current = showError;
   const [candidateJobTitle, setCandidateJobTitle] = useState("");
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
+  const [linkedinUrl, setLinkedinUrl] = useState("");
   const [countryCode, setCountryCode] = useState("+91");
   const [gender, setGender] = useState("");
   const [dob, setDob] = useState("");
@@ -176,7 +180,7 @@ export default function CandidateCreate({ onBack, onSave }) {
         setReferrers(data?.employees || []);
         if (data?.self_employee_id) setReferringEmployeeId((current) => current || data.self_employee_id);
       })
-      .catch((err) => showError(handleApiError(err, "Could not load the employee list.")));
+      .catch((err) => showErrorRef.current(handleApiError(err, "Could not load the employee list.")));
   }, [source, referrers.length]);
 
   const loadAvailableJobs = async () => {
@@ -537,6 +541,9 @@ export default function CandidateCreate({ onBack, onSave }) {
     if (!gender.trim()) newErrors.gender = "Gender is required.";
     if (!mobile.trim()) newErrors.mobile = "Mobile is required.";
     else if (!/^\d{7,15}$/.test(mobile.replace(/\D/g, ''))) newErrors.mobile = "Mobile must be 7-15 digits.";
+    if (linkedinUrl.trim() && !/linkedin\.com\/in\/[^/?#\s]+/i.test(linkedinUrl)) {
+      newErrors.linkedinUrl = "Give the LinkedIn profile link, like https://www.linkedin.com/in/name";
+    }
     if (!email.trim()) newErrors.email = "Email is required.";
     if (!locationValue?.countryCode || !locationValue?.city) newErrors.location = "Location (Country and City) is required.";
     if (source === EMPLOYEE_REFERRAL && !referringEmployeeId) newErrors.referringEmployee = "Select the employee who referred this candidate.";
@@ -587,6 +594,7 @@ export default function CandidateCreate({ onBack, onSave }) {
         candidate_middle_name: middleName || null,
         candidate_last_name: lastName || null,
         candidate_mobile: mobile ? `${countryCode}${mobile}` : null,
+        linkedin_url: linkedinUrl.trim() || null,
         candidate_gender: gender || null,
         candidate_date_of_birth: dob || null,
         candidate_source: source === "Other" ? customSource : (source || null),
@@ -871,6 +879,22 @@ export default function CandidateCreate({ onBack, onSave }) {
             />
             {errors.mobile ? (
               <div className="mt-1 text-xs text-red-500">{errors.mobile}</div>
+            ) : null}
+          </div>
+
+          <div>
+            <Input
+              label="LinkedIn profile URL"
+              value={linkedinUrl}
+              onChange={(value) => {
+                setLinkedinUrl(value);
+                clearFieldError("linkedinUrl");
+              }}
+              placeholder="https://www.linkedin.com/in/name"
+              error={errors.linkedinUrl}
+            />
+            {errors.linkedinUrl ? (
+              <div className="mt-1 text-xs text-red-500">{errors.linkedinUrl}</div>
             ) : null}
           </div>
 
