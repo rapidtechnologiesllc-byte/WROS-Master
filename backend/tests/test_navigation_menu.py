@@ -39,10 +39,9 @@ def _recruitment_routes(db, user):
     return [item["route"] for item in recruitment["items"]]
 
 
-def test_linkedin_pipeline_follows_candidates_for_any_role_that_can_view_candidates(db):
+def test_linkedin_pipeline_is_a_tab_of_candidates_for_any_role_that_can_view_candidates(db):
     routes = _recruitment_routes(db, _user(db, full_access_role(db)))
-    assert "/linkedin-pipeline" in routes
-    assert routes.index("/linkedin-pipeline") == routes.index("/candidates") + 1
+    assert "/candidates" in routes and "/linkedin-pipeline" not in routes  # a tab since 2026-11-09
 
 
 def test_no_candidates_permission_means_no_linkedin_pipeline(db):

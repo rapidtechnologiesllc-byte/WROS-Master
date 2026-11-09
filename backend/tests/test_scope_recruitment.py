@@ -86,10 +86,6 @@ def test_other_bus_job_is_not_found(w, api):
     assert api.get(w.partner_a, f"/api/v1/jobs/job-details/{w.job_u.jobID}").status_code == 200
     assert api.get(w.org_user, f"/api/v1/jobs/job-details/{w.job_b.jobID}").status_code == 200
     assert api.get(w.partner_a, f"/api/v1/jobs/{w.job_b.jobID}/applications").status_code == 404
-    assert api.get(w.partner_a,
-                   f"/api/v1/demand-confirmation/demands/{w.job_b.jobID}/calls").status_code == 404
-    assert api.get(w.partner_a,
-                   f"/api/v1/demand-confirmation/demands/{w.job_a.jobID}/calls").status_code == 200
 
 
 def test_cannot_edit_delete_or_approve_another_bus_job(db, w, api):

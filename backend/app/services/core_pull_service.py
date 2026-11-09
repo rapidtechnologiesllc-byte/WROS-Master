@@ -228,7 +228,43 @@ def detect_core_pull_conflict(
     )
     db.add(event)
     db.flush()
+    _decision_task(db, event, employee, core_demand)
     return event
+
+
+DECISION_TASK_DUE = timedelta(days=2)
+
+
+def decision_link(event_id: str) -> str:
+    return f"/core-pull?event={event_id}"
+
+
+def _decision_task(db: Session, event: CorePullEvent, employee: Employee, core_demand: Demand) -> None:
+    """CEO 2026-11-09: a Direct-Pull conflict is a decision, so it goes to the leader who makes it as a task (the
+    screen is off the menu): the head of the employee's business unit in their company, else its partner."""
+    from app.models.business_unit import BusinessUnit
+    from app.services.bu_leadership import head_user_id
+    from app.services.task_service import create_task
+
+    leader = head_user_id(db, employee.bu_id, employee.company_id)
+    if leader is None and employee.bu_id is not None:
+        unit = db.get(BusinessUnit, employee.bu_id)
+        leader = unit.partner_user_id if unit is not None else None
+    name = f"{employee.first_name} {employee.last_name}".strip()
+    create_task(
+        db, title=f"Decide a Direct Pull: {name}",
+        description=(f"{name} is wanted for {core_demand.job_title or 'a Direct role'} and is allocated on Staff Aug "
+                     f"now. Execute the pull or keep them where they are (with a reason). The Specialty pool keeps "
+                     f"at least {SPECIALTY_POOL_MINIMUM} certified people."),
+        priority="HIGH", tenant_id=employee.tenant_id, assigned_to_user_id=leader,
+        due_date=datetime.utcnow() + DECISION_TASK_DUE, link=decision_link(event.id))
+
+
+def _close_decision_task(db: Session, event: CorePullEvent) -> None:
+    from app.models.task import Task
+
+    db.query(Task).filter(Task.link == decision_link(event.id), Task.status.notin_(("COMPLETED", "CANCELLED"))) \
+        .update({Task.status: "COMPLETED", Task.completed_at: datetime.utcnow()}, synchronize_session=False)
 
 def execute_core_pull(
     db: Session,
@@ -315,6 +351,7 @@ def execute_core_pull(
     ))
 
     event.status = "EXECUTED"
+    _close_decision_task(db, event)
     event.executed_at = datetime.utcnow()
     db.add(event)
 
@@ -374,6 +411,7 @@ def override_core_pull(
         )
 
     event.status = "OVERRIDDEN"
+    _close_decision_task(db, event)
     event.override_justification = justification
     event.overridden_by = actor_user_id
     event.overridden_at = datetime.utcnow()

@@ -12,7 +12,6 @@ export const ROUTES = {
   EXECUTIVE_REVENUE_DASHBOARD: "/executive-revenue-dashboard",
   FINANCE_OPERATIONS: "/finance-operations",
   PNL: "/pnl",
-  DEMAND_CONFIRMATION: "/demand-confirmation",
   EMPLOYEES: "/employees",
   EMPLOYEE_CONVERSION: "/employee-conversion",
   HIRING_PIPELINE: "/hiring-pipeline",

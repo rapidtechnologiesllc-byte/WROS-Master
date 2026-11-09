@@ -6,7 +6,8 @@ import InterventionQueueScreen from "./InterventionQueueScreen";
 import RiskDashboardScreen from "./RiskDashboardScreen";
 import ThunderAnalyticsScreen from "./ThunderAnalyticsScreen";
 
-const TABS = [
+// exported: the merged screens of 2026-11-09 show these tabs directly
+export const TABS = [
   { key: "queue", label: "Intervention Queue", resource: "intervention-queue", render: () => <InterventionQueueScreen /> },
   { key: "risk", label: "Risk", resource: "risk-dashboard", render: () => <RiskDashboardScreen /> },
   { key: "thunder", label: "Thunder Analytics", resource: "thunder-analytics", render: () => <ThunderAnalyticsScreen /> },

@@ -58,7 +58,14 @@ def _change(api, world, **body):
 
 # --- details ---------------------------------------------------------------------------------
 
-def test_details_edit_name_title_location_and_email(api, world):
+def test_details_edit_name_title_location_and_email(api, world, db):
+    from app.models.org_structure import OrgRole
+
+    if not db.query(OrgRole).filter_by(tenant_id=1, name="Senior Engineer").first():
+        db.add(OrgRole(tenant_id=1, name="Senior Engineer", hierarchy_level=5, active=True))  # a title is a role (2026-11-09)
+        db.commit()
+    assert api.patch(world.admin, f"/api/v1/employees/{world.employee.id}",
+                     json={"current_title": "Chief Vibes Officer"}).status_code == 422
     response = api.patch(world.admin, f"/api/v1/employees/{world.employee.id}", json={
         "first_name": " Samuel ", "current_title": "Senior Engineer", "work_location": "HYBRID",
         "email": "samuel.lee@example.com"})

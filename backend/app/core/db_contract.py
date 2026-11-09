@@ -672,7 +672,7 @@ LEADERSHIP_ROLES = {
         "permissions": {
             "vce": ["dashboard", "my-tasks", "my-timesheet", "my-expenses", "my-referrals", "notifications",
                     "activity-feed", "ask-flash", "clients", "opportunities", "pipeline-management"],
-            "v": ["demand-confirmation", "projects", "jobs", "business-units"],
+            "v": ["projects", "jobs", "business-units"],
         },
     },
     # Function add-ons (CEO 2026-11-06). Their level stays low: the person's Manage Role sets it, and
@@ -786,6 +786,7 @@ def _initialize_leadership_roles():
         _initialize_candidate_status_templates(db)
         _initialize_submission_violation_types(db)
         _initialize_client_change_types(db)
+        _initialize_employment_change_types(db)
         _initialize_allocation_statuses(db)
         _initialize_employment_types(db)
         _initialize_permission_row_tenants(db)
@@ -1171,6 +1172,18 @@ def _initialize_submission_violation_types(db):
     db.execute(text("ALTER TABLE app_schema.submission_violations DROP CONSTRAINT IF EXISTS submission_violation_type"))
     db.execute(text(f"ALTER TABLE app_schema.submission_violations ADD CONSTRAINT submission_violation_type "
                     f"CHECK (violation_type IN ({allowed}))"))
+    db.commit()
+
+
+def _initialize_employment_change_types(db):
+    """The employee history change_type CHECK constraint is rebuilt from EMPLOYMENT_CHANGE_TYPES (create_all never
+    alters an existing table: CORE_ELIGIBLE was added 2026-11-09). Idempotent."""
+    from app.models.employee import EMPLOYMENT_CHANGE_TYPES
+
+    allowed = ", ".join("'" + kind + "'" for kind in EMPLOYMENT_CHANGE_TYPES)
+    db.execute(text("ALTER TABLE app_schema.employee_employment_history DROP CONSTRAINT IF EXISTS employment_change_type"))
+    db.execute(text(f"ALTER TABLE app_schema.employee_employment_history ADD CONSTRAINT employment_change_type "
+                    f"CHECK (change_type IN ({allowed}))"))
     db.commit()
 
 

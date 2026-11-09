@@ -209,6 +209,10 @@ class Employee(Base):
         ),
     )
 
+# CORE_ELIGIBLE: a leader set Core eligibility on the employee page (CEO 2026-11-09)
+EMPLOYMENT_CHANGE_TYPES = ("TITLE", "SALARY", "BILLING_RATE", "STATUS", "BU", "MANAGER", "LOCATION", "CORE_ELIGIBLE")
+
+
 class EmployeeEmploymentHistory(Base):
     """BR-03: insert-only. No UPDATE or DELETE ever permitted -- see the
     append-only guard below, same pattern as AuditLog."""
@@ -218,7 +222,7 @@ class EmployeeEmploymentHistory(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
     employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
     change_type = Column(
-        Enum("TITLE", "SALARY", "BILLING_RATE", "STATUS", "BU", "MANAGER", "LOCATION", name="employment_change_type", native_enum=False, create_constraint=True),
+        Enum(*EMPLOYMENT_CHANGE_TYPES, name="employment_change_type", native_enum=False, create_constraint=True),
         nullable=False,
     )
     old_value = Column(Text, nullable=True)  # JSON-encoded

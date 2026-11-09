@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { Button, Input, Select } from "./ui";
 import { confirmDialog } from "../utils/dialogs";
+import { setCoreEligible } from "../services/api/coreCertification";
 import {
   changeEmployeeEmployment,
   getEmployeeEditOptions,
@@ -145,6 +146,64 @@ export function EmploymentActions({ employee, onChanged }) {
 }
 
 // Hire-Train-Deploy: on the track (phase) or not. Phases come from the server.
+// Core eligibility (CEO 2026-11-09): a leader of the employee's business unit sets it here, with an optional
+// reason; where the rules stand is shown beside it, so a wrong count is easy to see and to override.
+export function CoreEligibleControl({ employee, onChanged }) {
+  const core = employee.core || {};
+  const current = core.eligible ? "yes" : "no";
+  const [value, setValue] = useState(current);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const rules = core.rules || {};
+
+  useEffect(() => {
+    setValue(current);
+    setReason("");
+  }, [current]);
+
+  const save = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await setCoreEligible(employee.id, value === "yes", reason.trim());
+      onChanged();
+    } catch (err) {
+      console.error("[CoreEligibleControl] Failed to save:", err);
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const ruleLine = rules.eligible
+    ? "Rules: met"
+    : `Rules: ${(rules.reasons || []).join(" ") || "not met"}`;
+
+  return (
+    <div>
+      {core.can_set ? (
+        <Select value={value} onChange={setValue} disabled={busy}
+          options={[{ value: "yes", label: "Yes" }, { value: "no", label: "No" }]} />
+      ) : (
+        <span className="text-sm text-gray-900">{core.eligible ? "Yes" : "No"}</span>
+      )}
+      {core.eligible && core.since ? <div className="mt-1 text-xs text-gray-500">since {core.since}</div> : null}
+      <div className="mt-1 text-xs text-gray-500">{ruleLine}</div>
+      {core.can_set && value !== current ? (
+        <div className="mt-2 space-y-2">
+          <Input value={reason} onChange={setReason} placeholder="Reason (kept on their history)" />
+          <div className="flex gap-2">
+            <Button onClick={save} disabled={busy}>{busy ? "Saving..." : "Save"}</Button>
+            <Button variant="ghost" onClick={() => { setValue(current); setReason(""); }} disabled={busy}>Cancel</Button>
+          </div>
+        </div>
+      ) : null}
+      {error ? <div className="mt-1 text-xs text-rose-700">{error}</div> : null}
+    </div>
+  );
+}
+
 export function HtdControl({ employee, onChanged, canEdit }) {
   const [phases, setPhases] = useState([]);
   const [value, setValue] = useState(employee.htd_track ? employee.htd_phase || "" : "");

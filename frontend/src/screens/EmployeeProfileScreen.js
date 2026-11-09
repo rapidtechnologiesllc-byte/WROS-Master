@@ -21,7 +21,7 @@ import {
   updateEmployeeOrganization,
 } from "../services/api/employees";
 import { DeploymentStatus, EmploymentStatus, fullName, isPast, statusLabel } from "../components/EmployeeStatus";
-import { EmploymentActions, HtdControl } from "../components/EmployeeEditPanels";
+import { CoreEligibleControl, EmploymentActions, HtdControl } from "../components/EmployeeEditPanels";
 import EmployeeAllocations from "../components/EmployeeAllocations";
 import EmployeeCertifications from "../components/EmployeeCertifications";
 import EscalationsPanel from "../components/EmployeeEscalations";
@@ -482,7 +482,13 @@ function JobTab({ profile, save, reload, orgOptions, managers }) {
     <div className="space-y-4">
       <EditableSection title="Employment" canEdit={profile.can_edit} values={values} onSave={save} fields={[
         { key: "employee_number", label: "Employee number", readOnly: true },
-        { key: "current_title", label: "Job title" },
+        { key: "current_title", label: "Job title", type: "select",
+          // a role from Manage Roles; for someone who signs in it is their role and sets their access
+          options: [...(profile.options.roles || []).map((role) => ({ value: role, label: role })),
+            ...(profile.current_title && !(profile.options.roles || []).includes(profile.current_title)
+              ? [{ value: profile.current_title, label: `${profile.current_title} (not a role)` }] : [])],
+          readOnly: !profile.can_change_title,
+          help: profile.title_is_role ? "Their role in Users & Access: it sets their level and access." : null },
         { key: "employment_type", label: "Employment type", type: "select", options: optionsOf(profile.options.employment_types) },
         { key: "work_location", label: "Work location", type: "select", options: optionsOf(profile.options.work_locations) },
         { key: "joining_date", label: "Date of joining", type: "date", readOnly: profile.employment_status !== "JOINING",
@@ -495,7 +501,13 @@ function JobTab({ profile, save, reload, orgOptions, managers }) {
       <Section title="Deployment & programs" subtitle="Where they are deployed now; HTD and the Buddy Program come before deployment.">
         <div className="grid gap-x-6 gap-y-4 sm:grid-cols-3">
           <Field label="Deployment"><DeploymentStatus employee={profile} /></Field>
-          <Field label="Delivery engine">{lineTypeLabel(profile.job.delivery_engine)}{profile.job.core_certified ? " · Direct certified" : ""}</Field>
+          <Field label="Delivery engine">{lineTypeLabel(profile.job.delivery_engine)}</Field>
+          {profile.core && !isPast(profile) ? (
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Eligible for Core</div>
+              <div className="mt-1"><CoreEligibleControl employee={profile} onChanged={reload} /></div>
+            </div>
+          ) : null}
           <Field label="Buddy Program">
             {statusLabel(profile.programs.buddy_program_status)}
             {profile.programs.buddy_program_graduation_date ? ` · graduated ${profile.programs.buddy_program_graduation_date}` : ""}
@@ -684,9 +696,10 @@ function PerformanceTab({ profile }) {
   );
 }
 
-const HISTORY_LABEL = { STATUS: "Status", ENGINE: "Delivery engine" };
+const HISTORY_LABEL = { STATUS: "Status", ENGINE: "Delivery engine", CORE_ELIGIBLE: "Eligible for Core" };
 function describe(value) {
   if (value == null) return "—";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
   if (typeof value === "object") return Object.values(value).map((v) => statusLabel(String(v))).join(", ");
   return statusLabel(String(value));
 }

@@ -13,6 +13,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.core import authority
+from app.models.org_structure import OrgRole
 from app.models.employee import (EMPLOYMENT_TYPES, WORK_LOCATIONS, Employee, EmployeeEmploymentHistory,
                                  EmployeeEngineHistory)
 from app.models.client import BILLING_CURRENCIES
@@ -39,6 +40,19 @@ def _user_ref(user: Optional[Users], employee_ids: dict) -> Optional[dict]:
         return None
     return {"user_id": user.UserID, "name": user.UserName or user.UserEmail,
             "employee_id": employee_ids.get(user.UserID)}
+
+
+def _core(db: Session, employee: Employee, viewer: Users) -> dict:
+    from app.services import core_certification_service as core
+
+    check = core.eligibility(db, employee)
+    return {"eligible": bool(employee.core_certified),
+            "since": employee.core_certified_date.isoformat() if employee.core_certified_date else None,
+            "can_set": core.may_set(db, employee, viewer),
+            "on_core_engine": employee.delivery_engine == "CORE",
+            "rules": {"eligible": check["eligible"], "billable_days": check["billable_days"],
+                      "required_days": check["required_days"],
+                      "reasons": [r for r in check["reasons"] if not r.startswith("Already")]}}
 
 
 def _history(db: Session, employee: Employee) -> list:
@@ -117,7 +131,16 @@ def build_profile(db: Session, employee: Employee, viewer: Users, item: dict) ->
         "can_edit": authority.has_permission(db, viewer, "employees.edit"),
         "can_edit_compensation": can_edit_compensation(db, viewer),
         "options": {"work_locations": list(WORK_LOCATIONS), "employment_types": list(EMPLOYMENT_TYPES),
-                    "pay_bases": list(PAY_BASES), "currencies": list(BILLING_CURRENCIES)},
+                    "pay_bases": list(PAY_BASES), "currencies": list(BILLING_CURRENCIES),
+                    # Job title is picked from the roles (CEO 2026-11-09)
+                    "roles": [r.name for r in db.query(OrgRole).filter(OrgRole.tenant_id == employee.tenant_id,
+                                                                      OrgRole.active.is_(True))
+                              .order_by(OrgRole.hierarchy_level.desc(), OrgRole.name)]},
+        # someone who signs in: their title is their role, changed only by those who manage access, never themselves
+        "title_is_role": employee.wros_user_id is not None,
+        "can_change_title": (employee.wros_user_id is None and authority.has_permission(db, viewer, "employees.edit"))
+        or (employee.wros_user_id is not None and employee.wros_user_id != viewer.UserID
+            and authority.has_permission(db, viewer, "users-access-control.edit")),
         "personal": {
             "legal_name": employee.legal_name, "personal_email": employee.personal_email, "phone": employee.phone,
             "marriage_date": employee.marriage_date.isoformat() if employee.marriage_date else None,
@@ -139,6 +162,8 @@ def build_profile(db: Session, employee: Employee, viewer: Users, item: dict) ->
             "delivery_engine": employee.delivery_engine,
             "core_certified": bool(employee.core_certified),
         },
+        # Core eligibility (CEO 2026-11-09): the flag, where the rules stand, and whether this viewer may set it
+        "core": _core(db, employee, viewer),
         "reporting_team": [{"employee_id": e.id, "name": f"{e.first_name} {e.last_name}".strip(),
                             "title": e.current_title} for e in team],
         "programs": {

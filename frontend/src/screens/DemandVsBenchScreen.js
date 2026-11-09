@@ -8,7 +8,8 @@ import ResourceManagementScreen from "./ResourceManagementScreen";
 
 // Renewals: the extension pipeline for the same roll-off list (CEO 2026-10-23); its API checks
 // resource-forecast view, its actions the allocations edit permission
-const TABS = [
+// exported: the merged screens of 2026-11-09 show these tabs directly
+export const TABS = [
   { key: "forecast", label: "Resource Forecast", resource: "resource-forecast", render: () => <ForecastScreen /> },
   { key: "renewals", label: "Renewals", resource: "resource-forecast", render: () => <RenewalsScreen /> },
   { key: "bench", label: "Bench Matches", resource: "resources", render: () => <ResourceManagementScreen /> },
