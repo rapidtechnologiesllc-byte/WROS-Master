@@ -230,11 +230,21 @@ def _tokens(text: Optional[str]) -> set:
     return {t for t in re.split(r"[^a-z0-9+#.]+", (text or "").lower()) if len(t) > 1}
 
 
+# A job a candidate can be told about: published and not deleted (drafts, closed and deleted jobs are not)
+OPEN_JOB_STATUSES = ("active", "public")
+
+
 def matching_open_jobs(db: Session, candidate: Candidate, limit: int = MAX_NURTURE_JOBS) -> List[Jobs]:
+    """The organisation's open jobs that share skills or title words with the candidate, best first."""
+    from sqlalchemy import func, or_
+
     skills = _tokens(candidate.candidateSkills) | _tokens(candidate.candidateJobTitle)
     location = _tokens(candidate.candidateCurrentLocation)
+    jobs = db.query(Jobs).filter(func.lower(Jobs.jobStatus).in_(OPEN_JOB_STATUSES), Jobs.is_deleted.isnot(True))
+    if candidate.tenant_id is not None:  # never another organisation's roles
+        jobs = jobs.filter(or_(Jobs.tenant_id == candidate.tenant_id, Jobs.tenant_id.is_(None)))
     scored = []
-    for job in db.query(Jobs).filter(Jobs.jobStatus != "Closed").order_by(Jobs.jobCreatedAt.desc()).limit(200):
+    for job in jobs.order_by(Jobs.jobCreatedAt.desc()).limit(200):
         overlap = len(skills & (_tokens(job.jobSkills) | _tokens(job.jobTitle)))
         if overlap:
             scored.append((overlap + (1 if location & _tokens(job.jobLocation) else 0), job))

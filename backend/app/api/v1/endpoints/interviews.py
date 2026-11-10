@@ -429,7 +429,7 @@ def create_interview_panel(
     db.commit()
     panel = created.panel
     db.refresh(panel)
-    scheduling.after_panel_created(panel)
+    scheduling.after_panel_created(db, panel)
 
     return InterviewPanelResponse(
         id=panel.id,
