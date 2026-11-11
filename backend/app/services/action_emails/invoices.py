@@ -14,7 +14,7 @@ INVOICES_PATH = "/invoices"
 
 def invoice_team(db: Session, invoice: Invoice) -> Team:
     team: Team = {}
-    project = db.get(Project, invoice.project_id)
+    project = db.get(Project, invoice.project_id) if invoice.project_id else None  # none on Staff Aug
     if project is not None:
         add(team, project.manager_user_id, "Project Manager")
     merge(team, client_team(db, invoice.client_id))
@@ -29,7 +29,9 @@ def _label(db: Session, invoice: Invoice) -> str:
 
 
 def _total(invoice: Invoice) -> str:
-    return f"Total: ${(invoice.total_usd_cents or 0) / 100:,.2f} (billed in {invoice.currency})."
+    from app.services.invoice_service import invoice_total_cents
+
+    return f"Total: {invoice.currency or 'USD'} {invoice_total_cents(invoice) / 100:,.2f}."
 
 
 def _send(db: Session, invoice: Invoice, team: Team, *, actor: Users, event: str, subject: str, opening: str) -> int:

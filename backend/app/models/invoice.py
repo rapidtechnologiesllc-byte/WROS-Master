@@ -17,6 +17,7 @@ import logging
 import uuid
 
 from sqlalchemy import (
+    BigInteger,
     Column, Date, DateTime, Enum, ForeignKey, Index, Integer,
     Numeric, String, func,
 )
@@ -37,7 +38,9 @@ class Invoice(Base):
     id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
-    project_id = Column(String(512), ForeignKey("projects.id"), nullable=False, index=True)
+    # the project invoiced; empty on a Staff Aug invoice, which bills the client for its
+    # placements' time and materials (CEO 2026-11-11)
+    project_id = Column(String(512), ForeignKey("projects.id"), nullable=True, index=True)
     client_id = Column(String(512), ForeignKey("clients.id"), nullable=False, index=True)
 
     billing_period_start = Column(Date, nullable=False)
@@ -47,8 +50,13 @@ class Invoice(Base):
         Enum(*INVOICE_STATUSES, name="invoice_status", native_enum=False, create_constraint=True),
         nullable=False, default="DRAFT",
     )
-    # R-09: BIGINT USD cents storage; currency is the client's display currency only.
+    # R-09: USD cents is the ledger every P&L figure reads. The invoice itself is in the client's
+    # currency (its location's: India INR, US USD -- CEO 2026-11-11): `currency`, with the total in
+    # that currency (total_cents) and the exchange rate used (fx_per_usd). Empty total_cents (an
+    # invoice from before) = the USD total.
     total_usd_cents = Column(Integer, nullable=False, default = 0)
+    total_cents = Column(BigInteger, nullable=True)
+    fx_per_usd = Column(Numeric(14, 6), nullable=True)
     currency = Column(
         Enum(*BILLING_CURRENCIES, name="invoice_currency", native_enum=False, create_constraint=True),
         nullable=False, default="USD",
@@ -103,5 +111,8 @@ class InvoiceLineItem(Base):
     hours = Column(Numeric(6, 2), nullable=False)
     rate_usd_cents = Column(Integer, nullable=False)
     amount_usd_cents = Column(Integer, nullable=False)
+    # the same line in the invoice's currency (empty on a line from before = the USD figures)
+    rate_cents = Column(BigInteger, nullable=True)
+    amount_cents = Column(BigInteger, nullable=True)
     # the client PO this line bills against (the allocation's work order), printed on the line
     po_number = Column(String(512), nullable=True)

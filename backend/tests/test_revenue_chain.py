@@ -279,11 +279,11 @@ def test_missing_salary_marks_pnl_incomplete_and_names_the_employee(db, world):
     assert world.bench.id in report["missing_cost_employee_ids"]
 
 
-def test_line_without_project_is_flagged_as_unbillable(db, world):
+def test_line_without_project_is_staff_aug_billed_to_the_client(db, world):
     world.allocation.project_id = None
     db.commit()
     lines = chain.chain_lines(db, start=SEPT[0], end=SEPT[1], tenant_id=1)
-    assert all("NO_PROJECT_CANNOT_INVOICE" in line["flags"] for line in lines)
+    assert not any("NO_PROJECT_CANNOT_INVOICE" in line["flags"] for line in lines)
     assert lines[0]["unbilled_usd_cents"] == 400_000
 
 

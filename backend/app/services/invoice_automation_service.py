@@ -23,8 +23,8 @@ or emails twice. The last AUTO_INVOICE_LOOKBACK_MONTHS months are considered, ol
 so a month whose timesheets were approved late is still invoiced; a month still waiting
 when it is the oldest in the window is HELD with a Finance task instead of dropping out
 unnoticed. Nothing goes to a client without Finance approval, so the lookback cannot
-email an old backlog. Approved billable time on an allocation with no project (which can
-never be invoiced) raises a Finance task too.
+email an old backlog. Staff Aug time (a placement at a client with no project) is invoiced
+the same way, one invoice per client and period, billed to the client directly.
 """
 import logging
 from datetime import date, timedelta
@@ -70,32 +70,33 @@ def _projects_with_time(db: Session, start: date, end: date) -> List[str]:
     return [r[0] for r in rows]
 
 
-def _flag_time_without_project(db: Session, start: date, end: date) -> int:
-    """Approved billable time on an allocation with no project can never be invoiced:
-    give Finance a task (once per allocation) instead of letting the revenue leak silently."""
-    from app.models.client import Client
-    from app.models.employee import Employee
-
-    rows = db.query(EmployeeAllocation).join(Timesheet, Timesheet.allocation_id == EmployeeAllocation.id).filter(
-        EmployeeAllocation.project_id.is_(None), Timesheet.status == "APPROVED", Timesheet.billable_hours > 0,
+def _clients_with_staff_aug_time(db: Session, start: date, end: date) -> List[str]:
+    """Clients with time on a Staff Aug placement (an allocation with no project): that time is
+    invoiced to the client directly."""
+    rows = db.query(EmployeeAllocation.client_id).join(
+        Timesheet, Timesheet.allocation_id == EmployeeAllocation.id).filter(
         Timesheet.week_starting_date >= start - timedelta(days=6), Timesheet.week_starting_date <= end,
-    ).distinct().all()
-    raised = 0
-    for allocation in rows:
-        employee = db.get(Employee, allocation.employee_id)
-        client = db.get(Client, allocation.client_id) if allocation.client_id else None
-        who = f"{employee.first_name} {employee.last_name or ''}".strip() if employee else allocation.employee_id
-        title = f"Billable time not invoiceable: {who} has no project ({allocation.id[:8]})"
-        if _open_task(db, title):
-            continue
-        _finance_task(db, allocation.tenant_id, title, [
-            f"{who} has approved billable hours at {client.company_name if client else 'a client'} on allocation "
-            f"{allocation.id}, which is not linked to a project, so it can never be invoiced.",
-            "Link the allocation (or its job) to the client's project; auto-invoicing then bills it."])
-        raised += 1
-    if raised:
-        db.commit()
-    return raised
+        EmployeeAllocation.project_id.is_(None)).distinct().all()
+    return [r[0] for r in rows]
+
+
+class _Scope:
+    """What one automatic invoice covers: a project, or a client's Staff Aug time."""
+
+    def __init__(self, project: Optional[Project] = None, client=None):
+        self.project, self.client = project, client
+        self.tenant_id = project.tenant_id if project is not None else client.tenant_id
+        self.name = project.name if project is not None else f"{client.company_name} Staff Aug"
+        self.key = f"project {project.id}" if project is not None else f"client {client.id} staff aug"
+
+    def decided(self, db: Session, start: date) -> bool:
+        query = db.query(InvoiceAutomationDecision.id).filter(InvoiceAutomationDecision.period_start == start)
+        if self.project is not None:
+            query = query.filter(InvoiceAutomationDecision.project_id == self.project.id)
+        else:
+            query = query.filter(InvoiceAutomationDecision.project_id.is_(None),
+                                 InvoiceAutomationDecision.client_id == self.client.id)
+        return query.first() is not None
 
 
 def _open_task(db: Session, title: str) -> bool:
@@ -125,7 +126,10 @@ def anomalies(db: Session, invoice: Invoice) -> List[str]:
         if float(line.hours or 0) > MAX_WEEKLY_HOURS:
             reasons.append(f"employee {line.employee_id} billed {float(line.hours):g}h in one week "
                            f"(more than {MAX_WEEKLY_HOURS}h)")
-    previous = db.query(Invoice).filter(Invoice.project_id == invoice.project_id, Invoice.id != invoice.id) \
+    # the previous invoice of the same thing: the project, or the client's Staff Aug time
+    same = Invoice.project_id == invoice.project_id if invoice.project_id else (
+        Invoice.project_id.is_(None) & (Invoice.client_id == invoice.client_id))
+    previous = db.query(Invoice).filter(same, Invoice.id != invoice.id) \
         .order_by(Invoice.billing_period_end.desc()).first()
     if previous is not None and previous.total_usd_cents:
         change = abs(invoice.total_usd_cents - previous.total_usd_cents) * 100 / previous.total_usd_cents
@@ -146,24 +150,35 @@ def _finance_task(db: Session, tenant_id: Optional[int], title: str, reasons: Li
                 visibility_scope="ASSIGNEE_MANAGER_DEPARTMENT" if assignee else "ORG_WIDE")
 
 
-def _decide(db: Session, project: Project, start: date, end: date, decision: str, reasons: List[str],
+def _decide(db: Session, scope: _Scope, start: date, end: date, decision: str, reasons: List[str],
             invoice: Optional[Invoice] = None) -> InvoiceAutomationDecision:
-    row = InvoiceAutomationDecision(tenant_id=project.tenant_id, project_id=project.id, period_start=start,
-                                    period_end=end, invoice_id=invoice.id if invoice else None, decision=decision,
-                                    reasons=reasons or None)
+    row = InvoiceAutomationDecision(
+        tenant_id=scope.tenant_id, project_id=scope.project.id if scope.project is not None else None,
+        client_id=scope.client.id if scope.client is not None else scope.project.client_id,
+        period_start=start, period_end=end, invoice_id=invoice.id if invoice else None, decision=decision,
+        reasons=reasons or None)
     db.add(row)
     return row
 
 
 def invoice_project(db: Session, project: Project, start: date, end: date) -> str:
     """One project, one period. Commits. Returns the outcome."""
+    return _invoice_scope(db, _Scope(project=project), start, end)
+
+
+def invoice_staff_aug(db: Session, client, start: date, end: date) -> str:
+    """One client's Staff Aug time (placements with no project), one period. Commits. Returns the outcome."""
+    return _invoice_scope(db, _Scope(client=client), start, end)
+
+
+def _invoice_scope(db: Session, project: _Scope, start: date, end: date) -> str:
     from app.services import invoice_service as invoices
 
-    if db.query(InvoiceAutomationDecision.id).filter(InvoiceAutomationDecision.project_id == project.id,
-                                                      InvoiceAutomationDecision.period_start == start).first():
+    if project.decided(db, start):
         return "decided"
     try:
-        invoice = invoices.generate_invoice(db, project, period_start=start, period_end=end, tenant_id=project.tenant_id)
+        invoice = invoices.generate_invoice(db, project.project, period_start=start, period_end=end,
+                                            tenant_id=project.tenant_id, client=project.client)
     except invoices.NothingToInvoice:
         return "nothing"
     except (invoices.UnapprovedTimesheetBlocksInvoice, invoices.OpenDisputeBlocksInvoice) as exc:
@@ -199,14 +214,14 @@ def invoice_project(db: Session, project: Project, start: date, end: date) -> st
         flags.append(str(exc))
     _decide(db, project, start, end, "PENDING_REVIEW", flags, invoice)
     _close_waiting_task(db, f"Waiting for client timesheet approval: {project.name} {start:%b %Y}")
-    total = f"{(invoice.total_usd_cents or 0) / 100:,.2f} {invoice.currency or 'USD'}"
+    total = f"{invoices.invoice_total_cents(invoice) / 100:,.2f} {invoice.currency or 'USD'}"
     lines = [f"Draft invoice {invoice.id} for {project.name}, {start:%d %b} - {end:%d %b %Y}: {total}.",
              "Review it in Invoices and approve it; it is emailed to the client as soon as you approve."]
     if flags:
         lines += ["", "Check before approving:"] + [f"- {f}" for f in flags]
     _finance_task(db, project.tenant_id, f"Approve invoice: {project.name} {start:%b %Y}", lines)
     db.commit()
-    logger.info(f"[AutoInvoice] {project.id} {start} draft {invoice.id} awaiting Finance approval; flags={flags}")
+    logger.info(f"[AutoInvoice] {project.key} {start} draft {invoice.id} awaiting Finance approval; flags={flags}")
     return "awaiting"
 
 
@@ -229,7 +244,7 @@ def send_after_approval(db: Session, invoice: Invoice, approved_by: str) -> bool
     return True
 
 
-def _hold_overdue(db: Session, project: Project, start: date, end: date, reason: str) -> None:
+def _hold_overdue(db: Session, project: _Scope, start: date, end: date, reason: str) -> None:
     """The oldest month in the window is still waiting: stop waiting silently, hand it to Finance."""
     _decide(db, project, start, end, "HELD", [f"still not invoiceable after the lookback window: {reason}"])
     _finance_task(db, project.tenant_id, f"Invoice overdue: {project.name} {start:%b %Y}", [
@@ -240,27 +255,28 @@ def _hold_overdue(db: Session, project: Project, start: date, end: date, reason:
 
 def run_auto_invoicing(db: Session, today: Optional[date] = None) -> Dict:
     months = billing_months(today or date.today())
+    from app.models.client import Client
+
     result = {"period": f"{months[0][0]}..{months[-1][1]}", "awaiting": 0, "held": 0, "waiting": 0, "skipped": 0,
-              "failed": 0, "unlinked": 0}
+              "failed": 0}
     for start, end in months:
-        for project_id in _projects_with_time(db, start, end):
-            project = db.query(Project).filter(Project.id == project_id).first()
-            if project is None:
-                continue
+        # each project with time, then each client's Staff Aug time (placements with no project)
+        projects = db.query(Project).filter(Project.id.in_(_projects_with_time(db, start, end) or [""])).all()
+        clients = db.query(Client).filter(Client.id.in_(_clients_with_staff_aug_time(db, start, end) or [""])).all()
+        for scope in [_Scope(project=p) for p in projects] + [_Scope(client=c) for c in clients]:
             try:
-                outcome = invoice_project(db, project, start, end)
+                outcome = _invoice_scope(db, scope, start, end)
                 if outcome.startswith("waiting") and (start, end) == months[0] and len(months) > 1:
-                    _hold_overdue(db, project, start, end, outcome.split(":", 1)[1].strip())
+                    _hold_overdue(db, scope, start, end, outcome.split(":", 1)[1].strip())
                     outcome = "held"
             except Exception as exc:
                 db.rollback()
                 result["failed"] += 1
-                logger.error(f"[AutoInvoice] project {project_id} {start} failed: {exc}", exc_info=True)
+                logger.error(f"[AutoInvoice] {scope.key} {start} failed: {exc}", exc_info=True)
                 continue
             key = outcome.split(":")[0]
             if key in result:
                 result[key] += 1
-    result["unlinked"] = _flag_time_without_project(db, months[0][0], months[-1][1])
     logger.info(f"[AutoInvoice] {result}")
     return result
 

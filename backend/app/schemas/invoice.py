@@ -9,7 +9,9 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 class GenerateInvoiceRequest(BaseModel):
-    project_id: str
+    # the project, or (no project) the client whose Staff Aug time is invoiced
+    project_id: Optional[str] = None
+    client_id: Optional[str] = None
     period_start: date
     period_end: date
 
@@ -20,18 +22,23 @@ class InvoiceLineItemItem(BaseModel):
     hours: float
     rate_usd_cents: int
     amount_usd_cents: int
+    # the line in the invoice's currency
+    rate_cents: int
+    amount_cents: int
     employee_name: Optional[str] = None
     po_number: Optional[str] = None
 
 class InvoiceItem(BaseModel):
     id: str
-    project_id: str
+    project_id: Optional[str] = None  # empty on a Staff Aug invoice (billed to the client)
     client_id: str
     billing_period_start: date
     billing_period_end: date
     status: str
-    total_usd_cents: int
-    currency: str
+    total_usd_cents: int  # the USD ledger value (P&L, AR)
+    currency: str  # the client's currency: what the invoice is in
+    total_cents: int  # the total in that currency
+    fx_per_usd: Optional[float] = None
     approved_by: Optional[str] = None
     approved_at: Optional[datetime] = None
     sent_at: Optional[datetime] = None
@@ -66,7 +73,6 @@ class AutoInvoicingRun(BaseModel):
     waiting: int  # timesheets not yet approved (re-checked daily)
     skipped: int  # already decided for that period
     failed: int
-    unlinked: int  # approved hours on an allocation with no project
 
 class MarkPaidRequest(BaseModel):
     paid_on: Optional[date] = None  # defaults to today
