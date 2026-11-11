@@ -28,14 +28,13 @@ function formatUsdCents(cents) {
   return `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-// CEO 2026-11-02: invoicing "has to be automatic". The daily job drafts each project's invoice
-// from approved timesheets (last month first); Finance approves, then it is emailed to the client.
+// CEO 2026-11-02: invoicing "has to be automatic". The daily job drafts each project's invoice (and
+// each client's Staff Aug invoice) from approved timesheets (last month first); Finance approves, then it is emailed to the client.
 // "Check now" runs the same job immediately -- nothing reaches a client before Finance approves.
 const RUN_OUTCOMES = [
   ["awaiting", "draft(s) waiting for your review"],
-  ["waiting", "project(s) waiting for timesheet approval"],
+  ["waiting", "project(s) or Staff Aug client(s) waiting for timesheet approval"],
   ["held", "held -- see your Finance tasks"],
-  ["unlinked", "allocation(s) with approved hours but no project"],
   ["failed", "failed (logged)"],
 ];
 
@@ -107,10 +106,13 @@ function InvoiceRow({ invoice, onChanged }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="font-semibold text-gray-900">
-            {invoice.invoice_number || "(no number)"} · {formatUsdCents(invoice.total_usd_cents)} {invoice.currency}
+            {invoice.invoice_number || "(no number)"} ·{" "}
+            {invoice.currency && invoice.currency !== "USD"
+              ? `${invoice.currency} ${(invoice.total_cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })} (${formatUsdCents(invoice.total_usd_cents)} USD)`
+              : `${formatUsdCents(invoice.total_usd_cents)} USD`}
           </div>
           <div className="text-xs text-gray-500">
-            {[invoice.client_name, invoice.project_name].filter(Boolean).join(" · ")}
+            {[invoice.client_name, invoice.project_name || "Staff Aug"].filter(Boolean).join(" · ")}
             {invoice.issuing_company_name ? ` · issued by ${invoice.issuing_company_name}` : ""}
           </div>
           <div className="text-xs text-gray-500">

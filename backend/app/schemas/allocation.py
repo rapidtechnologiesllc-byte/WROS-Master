@@ -15,6 +15,10 @@ class CreateAllocationRequest(BaseModel):
     employee_id: str
     # The client job for Staff Aug; empty for project work (project_id + role + bill rate)
     demand_id: Optional[str] = None
+    # Staff Aug at a client with no job behind it (an existing placement recorded after the fact):
+    # the client, with role + bill rate; it bills through the client's project (project_id, else
+    # the client's one live project, else its Staff Augmentation project, created)
+    client_id: Optional[str] = None
     # HRMS-0803 -- no REST caller ever passed this through before S-358's
     # Project API existed; nullable, since not every allocation traces
     # to a tracked project.
@@ -26,6 +30,11 @@ class CreateAllocationRequest(BaseModel):
     allow_concurrent: bool = False
     # Defaults to the job's client bill rate
     billing_rate_usd_cents: Optional[int] = None
+    # The rate as agreed with the client: amount (minor units) in a currency per HOURLY / MONTHLY /
+    # ANNUAL. When sent it decides billing_rate_usd_cents (the hourly USD value).
+    bill_rate_amount_cents: Optional[int] = None
+    bill_rate_currency: Optional[str] = None
+    bill_rate_basis: Optional[str] = None
     # None = the project's (client projects billable, internal projects not)
     billable: Optional[bool] = None
     # the client's timesheet approver for this placement (one of the client's TIMESHEET_APPROVER
@@ -57,6 +66,9 @@ class AllocationItem(BaseModel):
     ending_soon: bool = False  # active and inside the renewal-alert window, or rolling off
     role: Optional[str] = None
     billing_rate_usd_cents: Optional[int] = None
+    bill_rate_amount_cents: Optional[int] = None
+    bill_rate_currency: Optional[str] = None
+    bill_rate_basis: Optional[str] = None
     work_location: Optional[str] = None
     assigned_recruiter_name: Optional[str] = None
     business_unit_name: Optional[str] = None
@@ -98,6 +110,12 @@ class JobDropdownItem(BaseModel):
     billing_rate_usd_cents: Optional[int] = None
     status: Optional[str] = None
 
+class ClientDropdownItem(BaseModel):
+    id: str
+    name: str
+    currency: str  # what the client is invoiced in (its location's): the bill rate's default
+
+
 class ProjectDropdownItem(BaseModel):
     """A live project an employee can be allocated to directly (project work, no client job)."""
     id: str
@@ -112,6 +130,11 @@ class AllocationDropdownsResponse(BaseModel):
     employees: List[DropdownItem]
     demands: List[JobDropdownItem]
     projects: List[ProjectDropdownItem] = []
+    # the caller's clients: Staff Aug picks the client first, then (optionally) one of its jobs
+    clients: List["ClientDropdownItem"] = []
+    # how a bill rate is entered: the currencies and the bases (per hour / month / year)
+    rate_currencies: List[str] = []
+    rate_bases: List[str] = []
 
 
 class MarginCheck(BaseModel):
@@ -127,6 +150,8 @@ class MarginCheck(BaseModel):
     approval_level: Optional[str] = None
     message: str
     flags: List[str] = []
+    # the hourly USD value of the rate checked (shown when it was entered in another currency or basis)
+    bill_rate_usd_cents: Optional[int] = None
 
 
 class MarginPreviewRequest(BaseModel):
@@ -134,8 +159,12 @@ class MarginPreviewRequest(BaseModel):
     employee_id: Optional[str] = None
     demand_id: Optional[str] = None
     project_id: Optional[str] = None
+    client_id: Optional[str] = None  # Staff Aug at the client with no job
     allocation_id: Optional[str] = None
     billing_rate_usd_cents: Optional[int] = None
+    bill_rate_amount_cents: Optional[int] = None
+    bill_rate_currency: Optional[str] = None
+    bill_rate_basis: Optional[str] = None
     billable: Optional[bool] = None
     start_date: Optional[date] = None
     role: Optional[str] = None
@@ -232,5 +261,6 @@ class MarginApprovalListResponse(BaseModel):
     approvals: List[AllocationChangeItem]
 
 
+AllocationDropdownsResponse.model_rebuild()
 AllocationItem.model_rebuild()
 AllocationEditResponse.model_rebuild()

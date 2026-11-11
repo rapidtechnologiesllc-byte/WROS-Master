@@ -19,7 +19,8 @@ an allocation is visible when its employee's BU (who owns the person) OR its
 client's BU (who owns the revenue) is in the caller's scope.
 
 Routes:
-  POST   /allocations               Allocate an employee to a demand.
+  POST   /allocations               Allocate an employee: to a client (Staff Aug; its job is
+                                     optional) or to a project (project work).
   GET    /allocations                List allocations (optional employee_id/demand_id filter).
   POST   /allocations/{id}/end      End an allocation (bench transition
                                      handled internally by end_allocation()).
@@ -61,7 +62,7 @@ from app.schemas.allocation import (
     AllocationHistoryResponse,
     AllocationItem,
     AllocationListResponse,
-    AllocationDropdownsResponse, JobDropdownItem, ProjectDropdownItem,
+    AllocationDropdownsResponse, ClientDropdownItem, JobDropdownItem, ProjectDropdownItem,
     CreateAllocationRequest,
     DropdownItem,
     EndAllocationRequest,
@@ -205,7 +206,8 @@ def _to_item(db: Session, allocation: EmployeeAllocation,
         employee_id=allocation.employee_id,
         employee_name=employee_name,
         demand_id=allocation.demand_id,
-        demand_job_title=demand.job_title if demand else (allocation.role or "Project work"),
+        demand_job_title=demand.job_title if demand else (
+            allocation.role or ("Project work" if allocation.project_id else "Staff Aug")),
         client_id=allocation.client_id,
         client_name=client_name,
         project_id=allocation.project_id,
@@ -219,6 +221,8 @@ def _to_item(db: Session, allocation: EmployeeAllocation,
         ending_soon=ending,
         role=allocation.role,
         billing_rate_usd_cents=allocation.billing_rate_usd_cents,
+        bill_rate_amount_cents=allocation.bill_rate_amount_cents,
+        bill_rate_currency=allocation.bill_rate_currency, bill_rate_basis=allocation.bill_rate_basis,
         billable=bool(allocation.billable),
         work_location=demand.work_location if demand else None,
         assigned_recruiter_name=recruiter_name,
@@ -245,6 +249,21 @@ def _visible_demands(db: Session, user: Users):
     )
 
 
+def _agreed_rate(body):
+    """(amount, currency, basis) when the form sent the rate as agreed, else None."""
+    if body.bill_rate_amount_cents is None:
+        return None
+    return body.bill_rate_amount_cents, (body.bill_rate_currency or "USD").upper(), (body.bill_rate_basis or "HOURLY").upper()
+
+
+def _visible_client_or_404(db: Session, client_id: str, user: Users) -> Client:
+    client = db.query(Client).filter(Client.id == client_id, Client.tenant_id == user.tenant_id,
+                                     client_filter(db, user, Client.id)).first()
+    if client is None:
+        raise HTTPException(status_code=404, detail="Client not found.")
+    return client
+
+
 def _get_allocation_or_404(db: Session, allocation_id: str, user: Users) -> EmployeeAllocation:
     """One allocation of the caller's tenant whose employee's BU or client's BU is in scope."""
     allocation = db.query(EmployeeAllocation).filter(
@@ -259,7 +278,7 @@ def _get_allocation_or_404(db: Session, allocation_id: str, user: Users) -> Empl
 @router.post(
     "",
     response_model=AllocationItem,
-    summary="Allocate an employee to a project (demand)",
+    summary="Allocate an employee to a client (Staff Aug, job optional) or a project",
     dependencies=[Depends(require_resource_permission("allocations", "create"))]
 )
 def create_allocation(
@@ -268,8 +287,10 @@ def create_allocation(
     current_user: Users = Depends(get_current_internal_user),
 ):
     employee = _visible_employee_or_404(db, body.employee_id, current_user)
-    if not body.demand_id and not body.project_id:
-        raise HTTPException(status_code=422, detail="Choose the client job (Staff Aug) or the project.")
+    if not body.demand_id and not body.project_id and not body.client_id:
+        raise HTTPException(status_code=422, detail="Choose the client (Staff Aug) or the project.")
+    # Staff Aug names the client; its job is optional (an existing placement has none)
+    client = _visible_client_or_404(db, body.client_id, current_user) if body.client_id else None
     demand = None
     if body.demand_id:
         demand = db.query(Demand).filter(
@@ -293,7 +314,8 @@ def create_allocation(
             start_date=body.start_date, end_date=body.end_date,
             utilization_pct=body.utilization_pct, role=body.role, project=project,
             allow_concurrent=body.allow_concurrent, changed_by=current_user.UserID,
-            billing_rate_usd_cents=body.billing_rate_usd_cents, billable=body.billable,
+            billing_rate_usd_cents=body.billing_rate_usd_cents, billable=body.billable, client=client,
+            agreed_rate=_agreed_rate(body),
         )
         if body.timesheet_approver_email or body.work_order_id:
             set_placement_billing(db, allocation, approver_email=body.timesheet_approver_email,
@@ -366,7 +388,18 @@ def get_allocation_dropdowns(
                                          delivery_engine=p.delivery_engine, is_billable=bool(p.is_billable))
                      for p in live_projects]
 
-    return AllocationDropdownsResponse(employees=employee_items, demands=demand_items, projects=project_items)
+    # Staff Aug picks the client first (its job is optional): the caller's clients
+    from app.models.client import BILLING_CURRENCIES
+    from app.services import compensation
+
+    client_items = [ClientDropdownItem(id=c.id, name=c.company_name, currency=compensation.invoice_currency(c))
+                    for c in db.query(Client).filter(
+        Client.tenant_id == current_user.tenant_id, client_filter(db, current_user, Client.id),
+    ).order_by(Client.company_name)]
+
+    return AllocationDropdownsResponse(employees=employee_items, demands=demand_items, projects=project_items,
+                                       clients=client_items, rate_currencies=list(BILLING_CURRENCIES),
+                                       rate_bases=[b for b in ("HOURLY", "MONTHLY", "ANNUAL") if b in compensation.PAY_BASES])
 
 @router.get(
     "",
@@ -507,9 +540,17 @@ def margin_preview(
         rate = body.billing_rate_usd_cents
         billable = body.billable if body.billable is not None else bool(project.is_billable)
         on = body.start_date or date.today()
+    elif body.employee_id and body.client_id and not body.demand_id:
+        # Staff Aug at the client with no job: the form names the role and bill rate
+        employee = _visible_employee_or_404(db, body.employee_id, current_user)
+        client = _visible_client_or_404(db, body.client_id, current_user)
+        project_id, client_id, role = None, client.id, body.role
+        rate = body.billing_rate_usd_cents
+        billable = body.billable if body.billable is not None else True
+        on = body.start_date or date.today()
     else:
         if not body.employee_id or not body.demand_id:
-            raise HTTPException(status_code=422, detail="Pick the employee and the client job or project first.")
+            raise HTTPException(status_code=422, detail="Pick the employee and the client or project first.")
         employee = _visible_employee_or_404(db, body.employee_id, current_user)
         demand = _visible_demands(db, current_user).filter(Demand.id == body.demand_id).first()
         if demand is None:
@@ -520,9 +561,17 @@ def margin_preview(
         rate = body.billing_rate_usd_cents or demand.billing_rate_usd_cents
         billable = body.billable if body.billable is not None else (bool(project.is_billable) if project else True)
         on = body.start_date or date.today()
+    agreed = _agreed_rate(body)
+    if agreed is not None:
+        from app.services import compensation
+
+        try:
+            rate = compensation.hourly_usd_cents(*agreed)
+        except compensation.PayError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
     result = margin_guard.evaluate(db, tenant_id=current_user.tenant_id, employee=employee, project_id=project_id,
                                    client_id=client_id, role=role, bill_rate_usd_cents=rate, billable=billable, on=on)
-    return MarginCheck(**result.as_dict())
+    return MarginCheck(**result.as_dict(), bill_rate_usd_cents=rate)
 
 
 @router.get(

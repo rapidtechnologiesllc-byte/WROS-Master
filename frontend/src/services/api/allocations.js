@@ -5,6 +5,7 @@ import { apiRequest } from "./client";
 
 export const createAllocation = async ({
   employeeId,
+  clientId,
   demandId,
   projectId,
   startDate,
@@ -13,6 +14,9 @@ export const createAllocation = async ({
   role,
   allowConcurrent,
   billingRateUsdCents,
+  billRateAmountCents,
+  billRateCurrency,
+  billRateBasis,
   billable,
   timesheetApproverEmail,
   workOrderId,
@@ -21,7 +25,9 @@ export const createAllocation = async ({
     method: "POST",
     body: JSON.stringify({
       employee_id: employeeId,
-      demand_id: demandId,
+      // Staff Aug names the client; its job (demand_id) is optional
+      client_id: clientId || undefined,
+      demand_id: demandId || undefined,
       project_id: projectId || undefined,
       start_date: startDate || undefined,
       end_date: endDate || undefined,
@@ -29,6 +35,10 @@ export const createAllocation = async ({
       role: role || undefined,
       allow_concurrent: !!allowConcurrent,
       billing_rate_usd_cents: billingRateUsdCents || undefined,
+      // the rate as agreed: amount (minor units) in a currency per HOURLY / MONTHLY / ANNUAL
+      bill_rate_amount_cents: billRateAmountCents || undefined,
+      bill_rate_currency: billRateAmountCents ? billRateCurrency : undefined,
+      bill_rate_basis: billRateAmountCents ? billRateBasis : undefined,
       // undefined = the project's (client projects billable, internal projects not)
       billable: typeof billable === "boolean" ? billable : undefined,
       timesheet_approver_email: timesheetApproverEmail || undefined,
@@ -81,18 +91,23 @@ export const getAllocationHistory = async (allocationId) => {
   return data.changes;
 };
 
-// The margin guard's verdict on the terms in a form: a new placement (employeeId + demandId) or
-// an existing allocation's proposed terms (allocationId).
-export const previewMargin = async ({ employeeId, demandId, projectId, allocationId, billingRateUsdCents,
-  billable, startDate, role }) => {
+// The margin guard's verdict on the terms in a form: a new placement (employeeId + the job, the
+// project, or the client alone for Staff Aug with no job) or an existing allocation's proposed
+// terms (allocationId).
+export const previewMargin = async ({ employeeId, demandId, projectId, clientId, allocationId, billingRateUsdCents,
+  billRateAmountCents, billRateCurrency, billRateBasis, billable, startDate, role }) => {
   const { data } = await apiRequest("/allocations/margin-preview", {
     method: "POST",
     body: JSON.stringify({
       employee_id: employeeId || undefined,
       demand_id: demandId || undefined,
       project_id: projectId || undefined,
+      client_id: clientId || undefined,
       allocation_id: allocationId || undefined,
       billing_rate_usd_cents: billingRateUsdCents || undefined,
+      bill_rate_amount_cents: billRateAmountCents || undefined,
+      bill_rate_currency: billRateAmountCents ? billRateCurrency : undefined,
+      bill_rate_basis: billRateAmountCents ? billRateBasis : undefined,
       billable: typeof billable === "boolean" ? billable : undefined,
       start_date: startDate || undefined,
       role: role || undefined,

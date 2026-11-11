@@ -84,13 +84,22 @@ class MissingBillingContact(Exception):
 INVOICE_EMAIL_TASK = "send_invoice_email"
 NOT_BILLABLE_ALLOCATION_STATUSES = ("PENDING_MARGIN_APPROVAL", "MARGIN_REJECTED")
 
-def _timesheets_in_period(db: Session, project: Project, period_start, period_end) -> List[Timesheet]:
+def staff_aug_scope(client_id: str):
+    """Staff Aug placements of a client: allocations at the client with no project. Their time is
+    invoiced to the client directly (CEO 2026-11-11: Staff Aug is a person's time and materials,
+    not a project)."""
+    return (EmployeeAllocation.client_id == client_id) & EmployeeAllocation.project_id.is_(None)
+
+
+def _timesheets_in_period(db: Session, project: Optional[Project], period_start, period_end,
+                          client=None) -> List[Timesheet]:
     """Every week that overlaps the period: a week can straddle two months, and its days
-    are billed to the month they fall in."""
+    are billed to the month they fall in. A project's time, or (no project) the client's Staff
+    Aug time."""
     return db.query(Timesheet).join(
         EmployeeAllocation, Timesheet.allocation_id == EmployeeAllocation.id
     ).filter(
-        EmployeeAllocation.project_id == project.id,
+        EmployeeAllocation.project_id == project.id if project is not None else staff_aug_scope(client.id),
         Timesheet.week_starting_date >= period_start - timedelta(days=6),
         Timesheet.week_starting_date <= period_end,
     ).all()
@@ -122,9 +131,13 @@ def _already_billed(db: Session, timesheets: List[Timesheet], period_start, peri
 
 
 def generate_invoice(
-    db: Session, project: Project, *, period_start, period_end, tenant_id: Optional[int] = None,
+    db: Session, project: Optional[Project], *, period_start, period_end, tenant_id: Optional[int] = None,
+    client=None,
 ) -> Invoice:
     """
+    One invoice for a project's time in the period, or -- project None, client given -- for the
+    client's Staff Aug time (its placements with no project), billed to the client directly.
+
     R-10: EVERY timesheet in scope must be APPROVED, no partial invoicing around a stuck one;
     all blockers are reported at once. A client that approves its own timesheets must have
     approved every week billed (ClientApprovalMissing), and no hours may be dated after the end of
@@ -135,12 +148,25 @@ def generate_invoice(
     """
     if period_end < period_start:
         raise ValueError("The billing period ends before it starts.")
-    db.query(Project.id).filter(Project.id == project.id).with_for_update().first()
-    timesheets = _timesheets_in_period(db, project, period_start, period_end)
+    from app.models.client import Client
+
+    if project is None and client is None:
+        raise ValueError("Name the project, or the client whose Staff Aug time is invoiced.")
+    if project is not None:
+        db.query(Project.id).filter(Project.id == project.id).with_for_update().first()
+        client = db.get(Client, project.client_id)
+        if client is None:
+            raise ValueError(f"Project {project.id} has no client; cannot invoice it.")
+    else:
+        db.query(Client.id).filter(Client.id == client.id).with_for_update().first()
+    timesheets = _timesheets_in_period(db, project, period_start, period_end, client)
     if not timesheets:
         raise NothingToInvoice(
             "Cannot generate invoice -- no timesheets for this project in this period. Employees are billed through "
             "their allocation to the project's job; check that the people working on it are allocated and have submitted time."
+            if project is not None else
+            f"Cannot generate invoice -- no Staff Aug timesheets at {client.company_name} in this period. Check that "
+            "the people placed there are allocated to the client and have submitted time."
         )
 
     unapproved = [ts.id for ts in timesheets if ts.status != "APPROVED"]
@@ -204,9 +230,9 @@ def generate_invoice(
             f"Cannot generate invoice -- {len(unpriced)} employee(s) have billable hours but no bill rate on their allocation "
             f"({unpriced}). Set the client bill rate on the job (or the allocation) first."
         )
-    foreign = sorted({a.id for a in allocations.values() if a.client_id and a.client_id != project.client_id})
+    foreign = sorted({a.id for a in allocations.values() if a.client_id and a.client_id != client.id})
     if foreign:
-        raise ValueError(f"Allocation(s) {foreign} belong to a different client than project {project.id}; "
+        raise ValueError(f"Allocation(s) {foreign} belong to a different client than {client.company_name}; "
                          "fix the allocation before invoicing.")
 
     work_orders = _work_orders(db, allocations.values())
@@ -218,28 +244,36 @@ def generate_invoice(
             "then generate again."
         )
 
-    from app.models.client import Client
     from app.services.invoice_numbering import assign_number
 
-    client = db.get(Client, project.client_id)
-    if client is None:
-        raise ValueError(f"Project {project.id} has no client; cannot invoice it.")
+    # The invoice is in the client's currency (its location's: India INR, US USD -- CEO 2026-11-11).
+    # USD cents stay the ledger (R-09: the P&L, AR and revenue read them); each line also carries
+    # its rate and amount in the invoice's currency, and the invoice the exchange rate used.
+    from app.services import compensation
 
-    # every amount is USD cents (R-09); the invoice says so rather than labelling USD with
-    # the client's display currency
+    currency = compensation.invoice_currency(client)
+    fx = compensation.units_per_usd(currency)
+    if fx is None:
+        raise MissingBillRate(
+            f"Cannot generate invoice -- {client.company_name} is invoiced in {currency} and no exchange rate is "
+            f"configured for it (FX_RATES_PER_USD_JSON). Set the rate, then generate again.")
     invoice = Invoice(
-        tenant_id=project.tenant_id or tenant_id, project_id=project.id, client_id=project.client_id,
-        billing_period_start=period_start, billing_period_end=period_end, currency="USD",
+        tenant_id=(project.tenant_id if project is not None else client.tenant_id) or tenant_id,
+        project_id=project.id if project is not None else None, client_id=client.id,
+        billing_period_start=period_start, billing_period_end=period_end, currency=currency, fx_per_usd=fx,
     )
     db.add(invoice)
     db.flush()
 
-    total, po_numbers = 0, []
+    total, total_local, po_numbers = 0, 0, []
     for ts, hours in to_bill:
         allocation = allocations[ts.allocation_id]
         rate = rate_of[ts.id]  # the rate in force for that week (allocation history)
         amount = round(rate * hours)
         total += amount
+        local_rate = _rate_in(currency, fx, allocation, rate)
+        local_amount = round(local_rate * hours)
+        total_local += local_amount
         work_order = work_orders.get(allocation.work_order_id)
         po_number = work_order.po_number if work_order else None
         if po_number and po_number not in po_numbers:
@@ -247,13 +281,33 @@ def generate_invoice(
         db.add(InvoiceLineItem(
             invoice_id=invoice.id, employee_id=ts.employee_id, timesheet_id=ts.id,
             hours=hours, rate_usd_cents=rate, amount_usd_cents=amount, po_number=po_number,
+            rate_cents=round(local_rate), amount_cents=local_amount,
         ))
 
     invoice.total_usd_cents = total
+    invoice.total_cents = total_local
     invoice.po_numbers = ", ".join(po_numbers) or None
     assign_number(db, invoice, client)  # issuer + gapless number, rolled back with this transaction
     db.add(invoice)
     return invoice
+
+
+def _rate_in(currency: str, fx: float, allocation, rate_usd_cents: int) -> float:
+    """The hourly rate of a line in the invoice's currency. A rate agreed in that currency is
+    billed exactly as agreed (never round-tripped through USD); any other -- a USD rate at an INR
+    client, or a week priced by a later rate change -- is the USD rate at the exchange rate."""
+    from app.services import compensation
+
+    agreed = (allocation.bill_rate_currency == currency and allocation.bill_rate_amount_cents
+              and rate_usd_cents == allocation.billing_rate_usd_cents)
+    if agreed:
+        return compensation.hourly_cents(allocation.bill_rate_amount_cents, allocation.bill_rate_basis)
+    return rate_usd_cents * fx
+
+
+def invoice_total_cents(invoice: Invoice) -> int:
+    """The invoice's total in its own currency (an invoice from before the currency split is USD)."""
+    return invoice.total_cents if invoice.total_cents is not None else (invoice.total_usd_cents or 0)
 
 
 def _work_orders(db: Session, allocations) -> dict:
