@@ -50,7 +50,9 @@ from app.services.resource_management_service import (
 logger = logging.getLogger(__name__)
 
 PENDING_MARGIN = "PENDING_MARGIN_APPROVAL"
-EDITABLE_FIELDS = ("end_date", "billing_rate_usd_cents", "utilization_pct", "billable")
+# the rate as agreed (amount, currency, basis) travels with billing_rate_usd_cents, its USD hourly value
+AGREED_RATE_FIELDS = ("bill_rate_amount_cents", "bill_rate_currency", "bill_rate_basis")
+EDITABLE_FIELDS = ("end_date", "billing_rate_usd_cents", "utilization_pct", "billable", "role") + AGREED_RATE_FIELDS
 # timesheet statuses that are past: a rate change never reaches a week in one of these
 LOCKED_TIMESHEET_STATUSES = ("SUBMITTED", "APPROVED", "DISPUTED")
 MIN_REASON_LENGTH = 5
@@ -558,7 +560,7 @@ def _run_edit_rules(db: Session, allocation: EmployeeAllocation, employee: Emplo
     on = effective_from or max(date.today(), allocation.start_date)
     return margin_guard.evaluate(db, tenant_id=allocation.tenant_id, employee=employee,
                                  project_id=allocation.project_id, client_id=allocation.client_id,
-                                 role=allocation.role, bill_rate_usd_cents=proposed["billing_rate_usd_cents"],
+                                 role=proposed["role"], bill_rate_usd_cents=proposed["billing_rate_usd_cents"],
                                  billable=bool(proposed["billable"]), on=on)
 
 
@@ -567,8 +569,8 @@ def _apply(allocation: EmployeeAllocation, new: Dict) -> None:
                                       or new["end_date"] > allocation.end_date)
     for key, value in new.items():
         setattr(allocation, key, value)
-    if "billing_rate_usd_cents" in new:
-        # an edit gives the rate in USD per hour: that is now the rate as agreed
+    if "billing_rate_usd_cents" in new and not any(key in new for key in AGREED_RATE_FIELDS):
+        # the rate was given in USD per hour: that is now the rate as agreed
         allocation.bill_rate_amount_cents, allocation.bill_rate_currency, allocation.bill_rate_basis = (
             new["billing_rate_usd_cents"], "USD", "HOURLY")
     if extended:
@@ -617,6 +619,10 @@ def edit_allocation(
         raise AllocationEditInvalid("Utilization cannot be cleared.")
     if "billing_rate_usd_cents" in new and new["billing_rate_usd_cents"] is None:
         raise AllocationEditInvalid("The bill rate cannot be cleared.")
+    if "role" in new:
+        new["role"] = (new["role"] or "").strip()
+        if not new["role"]:
+            raise AllocationEditInvalid("The role cannot be cleared.")
     effective_from = _validate_edit(db, allocation, new, effective_from)
     old = {key: current[key] for key in new}
 

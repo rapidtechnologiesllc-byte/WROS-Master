@@ -77,7 +77,8 @@ export const getAllocationDropdowns = async () => {
 // the history. Below the margin floor the change waits for approval (change.status PENDING_APPROVAL).
 export const updateAllocation = async (allocationId, { reason, effectiveFrom, ...fields }) => {
   const body = { reason };
-  ["end_date", "billing_rate_usd_cents", "utilization_pct", "billable"].forEach((key) => {
+  ["end_date", "billing_rate_usd_cents", "bill_rate_amount_cents", "bill_rate_currency", "bill_rate_basis", "role",
+    "utilization_pct", "billable"].forEach((key) => {
     if (Object.prototype.hasOwnProperty.call(fields, key)) body[key] = fields[key];
   });
   if (effectiveFrom) body.effective_from = effectiveFrom;

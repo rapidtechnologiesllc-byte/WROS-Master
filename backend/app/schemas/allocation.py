@@ -204,6 +204,12 @@ class UpdateAllocationRequest(BaseModel):
     effective_from: the Monday a new bill rate applies from (default: the first unbilled week)."""
     end_date: Optional[date] = None
     billing_rate_usd_cents: Optional[int] = None
+    # the rate as agreed (amount in minor units, currency, HOURLY / MONTHLY / ANNUAL), as on create;
+    # when sent it decides billing_rate_usd_cents
+    bill_rate_amount_cents: Optional[int] = None
+    bill_rate_currency: Optional[str] = None
+    bill_rate_basis: Optional[str] = None
+    role: Optional[str] = None
     utilization_pct: Optional[float] = None
     billable: Optional[bool] = None
     effective_from: Optional[date] = None

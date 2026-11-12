@@ -92,3 +92,26 @@ export const resolveTimesheetDispute = async (disputeId, body) => {
   });
   return data;
 };
+
+// Bench work items: accelerators, certifications and BU-head-approved work that bench time is
+// logged against. {work_items, categories: {CODE: label}, can_manage}
+export const getWorkItems = async (includeClosed = false) => {
+  const { data } = await apiRequest(`/timesheets/work-items${includeClosed ? "?include_closed=true" : ""}`, { method: "GET" });
+  if (!data || !Array.isArray(data.work_items)) throw new Error("Unexpected response: no work items list.");
+  return data;
+};
+
+export const createWorkItem = async ({ name, category, businessUnitId, description }) => {
+  const { data } = await apiRequest("/timesheets/work-items", {
+    method: "POST",
+    body: JSON.stringify({
+      name, category, business_unit_id: businessUnitId || null, description: description || null,
+    }),
+  });
+  return data;
+};
+
+export const closeWorkItem = async (workItemId) => {
+  const { data } = await apiRequest(`/timesheets/work-items/${workItemId}/close`, { method: "POST" });
+  return data;
+};

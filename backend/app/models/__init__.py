@@ -128,6 +128,7 @@ from app.models.intercompany_ledger import IntercompanySettlement
 from app.models.bank_reconciliation import BankTransaction
 from app.models.timesheet_nag import TimesheetNagLog
 from app.models.timesheet_anomaly import TimesheetAnomalyFlag
+from app.models.bench_work_item import BenchWorkItem
 from app.models.checklist import (
     ChecklistTemplate,
     ChecklistTemplateItem,

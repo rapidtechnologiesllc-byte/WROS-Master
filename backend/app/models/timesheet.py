@@ -55,6 +55,9 @@ class Timesheet(Base):
     # Project, which are service-layer only).
     allocation_id = Column(String(512), ForeignKey("employee_allocations.id"), nullable=True, index=True)
     task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True, index=True)
+    # Bench time (CEO 2026-11-11): the accelerator, certification or BU-head-approved work item the
+    # week was spent on (bench_work_items). Never billable, never invoiced. The third source.
+    work_item_id = Column(String(512), ForeignKey("bench_work_items.id"), nullable=True, index=True)
 
     week_starting_date = Column(Date, nullable=False)  # always a Monday
     total_hours = Column(Numeric(6, 2), nullable=False, default=0)
@@ -89,9 +92,14 @@ class Timesheet(Base):
             "tenant_id", "employee_id", "task_id", "week_starting_date",
             name="uq_timesheet_per_employee_task_week",
         ),
+        UniqueConstraint(
+            "tenant_id", "employee_id", "work_item_id", "week_starting_date",
+            name="uq_timesheet_per_employee_work_item_week",
+        ),
+        # every timesheet says where the time went: client work, an internal task or a bench work item
         CheckConstraint(
-            "(allocation_id IS NOT NULL) OR (task_id IS NOT NULL)",
-            name="ck_timesheet_allocation_or_task",
+            "(allocation_id IS NOT NULL) OR (task_id IS NOT NULL) OR (work_item_id IS NOT NULL)",
+            name="ck_timesheet_has_source",
         ),
     )
 
