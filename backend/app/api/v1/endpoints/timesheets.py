@@ -33,9 +33,14 @@ operate on a Timesheet and have no REST layer of their own yet:
     (has_open_dispute() gates invoice generation).
 
 Routes:
-  POST   /timesheets/weekly-draft            Create (or return existing) a weekly draft.
-  PUT    /timesheets/{id}/entries             Upsert daily entries.
-  POST   /timesheets/{id}/submit              DRAFT -> SUBMITTED.
+  POST   /timesheets/weekly-draft            Create (or return existing) a weekly draft (own time only).
+  PUT    /timesheets/{id}/entries             Upsert daily entries (own time only).
+  POST   /timesheets/{id}/submit              DRAFT -> SUBMITTED (own time only; routed to the
+                                              reporting manager).
+  GET    /timesheets/work-items               Bench work items (accelerators, certifications,
+                                              BU-head-approved work) time can be logged against.
+  POST   /timesheets/work-items               A BU leader adds (= approves) a work item.
+  POST   /timesheets/work-items/{id}/close    Close it: no new time.
   POST   /timesheets/{id}/approve             SUBMITTED -> APPROVED.
   POST   /timesheets/{id}/reject              SUBMITTED -> REJECTED (20+ char reason).
   POST   /timesheets/{id}/reopen              REJECTED -> DRAFT.
@@ -76,6 +81,9 @@ from app.schemas.timesheet import (
     RaiseDisputeRequest,
     RejectTimesheetRequest,
     ResolveDisputeRequest,
+    WorkItemItem,
+    WorkItemListResponse,
+    WorkItemRequest,
     SubmitTimesheetRequest,
     TimesheetEntryItem,
     TimesheetItem,
@@ -108,7 +116,41 @@ from app.services.timesheet_approval_service import rejection_for_employee
 
 router = APIRouter(prefix="/timesheets", tags=["timesheets"])
 
-def _to_item(db: Session, timesheet: Timesheet) -> TimesheetItem:
+def _where_logged(db: Session, timesheet: Timesheet) -> dict:
+    """Where the week's time is logged, for the grouping on the screens: a client placement (Staff
+    Aug), a project, a bench work item (accelerator, certification, BU-head-approved work) or an
+    internal task."""
+    from app.models.bench_work_item import WORK_ITEM_CATEGORIES, BenchWorkItem
+    from app.models.client import Client
+    from app.models.project import Project
+    from app.models.task import Task
+
+    if timesheet.work_item_id:
+        item = db.get(BenchWorkItem, timesheet.work_item_id)
+        category = WORK_ITEM_CATEGORIES.get(item.category, item.category) if item else "Bench work"
+        return {"work_type": "BENCH", "work_group": category, "work_label": item.name if item else "Bench work"}
+    if timesheet.allocation_id:
+        allocation = db.get(EmployeeAllocation, timesheet.allocation_id)
+        if allocation is None:
+            return {"work_type": "STAFF_AUG", "work_group": "Client work", "work_label": "(allocation removed)"}
+        client = db.get(Client, allocation.client_id)
+        project = db.get(Project, allocation.project_id) if allocation.project_id else None
+        where = [client.company_name if client else None, project.name if project else None, allocation.role]
+        label = " · ".join(dict.fromkeys(w for w in where if w))
+        if project is not None and not project.is_billable:
+            return {"work_type": "PROJECT", "work_group": "Internal project", "work_label": label}
+        if project is not None and not allocation.demand_id:
+            return {"work_type": "PROJECT", "work_group": "Project", "work_label": label}
+        return {"work_type": "STAFF_AUG", "work_group": "Staff Aug", "work_label": label}
+    task = db.get(Task, timesheet.task_id) if timesheet.task_id else None
+    return {"work_type": "INTERNAL_TASK", "work_group": "Internal task", "work_label": task.title if task else "Internal task"}
+
+
+def _to_item(db: Session, timesheet: Timesheet, viewer: Optional[Users] = None) -> TimesheetItem:
+    from datetime import timedelta
+
+    from app.services.timesheet_approval_service import pipeline
+
     employee = db.query(Employee).filter(Employee.id == timesheet.employee_id).first()
     employee_name = (
         f"{employee.first_name} {employee.last_name}".strip() if employee else "(unknown employee)"
@@ -134,6 +176,11 @@ def _to_item(db: Session, timesheet: Timesheet) -> TimesheetItem:
         approved_at=timesheet.approved_at,
         rejection_reason=timesheet.rejection_reason,
         rejection=rejection_for_employee(db, timesheet) if timesheet.status in ("REJECTED", "DRAFT") else None,
+        week_ending_date=timesheet.week_starting_date + timedelta(days=6),
+        is_own=bool(viewer is not None and employee is not None and employee.wros_user_id == viewer.UserID),
+        work_item_id=timesheet.work_item_id,
+        pipeline=pipeline(db, timesheet),
+        **_where_logged(db, timesheet),
         entries=[
             TimesheetEntryItem(
                 id=e.id, entry_date=e.entry_date, hours=float(e.hours),
@@ -157,6 +204,17 @@ def _visible_timesheets(db: Session, user: Users):
     )
 
 
+def _own_or_403(db: Session, timesheet: Timesheet, user: Users) -> None:
+    """Only the employee enters and submits their own time (CEO 2026-11-11): whatever a role may
+    see or approve, nobody fills in or submits someone else's week."""
+    employee = db.get(Employee, timesheet.employee_id)
+    if employee is None or employee.wros_user_id != user.UserID:
+        who = f"{employee.first_name} {employee.last_name}".strip() if employee else "the employee"
+        raise HTTPException(status_code=403, detail=(
+            f"Only {who} can enter and submit this timesheet (My Timesheet). "
+            "You can review it, and approve or reject it once it is submitted."))
+
+
 def _get_timesheet_or_404(db: Session, timesheet_id: str, user: Users) -> Timesheet:
     """Every /timesheets/{id} route goes through here: another tenant's or another business
     unit's timesheet is 404, the same answer as one that does not exist."""
@@ -174,13 +232,13 @@ def timesheet_allocations(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    """Every ACTIVE allocation the caller may start a draft for (the same scope as POST
-    /weekly-draft), grouped by employee for an employee -> allocation picker."""
+    """The caller's own ACTIVE allocations (the same scope as POST /weekly-draft): only the
+    employee starts and fills their own week."""
     from app.api.v1.endpoints.allocations import _to_item as allocation_to_item
 
     rows = db.query(EmployeeAllocation).filter(
         EmployeeAllocation.tenant_id == current_user.tenant_id, EmployeeAllocation.status == "ACTIVE",
-        or_(allocation_filter(db, current_user), EmployeeAllocation.employee_id.in_(_own_employee_ids(current_user))),
+        EmployeeAllocation.employee_id.in_(_own_employee_ids(current_user)),
     ).order_by(EmployeeAllocation.start_date.desc()).all()
     employees = {}
     for allocation in rows:
@@ -192,6 +250,125 @@ def timesheet_allocations(
             "start_date": item.start_date, "end_date": item.end_date,
         })
     return {"employees": sorted(employees.values(), key=lambda e: e["employee_name"].lower())}
+
+
+# --------------------------------------------------------------------------- bench work items
+
+def _may_manage_work_items(db: Session, user: Users) -> bool:
+    """A BU leader approves bench work: BU Head level and above, a named head of a business unit,
+    or an org-level role template (role template driven, never a role name)."""
+    from app.core import authority
+
+    return (authority.is_bu_leader(db, user) or authority.heads_a_business_unit(db, user)
+            or authority.is_org_level(db, user))
+
+
+def _work_item(db: Session, item) -> WorkItemItem:
+    from app.models.bench_work_item import WORK_ITEM_CATEGORIES
+    from app.models.business_unit import BusinessUnit
+
+    unit = db.get(BusinessUnit, item.business_unit_id) if item.business_unit_id else None
+    approver = db.get(Users, item.approved_by_user_id) if item.approved_by_user_id else None
+    return WorkItemItem(
+        id=item.id, name=item.name, category=item.category,
+        category_label=WORK_ITEM_CATEGORIES.get(item.category, item.category),
+        business_unit_id=item.business_unit_id, business_unit_name=(unit.display_name or unit.name) if unit else None,
+        description=item.description, status=item.status,
+        approved_by_name=approver.UserName if approver else None, approved_at=item.approved_at)
+
+
+@router.get(
+    "/work-items",
+    response_model=WorkItemListResponse,
+    summary="Bench work items: accelerators, certifications and BU-head-approved work to log time against",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_VIEW))]
+)
+def list_work_items(
+    include_closed: bool = False,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    from app.core.data_scope import bu_filter
+    from app.models.bench_work_item import WORK_ITEM_CATEGORIES, BenchWorkItem
+
+    query = db.query(BenchWorkItem).filter(
+        BenchWorkItem.tenant_id == current_user.tenant_id, bu_filter(db, current_user, BenchWorkItem.business_unit_id))
+    if not include_closed:
+        query = query.filter(BenchWorkItem.status == "ACTIVE")
+    items = query.order_by(BenchWorkItem.category, BenchWorkItem.name).all()
+    return WorkItemListResponse(work_items=[_work_item(db, i) for i in items], categories=dict(WORK_ITEM_CATEGORIES),
+                                can_manage=_may_manage_work_items(db, current_user))
+
+
+@router.post(
+    "/work-items",
+    response_model=WorkItemItem,
+    summary="Add a bench work item (a BU leader: adding it is the approval)",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
+)
+def create_work_item(
+    body: WorkItemRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    from datetime import datetime
+
+    from app.core.data_scope import bu_filter
+    from app.models.bench_work_item import WORK_ITEM_CATEGORIES, BenchWorkItem
+    from app.models.business_unit import BusinessUnit
+
+    if not _may_manage_work_items(db, current_user):
+        raise HTTPException(status_code=403, detail="Bench work is approved by a BU head: only a BU leader can add a work item.")
+    if body.category not in WORK_ITEM_CATEGORIES:
+        raise HTTPException(status_code=422, detail=f"Category must be one of {list(WORK_ITEM_CATEGORIES)}.")
+    if body.business_unit_id is not None and db.query(BusinessUnit.id).filter(
+            BusinessUnit.id == body.business_unit_id, BusinessUnit.tenant_id == current_user.tenant_id,
+            bu_filter(db, current_user, BusinessUnit.id, unassigned_visible=False)).first() is None:
+        raise HTTPException(status_code=404, detail="Business unit not found.")
+    name = body.name.strip()
+    duplicate = db.query(BenchWorkItem.id).filter(
+        BenchWorkItem.tenant_id == current_user.tenant_id, BenchWorkItem.status == "ACTIVE",
+        BenchWorkItem.name == name, BenchWorkItem.business_unit_id == body.business_unit_id).first()
+    if duplicate is not None:
+        raise HTTPException(status_code=409, detail=f"An active work item named {name!r} already exists there.")
+    item = BenchWorkItem(tenant_id=current_user.tenant_id, business_unit_id=body.business_unit_id, name=name,
+                         category=body.category, description=(body.description or "").strip() or None,
+                         approved_by_user_id=current_user.UserID, approved_at=datetime.utcnow())
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    logger.info(f"[BenchWork] {current_user.UserID} approved work item {item.id} ({item.category}: {item.name})")
+    return _work_item(db, item)
+
+
+@router.post(
+    "/work-items/{work_item_id}/close",
+    response_model=WorkItemItem,
+    summary="Close a bench work item: no new time is logged against it (logged time stays)",
+    dependencies=[Depends(require_role_template_permission(*Permissions.TIMESHEETS_EDIT))]
+)
+def close_work_item(
+    work_item_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    from datetime import datetime
+
+    from app.core.data_scope import bu_filter
+    from app.models.bench_work_item import BenchWorkItem
+
+    if not _may_manage_work_items(db, current_user):
+        raise HTTPException(status_code=403, detail="Only a BU leader can close a work item.")
+    item = db.query(BenchWorkItem).filter(
+        BenchWorkItem.id == work_item_id, BenchWorkItem.tenant_id == current_user.tenant_id,
+        bu_filter(db, current_user, BenchWorkItem.business_unit_id)).first()
+    if item is None:
+        raise HTTPException(status_code=404, detail="Work item not found.")
+    if item.status != "CLOSED":
+        item.status, item.closed_at = "CLOSED", datetime.utcnow()
+        db.commit()
+        db.refresh(item)
+    return _work_item(db, item)
 
 
 @router.post(
@@ -211,6 +388,10 @@ def create_draft(
     ).first()
     if allocation is None:
         raise HTTPException(status_code=404, detail="Allocation not found.")
+    owner = db.get(Employee, allocation.employee_id)
+    if owner is None or owner.wros_user_id != current_user.UserID:
+        who = f"{owner.first_name} {owner.last_name}".strip() if owner else "the employee"
+        raise HTTPException(status_code=403, detail=f"Only {who} can start their own timesheet (My Timesheet).")
 
     try:
         timesheet = create_weekly_draft(
@@ -239,7 +420,7 @@ def create_draft(
         db.rollback()
         logger.error(f"Failed to create timesheet {timesheet.id}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Saved, but the follow-up event could not be queued (create timesheet); retry or tell support.")
-    return _to_item(db, timesheet)
+    return _to_item(db, timesheet, current_user)
 
 @router.put(
     "/{timesheet_id}/entries",
@@ -254,6 +435,7 @@ def upsert_timesheet_entries(
     current_user: Users = Depends(get_current_internal_user),
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id, current_user)
+    _own_or_403(db, timesheet, current_user)
     entries = [e.model_dump() for e in body.entries]
     try:
         timesheet = upsert_entries(db, timesheet, entries)
@@ -276,7 +458,7 @@ def upsert_timesheet_entries(
             },
         )
         db.refresh(timesheet)
-        return _to_item(db, timesheet)
+        return _to_item(db, timesheet, current_user)
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to update timesheet entries {timesheet.id}: {str(e)}", exc_info=True)
@@ -319,10 +501,11 @@ def submit(
     from app.services.timesheet_approval_service import submit_for_approval
 
     timesheet = _get_timesheet_or_404(db, timesheet_id, current_user)
+    _own_or_403(db, timesheet, current_user)
     run_approval_step(db, lambda: submit_for_approval(db, timesheet, current_user,
                                                       response=body.response if body else None))
     db.refresh(timesheet)
-    return _to_item(db, timesheet)
+    return _to_item(db, timesheet, current_user)
 
 
 @router.post(
@@ -344,7 +527,7 @@ def approve(
     run_approval_step(db, lambda: approve_step(db, timesheet, current_user, comment=body.comment,
                                                addressed=body.addressed))
     db.refresh(timesheet)
-    return _to_item(db, timesheet)
+    return _to_item(db, timesheet, current_user)
 
 
 @router.post(
@@ -365,7 +548,7 @@ def reject(
     run_approval_step(db, lambda: reject_step(db, timesheet, current_user, reason=body.reason,
                                               flagged_dates=body.flagged_dates))
     db.refresh(timesheet)
-    return _to_item(db, timesheet)
+    return _to_item(db, timesheet, current_user)
 
 @router.post(
     "/{timesheet_id}/reopen",
@@ -379,6 +562,7 @@ def reopen(
     current_user: Users = Depends(get_current_internal_user),
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id, current_user)
+    _own_or_403(db, timesheet, current_user)
     try:
         timesheet = reopen_for_editing(db, timesheet)
     except InvalidTimesheetTransition as exc:
@@ -400,7 +584,7 @@ def reopen(
         from app.services.action_emails.timesheets import notify_reopened
 
         notify_reopened(db, timesheet, actor=current_user)
-        return _to_item(db, timesheet)
+        return _to_item(db, timesheet, current_user)
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to reopen timesheet {timesheet_id}: {str(e)}", exc_info=True)
@@ -425,7 +609,7 @@ def list_timesheets(
     if status:
         query = query.filter(Timesheet.status == status)
     timesheets = query.order_by(Timesheet.week_starting_date.desc()).all()
-    return TimesheetListResponse(timesheets=[_to_item(db, t) for t in timesheets])
+    return TimesheetListResponse(timesheets=[_to_item(db, t, current_user) for t in timesheets])
 
 @router.get(
     "/{timesheet_id}",
@@ -439,7 +623,7 @@ def get_timesheet(
     current_user: Users = Depends(get_current_internal_user),
 ):
     timesheet = _get_timesheet_or_404(db, timesheet_id, current_user)
-    return _to_item(db, timesheet)
+    return _to_item(db, timesheet, current_user)
 
 # ---------------------------------------------------------------------------
 # S-229/HRMS-0910 -- Anomaly Detection (advisory only, never blocks anything)

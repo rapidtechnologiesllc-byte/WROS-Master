@@ -661,9 +661,20 @@ def update_allocation(
     current_user: Users = Depends(get_current_internal_user),
 ):
     allocation = _get_allocation_or_404(db, allocation_id, current_user)
-    changes = {key: getattr(body, key) for key in ("end_date", "billing_rate_usd_cents", "utilization_pct", "billable")
+    changes = {key: getattr(body, key)
+               for key in ("end_date", "billing_rate_usd_cents", "utilization_pct", "billable", "role")
                if key in body.model_fields_set}
+    agreed = _agreed_rate(body)
     try:
+        if agreed is not None:
+            # the rate as agreed (currency, per hour / month / year): kept as given, valued in USD per hour
+            from app.services import compensation
+
+            try:
+                changes["billing_rate_usd_cents"] = compensation.hourly_usd_cents(*agreed)
+            except compensation.PayError as exc:
+                raise AllocationEditInvalid(str(exc)) from exc
+            changes.update(zip(("bill_rate_amount_cents", "bill_rate_currency", "bill_rate_basis"), agreed))
         change = edit_allocation(db, allocation, changes=changes, reason=body.reason,
                                  effective_from=body.effective_from, changed_by=current_user.UserID)
     except AllocationEditInvalid as exc:

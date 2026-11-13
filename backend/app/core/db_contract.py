@@ -2244,6 +2244,24 @@ def _migrate_company_partner_structure(db: Session):
         # to the client with no project
         ("employee_allocations: client alone is enough",
          "ALTER TABLE app_schema.employee_allocations DROP CONSTRAINT IF EXISTS ck_allocation_job_or_project"),
+        # Bench time is logged against a work item (CEO 2026-11-11): the timesheet's third source
+        ("timesheets.work_item_id",
+         "ALTER TABLE app_schema.timesheets ADD COLUMN IF NOT EXISTS work_item_id VARCHAR(512) "
+         "REFERENCES app_schema.bench_work_items(id)"),
+        ("timesheets.work_item_id index",
+         "CREATE INDEX IF NOT EXISTS ix_timesheets_work_item_id ON app_schema.timesheets (work_item_id)"),
+        ("timesheets: one per employee, work item and week",
+         "CREATE UNIQUE INDEX IF NOT EXISTS uq_timesheet_per_employee_work_item_week "
+         "ON app_schema.timesheets (tenant_id, employee_id, work_item_id, week_starting_date)"),
+        ("timesheets: old source rule",
+         "ALTER TABLE app_schema.timesheets DROP CONSTRAINT IF EXISTS ck_timesheet_allocation_or_task"),
+        ("timesheets: allocation, task or work item", """
+            DO $$ BEGIN
+              IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_timesheet_has_source') THEN
+                ALTER TABLE app_schema.timesheets ADD CONSTRAINT ck_timesheet_has_source
+                  CHECK (allocation_id IS NOT NULL OR task_id IS NOT NULL OR work_item_id IS NOT NULL);
+              END IF;
+            END $$"""),
         # the bill rate as agreed (currency, per hour / month / year) and the invoice in the
         # client's currency (CEO 2026-11-11)
         ("employee_allocations.bill_rate_amount_cents",

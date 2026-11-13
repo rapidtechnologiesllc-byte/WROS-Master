@@ -49,6 +49,43 @@ class TimesheetItem(BaseModel):
     entries: List[TimesheetEntryItem] = []
     # on a rejected week: {reason, flagged_dates, revision} from the approval loop
     rejection: Optional[dict] = None
+    week_ending_date: Optional[date] = None
+    # only the employee enters and submits their own time: true when the caller is that employee
+    is_own: bool = False
+    # where the time is logged: STAFF_AUG (a client placement), PROJECT, BENCH (a bench work item:
+    # accelerator, certification, BU-head-approved work) or INTERNAL_TASK, with its group and name
+    work_type: Optional[str] = None
+    work_group: Optional[str] = None  # e.g. "Staff Aug", "Project", "Accelerator"
+    work_label: Optional[str] = None  # e.g. "Alfa Insurance · Guidewire Business Analyst"
+    work_item_id: Optional[str] = None
+    # where it stands on the way to the invoice: {stage, text, approver_name, invoice_number, ...}
+    pipeline: Optional[dict] = None
+
+
+class WorkItemRequest(BaseModel):
+    name: str = Field(..., min_length=2, max_length=300)
+    category: str
+    business_unit_id: Optional[int] = None  # None = open to every business unit
+    description: Optional[str] = None
+
+
+class WorkItemItem(BaseModel):
+    id: str
+    name: str
+    category: str
+    category_label: str
+    business_unit_id: Optional[int] = None
+    business_unit_name: Optional[str] = None
+    description: Optional[str] = None
+    status: str
+    approved_by_name: Optional[str] = None
+    approved_at: Optional[datetime] = None
+
+
+class WorkItemListResponse(BaseModel):
+    work_items: List[WorkItemItem]
+    categories: dict = {}
+    can_manage: bool = False
 
 class TimesheetListResponse(BaseModel):
     timesheets: List[TimesheetItem]

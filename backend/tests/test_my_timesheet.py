@@ -115,20 +115,20 @@ def test_a_window_wider_than_the_submission_window_fails_loudly(monkeypatch):
         self_service.allowed_weeks()
 
 
-def test_timesheet_allocation_picker_lists_active_allocations_by_employee(api, db, org, worker):
+def test_timesheet_allocation_picker_lists_only_my_own_active_allocations(api, db, org, worker):
+    """Only the employee starts their own week (CEO 2026-11-11): the picker offers nobody else's."""
     admin = _user(db, org.role, "Timesheet Admin")
     db.commit()
-    res = api.get("/api/v1/timesheets/allocations", headers=_h(admin))
+    assert api.get("/api/v1/timesheets/allocations", headers=_h(admin)).json()["employees"] == []
+    res = api.get("/api/v1/timesheets/allocations", headers=_h(worker.login))
     assert res.status_code == 200, res.text
     mine = [e for e in res.json()["employees"] if e["employee_id"] == worker.employee.id]
     assert len(mine) == 1 and [a["id"] for a in mine[0]["allocations"]] == [worker.allocation.id]
 
 
-def test_admin_timesheet_events_carry_the_tenant(api, db, org, worker):
-    admin = _user(db, org.role, "Timesheet Admin")
-    db.commit()
+def test_timesheet_events_carry_the_tenant(api, db, org, worker):
     with patch("app.api.v1.endpoints.timesheets.MessageQueueService.enqueue", return_value={}) as enqueue:
-        res = api.post("/api/v1/timesheets/weekly-draft", headers=_h(admin),
+        res = api.post("/api/v1/timesheets/weekly-draft", headers=_h(worker.login),
                        json={"allocation_id": worker.allocation.id,
                              "week_starting_date": _monday(date.today()).isoformat()})
     assert res.status_code == 200, res.text

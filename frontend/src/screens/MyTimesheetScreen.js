@@ -1,14 +1,20 @@
-// Employee self-service timesheet -- real ownership boundary added
-// 2026-08-04 (app.services.employee_self_service) on top of the
-// already-real, already-tested HR-operated timesheet engine. Every
-// employee only ever sees/edits their OWN allocation and timesheet.
-import { useCallback, useEffect, useState } from "react";
+// Employee self-service timesheet: every employee enters and submits only their OWN time
+// (app.services.employee_self_service).
+// CEO 2026-11-11: one weekly time card. A row per thing the time went to -- a client placement
+// (Staff Aug), a project, or, on the bench, a work item a BU head approved (accelerator,
+// certification, other work) -- and a column per day with its date; totals per row and per day.
+// "Submit week" sends what is typed. Each row shows where it stands: reporting manager ->
+// Finance -> invoice. Behind the card each row is its own timesheet (one per placement or work
+// item and week), so approval, invoicing and the P&L work as before.
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { X, AlertTriangle, CheckCircle } from "lucide-react";
 import { Card, Button, Select } from "../components/ui";
 import {
-  getMyAllocations, getMyTimesheetForWeek, getMyTimesheetHistory, getMyTimesheetWeeks, logMyHours, submitMyTimesheet,
+  getMyAllocations, getMyTimesheetForWeek, getMyTimesheetHistory, getMyTimesheetWeeks, getMyWorkItems, logMyHours,
+  submitMyTimesheet,
 } from "../services/api/myTimesheet";
+import { dayDate, dayName, todayIso, weekDays, weekRange, WORK_TYPE_STYLES } from "../utils/timesheetWeek";
 
 const STATUS_STYLES = {
   DRAFT: "bg-gray-100 text-gray-600 border-gray-200",
@@ -17,31 +23,29 @@ const STATUS_STYLES = {
   REJECTED: "bg-red-100 text-red-800 border-red-300",
   DISPUTED: "bg-purple-100 text-purple-800 border-purple-300",
 };
-
-function weekDays(weekStartingDate) {
-  const start = new Date(`${weekStartingDate}T00:00:00`);
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${d.getFullYear()}-${month}-${day}`;
-  });
-}
+// client and project work first, then bench work, then internal tasks
+const ROW_ORDER = { STAFF_AUG: 0, PROJECT: 1, BENCH: 2, INTERNAL_TASK: 3 };
 
 function weekLabel(monday, index) {
-  if (index === 0) return `This week (from ${monday})`;
-  if (index === 1) return `Last week (from ${monday})`;
-  return `Week of ${monday}`;
+  if (index === 0) return `This week (${weekRange(monday)})`;
+  if (index === 1) return `Last week (${weekRange(monday)})`;
+  return `Week of ${weekRange(monday)}`;
 }
+
+const isEditable = (sheet) => sheet.status === "DRAFT" || sheet.status === "REJECTED";
+const hoursOf = (sheet) => Object.fromEntries((sheet.entries || []).map((e) => [e.entry_date, String(e.hours)]));
+const sortRows = (rows) => [...rows].sort((a, b) => (ROW_ORDER[a.work_type] ?? 9) - (ROW_ORDER[b.work_type] ?? 9)
+  || String(a.work_label).localeCompare(String(b.work_label)));
 
 export default function MyTimesheetScreen() {
   const [allocations, setAllocations] = useState([]);
-  const [allocationId, setAllocationId] = useState("");
+  const [workItems, setWorkItems] = useState([]);
   const [weeks, setWeeks] = useState([]);
   const [week, setWeek] = useState("");
-  const [timesheet, setTimesheet] = useState(null);
+  // the week's rows: one timesheet per placement / work item; hours[timesheetId][date] = what is typed
+  const [rows, setRows] = useState(null);
   const [hours, setHours] = useState({});
+  const [responses, setResponses] = useState({});
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -49,11 +53,10 @@ export default function MyTimesheetScreen() {
   const [notLinked, setNotLinked] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
-  const [response, setResponse] = useState("");
-  // a resubmit task links here with ?week=YYYY-MM-DD&allocation=<id>
+  // a resubmit task links here with ?week=YYYY-MM-DD (&work_item=<id> for bench work)
   const [searchParams] = useSearchParams();
   const linkedWeek = searchParams.get("week");
-  const linkedAllocation = searchParams.get("allocation");
+  const linkedWorkItem = searchParams.get("work_item");
 
   const loadHistory = useCallback(async () => {
     try {
@@ -67,77 +70,115 @@ export default function MyTimesheetScreen() {
     const load = async () => {
       setActionError(null);
       try {
-        const [allocs, allowedWeeks] = await Promise.all([getMyAllocations(), getMyTimesheetWeeks()]);
+        const [allocs, allowedWeeks, items] = await Promise.all(
+          [getMyAllocations(), getMyTimesheetWeeks(), getMyWorkItems()]);
         setAllocations(allocs);
+        setWorkItems(items);
         setWeeks(allowedWeeks);
-        const linkedAlloc = allocs.find((a) => a.id === linkedAllocation);
-        if (allocs.length) setAllocationId((linkedAlloc || allocs[0]).id);
         if (allowedWeeks.length) setWeek(allowedWeeks.includes(linkedWeek) ? linkedWeek : allowedWeeks[0]);
         await loadHistory();
       } catch (err) {
         if (err.status === 404) {
           setNotLinked(err.message);
         } else {
-          setActionError(`Could not load your project allocations: ${err.message}`);
+          setActionError(`Could not load your timesheet: ${err.message}`);
         }
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, [loadHistory, linkedAllocation, linkedWeek]);
+  }, [loadHistory, linkedWeek]);
+
+  const showRows = useCallback((sheets) => {
+    setRows(sortRows(sheets));
+    setHours(Object.fromEntries(sheets.map((s) => [s.id, hoursOf(s)])));
+  }, []);
+
+  // The week's card: a row for each of my placements (its draft is started when missing), plus the
+  // rows already on the week (bench work, a placement that has since ended).
+  const loadWeek = useCallback(async () => {
+    if (!week) return;
+    setRows(null);
+    setActionError(null);
+    try {
+      // a placement the week falls outside of (not started yet, already ended) simply has no row
+      await Promise.all(allocations.map((a) => getMyTimesheetForWeek({ allocationId: a.id }, week).catch(() => null)));
+      if (linkedWorkItem && linkedWeek === week) {
+        await getMyTimesheetForWeek({ workItemId: linkedWorkItem }, week).catch(() => null);
+      }
+      showRows(await getMyTimesheetHistory(week));
+    } catch (err) {
+      setRows([]);
+      setActionError(`Could not open the week of ${weekRange(week)}: ${err.message}`);
+    }
+  }, [week, allocations, linkedWorkItem, linkedWeek, showRows]);
 
   useEffect(() => {
-    if (!allocationId || !week) return;
-    const loadTimesheet = async () => {
-      setActionError(null);
-      setTimesheet(null);
-      try {
-        const ts = await getMyTimesheetForWeek(allocationId, week);
-        setTimesheet(ts);
-        const byDate = {};
-        (ts.entries || []).forEach((e) => { byDate[e.entry_date] = String(e.hours); });
-        setHours(byDate);
-      } catch (err) {
-        setActionError(`Could not open the week of ${week}: ${err.message}`);
-      }
-    };
-    loadTimesheet();
-  }, [allocationId, week]);
+    if (!loading && !notLinked) loadWeek();
+  }, [loading, notLinked, loadWeek]);
 
-  const handleSave = async () => {
-    if (!timesheet) return;
+  const days = useMemo(() => (week ? weekDays(week) : []), [week]);
+  const today = todayIso();
+  const typed = (sheet, day) => Number(hours[sheet.id]?.[day]) || 0;
+  const rowTotal = (sheet) => days.reduce((sum, d) => sum + typed(sheet, d), 0);
+  const dayTotal = (day) => (rows || []).reduce((sum, s) => sum + typed(s, day), 0);
+  const weekTotal = (rows || []).reduce((sum, s) => sum + rowTotal(s), 0);
+  const editableRows = (rows || []).filter(isEditable);
+  // every day that is typed or was saved before, so a day cleared on the card is cleared on the server
+  const entriesOf = (sheet) => days
+    .filter((d) => typed(sheet, d) > 0 || (sheet.entries || []).some((e) => e.entry_date === d))
+    .map((d) => ({ entry_date: d, hours: typed(sheet, d), entry_type: "BILLABLE" }));
+  const changed = (sheet) => days.some((d) => typed(sheet, d) !== (Number(hoursOf(sheet)[d]) || 0));
+
+  const replaceRow = (updated) => setRows((current) => sortRows(current.map((s) => (s.id === updated.id ? updated : s))));
+
+  // bench work not on the card yet
+  const addable = workItems.filter((i) => !(rows || []).some((s) => s.work_item_id === i.id));
+  const addBenchRow = async (workItemId) => {
+    if (!workItemId) return;
+    setActionError(null);
+    try {
+      const sheet = await getMyTimesheetForWeek({ workItemId }, week);
+      setRows((current) => sortRows([...(current || []).filter((s) => s.id !== sheet.id), sheet]));
+      setHours((current) => ({ ...current, [sheet.id]: hoursOf(sheet) }));
+    } catch (err) {
+      setActionError(err.message || "Could not add that work item to the week.");
+    }
+  };
+
+  const run = async (work, done) => {
     setSaving(true);
     setActionError(null);
     setActionSuccess(null);
     try {
-      const entries = weekDays(timesheet.week_starting_date)
-        .filter((d) => hours[d] !== undefined && hours[d] !== "")
-        .map((d) => ({ entry_date: d, hours: Number(hours[d]), entry_type: "BILLABLE" }));
-      const updated = await logMyHours(timesheet.id, entries);
-      setTimesheet(updated);
-      setActionSuccess("Hours saved.");
+      await work();
+      setActionSuccess(done);
+      loadHistory();
     } catch (err) {
-      setActionError(err.message || "Could not save hours.");
+      setActionError(err.message || "That did not go through.");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleSubmit = async () => {
-    if (!timesheet) return;
-    setActionError(null);
-    setActionSuccess(null);
-    try {
-      const submitted = await submitMyTimesheet(timesheet.id, response.trim());
-      setTimesheet(submitted);
-      setResponse("");
-      setActionSuccess("Timesheet submitted for approval.");
-      loadHistory();
-    } catch (err) {
-      setActionError(err.message || "Could not submit timesheet.");
-    }
-  };
+  const handleSave = () => run(async () => {
+    const saved = await Promise.all(editableRows.filter(changed).map((sheet) => logMyHours(sheet.id, entriesOf(sheet))));
+    saved.forEach(replaceRow);
+  }, "Hours saved.");
+
+  // Submit sends what is on the card: each row with hours is saved, then submitted to the approver.
+  // A rejected row with no change goes back with the response typed under it.
+  const handleSubmit = () => run(async () => {
+    const sending = editableRows.filter((s) => rowTotal(s) > 0);
+    if (!sending.length) throw new Error("Enter the hours you worked before submitting.");
+    const submitted = await Promise.all(sending.map(async (sheet) => {
+      if (changed(sheet)) await logMyHours(sheet.id, entriesOf(sheet));
+      return submitMyTimesheet(sheet.id, (responses[sheet.id] || "").trim());
+    }));
+    submitted.forEach(replaceRow);
+    setResponses({});
+  }, "Submitted. Each row went to your reporting manager for approval.");
 
   if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
 
@@ -151,36 +192,17 @@ export default function MyTimesheetScreen() {
     );
   }
 
-  if (allocations.length === 0 && !actionError) {
-    return (
-      <div className="p-6 max-w-3xl mx-auto">
-        <Card>
-          <p className="text-sm text-gray-500">You're not currently allocated to an active project, so there's no timesheet to fill yet.</p>
-        </Card>
-      </div>
-    );
-  }
-
-  const days = timesheet ? weekDays(timesheet.week_starting_date) : [];
-  const total = days.reduce((sum, d) => sum + (Number(hours[d]) || 0), 0);
-  // a rejected week is edited in place (the first change reopens it) or answered with a response
-  const editable = timesheet && (timesheet.status === "DRAFT" || timesheet.status === "REJECTED");
-  const rejection = timesheet?.rejection;
-  const flaggedDays = rejection?.flagged_dates || [];
+  const nothingToLogAgainst = allocations.length === 0 && workItems.length === 0 && rows && rows.length === 0;
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
+    <div className="p-6 max-w-6xl mx-auto space-y-6">
       {actionError && (
         <div className="flex items-start gap-3 rounded-lg bg-red-50 px-4 py-3 border border-red-200">
           <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
           <div className="flex-1">
             <p className="text-sm font-medium text-red-800">{actionError}</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setActionError(null)}
-            className="flex-shrink-0 text-red-400 hover:text-red-600"
-          >
+          <button type="button" onClick={() => setActionError(null)} className="flex-shrink-0 text-red-400 hover:text-red-600">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -191,90 +213,139 @@ export default function MyTimesheetScreen() {
           <div className="flex-1">
             <p className="text-sm font-medium text-green-800">{actionSuccess}</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setActionSuccess(null)}
-            className="flex-shrink-0 text-green-400 hover:text-green-600"
-          >
+          <button type="button" onClick={() => setActionSuccess(null)} className="flex-shrink-0 text-green-400 hover:text-green-600">
             <X className="h-5 w-5" />
           </button>
         </div>
       )}
-      <div className="flex flex-wrap justify-end gap-3">
-        {weeks.length > 1 && (
-          <div className="w-64">
-            <Select
-              value={week}
-              onChange={setWeek}
-              options={weeks.map((w, i) => ({ value: w, label: weekLabel(w, i) }))}
-            />
-          </div>
-        )}
-        {allocations.length > 1 && (
-          <div className="w-64">
-            <Select
-              value={allocationId}
-              onChange={setAllocationId}
-              options={allocations.map((a) => ({ value: a.id, label: `${a.demand_job_title} (${a.role || "assigned"})` }))}
-            />
-          </div>
-        )}
-      </div>
 
-      {timesheet && (
-        <Card
-          title={`Week of ${timesheet.week_starting_date}`}
-          right={
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded-bx border ${STATUS_STYLES[timesheet.status] || ""}`}>
-              {timesheet.status}
-            </span>
-          }
-        >
-          {rejection && (
-            <div className="mb-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-bx px-3 py-2">
-              <div className="font-semibold">Rejected: {rejection.reason}</div>
-              {flaggedDays.length ? <div>Days to fix: {flaggedDays.join(", ")}</div> : null}
-              <div className="mt-1 text-gray-700">Change the entries, or explain below why they are right, then submit again.</div>
-            </div>
-          )}
-          <div className="grid grid-cols-7 gap-2 mb-4">
-            {days.map((d) => (
-              <div key={d} className="text-center">
-                <div className="text-[10px] uppercase text-gray-500 mb-1">
-                  {new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { weekday: "short" })}
-                </div>
-                <input
-                  title={flaggedDays.includes(d) ? "Flagged by your approver" : undefined}
-                  type="number"
-                  min="0"
-                  max="24"
-                  step="0.5"
-                  disabled={!editable}
-                  className={`w-full text-center text-sm border rounded-bx px-1 py-2 outline-none focus:border-bx-orange disabled:bg-bx-light disabled:text-gray-400 ${flaggedDays.includes(d) ? "border-red-500 bg-red-50" : "border-bx-border"}`}
-                  value={hours[d] ?? ""}
-                  onChange={(e) => setHours({ ...hours, [d]: e.target.value })}
-                />
-              </div>
-            ))}
+      <Card
+        title={week ? `My time card: ${weekRange(week)}` : "My time card"}
+        right={weeks.length > 1 ? (
+          <div className="w-72">
+            <Select value={week} onChange={setWeek} options={weeks.map((w, i) => ({ value: w, label: weekLabel(w, i) }))} />
           </div>
-          <p className="text-sm text-gray-600 mb-3">Total: <span className="font-semibold text-bx-navy">{total}</span> hours</p>
-          {editable && rejection && (
-            <textarea
-              className="mb-2 w-full rounded-bx border border-bx-border px-2 py-1 text-sm"
-              rows={2}
-              placeholder="Your response to the rejection (required if you resubmit without changes)"
-              value={response}
-              onChange={(e) => setResponse(e.target.value)}
-            />
-          )}
-          {editable && (
-            <div className="flex gap-2">
-              <Button variant="secondary" disabled={saving} onClick={handleSave}>{saving ? "Saving..." : "Save"}</Button>
-              <Button disabled={saving || total === 0} onClick={handleSubmit}>Submit for Approval</Button>
+        ) : null}
+      >
+        {rows === null ? (
+          <p className="text-sm text-gray-500">Loading the week…</p>
+        ) : nothingToLogAgainst ? (
+          <p className="text-sm text-gray-500">
+            You're not allocated to a client or project, and your business unit has no bench work item yet (an
+            accelerator, a certification or other approved work). Ask your BU head to add the work item you are on;
+            your time is logged against it.
+          </p>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-gray-500">
+                    <th className="py-2 pr-3 text-left font-semibold">Time for</th>
+                    {days.map((d) => (
+                      <th key={d} className="px-1 py-2 text-center font-semibold">
+                        {dayName(d)}<div className="font-normal">{dayDate(d)}</div>
+                      </th>
+                    ))}
+                    <th className="px-2 py-2 text-right font-semibold">Total</th>
+                    <th className="py-2 pl-3 text-left font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((sheet) => {
+                    const editable = isEditable(sheet);
+                    const flagged = sheet.rejection?.flagged_dates || [];
+                    return (
+                      <tr key={sheet.id} className="border-t border-bx-border align-top">
+                        <td className="py-2 pr-3">
+                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${WORK_TYPE_STYLES[sheet.work_type] || ""}`}>
+                            {sheet.work_group || "Time"}
+                          </span>
+                          <div className="mt-1 text-gray-900">{sheet.work_label}</div>
+                          {sheet.pipeline?.text && <div className="mt-0.5 text-xs text-gray-500">{sheet.pipeline.text}</div>}
+                          {sheet.rejection && (
+                            <div className="mt-1 rounded-bx border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700">
+                              <div className="font-semibold">Rejected: {sheet.rejection.reason}</div>
+                              {flagged.length ? <div>Days to fix: {flagged.join(", ")}</div> : null}
+                              {editable && (
+                                <textarea
+                                  className="mt-1 w-full rounded-bx border border-bx-border px-2 py-1 text-xs text-gray-900"
+                                  rows={2}
+                                  placeholder="Change the hours, or explain here why they are right, then submit again"
+                                  value={responses[sheet.id] || ""}
+                                  onChange={(e) => setResponses({ ...responses, [sheet.id]: e.target.value })}
+                                />
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        {days.map((d) => (
+                          <td key={d} className="px-1 py-2">
+                            <input
+                              aria-label={`${sheet.work_label} ${dayName(d)} ${dayDate(d)}`}
+                              title={flagged.includes(d) ? "Flagged by your approver"
+                                : d > today ? "This day has not happened yet: hours are logged once worked" : undefined}
+                              type="number"
+                              min="0"
+                              max="24"
+                              step="0.5"
+                              disabled={!editable || d > today}
+                              className={`w-16 text-center text-sm border rounded-bx px-1 py-2 outline-none focus:border-bx-orange disabled:bg-bx-light disabled:text-gray-400 ${flagged.includes(d) ? "border-red-500 bg-red-50" : "border-bx-border"}`}
+                              value={hours[sheet.id]?.[d] ?? ""}
+                              onChange={(e) => setHours({ ...hours, [sheet.id]: { ...hours[sheet.id], [d]: e.target.value } })}
+                            />
+                          </td>
+                        ))}
+                        <td className="px-2 py-2 text-right font-semibold text-bx-navy">{rowTotal(sheet)}</td>
+                        <td className="py-2 pl-3">
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-bx border ${STATUS_STYLES[sheet.status] || ""}`}>
+                            {sheet.status}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-bx-border text-sm font-semibold text-bx-navy">
+                    <td className="py-2 pr-3 text-right">Totals</td>
+                    {days.map((d) => <td key={d} className="px-1 py-2 text-center">{dayTotal(d) || ""}</td>)}
+                    <td className="px-2 py-2 text-right">{weekTotal}</td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
             </div>
-          )}
-        </Card>
-      )}
+
+            <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
+              <div className="w-96 max-w-full">
+                {addable.length > 0 ? (
+                  <Select
+                    label="Add bench work to this week"
+                    value=""
+                    onChange={addBenchRow}
+                    options={[{ value: "", label: "Pick an accelerator, certification or approved work…" },
+                      ...addable.map((i) => ({ value: i.id, label: `${i.category_label} · ${i.name}` }))]}
+                  />
+                ) : (
+                  <p className="text-xs text-gray-500">
+                    {workItems.length ? "Every bench work item open to you is on the card."
+                      : "No bench work item is open to you. On the bench, ask your BU head to add the one you are working on."}
+                  </p>
+                )}
+              </div>
+              {editableRows.length > 0 && (
+                <div className="flex gap-2">
+                  <Button variant="secondary" disabled={saving} onClick={handleSave}>{saving ? "Working..." : "Save"}</Button>
+                  <Button disabled={saving || editableRows.every((s) => rowTotal(s) === 0)} onClick={handleSubmit}>
+                    Submit week for approval
+                  </Button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </Card>
 
       <Card title="Recent Timesheets">
         {history.length === 0 ? (
@@ -284,18 +355,27 @@ export default function MyTimesheetScreen() {
             <thead className="text-xs uppercase text-gray-500">
               <tr>
                 <th className="py-1.5 pr-3">Week</th>
+                <th className="py-1.5 pr-3">Time for</th>
                 <th className="py-1.5 pr-3">Hours</th>
                 <th className="py-1.5 pr-3">Status</th>
+                <th className="py-1.5 pr-3">Where it stands</th>
               </tr>
             </thead>
             <tbody>
               {history.map((h) => (
                 <tr key={h.id} className="border-t border-bx-border">
-                  <td className="py-1.5 pr-3">{h.week_starting_date}</td>
+                  <td className="py-1.5 pr-3 whitespace-nowrap">{weekRange(h.week_starting_date)}</td>
+                  <td className="py-1.5 pr-3">
+                    <span className={`mr-1 inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${WORK_TYPE_STYLES[h.work_type] || ""}`}>
+                      {h.work_group}
+                    </span>
+                    <span className="text-xs text-gray-600">{h.work_label}</span>
+                  </td>
                   <td className="py-1.5 pr-3">{h.total_hours}</td>
                   <td className="py-1.5 pr-3">
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-bx border ${STATUS_STYLES[h.status] || ""}`}>{h.status}</span>
                   </td>
+                  <td className="py-1.5 pr-3 text-xs text-gray-600">{h.pipeline?.text}</td>
                 </tr>
               ))}
             </tbody>
