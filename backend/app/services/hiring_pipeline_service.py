@@ -455,9 +455,19 @@ def snapshot(db: Session, pipeline: HiringPipeline) -> Dict:
 # ---------------------------------------------------------------------------
 
 def notify(candidate_id: str, trigger: str, ref, tenant_id: Optional[int] = None) -> bool:
-    """Call after commit. Queues a re-evaluation; the same (trigger, ref) is queued once."""
+    """Call after commit. Queues a re-evaluation; the same (trigger, ref) is queued once. It is queued
+    in the candidate's own organisation: read from the candidate when the caller does not pass it."""
     from app.services.thunder_mail.cadence_service import enqueue_once
 
+    if tenant_id is None:
+        from app.core.database import SessionLocal
+        from app.models.candidate import Candidate
+
+        lookup = SessionLocal()
+        try:
+            tenant_id = lookup.query(Candidate.tenant_id).filter(Candidate.candidateID == candidate_id).scalar()
+        finally:
+            lookup.close()
     return enqueue_once(EVALUATE_TASK, f"hp:{candidate_id}:{trigger}:{ref}",
                         {"candidate_id": candidate_id, "trigger": trigger, "ref": str(ref)}, tenant_id)
 

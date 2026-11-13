@@ -56,7 +56,6 @@ def backlog_guard(db: Session, now: datetime) -> None:
 
 def run_sweep(db: Session, now: datetime = None) -> Dict:
     from app.core.config import settings
-    from app.models.thunder_email import ThunderCadenceState
     from app.services.candidate_contact_policy import is_contactable
     from app.services.thunder_mail.cadence_service import enqueue_once
     from app.services.thunder_pause_service import is_thunder_paused
@@ -67,27 +66,52 @@ def run_sweep(db: Session, now: datetime = None) -> Dict:
         return {"status": "paused"}
     now = now or datetime.utcnow()
     since = now - timedelta(days=settings.THUNDER_ENGAGEMENT_LOOKBACK_DAYS)
-    engaged = db.query(ThunderCadenceState.candidate_id)
-    candidates = (db.query(Candidate)
-                  .filter(Candidate.candidateCreatedAt >= since, Candidate.thunder_enabled.is_(True),
-                          Candidate.tenant_id.isnot(None), ~Candidate.candidateID.in_(engaged))
-                  .order_by(Candidate.candidateCreatedAt)
-                  .limit(settings.THUNDER_ENGAGEMENT_BATCH).all())
-    queued = skipped = 0
-    for candidate in candidates:
-        ok, reason = is_contactable(db, candidate)
-        if not ok:
-            skipped += 1
-            continue
-        attempt = _next_attempt(db, candidate.candidateID)
-        if attempt is None:
-            continue
-        if enqueue_once(ENGAGE_TASK, engage_task_id(candidate.candidateID, attempt),
-                        {"candidate_id": candidate.candidateID, "trigger": "engagement_sweep",
-                         "tenant_id": candidate.tenant_id}, candidate.tenant_id):
-            queued += 1
-    logger.info(f"[ThunderSweep] queued {queued}, skipped {skipped} (of {len(candidates)} not yet engaged)")
-    return {"status": "ok", "queued": queued, "skipped": skipped, "considered": len(candidates)}
+    queued = skipped = considered = 0
+    after = None
+    # Walks every not-yet-engaged candidate, oldest first, until THUNDER_ENGAGEMENT_BATCH are queued.
+    # Until 2026-11-10 it looked at the oldest BATCH only: once that many could not be engaged (archived,
+    # in a no-contact period, three failed attempts) every run re-read the same ones and nobody newer
+    # was ever reached.
+    while queued < settings.THUNDER_ENGAGEMENT_BATCH:
+        page = _not_engaged(db, since, after).limit(settings.THUNDER_ENGAGEMENT_BATCH).all()
+        if not page:
+            break
+        after = (page[-1].candidateCreatedAt, page[-1].candidateID)
+        for candidate in page:
+            if queued >= settings.THUNDER_ENGAGEMENT_BATCH:
+                break
+            considered += 1
+            ok, reason = is_contactable(db, candidate)
+            if not ok:
+                skipped += 1
+                continue
+            attempt = _next_attempt(db, candidate.candidateID)
+            if attempt is None:
+                continue
+            if enqueue_once(ENGAGE_TASK, engage_task_id(candidate.candidateID, attempt),
+                            {"candidate_id": candidate.candidateID, "trigger": "engagement_sweep",
+                             "tenant_id": candidate.tenant_id}, candidate.tenant_id):
+                queued += 1
+    logger.info(f"[ThunderSweep] queued {queued}, skipped {skipped} (of {considered} not yet engaged)")
+    return {"status": "ok", "queued": queued, "skipped": skipped, "considered": considered}
+
+
+def _not_engaged(db: Session, since: datetime, after):
+    """Candidates created since `since` with Thunder on, a real email and no cadence yet, oldest
+    first; `after` = (created at, id) of the last one already looked at."""
+    from sqlalchemy import tuple_
+
+    from app.models.thunder_email import ThunderCadenceState
+    from app.services.linkedin_pipeline_task_service import PLACEHOLDER_EMAIL_DOMAIN
+
+    query = db.query(Candidate).filter(
+        Candidate.candidateCreatedAt >= since, Candidate.thunder_enabled.is_(True),
+        Candidate.tenant_id.isnot(None), Candidate.candidateEmail.isnot(None), Candidate.candidateEmail != "",
+        ~Candidate.candidateEmail.like(f"%@{PLACEHOLDER_EMAIL_DOMAIN}"),
+        ~Candidate.candidateID.in_(db.query(ThunderCadenceState.candidate_id)))
+    if after is not None:
+        query = query.filter(tuple_(Candidate.candidateCreatedAt, Candidate.candidateID) > after)
+    return query.order_by(Candidate.candidateCreatedAt, Candidate.candidateID)
 
 
 def engage_now(db: Session, candidate: Candidate) -> bool:

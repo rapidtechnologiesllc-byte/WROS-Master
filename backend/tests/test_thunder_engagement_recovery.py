@@ -141,3 +141,30 @@ def test_the_sweep_retries_a_failed_engagement_but_not_one_in_flight_nor_forever
         .update({"status": "FAILED"}, synchronize_session=False)
     _engagement(db, c, "FAILED", 3)
     assert not [t for t in _sweep(db) if c.candidateID in t]
+
+
+def test_candidates_who_cannot_be_engaged_never_keep_the_sweep_from_the_ones_behind_them(db, monkeypatch):
+    """Production 2026-11-10: the sweep read only the oldest BATCH not-yet-engaged candidates, so once that
+    many were archived (or otherwise not contactable) every run re-read them and nobody newer was reached."""
+    from datetime import timedelta
+
+    from app.core.config import settings
+    from app.models.candidate import CandidateStatus
+    from app.services.candidate_contact_policy import ARCHIVED_STATUS
+
+    monkeypatch.setattr(settings, "THUNDER_ENGAGEMENT_BATCH", 3)
+    start = datetime.utcnow() - timedelta(days=2)
+    blocked, newer = [], []
+    for n in range(5):  # older, archived: can never be engaged
+        c = candidate(db)
+        c.candidateCreatedAt = start + timedelta(minutes=n)
+        db.add(CandidateStatus(candidateID=c.candidateID, status=ARCHIVED_STATUS))
+        blocked.append(c.candidateID)
+    for n in range(4):
+        c = candidate(db)
+        c.candidateCreatedAt = start + timedelta(hours=1, minutes=n)
+        newer.append(c.candidateID)
+    db.commit()
+    mine = [t for t in _sweep(db) if any(cid in t for cid in blocked + newer)]
+    assert not [t for t in mine if any(cid in t for cid in blocked)]
+    assert mine and all(any(cid in t for cid in newer) for t in mine)  # reached past the five
