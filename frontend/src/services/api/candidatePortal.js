@@ -9,7 +9,7 @@
 // screen's own "This link has expired" message instead. So every call
 // here takes the token explicitly (from the URL path, held in
 // CandidatePortalScreen's own state) and lets the caller handle 401s.
-import { getApiBaseUrl, formatApiErrorMessage } from "./client";
+import { getApiBaseUrl, formatApiErrorMessage, sendForm } from "./client";
 
 const portalRequest = async (path, token, options = {}) => {
   const { method = "GET", body } = options;
@@ -50,7 +50,7 @@ export const getPortalOnboarding = (token) => portalRequest("/portal/onboarding"
 export const uploadPortalDocument = async (token, docId, file) => {
   const form = new FormData();
   form.append("file", file);
-  const response = await fetch(`${getApiBaseUrl()}/api/v1/portal/onboarding/documents/${docId}`, {
+  const response = await sendForm(`${getApiBaseUrl()}/api/v1/portal/onboarding/documents/${docId}`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: form,

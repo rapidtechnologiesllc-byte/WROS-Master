@@ -3,6 +3,7 @@ import {
   apiRequest,
   getApiBaseUrl,
   maybeRedirectOnUnauthorized,
+  sendForm,
 } from "./client";
 
 export const generateJobDescription = async (payload) => {
@@ -132,7 +133,7 @@ export const applyForJob = async ({
   if (resumeFile) formData.append("resume", resumeFile);
 
   const token = localStorage.getItem("hrms_token");
-  const response = await fetch(
+  const response = await sendForm(
     `${getApiBaseUrl()}/api/v1/jobs/${encodeURIComponent(jobId)}/apply`,
     {
       method: "POST",
