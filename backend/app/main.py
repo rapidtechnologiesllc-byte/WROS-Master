@@ -40,6 +40,10 @@ app.add_middleware(AuthenticationMiddleware)
 from app.core.bu_view import ActiveBUMiddleware
 
 app.add_middleware(ActiveBUMiddleware)
+# A form too large for the web server arrives in pieces; this rebuilds it before auth and the endpoint run
+from app.middleware.large_upload import LargeUploadMiddleware
+
+app.add_middleware(LargeUploadMiddleware)
 setup_cors(app)  # Add CORS LAST so it runs FIRST
 # Compress JSON / text responses over GZIP_MIN_BYTES: list endpoints shrink ~5-10x on the wire.
 # Outermost, so it sees the final body (CORS and logging headers included).

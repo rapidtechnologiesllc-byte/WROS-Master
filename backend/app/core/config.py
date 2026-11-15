@@ -155,6 +155,10 @@ class Settings:
     
     # File Upload Settings
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
+    # Uploads larger than the web server's per-request limit arrive in pieces (app.middleware.large_upload)
+    LARGE_UPLOAD_MAX_BYTES: int = int(os.getenv("LARGE_UPLOAD_MAX_BYTES", str(25 * 1024 * 1024)))
+    LARGE_UPLOAD_MAX_PARTS: int = int(os.getenv("LARGE_UPLOAD_MAX_PARTS", "64"))
+    LARGE_UPLOAD_KEEP_SECONDS: int = int(os.getenv("LARGE_UPLOAD_KEEP_SECONDS", "3600"))
     # Responses at least this big are gzip-compressed (app.main)
     GZIP_MIN_BYTES: int = int(os.getenv("GZIP_MIN_BYTES", "1000"))
     # Panel vs Flash calibration: Flash "advances" a candidate whose job match score is at least this

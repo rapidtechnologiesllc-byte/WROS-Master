@@ -117,13 +117,6 @@ export const getClientInvestmentPosition = async (clientId) => {
 
 // Attach a receipt (image or PDF); the server reads and checks it straight away and returns the
 // updated expense (receipt_check_status MATCHED / MISMATCH / UNREADABLE)
-export const uploadExpenseReceipt = async (expenseId, file) => {
-  const body = new FormData();
-  body.append("file", file);
-  const { data } = await apiRequest(`/expenses/${expenseId}/receipt`, { method: "POST", body });
-  return data;
-};
-
 // Photos are often larger than the web server accepts in one request, and a receipt reads fine smaller
 const LARGEST_REQUEST_BYTES = 900 * 1024;
 const LONGEST_PHOTO_SIDE = 2200;
