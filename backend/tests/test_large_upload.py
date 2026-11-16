@@ -108,7 +108,7 @@ def test_the_whole_upload_is_capped(db, w, api, monkeypatch):
                                    "upload_id={id}&index=0&total=999", "upload_id={id}"])
 def test_a_bad_id_or_position_is_refused(db, w, api, params):
     user = _logger(db, w)
-    response = api.client.post(f"{PARTS}?{params.replace("{id}", uuid4().hex)}", content=b"x",
+    response = api.client.post(PARTS + "?" + params.replace("{id}", uuid4().hex), content=b"x",
                                headers={**api.headers(user), "Content-Type": "application/octet-stream"})
     assert response.status_code == 400
 
