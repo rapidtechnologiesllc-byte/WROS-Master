@@ -225,6 +225,7 @@ def log_expense(
     trip_label: Optional[str] = None,
     location: Optional[str] = None,
     description: Optional[str] = None,
+    visit_id: Optional[str] = None,
 ) -> ExpenseRecord:
     """PRIORITY-3: Create an expense with mandatory receipt reference.
 
@@ -259,7 +260,7 @@ def log_expense(
         expense_category=expense_category,
         travel_type=travel_type, trip_label=trip_label, amount_usd_cents=amount_usd_cents,
         location=location, description=description, receipt_ref=receipt_ref,
-        expense_date=expense_date, expense_end_date=expense_end_date,
+        expense_date=expense_date, expense_end_date=expense_end_date, visit_id=visit_id,
         manager_approval_status="PENDING",  # PRIORITY-3: Start with pending manager approval
     )
     _apply_attribution(expense, spend_for, client_id, shares)

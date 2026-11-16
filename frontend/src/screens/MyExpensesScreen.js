@@ -3,10 +3,14 @@
 // their expense." Every submission here is attributed to whoever is
 // logged in -- there is no field to log an expense as someone else.
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Receipt, Plus } from "lucide-react";
 import { Card, Button, Input, Select, TextArea, Table } from "../components/ui";
 import { listClients, createClient } from "../services/api/clients";
-import { createExpense, listMyExpenses, openExpenseReceipt, removeExpenseReceipt, updateExpense, uploadExpenseReceipts } from "../services/api/expenses";
+import {
+  addExpenseVisitReceipts, createExpense, createExpenseVisit, listMyExpenses, openExpenseReceipt, removeExpenseReceipt,
+  updateExpense, uploadExpenseReceipts,
+} from "../services/api/expenses";
 import ReceiptCheck from "../components/ReceiptCheck";
 import ExpenseEventPicker from "../components/ExpenseEventPicker";
 import { expenseDates, expenseSubject } from "../utils/expenseAttribution";
@@ -21,7 +25,45 @@ const PURPOSES = [
 const CATEGORIES = ["TRAVEL", "MEALS", "LODGING", "ENTERTAINMENT", "OTHER"];
 const TRAVEL_TYPES = ["AIRFARE", "GROUND_TRANSPORT", "HOTEL", "MEALS", "OTHER"];
 
-const formatUsdCents = (cents) =>
+export const PURPOSE_LABELS = Object.fromEntries(PURPOSES.map((p) => [p.value, p.label]));
+export { CATEGORIES, TRAVEL_TYPES };
+
+// Where an expense is in its approvals, as words and a colour
+export const expenseStatus = (e) => {
+  if (e.manager_approval_status === "REJECTED" || e.payment_status === "REJECTED") {
+    return { label: "Rejected", color: "bg-rose-100 text-rose-800" };
+  }
+  if (e.manager_approval_status === "PENDING" || !e.manager_approval_status) {
+    return { label: "Pending Manager Approval", color: "bg-amber-100 text-amber-800" };
+  }
+  if (e.payment_status === "PENDING") return { label: "Finance Review", color: "bg-blue-100 text-blue-800" };
+  if (e.payment_status === "APPROVED") return { label: "Approved", color: "bg-emerald-100 text-emerald-800" };
+  if (e.payment_status === "REIMBURSED") return { label: "Reimbursed", color: "bg-emerald-100 text-emerald-800" };
+  return { label: e.payment_status, color: "bg-gray-100 text-gray-700" };
+};
+
+// A visit's lines, in one word (backend expense_visit_service.visit_status)
+const VISIT_STATUS = {
+  NEEDS_DETAILS: { label: "Describe receipts", color: "bg-amber-100 text-amber-800" },
+  SOME_REJECTED: { label: "Some rejected", color: "bg-rose-100 text-rose-800" },
+  PENDING_MANAGER: { label: "Pending Manager Approval", color: "bg-amber-100 text-amber-800" },
+  FINANCE_REVIEW: { label: "Finance Review", color: "bg-blue-100 text-blue-800" },
+  APPROVED: { label: "Approved", color: "bg-emerald-100 text-emerald-800" },
+  REIMBURSED: { label: "Reimbursed", color: "bg-emerald-100 text-emerald-800" },
+  EMPTY: { label: "No lines yet", color: "bg-gray-100 text-gray-700" },
+};
+export const visitStatus = (status) => VISIT_STATUS[status] || { label: status, color: "bg-gray-100 text-gray-700" };
+
+const statusOfLines = (lines) => {
+  const words = lines.map((l) => expenseStatus(l).label);
+  if (words.includes("Rejected")) return "SOME_REJECTED";
+  if (words.every((w) => w === "Reimbursed")) return "REIMBURSED";
+  if (words.includes("Pending Manager Approval")) return "PENDING_MANAGER";
+  if (words.every((w) => w === "Approved" || w === "Reimbursed")) return "APPROVED";
+  return "FINANCE_REVIEW";
+};
+
+export const formatUsdCents = (cents) =>
   cents == null ? "—" : `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 // Who the spend is on (CEO 2026-10-31) -- the P&L puts it on that client (or each client's
@@ -83,7 +125,7 @@ const formOf = (e) => ({
   receiptRef: e.receipt_ref || "",
 });
 
-function LogExpenseForm({ clients, onCancel, onSaved, reloadClients, expense }) {
+export function LogExpenseForm({ clients, onCancel, onSaved, reloadClients, expense, onVisitCreated }) {
   const [form, setForm] = useState(() => (expense ? formOf(expense) : emptyForm));
   // The record once it exists: if a receipt then fails to upload, saving again doesn't log it twice
   const [record, setRecord] = useState(expense || null);
@@ -140,9 +182,12 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients, expense }) 
     }
   };
 
+  // Several receipts for a new expense make a visit: each receipt becomes its own line, described next (CEO 2026-11-14)
+  const visitMode = !expense && !record && form.receiptFiles.length > 1;
+
   const handleSave = async () => {
     const amountCents = Math.round(parseFloat(form.amount || "0") * 100);
-    if (!amountCents || amountCents <= 0) {
+    if (!visitMode && (!amountCents || amountCents <= 0)) {
       setError("Amount must be a positive number.");
       return;
     }
@@ -185,6 +230,10 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients, expense }) 
       setError("Investment label is required.");
       return;
     }
+    if (visitMode) {
+      await saveVisit();
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -214,6 +263,36 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients, expense }) 
       onSaved();
     } catch (err) {
       setError(record || err.message ? err.message || "Failed to save the expense." : "Failed to save the expense.");
+    } finally {
+      setProgress("");
+      setSaving(false);
+    }
+  };
+
+  const saveVisit = async () => {
+    if (form.spendFor === "SPLIT" && form.splitBy !== "percent") {
+      setError("A visit splits its clients by %, so every receipt splits the same way.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const visit = await createExpenseVisit({
+        name: form.tripLabel.trim() || form.description.trim() || `Visit ${form.expenseDate}`,
+        purpose: form.purpose,
+        spend_for: form.spendFor,
+        client_id: form.spendFor === "CLIENT" ? form.clientId : null,
+        client_splits: form.spendFor === "SPLIT" ? clientSplitsPayload() : null,
+        event_id: form.purpose === "CONFERENCE" ? form.event.id : null,
+        investment_label: form.purpose === "INVESTMENT" ? form.investmentLabel : null,
+        location: form.location || null,
+        start_date: form.expenseDate,
+        end_date: form.expenseEndDate || null,
+      });
+      await addExpenseVisitReceipts(visit.id, form.receiptFiles, (done, total) => setProgress(`Uploading receipt ${done} of ${total}…`));
+      onVisitCreated(visit.id);
+    } catch (err) {
+      setError(err.message || "Couldn't save the visit.");
     } finally {
       setProgress("");
       setSaving(false);
@@ -349,8 +428,13 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients, expense }) 
         {form.expenseCategory === "TRAVEL" ? (
           <Select label="Travel Type" value={form.travelType} onChange={set("travelType")} options={TRAVEL_TYPES} />
         ) : null}
-        <Input label="Trip Label (optional)" value={form.tripLabel} onChange={set("tripLabel")} placeholder="Seattle - Goldenbear - Aug 2026" />
-        <Input label="Amount (USD)" value={form.amount} onChange={set("amount")} placeholder="450.00" />
+        <Input
+          label={visitMode ? "Visit or trip name" : "Trip Label (optional)"}
+          value={form.tripLabel}
+          onChange={set("tripLabel")}
+          placeholder="Seattle - Goldenbear - Aug 2026"
+        />
+        {visitMode ? null : <Input label="Amount (USD)" value={form.amount} onChange={set("amount")} placeholder="450.00" />}
         <Input label="Date (first day)" type="date" value={form.expenseDate} onChange={set("expenseDate")} />
         <Input label="Last day (if it covers several)" type="date" value={form.expenseEndDate} onChange={set("expenseEndDate")} />
         <Input label="Location" value={form.location} onChange={set("location")} />
@@ -367,9 +451,9 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients, expense }) 
             className="block w-full text-sm"
           />
           <div className="mt-1 text-xs text-gray-500">
-            {form.receiptFiles.length > 1
-              ? `${form.receiptFiles.length} receipts selected. Together they should add up to the amount.`
-              : "Select several at once if needed. Together they are checked against the amount and dates."}
+            {visitMode
+              ? `${form.receiptFiles.length} receipts: each becomes its own line of this visit. Next you say what each was for; the amount and date are filled in from the receipt.`
+              : "Select several receipts from one visit or event and each becomes its own line, grouped under the visit."}
           </div>
           {(record?.receipts || []).map((r, i) => (
             <div key={r.id} className="mt-1 flex items-center gap-2 text-xs">
@@ -389,7 +473,7 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients, expense }) 
       </div>
       <div className="mt-3 flex gap-2">
         <Button onClick={handleSave} disabled={saving}>
-          {saving ? progress || "Saving…" : expense ? "Save changes" : "Log Expense"}
+          {saving ? progress || "Saving…" : expense ? "Save changes" : visitMode ? "Next: describe each receipt" : "Log Expense"}
         </Button>
         <Button variant="ghost" onClick={onCancel} disabled={saving}>
           Cancel
@@ -400,6 +484,7 @@ function LogExpenseForm({ clients, onCancel, onSaved, reloadClients, expense }) 
 }
 
 export default function MyExpensesScreen() {
+  const navigate = useNavigate();
   const [expenses, setExpenses] = useState([]);
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -431,32 +516,42 @@ export default function MyExpensesScreen() {
     load();
   }, [load]);
 
-  const rows = expenses.map((e) => {
-    // Workflow: Employee logs → (waiting for manager approval) → Finance review → Marked paid
-    let statusDisplay = e.payment_status;
-    let statusColor = "bg-gray-100 text-gray-700";
+  // A visit is one row that opens to its lines (CEO 2026-11-14); an expense on its own is its own row
+  const visitRows = Object.values(expenses.filter((e) => e.visit_id).reduce((groups, e) => {
+    (groups[e.visit_id] = groups[e.visit_id] || []).push(e);
+    return groups;
+  }, {})).map((lines) => {
+    const first = lines[0];
+    const days = lines.flatMap((l) => [l.expense_date, l.expense_end_date].filter(Boolean)).sort();
+    const status = visitStatus(statusOfLines(lines));
+    const rejected = lines.filter((l) => l.manager_review_note && expenseStatus(l).label === "Rejected").length;
+    return {
+      id: `visit-${first.visit_id}`,
+      sortDate: days[days.length - 1],
+      date: days[0] === days[days.length - 1] ? days[0] : `${days[0]} to ${days[days.length - 1]}`,
+      purpose: first.purpose.replace("_", " "),
+      subject: (
+        <button type="button" className="text-left font-semibold text-blue-600 hover:underline"
+          onClick={() => navigate(`/my-expenses/visits/${first.visit_id}`)}>
+          {first.visit_name || "Visit"}
+          <div className="text-xs font-normal text-gray-500">{expenseSubject(first)}</div>
+        </button>
+      ),
+      category: `${lines.length} line${lines.length === 1 ? "" : "s"}`,
+      amount: formatUsdCents(lines.reduce((sum, l) => sum + l.amount_usd_cents, 0)),
+      status: <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${status.color}`}>{status.label}</span>,
+      receipt: rejected ? <div className="text-xs text-rose-700">{rejected} rejected by your manager: open the visit</div> : null,
+      actions: <Button variant="ghost" onClick={() => navigate(`/my-expenses/visits/${first.visit_id}`)}>Open</Button>,
+    };
+  });
 
-    if (e.manager_approval_status === "REJECTED") {
-      statusDisplay = "Rejected";
-      statusColor = "bg-rose-100 text-rose-800";
-    } else if (e.manager_approval_status === "PENDING" || !e.manager_approval_status) {
-      statusDisplay = "Pending Manager Approval";
-      statusColor = "bg-amber-100 text-amber-800";
-    } else if (e.manager_approval_status === "APPROVED" && e.payment_status === "PENDING") {
-      statusDisplay = "Finance Review";
-      statusColor = "bg-blue-100 text-blue-800";
-    } else if (e.payment_status === "APPROVED") {
-      statusDisplay = "Approved";
-      statusColor = "bg-emerald-100 text-emerald-800";
-    } else if (e.payment_status === "REIMBURSED") {
-      statusDisplay = "Reimbursed";
-      statusColor = "bg-emerald-100 text-emerald-800";
-    } else if (e.payment_status === "REJECTED") {
-      statusDisplay = "Rejected";
-      statusColor = "bg-rose-100 text-rose-800";
-    }
+  const singleRows = expenses.filter((e) => !e.visit_id).map((e) => {
+    // Workflow: Employee logs → (waiting for manager approval) → Finance review → Marked paid
+    const { label: statusDisplay, color: statusColor } = expenseStatus(e);
 
     return {
+      id: e.id,
+      sortDate: e.expense_end_date || e.expense_date,
       date: expenseDates(e),
       purpose: e.purpose.replace("_", " "),
       subject: expenseSubject(e),
@@ -479,6 +574,7 @@ export default function MyExpensesScreen() {
       ) : null,
     };
   });
+  const rows = [...visitRows, ...singleRows].sort((a, b) => (b.sortDate || "").localeCompare(a.sortDate || ""));
 
   return (
     <div className="space-y-4 p-6">
@@ -504,6 +600,7 @@ export default function MyExpensesScreen() {
               setEditing(null);
               load();
             }}
+            onVisitCreated={(visitId) => navigate(`/my-expenses/visits/${visitId}`)}
           />
         ) : null}
 

@@ -355,6 +355,13 @@ def _candidate_merges_to_one_record(db: Session) -> int:
     return finish_archived_merges(db)
 
 
+def _expense_trips_to_visits(db: Session) -> int:
+    """CEO 2026-11-14: expense lines already logged under one trip label (same person) are grouped as one visit."""
+    from app.services.expense_visit_service import group_existing_trips
+
+    return group_existing_trips(db)
+
+
 DATA_MIGRATIONS = (
     ("interview_times_to_utc", _interview_times_to_utc),
     ("employee_org_history_backfill", _employee_org_history_backfill),
@@ -367,6 +374,7 @@ DATA_MIGRATIONS = (
     ("expense_attribution_and_events", _expense_attribution_and_events),
     ("expense_receipts_and_review_tasks", _expense_receipts_and_review_tasks),
     ("candidate_merges_to_one_record", _candidate_merges_to_one_record),
+    ("expense_trips_to_visits", _expense_trips_to_visits),
 )
 
 
@@ -1842,6 +1850,14 @@ def _apply_schema_migrations(db: Session):
     _migration_step(db, "employee_allocations.billable",
                     "ALTER TABLE IF EXISTS app_schema.employee_allocations "
                     "ADD COLUMN IF NOT EXISTS billable BOOLEAN NOT NULL DEFAULT TRUE")
+
+    # An expense line belongs to a visit (CEO 2026-11-14); expense_visits itself is made by create_all
+    _migration_step(db, "expense_records.visit_id",
+                    "ALTER TABLE IF EXISTS app_schema.expense_records ADD COLUMN IF NOT EXISTS visit_id VARCHAR(512) NULL "
+                    "REFERENCES app_schema.expense_visits(id) ON DELETE SET NULL")
+    _migration_step(db, "expense_records.visit_id index",
+                    "CREATE INDEX IF NOT EXISTS ix_app_schema_expense_records_visit_id "
+                    "ON app_schema.expense_records (visit_id)")
 
     # Thunder: the words that decided a reply's intent (shown on the candidate's Messages tab)
     _migration_step(db, "thunder_email_messages.intent_evidence",

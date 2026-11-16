@@ -42,7 +42,8 @@ from app.models.user import Users
 from app.schemas.expense import (
     ClientInvestmentPositionResponse, ExpenseAttributionRequest, ExpenseCreateRequest, ExpenseEventCreateRequest,
     ExpenseEventItem, ExpenseEventListResponse, ExpenseEventMergeRequest, ExpenseEventSummaryResponse, ExpenseItem,
-    ExpenseListResponse, ExpenseRejectRequest, ExpenseUpdateRequest,
+    ExpenseListResponse, ExpenseRejectRequest, ExpenseUpdateRequest, ExpenseVisitCreateRequest,
+    ExpenseVisitDetail, ExpenseVisitDraftItem, ExpenseVisitDraftSubmitRequest, ExpenseVisitUpdateRequest,
 )
 from app.services.expense_event_service import (
     ExpenseEventError, NearDuplicateEventError, event_rollup, find_or_create_event, get_event, merge_events,
@@ -333,6 +334,194 @@ async def add_expense_receipts(
         return attach_receipts(db, expense, [(f.filename, f.content_type, await f.read()) for f in files],
                                user=current_user, check=check)
     except ReceiptError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+# ---- visits (CEO 2026-11-14): one visit, one line per receipt (app.services.expense_visit_service)
+def _own_visit_or_404(db: Session, visit_id: str, user: Users):
+    from app.models.expense import ExpenseVisit
+
+    visit = db.query(ExpenseVisit).filter(ExpenseVisit.id == visit_id, ExpenseVisit.tenant_id == user.tenant_id,
+                                          ExpenseVisit.owner_user_id == user.UserID).first()
+    if visit is None:
+        raise HTTPException(status_code=404, detail=f"Visit {visit_id!r} not found.")
+    return visit
+
+
+def _visit_response(db: Session, visit) -> dict:
+    from app.services.expense_visit_service import visit_detail
+
+    db.refresh(visit)
+    return visit_detail(visit)
+
+
+@router.post(
+    "/expenses/visits",
+    response_model=ExpenseVisitDetail,
+    status_code=201,
+    dependencies=[Depends(require_resource_permission("my-expenses", "create"))],
+)
+def create_expense_visit(
+    body: ExpenseVisitCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """A visit or trip of your own; its receipts become its lines."""
+    from app.services.expense_visit_service import create_visit
+
+    try:
+        visit = create_visit(
+            db, current_user, name=body.name, purpose=body.purpose, spend_for=body.spend_for,
+            client_id=body.client_id,
+            client_splits=[s.model_dump() for s in body.client_splits] if body.client_splits else None,
+            event_id=body.event_id, investment_label=body.investment_label, location=body.location,
+            start_date=body.start_date, end_date=body.end_date)
+    except ExpenseValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _visit_response(db, visit)
+
+
+@router.get(
+    "/expenses/visits/{visit_id}",
+    response_model=ExpenseVisitDetail,
+    dependencies=[Depends(require_resource_permission("my-expenses", "view"))],
+)
+def get_expense_visit(
+    visit_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    return _visit_response(db, _own_visit_or_404(db, visit_id, current_user))
+
+
+@router.put(
+    "/expenses/visits/{visit_id}",
+    response_model=ExpenseVisitDetail,
+    dependencies=[Depends(require_resource_permission("my-expenses", "create"))],
+)
+def update_expense_visit(
+    visit_id: str,
+    body: ExpenseVisitUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    from app.services.expense_visit_service import update_visit
+
+    visit = _own_visit_or_404(db, visit_id, current_user)
+    try:
+        update_visit(db, visit, name=body.name, location=body.location, start_date=body.start_date,
+                     end_date=body.end_date)
+    except ExpenseValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _visit_response(db, visit)
+
+
+@router.post(
+    "/expenses/visits/{visit_id}/receipts",
+    response_model=List[ExpenseVisitDraftItem],
+    dependencies=[Depends(require_resource_permission("my-expenses", "create"))],
+)
+async def add_expense_visit_receipts(
+    visit_id: str,
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Each receipt waits for its description, filled in from what it says."""
+    from app.services.expense_receipt_service import ReceiptError
+    from app.services.expense_visit_service import add_receipts, draft_prefill
+
+    visit = _own_visit_or_404(db, visit_id, current_user)
+    try:
+        drafts = add_receipts(db, visit, [(f.filename, f.content_type, await f.read()) for f in files])
+    except ReceiptError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return [{"id": d.id, "file_name": d.file_name, "content_type": d.content_type, "read_error": d.read_error,
+             **draft_prefill(d)} for d in drafts]
+
+
+def _own_draft_or_404(visit, draft_id: str):
+    draft = next((d for d in visit.drafts if d.id == draft_id), None)
+    if draft is None:
+        raise HTTPException(status_code=404, detail=f"Receipt {draft_id!r} not found on this visit.")
+    return draft
+
+
+@router.post(
+    "/expenses/visits/{visit_id}/drafts/{draft_id}",
+    response_model=ExpenseItem,
+    dependencies=[Depends(require_resource_permission("my-expenses", "create"))],
+)
+def submit_expense_visit_draft(
+    visit_id: str,
+    draft_id: str,
+    body: ExpenseVisitDraftSubmitRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """The receipt becomes its own expense line and goes to your manager like any expense."""
+    from app.services.expense_receipt_service import ReceiptError
+    from app.services.expense_visit_service import submit_draft
+
+    visit = _own_visit_or_404(db, visit_id, current_user)
+    draft = _own_draft_or_404(visit, draft_id)
+    try:
+        return submit_draft(db, visit, draft, current_user, description=body.description,
+                            expense_category=body.expense_category, amount_usd_cents=body.amount_usd_cents,
+                            expense_date=body.expense_date, expense_end_date=body.expense_end_date,
+                            travel_type=body.travel_type)
+    except (ExpenseValidationError, ReceiptError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.delete(
+    "/expenses/visits/{visit_id}/drafts/{draft_id}",
+    response_model=ExpenseVisitDetail,
+    dependencies=[Depends(require_resource_permission("my-expenses", "create"))],
+)
+def delete_expense_visit_draft(
+    visit_id: str,
+    draft_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    from app.services.expense_visit_service import remove_draft
+
+    visit = _own_visit_or_404(db, visit_id, current_user)
+    remove_draft(db, _own_draft_or_404(visit, draft_id))
+    return _visit_response(db, visit)
+
+
+@router.get(
+    "/expenses/visits/{visit_id}/drafts/{draft_id}/file",
+    dependencies=[Depends(require_resource_permission("my-expenses", "view"))],
+)
+def download_expense_visit_draft(
+    visit_id: str,
+    draft_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    draft = _own_draft_or_404(_own_visit_or_404(db, visit_id, current_user), draft_id)
+    return FileResponse(draft.file_path, media_type=draft.content_type, filename=draft.file_name or "receipt")
+
+
+@router.delete(
+    "/expenses/{expense_id}",
+    status_code=204,
+    dependencies=[Depends(require_resource_permission("my-expenses", "create"))],
+)
+def delete_own_expense(
+    expense_id: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Take one of your own expense lines off, until Finance approves it."""
+    from app.services.expense_visit_service import remove_line
+
+    try:
+        remove_line(db, _own_expense_or_404(db, expense_id, current_user), current_user)
+    except ExpenseValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
 
