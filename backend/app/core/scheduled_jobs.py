@@ -97,6 +97,12 @@ _JOBS = (
     # filled by candidates who joined (flash_mission_service); off unless FLASH_MISSIONS_ENABLED
     ScheduledJob("flash_auto_missions", "app.services.flash_mission_service:start_missions_for_open_jobs",
                  timedelta(hours=1), timeout_s=120),
+    # candidate-facing: every open job's boolean search criteria capture the candidates who match (skills,
+    # title, resume) and each new match gets one personal email, at most JOB_OUTREACH_PER_RUN per job per run
+    # (job_search_service); every Thunder rule applies to the send
+    ScheduledJob("job_search_capture", "app.services.job_search_service:run_capture_job",
+                 timedelta(hours=1), timeout_s=600, sends_external=True,
+                 backlog_guard="app.services.job_search_service:backlog_guard"),
     ScheduledJob("flash_mission_sweep", "app.services.flash_mission_service:run_sweep",
                  timedelta(minutes=5), timeout_s=240, sends_external=True,
                  backlog_guard="app.services.flash_mission_service:backlog_guard"),

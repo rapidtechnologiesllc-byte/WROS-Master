@@ -100,6 +100,7 @@ from app.models.employee import (
 )
 from app.models.client import Client, ClientContact, ClientEmail, ClientHistory
 from app.models.client_update import ClientUpdate, RoleOutreach, UpcomingRole
+from app.models.job_search import JobSearchCriteria, JobSearchMatch, SavedCandidateSearch, SkillSynonym
 from app.models.reply_draft import ReplyDraft
 from app.models.interview_log import InterviewLog
 from app.models.demand import Demand, DemandHistory

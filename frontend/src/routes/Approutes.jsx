@@ -56,6 +56,7 @@ const ClientManagementScreen = lazy(() => import("../screens/ClientManagementScr
 const OpportunityPipelineScreen = lazy(() => import("../screens/OpportunityPipelineScreen"));
 const MyExpensesScreen = lazy(() => import("../screens/MyExpensesScreen"));
 const ExpenseVisitScreen = lazy(() => import("../screens/ExpenseVisitScreen"));
+const CandidateBooleanSearch = lazy(() => import("../screens/CandidateBooleanSearch"));
 const ExecutiveRevenueDashboardScreen = lazy(() => import("../screens/ExecutiveRevenueDashboardScreen"));
 const PnlFinanceScreen = lazy(() => import("../screens/PnlFinanceScreen"));
 const ActivateAccount = lazy(() => import("../pages/ActivateAccount"));
@@ -709,6 +710,7 @@ function AuthenticatedApp() {
                     />
                   </>
                 ) },
+                { key: "boolean", label: "Boolean search", resource: "candidates", render: () => <CandidateBooleanSearch /> },
                 { key: "linkedin", label: "LinkedIn Pipeline", resource: "candidates", render: () => <LinkedInPipelineScreen /> },
               ]} />
             }
