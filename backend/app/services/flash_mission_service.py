@@ -519,7 +519,7 @@ def _schedule(db: Session, mission: FlashMission, job: Jobs, user: Users, track:
           f"You're interviewing {name} for {label} ({level} {LEVEL_LABELS.get(level, '')}) on "
           f"{_local(start, interviewer.timezone)}. Your feedback task is in My Tasks.{link_note}", "interviewer")
     db.commit()
-    scheduling.after_panel_created(panel)
+    scheduling.after_panel_created(db, panel)
     scheduling.after_commit(db, interview, panel)
     _complete_scheduling_tasks(db, track.candidate_id, level)
     db.flush()

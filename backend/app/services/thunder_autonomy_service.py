@@ -81,7 +81,7 @@ def book_call(db: Session, candidate: Candidate, recruiter: Users, now: Optional
         logger.info(f"[ThunderAutonomy] call for {candidate.candidateID} not booked: {exc.detail}")
         return None
     db.commit()
-    scheduling.after_panel_created(created.panel)
+    scheduling.after_panel_created(db, created.panel)
     scheduling.after_commit(db, interview, created.panel)
     return interview
 

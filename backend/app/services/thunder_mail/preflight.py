@@ -10,8 +10,11 @@ Everything already known about the candidate is read first, then plain rules dec
      client submission, a hiring pipeline past "applied", or history logged by a person.
   2. One of our people added them in the last CREATED_GRACE (they usually log the call or notes right
      after) -> WAIT, then decide again.
-  3. The first email has no role to talk about -> NEED_ROLE: ask whoever added them (once), wait.
-  4. Otherwise -> SEND (the first email names the role).
+  3. Otherwise -> SEND. The first email names the role: the one on their profile, else the open role
+     that best matches their skills and title (the send handler finds it). With no matching open role
+     it is an introduction that names none. Thunder never waits for a person to supply the role: until
+     2026-11-10 it asked for one by task and retried every six hours, so a candidate with no job linked
+     was never written to.
 
 The decision and its evidence go on the candidate's history, so anyone can see why Thunder wrote or not.
 """
@@ -35,7 +38,7 @@ COLD_STEPS = ("1", "2", "3", "4")
 
 @dataclass
 class Preflight:
-    action: str  # SEND | WARM | WAIT | NEED_ROLE
+    action: str  # SEND | WARM | WAIT
     reasons: List[str] = field(default_factory=list)
     retry_at: Optional[datetime] = None
 
@@ -87,9 +90,9 @@ def check(db: Session, candidate: Candidate, step: str, job, now: Optional[datet
     if step == "1" and candidate.created_by_user_id and created and now - created < CREATED_GRACE:
         return Preflight("WAIT", [f"added by one of our people {int((now - created).total_seconds() // 60)} min ago"],
                          retry_at=created + CREATED_GRACE)
-    if step == "1" and job is None:
-        return Preflight("NEED_ROLE", ["no role on file for the first email"])
-    return Preflight("SEND", [f"role: {job.jobTitle}"] if job is not None else [])
+    if job is not None:
+        return Preflight("SEND", [f"role: {job.jobTitle}"])
+    return Preflight("SEND", ["no open role matches their profile: an introduction"] if step == "1" else [])
 
 
 def record(db: Session, candidate: Candidate, step: str, decision: Preflight) -> None:
