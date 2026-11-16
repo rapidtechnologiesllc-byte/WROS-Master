@@ -178,10 +178,12 @@ def create_panel(db: Session, user: Users, *, candidate_id: str, job_id: Optiona
                         rehire_cleared_by="AI" if review else None)
 
 
-def after_panel_created(panel: InterviewPanel) -> None:
+def after_panel_created(panel: InterviewPanel, tenant_id: Optional[int] = None) -> None:
+    """Call after commit. tenant_id is the candidate's: a panel has none of its own, and without it the queue can only
+    guess (it refuses when there is more than one tenant)."""
     from app.services.hiring_pipeline_service import notify
 
-    notify(panel.candidate_id, "panel_created", panel.id)
+    notify(panel.candidate_id, "panel_created", panel.id, tenant_id)
 
 
 # --------------------------------------------------------------------------- interviewers
@@ -264,7 +266,7 @@ def after_commit(db: Session, interview: Interview, panel: InterviewPanel) -> No
         "start_time": interview.start_time.isoformat(), "end_time": interview.end_time.isoformat(),
         "meeting_link": interview.meeting_link,
     }, candidate.tenant_id if candidate else None)
-    notify(interview.candidate_id, "interview_scheduled", interview.id)
+    notify(interview.candidate_id, "interview_scheduled", interview.id, candidate.tenant_id if candidate else None)
     sync_pending_feedback_tasks_for_interview(db, interview)
     queue_invite(db, interview)
 
@@ -373,5 +375,5 @@ def after_commit_outlook_meeting(db: Session, interview: Interview) -> None:
         "start_time": interview.start_time.isoformat(), "end_time": interview.end_time.isoformat(),
         "meeting_link": interview.meeting_link,
     }, candidate.tenant_id if candidate else None)
-    notify(interview.candidate_id, "interview_scheduled", interview.id)
+    notify(interview.candidate_id, "interview_scheduled", interview.id, candidate.tenant_id if candidate else None)
     sync_pending_feedback_tasks_for_interview(db, interview)

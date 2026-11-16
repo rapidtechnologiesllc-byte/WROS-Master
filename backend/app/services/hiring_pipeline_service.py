@@ -454,10 +454,25 @@ def snapshot(db: Session, pipeline: HiringPipeline) -> Dict:
 # Queue: notify after a fact changed; run each stage's action once
 # ---------------------------------------------------------------------------
 
+def _candidate_tenant(candidate_id: str) -> Optional[int]:
+    """The tenant a candidate belongs to, read after the caller's commit (notify runs then)."""
+    from app.core.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        row = db.query(Candidate.tenant_id).filter(Candidate.candidateID == candidate_id).first()
+        return row[0] if row else None
+    finally:
+        db.close()
+
+
 def notify(candidate_id: str, trigger: str, ref, tenant_id: Optional[int] = None) -> bool:
-    """Call after commit. Queues a re-evaluation; the same (trigger, ref) is queued once."""
+    """Call after commit. Queues a re-evaluation; the same (trigger, ref) is queued once. Without tenant_id the
+    candidate's own is used, so the queue never has to guess one when there are several tenants."""
     from app.services.thunder_mail.cadence_service import enqueue_once
 
+    if tenant_id is None:
+        tenant_id = _candidate_tenant(candidate_id)
     return enqueue_once(EVALUATE_TASK, f"hp:{candidate_id}:{trigger}:{ref}",
                         {"candidate_id": candidate_id, "trigger": trigger, "ref": str(ref)}, tenant_id)
 
