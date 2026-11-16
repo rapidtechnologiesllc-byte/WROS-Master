@@ -32,7 +32,7 @@ feedback goes to the hiring manager to decide. An L2 (management) round also
 needs a passed L1 (technical) round.
 """
 import logging
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -52,13 +52,29 @@ class PriorRoundNotPassed(Exception):
     """R-05: the candidate's most recent prior interview round has not
     been recorded as passed -- a new round cannot be scheduled yet."""
 
+def screening_done(db: Session, candidate_id: str, job_id: Optional[str] = None) -> bool:
+    """The hiring pipeline already counts the candidate as screened: screening passed or skipped, or not
+    required (Thunder engaged them). The pipeline is the one record of that (hiring_pipeline_service)."""
+    from app.models.hiring_pipeline import HiringPipeline
+
+    query = db.query(HiringPipeline).filter(HiringPipeline.candidate_id == candidate_id)
+    if job_id:
+        query = query.filter(HiringPipeline.job_id == job_id)
+    return any(not p.screen_required or p.screen_decision in ("PASS", "SKIP") for p in query.all())
+
+
 def _round_has_passed(db: Session, panel: InterviewPanel) -> bool:
     """A round passed when its verdict is PASS (see interview_verdict_service: computed from
     feedback -- any No Hire fails, all Hire/Must Hire passes -- or decided by the hiring
-    manager when feedback is mixed)."""
+    manager when feedback is mixed). A screening round also counts once the pipeline has the
+    candidate screened (CEO 2026-11-16: a screening call Thunder booked for someone already
+    screened blocked their L1)."""
     from app.services.interview_verdict_service import verdict_for_panel
 
-    return verdict_for_panel(db, panel).verdict == "PASS"
+    verdict = verdict_for_panel(db, panel)
+    if verdict.verdict == "PASS":
+        return True
+    return verdict.level == "SCREEN" and verdict.verdict == "PENDING" and screening_done(db, panel.candidate_id)
 
 def enforce_interview_sequencing_gate(db: Session, candidate_id: str, level: str = None, job_id: str = None,
                                      before_panel: InterviewPanel = None) -> None:
