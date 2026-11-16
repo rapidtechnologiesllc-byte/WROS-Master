@@ -99,6 +99,8 @@ class ExpenseItem(BaseModel):
     expense_category: str
     travel_type: Optional[str]
     trip_label: Optional[str]
+    visit_id: Optional[str] = None  # the visit it is one line of (GET /expenses/visits/{id})
+    visit_name: Optional[str] = None
     amount_usd_cents: int
     location: Optional[str]
     description: Optional[str]
@@ -122,6 +124,63 @@ class ExpenseItem(BaseModel):
 
 class ExpenseListResponse(BaseModel):
     expenses: list[ExpenseItem]
+
+class ExpenseVisitCreateRequest(BaseModel):
+    """What every line of a visit shares (CEO 2026-11-14). A split is by percent."""
+    name: str
+    purpose: str
+    spend_for: Optional[str] = None
+    client_id: Optional[str] = None
+    client_splits: Optional[List[ClientSplit]] = None
+    event_id: Optional[str] = None
+    investment_label: Optional[str] = None
+    location: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+
+class ExpenseVisitUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    location: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+
+class ExpenseVisitDraftSubmitRequest(BaseModel):
+    """What one receipt of a visit was for: it becomes its own expense line."""
+    description: str
+    expense_category: str
+    amount_usd_cents: int
+    expense_date: date
+    expense_end_date: Optional[date] = None
+    travel_type: Optional[str] = None
+
+class ExpenseVisitDraftItem(BaseModel):
+    id: str
+    file_name: Optional[str] = None
+    content_type: Optional[str] = None
+    read_error: Optional[str] = None
+    amount_usd_cents: Optional[int] = None  # what the receipt says, to fill in
+    expense_date: Optional[str] = None
+    merchant: Optional[str] = None
+    currency: Optional[str] = None
+
+class ExpenseVisitDetail(BaseModel):
+    id: str
+    name: str
+    purpose: str
+    spend_for: str
+    client_id: Optional[str] = None
+    client_name: Optional[str] = None
+    client_splits: List[ClientSplit] = []
+    event_id: Optional[str] = None
+    conference_name: Optional[str] = None
+    investment_label: Optional[str] = None
+    location: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    total_usd_cents: int
+    status: str  # NEEDS_DETAILS / PENDING_MANAGER / FINANCE_REVIEW / APPROVED / REIMBURSED / SOME_REJECTED / EMPTY
+    lines: List[ExpenseItem] = []
+    drafts: List[ExpenseVisitDraftItem] = []
 
 class ClientInvestmentPositionResponse(BaseModel):
     client_id: str

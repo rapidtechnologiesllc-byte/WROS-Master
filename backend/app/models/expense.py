@@ -75,6 +75,8 @@ class ExpenseRecord(Base):
     # hotel + Uber + meals) without a separate trip table -- matches the
     # real ledger's flat, one-row-per-line-item shape.
     trip_label = Column(String(512), nullable=True)
+    # The visit or trip this line belongs to (CEO 2026-11-14): one receipt, one line, grouped by visit
+    visit_id = Column(String(512), ForeignKey("expense_visits.id", ondelete="SET NULL"), nullable=True, index=True)
 
     amount_usd_cents = Column(Integer, nullable=False)
     location = Column(String(512), nullable=True)
@@ -116,6 +118,11 @@ class ExpenseRecord(Base):
     receipts = relationship("ExpenseReceipt", cascade="all, delete-orphan",
                             order_by="ExpenseReceipt.created_at, ExpenseReceipt.id")
     edits = relationship("ExpenseEdit", cascade="all, delete-orphan", order_by="ExpenseEdit.id")
+    visit = relationship("ExpenseVisit", foreign_keys=[visit_id])
+
+    @property
+    def visit_name(self):
+        return self.visit.name if self.visit else None
 
     @property
     def logged_by_name(self):
@@ -178,6 +185,53 @@ class ExpenseEvent(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     __table_args__ = (UniqueConstraint("tenant_id", "name_key", "year", name="uq_expense_event_key_per_tenant"),)
+
+
+class ExpenseVisit(Base):
+    """One visit, trip or event someone spent on (CEO 2026-11-14: "everything related to that visit should be
+    grouped and individual itemized rows should be created for each receipt"). It holds what every line of the
+    visit shares: why it was spent and who carries it. Each receipt becomes its own expense line (ExpenseRecord
+    with visit_id), first waiting as an ExpenseVisitDraft until its person describes it. Client splits are
+    shares in percent, so each line splits the same way whatever its amount."""
+    __tablename__ = "expense_visits"
+
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    owner_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=False, index=True)
+    name = Column(String(512), nullable=False)
+    purpose = Column(Enum(*EXPENSE_PURPOSES, name="expense_visit_purpose", native_enum=False, create_constraint=True),
+                     nullable=False)
+    spend_for = Column(String(20), nullable=False)  # SPEND_FOR
+    client_id = Column(String(512), ForeignKey("clients.id"), nullable=True)
+    client_splits = Column(Text, nullable=True)  # JSON [{"client_id", "percent"}] when spend_for is SPLIT
+    event_id = Column(String(512), ForeignKey("expense_events.id", ondelete="SET NULL"), nullable=True)
+    investment_label = Column(String(512), nullable=True)
+    location = Column(String(512), nullable=True)
+    start_date = Column(Date, nullable=True)
+    end_date = Column(Date, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+    client = relationship("Client", foreign_keys=[client_id])
+    event = relationship("ExpenseEvent", foreign_keys=[event_id])
+    lines = relationship("ExpenseRecord", foreign_keys="ExpenseRecord.visit_id",
+                         order_by="ExpenseRecord.expense_date, ExpenseRecord.created_at", viewonly=True)
+    drafts = relationship("ExpenseVisitDraft", cascade="all, delete-orphan",
+                          order_by="ExpenseVisitDraft.created_at, ExpenseVisitDraft.id")
+
+
+class ExpenseVisitDraft(Base):
+    """A receipt added to a visit that is not yet a line: its person still says what it was for. Not in the P&L,
+    not with any manager. `reading` is what the receipt says (JSON), to fill in the amount and date."""
+    __tablename__ = "expense_visit_drafts"
+
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    visit_id = Column(String(512), ForeignKey("expense_visits.id", ondelete="CASCADE"), nullable=False, index=True)
+    file_name = Column(String(300), nullable=True)
+    file_path = Column(String(1024), nullable=False)
+    content_type = Column(String(100), nullable=False)
+    reading = Column(Text, nullable=True)
+    read_error = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
 
 
 class ExpenseClientShare(Base):
