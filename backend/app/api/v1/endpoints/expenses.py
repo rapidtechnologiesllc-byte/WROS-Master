@@ -2,7 +2,12 @@
 Partner/BU spend tracking, 2026-08-05.
 Prefix: /expenses
 
-POST /expenses                       -- self-service: log YOUR OWN expense
+POST /expenses                       -- self-service: log YOUR OWN expense (or, with expenses:create on
+                                        the role template, one for an employee: expense_for_employee_id)
+GET  /expenses/employees             -- expenses:create: the employees you may upload expenses for
+POST /expenses/from-receipt          -- expenses:create: one receipt -> one expense for an employee
+                                        (bulk upload sends one file per call; each answers created /
+                                        needs review / failed with the reasons)
 PUT  /expenses/{id}                  -- correct your own expense, until Finance approves it
 GET  /expenses/{id}                  -- one expense with its receipts and check (owner or reviewer)
 POST /expenses/{id}/receipts         -- add one or more receipts to your own expense
@@ -26,20 +31,27 @@ not an admin-gated dependency) -- Avinash: "the expense is logged by
 employee so they need to login to their portal and add their expense."
 logged_by_user_id is always the authenticated caller, never a request
 field, same ownership boundary as the existing self-service timesheet.
+
+On behalf (2026-11-24): Accounts uploads receipts for employees. That needs the expenses:create
+grant on a role template (never a role name), and the employee must be in the uploader's
+business units and have a login. The expense is then the employee's (logged_by_user_id), with
+the uploader kept in uploaded_by_user_id; neither may approve it.
 """
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.core.data_scope import client_bu_id, ensure_visible, expense_filter
+from app.core.data_scope import bu_filter, can_see_bu, client_bu_id, ensure_visible, expense_filter
 from app.core.database import get_db
 from app.core.dependencies import get_current_internal_user, require_resource_permission
+from app.models.employee import Employee
 from app.models.expense import ExpenseRecord
 from app.models.user import Users
 from app.schemas.expense import (
+    ExpenseEmployeeListResponse, ReceiptUploadResult,
     ClientInvestmentPositionResponse, ExpenseAttributionRequest, ExpenseCreateRequest, ExpenseEventCreateRequest,
     ExpenseEventItem, ExpenseEventListResponse, ExpenseEventMergeRequest, ExpenseEventSummaryResponse, ExpenseItem,
     ExpenseListResponse, ExpenseRejectRequest, ExpenseUpdateRequest, ExpenseVisitCreateRequest,
@@ -57,6 +69,40 @@ from app.services.expense_service import (
 
 router = APIRouter(tags=["expenses"])
 
+ON_BEHALF_GRANT = ("expenses", "create")  # role-template permission to log expenses for employees
+
+
+def _employee_in_scope(db: Session, user: Users, employee_id: str) -> Optional[Employee]:
+    """The employee, in the caller's tenant and business units; None otherwise (one answer for
+    "doesn't exist" and "not yours to see")."""
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    if employee is None or (employee.tenant_id is not None and employee.tenant_id != user.tenant_id):
+        return None
+    return employee if can_see_bu(db, user, employee.bu_id) else None
+
+
+def _owner_for(db: Session, user: Users, employee_id: Optional[str]) -> Users:
+    """Who the expense is for: the caller, or (with the role-template grant) the employee they name.
+    403 without the grant, 404 outside their scope, 400 when the employee has no login yet."""
+    from app.services.role_template_permission_service import RoleTemplatePermissionService as perms
+
+    if not employee_id:
+        return user
+    if db.query(Employee.id).filter(Employee.id == employee_id, Employee.wros_user_id == user.UserID).first():
+        return user  # their own employee record
+    employee = _employee_in_scope(db, user, employee_id)
+    if not perms.has_permission(db, user.UserID, *ON_BEHALF_GRANT, user.tenant_id):
+        raise HTTPException(status_code=403, detail="Your role does not allow logging expenses for other employees.")
+    if employee is None:
+        raise HTTPException(status_code=404, detail=f"Employee {employee_id!r} not found.")
+    owner = db.query(Users).filter(Users.UserID == employee.wros_user_id, Users.terminated_at.is_(None)).first() \
+        if employee.wros_user_id else None
+    if owner is None:
+        raise HTTPException(status_code=400, detail=(
+            f"{employee.first_name} {employee.last_name or ''}".strip()
+            + " has no WROS login yet, so the expense can't be theirs; create their login first."))
+    return owner
+
 @router.post(
     "/expenses",
     response_model=ExpenseItem,
@@ -68,9 +114,11 @@ def create_expense(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
+    owner = _owner_for(db, current_user, body.expense_for_employee_id)
     try:
         expense = log_expense(
-            db, logged_by_user=current_user, purpose=body.purpose,
+            db, logged_by_user=owner, uploaded_by=current_user if owner is not current_user else None,
+            purpose=body.purpose,
             expense_category=body.expense_category, amount_usd_cents=body.amount_usd_cents,
             expense_date=body.expense_date, expense_end_date=body.expense_end_date,
             client_id=body.client_id, spend_for=body.spend_for,
@@ -124,6 +172,65 @@ def list_all_expenses(
     expenses = query.order_by(ExpenseRecord.expense_date.desc()).all()
     return ExpenseListResponse(expenses=expenses)
 
+
+@router.get(
+    "/expenses/employees",
+    response_model=ExpenseEmployeeListResponse,
+    dependencies=[Depends(require_resource_permission(*ON_BEHALF_GRANT))],
+)
+def list_expense_employees(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """The employees the caller may upload expenses for: still employed, with a login, in their
+    tenant and business units."""
+    rows = (
+        db.query(Employee)
+        .filter(Employee.tenant_id == current_user.tenant_id, Employee.exit_date.is_(None),
+                Employee.wros_user_id.isnot(None), bu_filter(db, current_user, Employee.bu_id))
+        .order_by(Employee.first_name, Employee.last_name)
+        .all()
+    )
+    return ExpenseEmployeeListResponse(employees=[
+        {"id": e.id, "name": f"{e.first_name} {e.last_name or ''}".strip(), "email": e.email,
+         "business_unit_id": e.bu_id} for e in rows])
+
+
+@router.post(
+    "/expenses/from-receipt",
+    response_model=ReceiptUploadResult,
+    dependencies=[Depends(require_resource_permission(*ON_BEHALF_GRANT))],
+)
+async def create_expense_from_receipt(
+    file: UploadFile = File(...),
+    expense_for_employee_id: str = Form(...),
+    purpose: str = Form("OTHER"),
+    expense_category: str = Form("OTHER"),
+    spend_for: Optional[str] = Form(None),
+    client_id: Optional[str] = Form(None),
+    event_id: Optional[str] = Form(None),
+    amount_usd_cents: Optional[int] = Form(None),
+    expense_date: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_internal_user),
+):
+    """Bulk upload, one file per call (the web server limits each request): the receipt is read and
+    becomes one expense for the employee, checked by the same rules as any receipt. Amount and date
+    typed here are checked against the receipt; left empty, the receipt's own are used. The answer
+    always says what happened to this file -- created, needs review (reasons) or failed (reason)."""
+    from app.services.expense_receipt_service import create_from_receipt
+
+    try:
+        owner = _owner_for(db, current_user, expense_for_employee_id)
+    except HTTPException as exc:
+        return ReceiptUploadResult(filename=file.filename, status="FAILED", reasons=[str(exc.detail)])
+    fields = {"purpose": purpose, "expense_category": expense_category, "spend_for": spend_for or None,
+              "client_id": client_id or None, "event_id": event_id or None, "amount_usd_cents": amount_usd_cents,
+              "expense_date": expense_date or None, "description": description or None}
+    return create_from_receipt(db, uploader=current_user, owner=owner, filename=file.filename,
+                               content_type=file.content_type, data=await file.read(), fields=fields)
+
 def _expense_or_404(db: Session, expense_id: str, user: Users) -> ExpenseRecord:
     """One expense of the caller's tenant inside their business units (its client's BU, else its
     own BU -- app.core.data_scope), or one whose approval task is assigned to the caller (the
@@ -141,8 +248,10 @@ def _expense_or_404(db: Session, expense_id: str, user: Users) -> ExpenseRecord:
 
 
 def _own_expense(db: Session, expense_id: str, user: Users) -> Optional[ExpenseRecord]:
+    """An expense that is the caller's, or that they uploaded for an employee."""
     return db.query(ExpenseRecord).filter(ExpenseRecord.id == expense_id, ExpenseRecord.tenant_id == user.tenant_id,
-                                          ExpenseRecord.logged_by_user_id == user.UserID).first()
+                                          or_(ExpenseRecord.logged_by_user_id == user.UserID,
+                                              ExpenseRecord.uploaded_by_user_id == user.UserID)).first()
 
 
 def _own_expense_or_404(db: Session, expense_id: str, user: Users) -> ExpenseRecord:

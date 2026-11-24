@@ -181,10 +181,12 @@ def outlook(db: Session, *, start: date, end: date, today: Optional[date] = None
         # internal (personal) spend stays with the logging BU and goes to the company the logger
         # worked for on the expense date, like their salary (no employee record: company unknown)
         logger = loggers.get(record.logged_by_user_id)
-        own_company = costs.object_on(logger, record.expense_date)[1] if logger is not None else None
+        own_bu, own_company, _ = costs.object_on(logger, record.expense_date) if logger is not None else (None, None, None)
+        # the BU fixed on the expense, else the person's on the expense date (same as the P&L)
+        own_bu = record.business_unit_id if record.business_unit_id is not None else own_bu
         for client_id, cents in shares[record.id]:
-            cell = client_cell(client_id) if client_id else (record.business_unit_id, own_company)
-            row = rows[cell if cell[0] is not None else (record.business_unit_id, None)]
+            cell = client_cell(client_id) if client_id else (own_bu, own_company)
+            row = rows[cell if cell[0] is not None else (own_bu, None)]
             row["anticipated_other_expense"] += cents
             row["anticipated_expense"] += cents
             if record.payment_status == "REIMBURSED":

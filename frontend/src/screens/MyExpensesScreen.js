@@ -8,12 +8,13 @@ import { Receipt, Plus } from "lucide-react";
 import { Card, Button, Input, Select, TextArea, Table } from "../components/ui";
 import { listClients, createClient } from "../services/api/clients";
 import {
-  addExpenseVisitReceipts, createExpense, createExpenseVisit, listMyExpenses, openExpenseReceipt, removeExpenseReceipt,
+  addExpenseVisitReceipts, createExpense, listExpenseEmployees, createExpenseVisit, listMyExpenses, openExpenseReceipt, removeExpenseReceipt,
   updateExpense, uploadExpenseReceipts,
 } from "../services/api/expenses";
 import ReceiptCheck from "../components/ReceiptCheck";
 import ExpenseEventPicker from "../components/ExpenseEventPicker";
 import { expenseDates, expenseSubject } from "../utils/expenseAttribution";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
 
 const PURPOSES = [
   { label: "Current client", value: "CLIENT_CURRENT" },
@@ -125,8 +126,10 @@ const formOf = (e) => ({
   receiptRef: e.receipt_ref || "",
 });
 
-export function LogExpenseForm({ clients, onCancel, onSaved, reloadClients, expense, onVisitCreated }) {
+export function LogExpenseForm({ clients, onCancel, onSaved, reloadClients, expense, onVisitCreated, employees }) {
   const [form, setForm] = useState(() => (expense ? formOf(expense) : emptyForm));
+  // Accounts only (expenses:create on the role template): who the new expense is for; "" = yourself
+  const [expenseFor, setExpenseFor] = useState("");
   // The record once it exists: if a receipt then fails to upload, saving again doesn't log it twice
   const [record, setRecord] = useState(expense || null);
   const [progress, setProgress] = useState("");
@@ -231,6 +234,10 @@ export function LogExpenseForm({ clients, onCancel, onSaved, reloadClients, expe
       return;
     }
     if (visitMode) {
+      if (expenseFor) {
+        setError("A visit is logged by the person themself. For an employee, upload one receipt per expense (Finance > Upload receipts).");
+        return;
+      }
       await saveVisit();
       return;
     }
@@ -253,6 +260,7 @@ export function LogExpenseForm({ clients, onCancel, onSaved, reloadClients, expe
         location: form.location || null,
         description: form.description || null,
         receipt_ref: form.receiptRef || form.receiptFiles[0]?.name || record?.receipt_ref,
+        ...(record ? {} : { expense_for_employee_id: expenseFor || null }),
       };
       const saved = record ? await updateExpense(record.id, payload) : await createExpense(payload);
       setRecord(saved);
@@ -337,6 +345,17 @@ export function LogExpenseForm({ clients, onCancel, onSaved, reloadClients, expe
       ) : null}
       {error ? <div className="mb-3 text-xs text-rose-700">{error}</div> : null}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {employees && !expense ? (
+          <Select
+            label="Expense for"
+            value={expenseFor}
+            onChange={setExpenseFor}
+            options={[
+              { label: "Myself", value: "" },
+              ...employees.map((e) => ({ label: e.email ? `${e.name} (${e.email})` : e.name, value: e.id })),
+            ]}
+          />
+        ) : null}
         <Select label="Purpose" value={form.purpose} onChange={setPurpose} options={PURPOSES} />
 
         {form.purpose === "CONFERENCE" ? (
@@ -491,6 +510,16 @@ export default function MyExpensesScreen() {
   const [loadError, setLoadError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
+  // null = only your own expenses; a list = you may also log for these employees (expenses:create)
+  const canLogForOthers = hasPermission("expenses", "create");
+  const [employees, setEmployees] = useState(null);
+
+  useEffect(() => {
+    if (!canLogForOthers) return;
+    listExpenseEmployees()
+      .then(setEmployees)
+      .catch((err) => setLoadError(`Couldn't load the employees you can log for: ${err.message}`));
+  }, [canLogForOthers]);
 
   // the client list is the caller's own tenant and business units (server-scoped)
   const loadClients = useCallback(async () => {
@@ -593,6 +622,7 @@ export default function MyExpensesScreen() {
             key={editing?.id || "new"}
             expense={editing}
             clients={clients}
+            employees={canLogForOthers ? employees || [] : null}
             reloadClients={loadClients}
             onCancel={() => { setShowForm(false); setEditing(null); }}
             onSaved={() => {

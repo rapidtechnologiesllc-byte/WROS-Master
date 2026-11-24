@@ -327,3 +327,118 @@ def remove_receipt(db: Session, expense: ExpenseRecord, receipt_id: str, *, user
     except OSError as exc:  # the record is already right; a leftover file harms nothing
         logger.warning(f"[ExpenseReceipt] could not delete {path}: {exc}")
     return expense
+
+
+# ---- bulk upload (2026-11-24): Accounts uploads many receipts, one expense per receipt -------------------
+
+def _values_from_reading(reading: Optional[Dict], read_error: Optional[str]) -> Tuple[Optional[int], Optional[date], List[str]]:
+    """(amount in USD cents, date, why not) taken from what the receipt says."""
+    if read_error is not None:
+        return None, None, [f"{read_error}; enter its amount and date"]
+    if not reading or reading.get("is_receipt") is False:
+        return None, None, ["The file doesn't look like a receipt"]
+    problems, cents = [], None
+    currency = (reading.get("currency") or "USD").upper()
+    try:
+        total = float(reading["total"]) if reading.get("total") is not None else None
+    except (TypeError, ValueError):
+        total = None
+    if total is None or total <= 0:
+        problems.append("No total could be read from the receipt; enter the amount")
+    elif currency != "USD":
+        problems.append(f"The receipt is in {currency}; enter the amount in USD")
+    else:
+        cents = round(total * 100)
+    on = _parsed_date(reading.get("date"))
+    if on is None:
+        problems.append("No date could be read from the receipt; enter the date")
+    return cents, on, problems
+
+
+def _possible_duplicate(db: Session, expense: ExpenseRecord) -> Optional[str]:
+    """An earlier, not rejected expense of the same person, amount and date."""
+    twin = db.query(ExpenseRecord.id).filter(
+        ExpenseRecord.id != expense.id, ExpenseRecord.tenant_id == expense.tenant_id,
+        ExpenseRecord.logged_by_user_id == expense.logged_by_user_id,
+        ExpenseRecord.amount_usd_cents == expense.amount_usd_cents,
+        ExpenseRecord.expense_date == expense.expense_date,
+        ExpenseRecord.manager_approval_status != "REJECTED").first()
+    return f"Possible duplicate of expense {twin[0]} (same person, amount and date)" if twin else None
+
+
+def _failed(filename: str, reasons: List[str]) -> Dict:
+    return {"filename": filename, "status": "FAILED", "expense_id": None, "receipt_check_status": None,
+            "amount_usd_cents": None, "expense_date": None, "reasons": reasons}
+
+
+def create_from_receipt(db: Session, *, uploader, owner, filename: str, content_type: str, data: bytes,
+                        fields: Dict) -> Dict:
+    """One receipt -> one expense for `owner`, read once and checked by the same rules as any receipt
+    (compare/recheck). fields: purpose, expense_category, spend_for, client_id, event_id, ... and
+    optionally amount_usd_cents / expense_date (then checked against the receipt; otherwise taken
+    from it). Returns this file's result -- CREATED (matched, manager step approved), NEEDS_REVIEW
+    (with the reasons) or FAILED (nothing created, with the reason). Never half-creates: a failure
+    rolls this file back."""
+    from uuid import uuid4
+
+    from app.services.expense_service import ExpenseValidationError, log_expense, record_event
+
+    path = None
+    try:
+        validate(content_type, data)
+        try:
+            reading, read_error = read_receipt(data, content_type), None
+        except RuntimeError as exc:
+            reading, read_error = None, f"The receipt couldn't be read automatically ({exc})"
+        cents, on = fields.get("amount_usd_cents"), _parsed_date(fields.get("expense_date"))
+        if fields.get("expense_date") and on is None:
+            return _failed(filename, [f"expense_date must be YYYY-MM-DD (got {fields['expense_date']!r})"])
+        if cents is None or on is None:
+            read_cents, read_on, problems = _values_from_reading(reading, read_error)
+            if (cents is None and read_cents is None) or (on is None and read_on is None):
+                return _failed(filename, problems)
+            cents = cents if cents is not None else read_cents
+            on = on or read_on
+        expense = log_expense(
+            db, logged_by_user=owner, uploaded_by=uploader,
+            purpose=fields.get("purpose") or "OTHER", expense_category=fields.get("expense_category") or "OTHER",
+            amount_usd_cents=int(cents), expense_date=on, spend_for=fields.get("spend_for"),
+            client_id=fields.get("client_id"), event_id=fields.get("event_id"),
+            investment_label=fields.get("investment_label"), location=fields.get("location"),
+            description=fields.get("description") or (reading or {}).get("merchant"),
+            receipt_ref=(filename or "receipt")[:300], commit=False,
+        )
+        receipt = ExpenseReceipt(id=str(uuid4()), expense_id=expense.id, file_name=(filename or "receipt")[:300],
+                                 content_type=content_type,
+                                 reading=json.dumps(reading) if reading is not None else None, read_error=read_error)
+        path = receipt.file_path = store(expense, receipt.id, content_type, data)
+        db.add(receipt)
+        duplicate = _possible_duplicate(db, expense)
+        recheck(db, expense, auto_approve=duplicate is None)
+        if duplicate:
+            detail = json.loads(expense.receipt_check_detail or "{}")
+            detail["reasons"] = (detail.get("reasons") or []) + [duplicate]
+            expense.receipt_check_detail = json.dumps(detail)
+            if expense.receipt_check_status == "MATCHED":
+                expense.receipt_check_status = "MISMATCH"
+            record_event(db, expense, None, duplicate)
+        db.commit()
+        db.refresh(expense)
+    except (ReceiptError, ExpenseValidationError, ValueError, TypeError) as exc:
+        db.rollback()
+        if path and os.path.isfile(path):
+            os.remove(path)
+        logger.warning(f"[ExpenseReceipt] bulk: {filename} not created: {exc}")
+        return _failed(filename, [str(exc)])
+    except Exception as exc:
+        db.rollback()
+        if path and os.path.isfile(path):
+            os.remove(path)
+        logger.error(f"[ExpenseReceipt] bulk: {filename} failed: {exc}", exc_info=True)
+        return _failed(filename, [f"Could not create the expense ({type(exc).__name__}: {exc})"])
+    announce_after_check(db, expense, "PENDING", first=True)
+    reasons = json.loads(expense.receipt_check_detail or "{}").get("reasons") or []
+    created = expense.manager_approval_status == "APPROVED"
+    return {"filename": filename, "status": "CREATED" if created else "NEEDS_REVIEW", "expense_id": expense.id,
+            "receipt_check_status": expense.receipt_check_status, "amount_usd_cents": expense.amount_usd_cents,
+            "expense_date": expense.expense_date.isoformat(), "reasons": reasons}

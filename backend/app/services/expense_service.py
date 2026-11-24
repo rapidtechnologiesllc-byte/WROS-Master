@@ -6,9 +6,14 @@ resolved from the authenticated caller, never a caller-supplied field
 (Avinash: "the expense is logged by employee so they need to login to
 their portal and add their expense").
 
-BU attribution is derived from the logger's own business_unit_id at
-creation time, never freely settable, same discipline as
+BU attribution is derived from the person's business unit at creation time (their login's, else
+their employee record's -- person_business_unit), never freely settable, same discipline as
 app.services.client_service.create_client().
+
+On behalf (2026-11-24): Accounts may log an expense FOR an employee (log_expense uploaded_by=...;
+the endpoint checks the expenses:create grant on the role template). The expense is the
+employee's -- logged_by_user_id -- so its approvals, emails and P&L follow them; the uploader is
+kept in uploaded_by_user_id and, like the employee, may not approve it.
 
 PRIORITY-3 (2026-08-12): Expense Approval Chain
 - Receipt reference is mandatory (NOT NULL)
@@ -206,6 +211,22 @@ def attribution_gaps(expense: ExpenseRecord) -> List[str]:
     return gaps
 
 
+def person_business_unit(db: Session, user: Users) -> Optional[int]:
+    """The business unit an expense of this person counts under: their login's, else their employee
+    record's (most employees have the BU only on the employee record)."""
+    from app.models.employee import Employee
+
+    if user.business_unit_id:
+        return user.business_unit_id
+    employee = db.query(Employee).filter(Employee.wros_user_id == user.UserID).first()
+    return employee.bu_id if employee is not None else None
+
+
+def reviewers_barred(expense: ExpenseRecord) -> set:
+    """Who may never approve or reject the expense: the person it is for and whoever uploaded it."""
+    return {expense.logged_by_user_id, expense.uploaded_by_user_id} - {None}
+
+
 def log_expense(
     db: Session,
     *,
@@ -226,8 +247,14 @@ def log_expense(
     location: Optional[str] = None,
     description: Optional[str] = None,
     visit_id: Optional[str] = None,
+    uploaded_by: Optional[Users] = None,
+    commit: bool = True,
 ) -> ExpenseRecord:
     """PRIORITY-3: Create an expense with mandatory receipt reference.
+
+    logged_by_user is the person the expense is for; uploaded_by is Accounts logging it for them
+    (clients and events are checked against the uploader's scope, since they are the one choosing).
+    commit=False leaves it flushed for the caller to finish (bulk receipts) and commit.
 
     Flow:
     1. Employee logs expense (receipt_ref required), saying who it is on (resolve_attribution)
@@ -245,15 +272,20 @@ def log_expense(
 
     if purpose == "INVESTMENT" and not investment_label:
         raise ExpenseValidationError("purpose=INVESTMENT requires investment_label.")
-    event = _resolve_event(db, logged_by_user, purpose, event_id)
+    actor = uploaded_by or logged_by_user
+    if uploaded_by is not None and uploaded_by.tenant_id != logged_by_user.tenant_id:
+        raise ExpenseValidationError("The employee is not in your organisation.")
+    event = _resolve_event(db, actor, purpose, event_id)
     spend_for, client_id, shares = resolve_attribution(
-        db, logged_by_user, purpose=purpose, amount_usd_cents=amount_usd_cents, spend_for=spend_for,
+        db, actor, purpose=purpose, amount_usd_cents=amount_usd_cents, spend_for=spend_for,
         client_id=client_id, client_splits=client_splits)
 
+    on_behalf = uploaded_by is not None and uploaded_by.UserID != logged_by_user.UserID
     expense = ExpenseRecord(
         tenant_id=logged_by_user.tenant_id,
-        business_unit_id=logged_by_user.business_unit_id,
+        business_unit_id=person_business_unit(db, logged_by_user),
         logged_by_user_id=logged_by_user.UserID,
+        uploaded_by_user_id=uploaded_by.UserID if on_behalf else None,
         purpose=purpose, event_id=event.id if event else None,
         conference_name=event.name if event else None,
         investment_label=investment_label if purpose == "INVESTMENT" else None,
@@ -266,13 +298,15 @@ def log_expense(
     _apply_attribution(expense, spend_for, client_id, shares)
     db.add(expense)
     db.flush()
-    record_event(db, expense, logged_by_user.UserID, f"Logged: ${amount_usd_cents / 100:,.2f}, {expense_dates_text(expense)}")
+    who = f" for {logged_by_user.UserName or logged_by_user.UserEmail}" if on_behalf else ""
+    record_event(db, expense, actor.UserID, f"Logged{who}: ${amount_usd_cents / 100:,.2f}, {expense_dates_text(expense)}")
 
     # PRIORITY-3: Create manager approval task
     _create_manager_approval_task(db, expense, logged_by_user)
 
-    db.commit()
-    db.refresh(expense)
+    if commit:
+        db.commit()
+        db.refresh(expense)
     return expense
 
 
@@ -292,8 +326,8 @@ def expense_dates_text(expense: ExpenseRecord) -> str:
 
 
 def can_edit_expense(expense: ExpenseRecord, user: Users) -> bool:
-    """The person who logged it, until Finance approves it for payment."""
-    return user.UserID == expense.logged_by_user_id and expense.payment_status == "PENDING"
+    """The person it is for (or Accounts who uploaded it for them), until Finance approves it for payment."""
+    return user.UserID in (expense.logged_by_user_id, expense.uploaded_by_user_id) and expense.payment_status == "PENDING"
 
 
 def record_event(db: Session, expense: ExpenseRecord, user_id: Optional[str], summary: str) -> None:
@@ -398,7 +432,7 @@ def update_expense(
 
 def can_edit_attribution(db: Session, expense: ExpenseRecord, user: Users) -> bool:
     """The person who logged it until their manager decides; the reviewer until Finance approves."""
-    if user.UserID == expense.logged_by_user_id:
+    if user.UserID in reviewers_barred(expense):
         return expense.manager_approval_status == "PENDING"
     return (expense.payment_status == "PENDING" and expense.manager_approval_status != "REJECTED"
             and can_review_as_manager(db, expense, user))
@@ -485,16 +519,19 @@ def _create_manager_approval_task(db: Session, expense: ExpenseRecord, employee_
     from app.services.task_service import create_task
 
     manager = _get_employee_manager(db, employee_user)
+    if manager is not None and manager.UserID in reviewers_barred(expense):
+        manager = None  # the uploader can't approve what they uploaded
     if manager is None:
         finance = _finance_assignee(db, expense.tenant_id)
-        manager = finance if finance is not None and finance.UserID != employee_user.UserID else None
+        manager = finance if finance is not None and finance.UserID not in reviewers_barred(expense) else None
     manager_user_id = manager.UserID if manager else None
 
     task = create_task(
         db,
         title=f"Approve expense: {expense.expense_category} ${expense.amount_usd_cents / 100:,.2f}",
         description=(
-            f"{employee_user.UserName or employee_user.UserEmail} has logged an expense for your approval.\n"
+            f"{employee_user.UserName or employee_user.UserEmail} has an expense for your approval"
+            f"{f' (uploaded by {expense.uploaded_by_name})' if expense.uploaded_by_user_id else ''}.\n"
             f"{f'{note}{chr(10)}' if note else ''}"
             f"Category: {expense.expense_category}\n"
             f"Amount: ${expense.amount_usd_cents / 100:,.2f}\n"
@@ -531,11 +568,11 @@ def _finance_assignee(db: Session, tenant_id: Optional[int]) -> Optional[Users]:
 
 def can_review_as_manager(db: Session, expense: ExpenseRecord, user: Users) -> bool:
     """The manager the approval task was assigned to, or anyone with finance
-    (revenue view) authority. Never the person who logged it."""
+    (revenue view) authority. Never the person it is for, nor whoever uploaded it."""
     from app.models.task import Task
     from app.services.role_template_permission_service import RoleTemplatePermissionService as perms
 
-    if user.UserID == expense.logged_by_user_id:
+    if user.UserID in reviewers_barred(expense):
         return False
     assigned = db.query(Task).filter(Task.expense_id == expense.id, Task.status != "COMPLETED",
                                      Task.assigned_to_user_id == user.UserID).first()
@@ -557,8 +594,8 @@ def approve_manager_step(db: Session, expense: ExpenseRecord, *, approved_by: st
         raise ExpenseValidationError(
             f"Expense {expense.id} manager approval must be PENDING, not {expense.manager_approval_status}"
         )
-    if approved_by == expense.logged_by_user_id:
-        raise ExpenseValidationError("You can't approve your own expense.")
+    if approved_by in reviewers_barred(expense):
+        raise ExpenseValidationError("You can't approve an expense that is yours or that you uploaded.")
     gaps = attribution_gaps(expense)
     if gaps:
         raise ExpenseValidationError("Before it counts in the P&L the expense needs " + "; ".join(gaps) + ".")
@@ -589,8 +626,8 @@ def reject_manager_step(db: Session, expense: ExpenseRecord, *, rejected_by: str
         raise ExpenseValidationError(
             f"Expense {expense.id} manager approval must be PENDING, not {expense.manager_approval_status}"
         )
-    if rejected_by == expense.logged_by_user_id:
-        raise ExpenseValidationError("You can't review your own expense.")
+    if rejected_by in reviewers_barred(expense):
+        raise ExpenseValidationError("You can't review an expense that is yours or that you uploaded.")
     expense.manager_approval_status = "REJECTED"
     expense.manager_review_note = reason.strip() if reason and reason.strip() else None
     expense.manager_approved_by = rejected_by

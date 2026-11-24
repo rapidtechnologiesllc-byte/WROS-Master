@@ -1973,6 +1973,8 @@ def _apply_schema_migrations(db: Session):
             # Who the spend is on + the shared conference (CEO 2026-10-31; expense_event_service)
             ("spend_for", "VARCHAR(20) NULL"),
             ("event_id", "VARCHAR(512) NULL REFERENCES app_schema.expense_events(id) ON DELETE SET NULL"),
+            # Accounts uploading an expense for an employee (expense_service.log_expense uploaded_by)
+            ("uploaded_by_user_id", 'VARCHAR(512) NULL REFERENCES app_schema.users("UserID")'),
         ],
         # A Manage Role's permission set (CEO 2026-10-13)
         "org_roles": [
