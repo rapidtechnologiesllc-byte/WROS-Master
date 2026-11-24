@@ -100,6 +100,7 @@ from app.models.employee import (
 )
 from app.models.client import Client, ClientContact, ClientEmail, ClientHistory
 from app.models.client_update import ClientUpdate, RoleOutreach, UpcomingRole
+from app.models.job_search import JobSearchCriteria, JobSearchMatch, SavedCandidateSearch, SkillSynonym
 from app.models.reply_draft import ReplyDraft
 from app.models.interview_log import InterviewLog
 from app.models.demand import Demand, DemandHistory
@@ -109,7 +110,7 @@ from app.models.employee_allocation import EmployeeAllocation
 from app.models.timesheet import Timesheet, TimesheetEntry
 from app.models.notification import Notification
 from app.models.opportunity import Opportunity
-from app.models.expense import ExpenseClientShare, ExpenseEvent, ExpenseRecord
+from app.models.expense import ExpenseClientShare, ExpenseEvent, ExpenseRecord, ExpenseVisit, ExpenseVisitDraft
 from app.models.partner_incentive import PartnerIncentiveRule, PartnerIncentiveEvent
 from app.models.revenue_target import BURevenueTarget, PartnerGoal
 from app.models.timesheet_dispute import TimesheetDispute
@@ -128,6 +129,7 @@ from app.models.intercompany_ledger import IntercompanySettlement
 from app.models.bank_reconciliation import BankTransaction
 from app.models.timesheet_nag import TimesheetNagLog
 from app.models.timesheet_anomaly import TimesheetAnomalyFlag
+from app.models.bench_work_item import BenchWorkItem
 from app.models.checklist import (
     ChecklistTemplate,
     ChecklistTemplateItem,

@@ -17,7 +17,9 @@ from sqlalchemy.exc import OperationalError
 
 from app.core.config import settings
 from app.models.user import Jobs
+from app.services.boolean_search_service import BooleanQueryError
 from app.services.job_candidate_ranking_service import candidate_pool, rank_candidates_for_job
+from app.services.job_search_service import JobSearchError, ensure_criteria
 from app.services.message_queue_service import MessageQueueService
 from app.services.message_handlers.base_message_handler import time_bound
 
@@ -70,6 +72,14 @@ class SourceCandidatesHandler:
                 raise ValueError(f"Job {job_id} not found")
 
             logger.info(f"[SourceCandidates] Starting sourcing for {job_id} ({job.jobTitle})")
+
+            # The job's boolean search criteria exist from the moment it goes live (job_search_service);
+            # a job with nothing to search by is logged there and still sourced by skills below
+            try:
+                with db.begin_nested():
+                    ensure_criteria(db, job)
+            except (JobSearchError, BooleanQueryError) as exc:
+                logger.error(f"[SourceCandidates] {job_id}: no search criteria written: {exc}", exc_info=True)
 
             # PHASE 3: GET CANDIDATE POOL (the job's tenant, active, in the area)
             candidates_available = candidate_pool(db, job).count()

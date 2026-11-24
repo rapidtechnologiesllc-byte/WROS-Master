@@ -59,3 +59,38 @@ def set_pay(employee, amount_cents: int, currency: str, basis: str) -> None:
     validate(amount_cents, currency, basis)
     employee.pay_amount_cents, employee.pay_currency, employee.pay_basis = amount_cents, currency, basis
     employee.base_salary_usd_cents = monthly_usd_cents(amount_cents, currency, basis)
+
+
+# --------------------------------------------------------------------------- client bill rates
+# A bill rate is agreed the way pay is: an amount in a currency per hour, month or year
+# (CEO 2026-11-11). Time is billed by the hour, so every rate has an hourly value; the P&L and the
+# margin guard read it in USD, the invoice shows it in the client's currency.
+
+def hourly_cents(amount_cents: int, basis: str) -> float:
+    """The hourly value of a rate, in its own currency: monthly / STANDARD_MONTHLY_HOURS, annual / 12 of that."""
+    if basis not in PAY_BASES:
+        raise PayError(f"Rate basis must be one of {list(PAY_BASES)}")
+    return {"HOURLY": amount_cents, "MONTHLY": amount_cents / settings.STANDARD_MONTHLY_HOURS,
+            "ANNUAL": amount_cents / 12 / settings.STANDARD_MONTHLY_HOURS}[basis]
+
+
+def hourly_usd_cents(amount_cents: Optional[int], currency: Optional[str], basis: Optional[str]) -> int:
+    """The hourly USD rate behind an agreed bill rate. No exchange rate for the currency: PayError
+    (a bill rate of unknown USD value would make the margin and the P&L wrong)."""
+    validate(amount_cents, currency, basis)
+    if amount_cents <= 0:
+        raise PayError("The bill rate must be above zero")
+    rate = units_per_usd(currency)
+    if rate is None:
+        raise PayError(f"No exchange rate is configured for {currency} (FX_RATES_PER_USD_JSON); the bill rate "
+                       "cannot be valued in USD.")
+    return max(1, round(hourly_cents(amount_cents, basis) / rate))
+
+
+def invoice_currency(client) -> str:
+    """The currency a client is invoiced in: its location's (India INR, US USD, ... -- the
+    country policy, CEO 2026-11-11); a country the policy does not know uses the client's billing
+    currency."""
+    from app.services.employment_type_policy import country_code, currency_of
+
+    return currency_of(country_code(client.country)) or client.billing_currency or "USD"

@@ -1,4 +1,4 @@
-from sqlalchemy import JSON, Column, Date, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import JSON, Column, Date, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, func, text
 
 from app.models.base import Base
 
@@ -12,7 +12,9 @@ class InvoiceAutomationDecision(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    project_id = Column(String(512), ForeignKey("projects.id"), nullable=False, index=True)
+    # the project, or (project_id empty) the client whose Staff Aug time the period covers
+    project_id = Column(String(512), ForeignKey("projects.id"), nullable=True, index=True)
+    client_id = Column(String(512), ForeignKey("clients.id"), nullable=True, index=True)
     period_start = Column(Date, nullable=False)
     period_end = Column(Date, nullable=False)
     invoice_id = Column(String(512), ForeignKey("invoices.id"), nullable=True)
@@ -20,4 +22,8 @@ class InvoiceAutomationDecision(Base):
     reasons = Column(JSON, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
-    __table_args__ = (UniqueConstraint("project_id", "period_start", name="uq_invoice_automation_period"),)
+    __table_args__ = (
+        UniqueConstraint("project_id", "period_start", name="uq_invoice_automation_period"),
+        Index("uq_invoice_automation_staff_aug_period", "client_id", "period_start", unique=True,
+              postgresql_where=text("project_id IS NULL")),
+    )

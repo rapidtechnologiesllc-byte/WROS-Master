@@ -117,13 +117,6 @@ export const getClientInvestmentPosition = async (clientId) => {
 
 // Attach a receipt (image or PDF); the server reads and checks it straight away and returns the
 // updated expense (receipt_check_status MATCHED / MISMATCH / UNREADABLE)
-export const uploadExpenseReceipt = async (expenseId, file) => {
-  const body = new FormData();
-  body.append("file", file);
-  const { data } = await apiRequest(`/expenses/${expenseId}/receipt`, { method: "POST", body });
-  return data;
-};
-
 // Photos are often larger than the web server accepts in one request, and a receipt reads fine smaller
 const LARGEST_REQUEST_BYTES = 900 * 1024;
 const LONGEST_PHOTO_SIDE = 2200;
@@ -192,4 +185,65 @@ export const openExpenseReceipt = async (expenseId, receiptId) => {
   const url = URL.createObjectURL(await response.blob());
   window.open(url, "_blank", "noopener");
   setTimeout(() => URL.revokeObjectURL(url), 60000);
+};
+
+// ---- Visits (CEO 2026-11-14): one visit or event groups its spend; each receipt becomes its own line
+export const createExpenseVisit = async (payload) => {
+  const { data } = await apiRequest("/expenses/visits", { method: "POST", body: JSON.stringify(payload) });
+  return data;
+};
+
+export const getExpenseVisit = async (visitId) => {
+  const { data } = await apiRequest(`/expenses/visits/${visitId}`);
+  return data;
+};
+
+export const updateExpenseVisit = async (visitId, payload) => {
+  const { data } = await apiRequest(`/expenses/visits/${visitId}`, { method: "PUT", body: JSON.stringify(payload) });
+  return data;
+};
+
+// one request per receipt, as for an expense's receipts; each waits on the visit for its description
+export const addExpenseVisitReceipts = async (visitId, files, onProgress) => {
+  const drafts = [];
+  for (let i = 0; i < files.length; i += 1) {
+    const file = await fitForUpload(files[i]);
+    if (onProgress) onProgress(i + 1, files.length);
+    const body = new FormData();
+    body.append("files", file);
+    try {
+      const { data } = await apiRequest(`/expenses/visits/${visitId}/receipts`, { method: "POST", body });
+      drafts.push(...(data || []));
+    } catch (err) {
+      throw new Error(`${files[i].name}: ${err?.message || "the upload failed"}`);
+    }
+  }
+  return drafts;
+};
+
+export const submitExpenseVisitDraft = async (visitId, draftId, payload) => {
+  const { data } = await apiRequest(`/expenses/visits/${visitId}/drafts/${draftId}`, {
+    method: "POST", body: JSON.stringify(payload),
+  });
+  return data;
+};
+
+export const removeExpenseVisitDraft = async (visitId, draftId) => {
+  const { data } = await apiRequest(`/expenses/visits/${visitId}/drafts/${draftId}`, { method: "DELETE" });
+  return data;
+};
+
+export const openExpenseVisitDraft = async (visitId, draftId) => {
+  const response = await apiFetch(`/expenses/visits/${visitId}/drafts/${draftId}/file`);
+  if (!response.ok) {
+    throw new Error(`Receipt download failed (HTTP ${response.status})`);
+  }
+  const url = URL.createObjectURL(await response.blob());
+  window.open(url, "_blank", "noopener");
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+};
+
+// one of your own lines, until Finance approves it
+export const removeExpense = async (expenseId) => {
+  await apiRequest(`/expenses/${expenseId}`, { method: "DELETE" });
 };

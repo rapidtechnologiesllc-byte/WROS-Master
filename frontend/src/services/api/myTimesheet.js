@@ -20,8 +20,17 @@ export const getMyTimesheetWeeks = async () => {
   return listFrom(data, "weeks");
 };
 
-export const getMyTimesheetForWeek = async (allocationId, weekStarting) => {
-  const params = new URLSearchParams({ allocation_id: allocationId });
+// The bench work items I may log time against (accelerators, certifications, BU-head-approved work)
+export const getMyWorkItems = async () => {
+  const { data } = await apiRequest("/my/work-items", { method: "GET" });
+  return listFrom(data, "work_items");
+};
+
+// source: { allocationId } for client or project work, { workItemId } for bench work
+export const getMyTimesheetForWeek = async (source, weekStarting) => {
+  const params = new URLSearchParams(
+    source.workItemId ? { work_item_id: source.workItemId } : { allocation_id: source.allocationId },
+  );
   if (weekStarting) params.set("week_starting", weekStarting);
   const { data } = await apiRequest(`/my/timesheet/current?${params.toString()}`, { method: "GET" });
   return data;
@@ -40,7 +49,9 @@ export const submitMyTimesheet = async (timesheetId, response) => {
   return data;
 };
 
-export const getMyTimesheetHistory = async () => {
-  const { data } = await apiRequest("/my/timesheet/history", { method: "GET" });
+// My recent timesheets; with weekStarting, every one of that week (the rows of the week's time card)
+export const getMyTimesheetHistory = async (weekStarting) => {
+  const query = weekStarting ? `?week_starting=${weekStarting}` : "";
+  const { data } = await apiRequest(`/my/timesheet/history${query}`, { method: "GET" });
   return listFrom(data, "timesheets");
 };

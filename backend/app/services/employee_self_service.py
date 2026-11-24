@@ -111,6 +111,34 @@ def get_or_start_my_week_timesheet(db: Session, employee: Employee, allocation_i
     db.refresh(timesheet)
     return timesheet
 
+def my_work_items(db: Session, employee: Employee) -> list:
+    """The bench work items this employee may log time against: the active ones of their business
+    unit and the ones open to every business unit."""
+    from sqlalchemy import or_
+
+    from app.models.bench_work_item import BenchWorkItem
+
+    return db.query(BenchWorkItem).filter(
+        BenchWorkItem.tenant_id == employee.tenant_id, BenchWorkItem.status == "ACTIVE",
+        or_(BenchWorkItem.business_unit_id.is_(None), BenchWorkItem.business_unit_id == employee.bu_id),
+    ).order_by(BenchWorkItem.category, BenchWorkItem.name).all()
+
+
+def get_or_start_my_work_item_timesheet(db: Session, employee: Employee, work_item_id: str, *,
+                                        week_starting: Optional[date] = None, today: Optional[date] = None) -> Timesheet:
+    """The week's draft against one of my bench work items (this week when week_starting is None)."""
+    from app.services.timesheet_service import create_weekly_draft_for_work_item
+
+    item = next((i for i in my_work_items(db, employee) if i.id == work_item_id), None)
+    if item is None:
+        raise NotYourAllocation("That work item is not open to you: pick one your BU head approved for your business unit.")
+    monday = _check_week(week_starting, today) if week_starting else _current_week_monday(today)
+    timesheet = create_weekly_draft_for_work_item(db, item, employee, monday)
+    db.commit()
+    db.refresh(timesheet)
+    return timesheet
+
+
 def own_timesheet(db: Session, employee: Employee, timesheet_id: str) -> Timesheet:
     timesheet = db.query(Timesheet).filter(Timesheet.id == timesheet_id).first()
     if not timesheet or timesheet.employee_id != employee.id:
@@ -126,7 +154,10 @@ def submit_my_entries(db: Session, employee: Employee, timesheet_id: str, entrie
     db.refresh(timesheet)
     return timesheet
 
-def get_my_timesheet_history(db: Session, employee: Employee, *, limit: int = 12) -> List[Timesheet]:
-    return db.query(Timesheet).filter(Timesheet.employee_id == employee.id).order_by(
-        Timesheet.week_starting_date.desc()
-    ).limit(limit).all()
+def get_my_timesheet_history(db: Session, employee: Employee, *, limit: int = 12,
+                             week_starting: Optional[date] = None) -> List[Timesheet]:
+    """The latest timesheets; with week_starting, every timesheet of that one week."""
+    query = db.query(Timesheet).filter(Timesheet.employee_id == employee.id)
+    if week_starting is not None:
+        return query.filter(Timesheet.week_starting_date == week_starting).order_by(Timesheet.created_at).all()
+    return query.order_by(Timesheet.week_starting_date.desc()).limit(limit).all()

@@ -355,6 +355,13 @@ def _candidate_merges_to_one_record(db: Session) -> int:
     return finish_archived_merges(db)
 
 
+def _expense_trips_to_visits(db: Session) -> int:
+    """CEO 2026-11-14: expense lines already logged under one trip label (same person) are grouped as one visit."""
+    from app.services.expense_visit_service import group_existing_trips
+
+    return group_existing_trips(db)
+
+
 DATA_MIGRATIONS = (
     ("interview_times_to_utc", _interview_times_to_utc),
     ("employee_org_history_backfill", _employee_org_history_backfill),
@@ -367,6 +374,7 @@ DATA_MIGRATIONS = (
     ("expense_attribution_and_events", _expense_attribution_and_events),
     ("expense_receipts_and_review_tasks", _expense_receipts_and_review_tasks),
     ("candidate_merges_to_one_record", _candidate_merges_to_one_record),
+    ("expense_trips_to_visits", _expense_trips_to_visits),
 )
 
 
@@ -1843,6 +1851,14 @@ def _apply_schema_migrations(db: Session):
                     "ALTER TABLE IF EXISTS app_schema.employee_allocations "
                     "ADD COLUMN IF NOT EXISTS billable BOOLEAN NOT NULL DEFAULT TRUE")
 
+    # An expense line belongs to a visit (CEO 2026-11-14); expense_visits itself is made by create_all
+    _migration_step(db, "expense_records.visit_id",
+                    "ALTER TABLE IF EXISTS app_schema.expense_records ADD COLUMN IF NOT EXISTS visit_id VARCHAR(512) NULL "
+                    "REFERENCES app_schema.expense_visits(id) ON DELETE SET NULL")
+    _migration_step(db, "expense_records.visit_id index",
+                    "CREATE INDEX IF NOT EXISTS ix_app_schema_expense_records_visit_id "
+                    "ON app_schema.expense_records (visit_id)")
+
     # Thunder: the words that decided a reply's intent (shown on the candidate's Messages tab)
     _migration_step(db, "thunder_email_messages.intent_evidence",
                     "ALTER TABLE IF EXISTS app_schema.thunder_email_messages "
@@ -2239,13 +2255,56 @@ def _migrate_company_partner_structure(db: Session):
         # Project work is allocated to the project, not a client job (CEO 2026-10-24): job or project
         ("employee_allocations.demand_id nullable",
          "ALTER TABLE app_schema.employee_allocations ALTER COLUMN demand_id DROP NOT NULL"),
-        ("employee_allocations job or project", """
+        # Staff Aug is a person's time and materials at a client, not a project (CEO 2026-11-11): a
+        # placement may stand on the client alone (client_id is NOT NULL), and its time is invoiced
+        # to the client with no project
+        ("employee_allocations: client alone is enough",
+         "ALTER TABLE app_schema.employee_allocations DROP CONSTRAINT IF EXISTS ck_allocation_job_or_project"),
+        # Bench time is logged against a work item (CEO 2026-11-11): the timesheet's third source
+        ("timesheets.work_item_id",
+         "ALTER TABLE app_schema.timesheets ADD COLUMN IF NOT EXISTS work_item_id VARCHAR(512) "
+         "REFERENCES app_schema.bench_work_items(id)"),
+        ("timesheets.work_item_id index",
+         "CREATE INDEX IF NOT EXISTS ix_timesheets_work_item_id ON app_schema.timesheets (work_item_id)"),
+        ("timesheets: one per employee, work item and week",
+         "CREATE UNIQUE INDEX IF NOT EXISTS uq_timesheet_per_employee_work_item_week "
+         "ON app_schema.timesheets (tenant_id, employee_id, work_item_id, week_starting_date)"),
+        ("timesheets: old source rule",
+         "ALTER TABLE app_schema.timesheets DROP CONSTRAINT IF EXISTS ck_timesheet_allocation_or_task"),
+        ("timesheets: allocation, task or work item", """
             DO $$ BEGIN
-              IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_allocation_job_or_project') THEN
-                ALTER TABLE app_schema.employee_allocations ADD CONSTRAINT ck_allocation_job_or_project
-                  CHECK (demand_id IS NOT NULL OR project_id IS NOT NULL);
+              IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_timesheet_has_source') THEN
+                ALTER TABLE app_schema.timesheets ADD CONSTRAINT ck_timesheet_has_source
+                  CHECK (allocation_id IS NOT NULL OR task_id IS NOT NULL OR work_item_id IS NOT NULL);
               END IF;
             END $$"""),
+        # the bill rate as agreed (currency, per hour / month / year) and the invoice in the
+        # client's currency (CEO 2026-11-11)
+        ("employee_allocations.bill_rate_amount_cents",
+         "ALTER TABLE app_schema.employee_allocations ADD COLUMN IF NOT EXISTS bill_rate_amount_cents BIGINT"),
+        ("employee_allocations.bill_rate_currency",
+         "ALTER TABLE app_schema.employee_allocations ADD COLUMN IF NOT EXISTS bill_rate_currency VARCHAR(3)"),
+        ("employee_allocations.bill_rate_basis",
+         "ALTER TABLE app_schema.employee_allocations ADD COLUMN IF NOT EXISTS bill_rate_basis VARCHAR(10)"),
+        ("invoices.total_cents", "ALTER TABLE app_schema.invoices ADD COLUMN IF NOT EXISTS total_cents BIGINT"),
+        ("invoices.fx_per_usd", "ALTER TABLE app_schema.invoices ADD COLUMN IF NOT EXISTS fx_per_usd NUMERIC(14,6)"),
+        ("invoice_line_items.rate_cents",
+         "ALTER TABLE app_schema.invoice_line_items ADD COLUMN IF NOT EXISTS rate_cents BIGINT"),
+        ("invoice_line_items.amount_cents",
+         "ALTER TABLE app_schema.invoice_line_items ADD COLUMN IF NOT EXISTS amount_cents BIGINT"),
+        ("invoices.project_id nullable",
+         "ALTER TABLE app_schema.invoices ALTER COLUMN project_id DROP NOT NULL"),
+        ("invoice_automation_decisions.project_id nullable",
+         "ALTER TABLE app_schema.invoice_automation_decisions ALTER COLUMN project_id DROP NOT NULL"),
+        ("invoice_automation_decisions.client_id",
+         "ALTER TABLE app_schema.invoice_automation_decisions ADD COLUMN IF NOT EXISTS client_id VARCHAR(512) "
+         "REFERENCES app_schema.clients(id)"),
+        ("invoice_automation_decisions.client_id index",
+         "CREATE INDEX IF NOT EXISTS ix_invoice_automation_decisions_client_id "
+         "ON app_schema.invoice_automation_decisions (client_id)"),
+        ("invoice_automation_decisions: one Staff Aug decision per client and period",
+         "CREATE UNIQUE INDEX IF NOT EXISTS uq_invoice_automation_staff_aug_period "
+         "ON app_schema.invoice_automation_decisions (client_id, period_start) WHERE project_id IS NULL"),
         ("business_unit_companies from business_units.location_id", """
             INSERT INTO app_schema.business_unit_companies (tenant_id, business_unit_id, company_id, created_at)
             SELECT bu.tenant_id, bu.id, bu.location_id, now()

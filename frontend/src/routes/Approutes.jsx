@@ -55,6 +55,8 @@ const CorePullScreen = lazy(() => import("../screens/CorePullScreen"));
 const ClientManagementScreen = lazy(() => import("../screens/ClientManagementScreen"));
 const OpportunityPipelineScreen = lazy(() => import("../screens/OpportunityPipelineScreen"));
 const MyExpensesScreen = lazy(() => import("../screens/MyExpensesScreen"));
+const ExpenseVisitScreen = lazy(() => import("../screens/ExpenseVisitScreen"));
+const CandidateBooleanSearch = lazy(() => import("../screens/CandidateBooleanSearch"));
 const ExecutiveRevenueDashboardScreen = lazy(() => import("../screens/ExecutiveRevenueDashboardScreen"));
 const PnlFinanceScreen = lazy(() => import("../screens/PnlFinanceScreen"));
 const ActivateAccount = lazy(() => import("../pages/ActivateAccount"));
@@ -665,6 +667,7 @@ function AuthenticatedApp() {
           <Route path="timesheet-approvals" element={<TimesheetApprovalScreen />} />
           <Route path="timesheet-approvals/:timesheetId" element={<TimesheetApprovalScreen />} />
           <Route path="my-expenses" element={<MyExpensesScreen />} />
+          <Route path="my-expenses/visits/:visitId" element={<ExpenseVisitScreen />} />
           <Route path="my-referrals" element={<MyReferralsScreen />} />
           <Route path="buddy-program" element={<Navigate to="/workforce?view=buddy" replace />} />
           <Route path="buddy-program/:recordId" element={<BuddyProgramScreen />} />
@@ -707,6 +710,7 @@ function AuthenticatedApp() {
                     />
                   </>
                 ) },
+                { key: "boolean", label: "Boolean search", resource: "candidates", render: () => <CandidateBooleanSearch /> },
                 { key: "linkedin", label: "LinkedIn Pipeline", resource: "candidates", render: () => <LinkedInPipelineScreen /> },
               ]} />
             }

@@ -29,8 +29,7 @@ import uuid
 from datetime import date as date_type, datetime
 
 from sqlalchemy import (
-    CheckConstraint,
-    JSON, Boolean, Column, Date, DateTime, Enum, ForeignKey, Index, Integer, Numeric,
+    JSON, BigInteger, Boolean, Column, Date, DateTime, Enum, ForeignKey, Index, Integer, Numeric,
     String, Text, UniqueConstraint, func, text,
 )
 
@@ -65,18 +64,17 @@ logger = logging.getLogger(__name__)
 
 class EmployeeAllocation(Base):
     __tablename__ = "employee_allocations"
-    __table_args__ = (CheckConstraint("demand_id IS NOT NULL OR project_id IS NOT NULL",
-                                      name="ck_allocation_job_or_project"),)
 
     id = Column(String(512), primary_key=True, default=_new_uuid)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
-    # The client job (Staff Aug) -- empty for project work, where the project names the client and
-    # the allocation its own role and bill rate (CEO 2026-10-24); one of the two is always set
+    # Staff Aug is one person's time and materials at a client: the client is always set, the
+    # client job (requisition) only when there is one -- an existing placement recorded after the
+    # fact has none (CEO 2026-11-11). Project work has a project and no job (CEO 2026-10-24).
     demand_id = Column(String(512), ForeignKey("jobs.jobID"), nullable=True, index=True)
     client_id = Column(String(512), ForeignKey("clients.id"), nullable=False, index=True)
-    # HRMS-0803 -- nullable: not every allocation is tied to a tracked project.
+    # A project is defined-scope work; a Staff Aug placement has none and is invoiced to the client.
     project_id = Column(String(512), ForeignKey("projects.id"), nullable=True, index=True)
     role = Column(String(512), nullable=True)
 
@@ -96,7 +94,14 @@ class EmployeeAllocation(Base):
     # the client PO / work order this placement bills against: its PO number goes on the invoice
     # and hours after its end date are not invoiced
     work_order_id = Column(String(512), ForeignKey("work_orders.id", ondelete="SET NULL"), nullable=True, index=True)
+    # the hourly USD bill rate: what the margin guard, the P&L and every USD figure read
     billing_rate_usd_cents = Column(Integer, nullable=True)
+    # the rate as agreed with the client (CEO 2026-11-11): amount (minor units) in bill_rate_currency
+    # per bill_rate_basis (HOURLY/MONTHLY/ANNUAL); billing_rate_usd_cents is derived from it
+    # (compensation.hourly_usd_cents). Empty = the rate was given as USD per hour.
+    bill_rate_amount_cents = Column(BigInteger, nullable=True)
+    bill_rate_currency = Column(String(3), nullable=True)
+    bill_rate_basis = Column(String(10), nullable=True)
     # Billable client time or non-billable (internal) time; defaults from the project. Entries on a
     # non-billable allocation are NON_BILLABLE and never invoiced (CEO 2026-10-22)
     billable = Column(Boolean, nullable=False, default=True, server_default="true")

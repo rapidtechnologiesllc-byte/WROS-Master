@@ -58,10 +58,15 @@ def _recruiter(db: Session, candidate: Candidate) -> Optional[Users]:
 
 def book_call(db: Session, candidate: Candidate, recruiter: Users, now: Optional[datetime] = None):
     """A screening call at the first free time for the recruiter; the candidate and the recruiter get the invite. The
-    Interview, or None when it cannot be booked (no free time; a hiring rule such as 5 years' experience)."""
+    Interview, or None when it cannot be booked (no free time; a hiring rule such as 5 years' experience), or when the
+    candidate is already screened: their next step is an interview round, not another screening call."""
     from app.services import interview_scheduling_service as scheduling
+    from app.services.interview_sequencing_service import screening_done
     from app.services.interview_slot_service import next_free_slot
 
+    if screening_done(db, candidate.candidateID):
+        logger.info(f"[ThunderAutonomy] {candidate.candidateID} is already screened: no screening call booked")
+        return None
     now = now or datetime.utcnow()
     try:
         slot = next_free_slot(db, recruiter, candidate, now=now)
@@ -81,7 +86,7 @@ def book_call(db: Session, candidate: Candidate, recruiter: Users, now: Optional
         logger.info(f"[ThunderAutonomy] call for {candidate.candidateID} not booked: {exc.detail}")
         return None
     db.commit()
-    scheduling.after_panel_created(db, created.panel)
+    scheduling.after_panel_created(created.panel, candidate.tenant_id)
     scheduling.after_commit(db, interview, created.panel)
     return interview
 

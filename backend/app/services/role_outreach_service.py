@@ -175,14 +175,30 @@ def _skip(db: Session, outreach: RoleOutreach, note: str) -> None:
     logger.info(f"[RoleOutreach] {outreach.candidate_id} on {outreach.job_id}: skipped ({note})")
 
 
+def outreach_role(db: Session, job: Jobs):
+    """How candidates hear this job described, or None when nobody is to be written to. A job opened from
+    an upcoming role says so itself (its description of the client, its auto outreach switch). Any other
+    open job is written about too (CEO 2026-11-09: the recruiter agent reaches out on every job) unless
+    JOB_AUTO_OUTREACH is off; the client is described only in general words, never named."""
+    from types import SimpleNamespace
+
+    role = db.query(UpcomingRole).filter(UpcomingRole.job_id == job.jobID).first()
+    if role is not None:
+        return role if role.auto_outreach else None
+    if not settings.JOB_AUTO_OUTREACH:
+        return None
+    return SimpleNamespace(client_description=settings.JOB_OUTREACH_CLIENT_DESCRIPTION,
+                           target_start=getattr(job, "startDate", None), auto_outreach=True)
+
+
 def queue_role_outreach(db: Session, job: Jobs, matches: List[Dict], *, brain=None) -> int:
-    """Write to each viable match of a job opened from an upcoming role (auto outreach on), once.
+    """Write to each viable match of a job, once (see outreach_role for which jobs).
     matches: [{candidate_id, recency_score}]. Commits; returns how many emails were queued."""
     from app.services.candidate_contact_policy import is_contactable
     from app.services.thunder_mail import cadence_service as cadence
 
-    role = db.query(UpcomingRole).filter(UpcomingRole.job_id == job.jobID).first()
-    if role is None or not role.auto_outreach:
+    role = outreach_role(db, job)
+    if role is None:
         return 0
     queued = []
     for match in matches:

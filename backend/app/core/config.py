@@ -155,6 +155,10 @@ class Settings:
     
     # File Upload Settings
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
+    # Uploads larger than the web server's per-request limit arrive in pieces (app.middleware.large_upload)
+    LARGE_UPLOAD_MAX_BYTES: int = int(os.getenv("LARGE_UPLOAD_MAX_BYTES", str(25 * 1024 * 1024)))
+    LARGE_UPLOAD_MAX_PARTS: int = int(os.getenv("LARGE_UPLOAD_MAX_PARTS", "64"))
+    LARGE_UPLOAD_KEEP_SECONDS: int = int(os.getenv("LARGE_UPLOAD_KEEP_SECONDS", "3600"))
     # Responses at least this big are gzip-compressed (app.main)
     GZIP_MIN_BYTES: int = int(os.getenv("GZIP_MIN_BYTES", "1000"))
     # Panel vs Flash calibration: Flash "advances" a candidate whose job match score is at least this
@@ -451,6 +455,14 @@ class Settings:
     # False: it stays in an Org level row
     SHARED_COST_SPLIT_TO_BUS: bool = os.getenv("SHARED_COST_SPLIT_TO_BUS", "true").lower() == "true"
     FLASH_AUTO_MISSION_DAYS: int = int(os.getenv("FLASH_AUTO_MISSION_DAYS", "14"))
+    # The recruiter agent's search per job (job_search_service): candidates who match a job's boolean search
+    # criteria may get one personal email each. Off (the default until the CEO turns it on) = matches are captured
+    # and shown on the job, and only jobs opened from an upcoming role with auto outreach write to anyone.
+    JOB_AUTO_OUTREACH: bool = os.getenv("JOB_AUTO_OUTREACH", "false").lower() == "true"
+    JOB_OUTREACH_PER_RUN: int = int(os.getenv("JOB_OUTREACH_PER_RUN", "10"))  # per job, per run of the job
+    JOB_SEARCH_ACTIVE_DAYS: int = int(os.getenv("JOB_SEARCH_ACTIVE_DAYS", "90"))  # open jobs older than this rest
+    # how a client is described to candidates when the job does not say (the client is never named)
+    JOB_OUTREACH_CLIENT_DESCRIPTION: str = os.getenv("JOB_OUTREACH_CLIENT_DESCRIPTION", "one of our clients")
     SUB_VENDOR_ROLE_WINDOW_DAYS: int = int(os.getenv("SUB_VENDOR_ROLE_WINDOW_DAYS", "7"))
     SCHEDULED_JOBS_ENABLED: str = os.getenv(
         "SCHEDULED_JOBS_ENABLED",

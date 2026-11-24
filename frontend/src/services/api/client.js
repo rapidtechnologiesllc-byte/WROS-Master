@@ -139,6 +139,52 @@ const refreshAccessToken = async () => {
   }
 };
 
+// The web server in front of HRMS refuses a request body over about 1 MB. A form larger than that goes up in
+// pieces to /uploads/parts, then the original request is sent with an empty body and the server rebuilds it
+// (backend app/middleware/large_upload.py). Every upload in the app goes through here, so no screen has its own
+// limit. Needs a signed-in token (a user's or a candidate portal link's) in the Authorization header.
+const LARGEST_REQUEST_BYTES = 900 * 1024;
+const PIECE_BYTES = 768 * 1024;
+
+const newUploadId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)))
+  .map((b) => b.toString(16).padStart(2, "0")).join("");
+
+const authorizationOf = (headers) => {
+  if (!headers) return null;
+  if (typeof headers.get === "function") return headers.get("Authorization");
+  return headers.Authorization || headers.authorization || null;
+};
+
+export const sendForm = async (url, init = {}) => {
+  const { body } = init;
+  if (!(body instanceof FormData)) return fetch(url, init);
+  let estimate = 0;
+  body.forEach((value) => { estimate += typeof value === "string" ? value.length : value.size; });
+  const authorization = authorizationOf(init.headers);
+  if (estimate <= LARGEST_REQUEST_BYTES || !authorization) return fetch(url, init);
+  const encoded = new Request(url, { method: "POST", body });
+  const contentType = encoded.headers.get("content-type");
+  const whole = await encoded.blob();
+  const origin = new URL(url, window.location.href);
+  const partsUrl = `${origin.origin}${origin.pathname.replace(/\/api\/v1\/.*$/, "")}/api/v1/uploads/parts`;
+  const total = Math.ceil(whole.size / PIECE_BYTES);
+  const uploadId = newUploadId();
+  for (let index = 0; index < total; index += 1) {
+    const piece = await fetch(`${partsUrl}?upload_id=${uploadId}&index=${index}&total=${total}`, {
+      method: "POST",
+      credentials: "omit",
+      headers: { Authorization: authorization, "Content-Type": "application/octet-stream" },
+      body: whole.slice(index * PIECE_BYTES, (index + 1) * PIECE_BYTES),
+    });
+    if (!piece.ok) return piece;  // the caller shows the server's reason, as for any failed request
+  }
+  return fetch(url, {
+    ...init,
+    body: undefined,
+    headers: { ...(init.headers || {}), "X-Upload-Body": `${uploadId}:${total}`, "X-Upload-Content-Type": contentType },
+  });
+};
+
 // Drop-in for fetch() on backend paths: same Response object (callers keep
 // their .ok / .json() handling), but the URL is built from API_BASE_URL
 // with the /api/v1 prefix and the auth/BU headers are attached. A bare
@@ -146,7 +192,7 @@ const refreshAccessToken = async () => {
 // production (nginx serves the API under /api).
 export const apiFetch = (path, init = {}) => {
   const normalizedPath = path.startsWith("/api") ? path : `/api/v1${path}`;
-  return fetch(`${API_BASE_URL}${normalizedPath}`, {
+  return sendForm(`${API_BASE_URL}${normalizedPath}`, {
     credentials: "omit",
     ...init,
     headers: withAuthHeaders(init.headers || {}),
@@ -174,7 +220,7 @@ export const apiRequest = async (path, options = {}) => {
   const url = `${API_BASE_URL}${normalizedPath}`;
   let response;
   try {
-    response = await fetch(url, {
+    response = await sendForm(url, {
       headers: skipAuth ? baseHeaders : withAuthHeaders(baseHeaders),
       credentials: 'omit',
       body,
@@ -227,7 +273,7 @@ export const apiRequest = async (path, options = {}) => {
           const retryHeaders = withAuthHeaders(baseHeaders);
           retryHeaders.Authorization = `Bearer ${newAccessToken}`;
 
-          const retryResponse = await fetch(url, {
+          const retryResponse = await sendForm(url, {
             headers: retryHeaders,
             credentials: 'omit',
             body,

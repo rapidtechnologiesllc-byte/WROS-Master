@@ -115,6 +115,25 @@ def create_weekly_draft_for_task(
     db.add(timesheet)
     return timesheet
 
+def create_weekly_draft_for_work_item(db: Session, work_item, employee: Employee, week_starting_date: date) -> Timesheet:
+    """Bench time (CEO 2026-11-11): the week's timesheet against a bench work item (an accelerator,
+    a certification, BU-head-approved work). Idempotent, like create_weekly_draft()."""
+    if work_item.status != "ACTIVE":
+        raise AllocationNotActive(f"{work_item.name} is closed: no new time can be logged against it.")
+    if week_starting_date.weekday() != 0:
+        raise InvalidTimesheetEntry("week_starting_date must be a Monday.")
+    existing = db.query(Timesheet).filter(
+        Timesheet.employee_id == employee.id, Timesheet.work_item_id == work_item.id,
+        Timesheet.week_starting_date == week_starting_date,
+    ).first()
+    if existing:
+        return existing
+    timesheet = Timesheet(tenant_id=employee.tenant_id or work_item.tenant_id, employee_id=employee.id,
+                          work_item_id=work_item.id, week_starting_date=week_starting_date)
+    db.add(timesheet)
+    return timesheet
+
+
 def upsert_entries(db: Session, timesheet: Timesheet, entries: List[dict]) -> Timesheet:
     """
     entries: list of {entry_date, hours, entry_type, notes}. Enforces
@@ -145,6 +164,8 @@ def upsert_entries(db: Session, timesheet: Timesheet, entries: List[dict]) -> Ti
         entry_type = entry.get("entry_type", "BILLABLE")
         if allocation is not None and not allocation.billable and entry_type == "BILLABLE":
             entry_type = "NON_BILLABLE"  # internal time is never billable, whatever the form sent
+        if timesheet.work_item_id and entry_type == "BILLABLE":
+            entry_type = "NON_BILLABLE"  # bench work is never billable
 
         if entry_date > today:
             raise InvalidTimesheetEntry(f"Cannot log hours for a future date: {entry_date}.")

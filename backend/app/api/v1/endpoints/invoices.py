@@ -71,6 +71,7 @@ from app.services.invoice_service import (
     UnapprovedTimesheetBlocksInvoice,
     approve_invoice,
     generate_invoice,
+    invoice_total_cents,
     mark_invoice_paid,
     record_external_delivery,
     request_invoice_email,
@@ -89,7 +90,7 @@ def _to_item(db: Session, invoice: Invoice) -> InvoiceItem:
         Employee.id.in_({li.employee_id for li in line_items}))} if line_items else {}
     company = db.get(Location, invoice.issuing_company_id) if invoice.issuing_company_id else None
     client = db.get(Client, invoice.client_id)
-    project = db.get(Project, invoice.project_id)
+    project = db.get(Project, invoice.project_id) if invoice.project_id else None  # none on Staff Aug
     return InvoiceItem(
         invoice_number=invoice.invoice_number, issuing_company_id=invoice.issuing_company_id,
         issuing_company_name=company.name if company else None, po_numbers=invoice.po_numbers,
@@ -101,12 +102,16 @@ def _to_item(db: Session, invoice: Invoice) -> InvoiceItem:
         id=invoice.id, project_id=invoice.project_id, client_id=invoice.client_id,
         billing_period_start=invoice.billing_period_start, billing_period_end=invoice.billing_period_end,
         status=invoice.status, total_usd_cents=invoice.total_usd_cents, currency=invoice.currency,
+        total_cents=invoice_total_cents(invoice),
+        fx_per_usd=float(invoice.fx_per_usd) if invoice.fx_per_usd is not None else None,
         approved_by=invoice.approved_by, approved_at=invoice.approved_at,
         sent_at=invoice.sent_at, paid_at=invoice.paid_at,
         line_items=[
             InvoiceLineItemItem(
                 id=li.id, employee_id=li.employee_id, timesheet_id=li.timesheet_id,
                 hours=float(li.hours), rate_usd_cents=li.rate_usd_cents, amount_usd_cents=li.amount_usd_cents,
+                rate_cents=li.rate_cents if li.rate_cents is not None else li.rate_usd_cents,
+                amount_cents=li.amount_cents if li.amount_cents is not None else li.amount_usd_cents,
                 employee_name=names.get(li.employee_id), po_number=li.po_number,
             )
             for li in line_items
@@ -152,16 +157,28 @@ def generate_invoice_endpoint(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_internal_user),
 ):
-    project = db.query(Project).filter(Project.id == body.project_id,
-                                       Project.tenant_id == current_user.tenant_id,
-                                       client_filter(db, current_user, Project.client_id)).first()
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found.")
+    from app.models.client import Client
+
+    project = client = None
+    if body.project_id:
+        project = db.query(Project).filter(Project.id == body.project_id,
+                                           Project.tenant_id == current_user.tenant_id,
+                                           client_filter(db, current_user, Project.client_id)).first()
+        if project is None:
+            raise HTTPException(status_code=404, detail="Project not found.")
+    elif body.client_id:
+        # Staff Aug: the client's placements with no project, billed to the client
+        client = db.query(Client).filter(Client.id == body.client_id, Client.tenant_id == current_user.tenant_id,
+                                         client_filter(db, current_user, Client.id)).first()
+        if client is None:
+            raise HTTPException(status_code=404, detail="Client not found.")
+    else:
+        raise HTTPException(status_code=422, detail="Name the project, or the client whose Staff Aug time is invoiced.")
 
     try:
         invoice = generate_invoice(
             db, project, period_start=body.period_start, period_end=body.period_end,
-            tenant_id=current_user.tenant_id,
+            tenant_id=current_user.tenant_id, client=client,
         )
     except UnapprovedTimesheetBlocksInvoice as exc:
         raise HTTPException(status_code=409, detail=str(exc))

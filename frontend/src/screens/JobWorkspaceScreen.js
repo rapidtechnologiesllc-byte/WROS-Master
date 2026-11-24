@@ -7,8 +7,9 @@ import { AlertCircle, CheckCircle, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import JobDetails from "./JobDetails";
 import JobHistory from "../components/JobHistory";
+import JobSearchPanel from "../components/JobSearchPanel";
 
-const TABS = ["Job Details", "Candidates", "Job Analytics", "History"];
+const TABS = ["Job Details", "Candidates", "Search", "Job Analytics", "History"];
 
 const getStageLabel = (candidate) => {
   const status = String(candidate?.pipelineStatus || candidate?.status || "")
@@ -300,6 +301,8 @@ export default function JobWorkspaceScreen({
         <JobDetails job={job} candidates={candidates} mode="edit" defaultTab="details" onUpdate={onUpdateJob} />
       ) : activeTab === "Candidates" ? (
         <JobDetails job={job} candidates={jobCandidates} mode="edit" defaultTab="candidates" onUpdate={onUpdateJob} />
+      ) : activeTab === "Search" ? (
+        <JobSearchPanel jobId={job?.id} />
       ) : activeTab === "History" ? (
         <JobHistory jobId={job?.id} />
       ) : activeTab === "Job Analytics" ? (

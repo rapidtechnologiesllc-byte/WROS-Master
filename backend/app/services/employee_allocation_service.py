@@ -50,7 +50,9 @@ from app.services.resource_management_service import (
 logger = logging.getLogger(__name__)
 
 PENDING_MARGIN = "PENDING_MARGIN_APPROVAL"
-EDITABLE_FIELDS = ("end_date", "billing_rate_usd_cents", "utilization_pct", "billable")
+# the rate as agreed (amount, currency, basis) travels with billing_rate_usd_cents, its USD hourly value
+AGREED_RATE_FIELDS = ("bill_rate_amount_cents", "bill_rate_currency", "bill_rate_basis")
+EDITABLE_FIELDS = ("end_date", "billing_rate_usd_cents", "utilization_pct", "billable", "role") + AGREED_RATE_FIELDS
 # timesheet statuses that are past: a rate change never reaches a week in one of these
 LOCKED_TIMESHEET_STATUSES = ("SUBMITTED", "APPROVED", "DISPUTED")
 MIN_REASON_LENGTH = 5
@@ -264,13 +266,34 @@ class ProjectPlacement:
         self.name = project.name
 
 
+class ClientPlacement:
+    """A Staff Aug placement at a client with no job behind it (an existing placement recorded
+    after the fact, CEO 2026-11-11), read like a client job by the placement rules and the margin
+    guard: the client and its delivery line, no job, no project, no job bill rate (the allocation
+    carries its own role and rate). Its time is invoiced to the client directly."""
+
+    def __init__(self, client):
+        self.id = None
+        self.client_id = client.id
+        self.project_id = None
+        self.billing_rate_usd_cents = None
+        self.assigned_bu_id = None
+        self.job_title = None
+        self.name = client.company_name
+
+
 def placement_target(db: Session, allocation: EmployeeAllocation):
-    """What an allocation was placed on: its client job, or its project for project work."""
+    """What an allocation was placed on: its client job, its project for project work, or the
+    client alone for Staff Aug with no job."""
     if allocation.demand_id:
         return db.query(Demand).filter(Demand.id == allocation.demand_id).one()
-    from app.models.project import Project
+    if allocation.project_id:
+        from app.models.project import Project
 
-    return ProjectPlacement(db.query(Project).filter(Project.id == allocation.project_id).one())
+        return ProjectPlacement(db.query(Project).filter(Project.id == allocation.project_id).one())
+    from app.models.client import Client
+
+    return ClientPlacement(db.query(Client).filter(Client.id == allocation.client_id).one())
 
 
 def allocate_employee_to_project(
@@ -292,8 +315,17 @@ def allocate_employee_to_project(
     billable: Optional[bool] = None,
     existing_placement: bool = False,
     reason: Optional[str] = None,
+    client=None,
+    agreed_rate: Optional[Tuple[int, str, str]] = None,
 ) -> EmployeeAllocation:
     """
+    agreed_rate: the bill rate as agreed with the client, (amount in minor units, currency,
+    HOURLY / MONTHLY / ANNUAL). It is kept as given and decides the hourly USD rate.
+
+    Three kinds of placement: a client job (demand; Staff Aug), a project (project work, defined
+    scope: role + bill rate) or the client alone (client; Staff Aug with no job behind it: role +
+    bill rate, no project -- its time is invoiced to the client).
+
     allow_concurrent=False (default, unchanged from before HRMS-0803
     existed) preserves the original single-active-allocation-at-a-time
     behavior -- HRMS-0901 itself calls multi-allocation support "future
@@ -310,10 +342,16 @@ def allocate_employee_to_project(
     margin is checked and recorded, never held -- existing placements are not blocked
     retroactively.
     """
-    if demand is None:
+    if demand is None and project is None:
+        # Staff Aug at the client with no job: the allocation names the role and bill rate
+        if client is None:
+            raise AllocationNeedsClient("Choose the client (Staff Aug) or the project to allocate to.")
+        if not (role or "").strip():
+            raise AllocationEditInvalid("Enter the role at the client: there is no job to take it from.")
+        demand = ClientPlacement(client)
+        is_project_work = True  # no job: the allocation carries its own role and rate
+    elif demand is None:
         # project work: the project names the client; the allocation names the role and bill rate
-        if project is None:
-            raise AllocationNeedsClient("Choose the client job (Staff Aug) or the project to allocate to.")
         if not project.client_id:
             raise AllocationNeedsClient(f"Project {project.name} has no client. Set its client before allocating anyone.")
         if not (role or "").strip():
@@ -322,19 +360,21 @@ def allocate_employee_to_project(
         is_project_work = True
     else:
         is_project_work = False
+    if client is not None and demand.client_id != client.id:
+        raise ProjectClientMismatch(f"That job or project belongs to a different client than {client.company_name}.")
     if not demand.client_id:
         raise AllocationNeedsClient(
             f"Job {demand.id} has no client. Set the client on the job before allocating anyone to it."
         )
     # Buddy graduated, no open escalation, Core-certified for a Core client (CEO 2026-10-14), and
     # the employment-type rule: the same gates as a client submission, on every path that deploys someone
-    _assert_placement_rules(db, employee, demand)
     if project is None and getattr(demand, "project_id", None):
         # the job's project, so the allocation's time can be invoiced (an allocation with no
         # project never reaches an invoice)
         from app.models.project import Project
 
         project = db.query(Project).filter(Project.id == demand.project_id).first()
+    _assert_placement_rules(db, employee, demand)
     if project is not None and project.client_id != demand.client_id:
         raise ProjectClientMismatch(
             f"Project {project.id} belongs to a different client than job {demand.id}."
@@ -346,10 +386,17 @@ def allocate_employee_to_project(
     _assert_capacity(db, employee, start=start, end=end_date, utilization_pct=utilization_pct,
                      allow_concurrent=allow_concurrent)
 
+    if agreed_rate is not None:
+        from app.services import compensation
+
+        try:
+            billing_rate_usd_cents = compensation.hourly_usd_cents(*agreed_rate)
+        except compensation.PayError as exc:
+            raise AllocationEditInvalid(str(exc)) from exc
     rate = billing_rate_usd_cents or demand.billing_rate_usd_cents
     is_billable = billable if billable is not None else (bool(project.is_billable) if project is not None else True)
     if is_project_work and is_billable and not rate:
-        raise AllocationEditInvalid("Enter the bill rate: project work has no job to take it from.")
+        raise AllocationEditInvalid("Enter the bill rate: there is no job to take it from.")
     allocation = EmployeeAllocation(
         tenant_id=tenant_id, employee_id=employee.id, demand_id=None if is_project_work else demand.id,
         client_id=demand.client_id,
@@ -358,6 +405,9 @@ def allocate_employee_to_project(
         client_reporting_manager_contact_id=client_reporting_manager_contact_id,
         timesheet_approver_email=timesheet_approver_email,
         billing_rate_usd_cents=rate,
+        bill_rate_amount_cents=agreed_rate[0] if agreed_rate else None,
+        bill_rate_currency=agreed_rate[1] if agreed_rate else None,
+        bill_rate_basis=agreed_rate[2] if agreed_rate else None,
         # S-358/HRMS-0519: denormalized from the project at allocation-
         # creation time -- "who is at PwC right now" without a join.
         si_partner=project.si_partner if project else None,
@@ -369,7 +419,8 @@ def allocate_employee_to_project(
         db, allocation, employee, demand, changed_by=changed_by, existing_placement=existing_placement,
         reason=reason or ("Existing placement recorded by import" if existing_placement else "Placement"))
     if not held:
-        _place_employee(db, employee, f"project {project.name}" if is_project_work else demand.id, changed_by)
+        _place_employee(db, employee, demand.id or (f"project {project.name}" if project else f"client {demand.name}"),
+                        changed_by)
     db.flush()
     from app.services.bench_service import sync_billing_classification
 
@@ -509,7 +560,7 @@ def _run_edit_rules(db: Session, allocation: EmployeeAllocation, employee: Emplo
     on = effective_from or max(date.today(), allocation.start_date)
     return margin_guard.evaluate(db, tenant_id=allocation.tenant_id, employee=employee,
                                  project_id=allocation.project_id, client_id=allocation.client_id,
-                                 role=allocation.role, bill_rate_usd_cents=proposed["billing_rate_usd_cents"],
+                                 role=proposed["role"], bill_rate_usd_cents=proposed["billing_rate_usd_cents"],
                                  billable=bool(proposed["billable"]), on=on)
 
 
@@ -518,6 +569,10 @@ def _apply(allocation: EmployeeAllocation, new: Dict) -> None:
                                       or new["end_date"] > allocation.end_date)
     for key, value in new.items():
         setattr(allocation, key, value)
+    if "billing_rate_usd_cents" in new and not any(key in new for key in AGREED_RATE_FIELDS):
+        # the rate was given in USD per hour: that is now the rate as agreed
+        allocation.bill_rate_amount_cents, allocation.bill_rate_currency, allocation.bill_rate_basis = (
+            new["billing_rate_usd_cents"], "USD", "HOURLY")
     if extended:
         # a new term: its renewal conversation starts over (alerts follow the new end date)
         allocation.renewal_status = "NOT_STARTED"
@@ -564,6 +619,10 @@ def edit_allocation(
         raise AllocationEditInvalid("Utilization cannot be cleared.")
     if "billing_rate_usd_cents" in new and new["billing_rate_usd_cents"] is None:
         raise AllocationEditInvalid("The bill rate cannot be cleared.")
+    if "role" in new:
+        new["role"] = (new["role"] or "").strip()
+        if not new["role"]:
+            raise AllocationEditInvalid("The role cannot be cleared.")
     effective_from = _validate_edit(db, allocation, new, effective_from)
     old = {key: current[key] for key in new}
 

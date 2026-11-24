@@ -2,6 +2,7 @@
 import {
   getApiBaseUrl,
   apiRequest,
+  sendForm,
   maybeRedirectOnUnauthorized,
 } from "./client";
 
@@ -9,7 +10,7 @@ const _uploadDocument = async (path, file, token) => {
   if (!file) throw new Error("File is required.");
   const formData = new FormData();
   formData.append("file", file);
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+  const response = await sendForm(`${getApiBaseUrl()}${path}`, {
     method: "POST",
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: formData,

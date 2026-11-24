@@ -343,7 +343,7 @@ def test_a_drafted_invoice_mails_an_approver_and_the_project_team(db, w):
     mailed = _mailed(queue)
     assert set(mailed) == {approver.UserID, w.pm.UserID, w.am.UserID}
     assert mailed[approver.UserID]["key"] == f"invoice-drafted-{invoice.id}-{approver.UserID}"
-    assert "Total: $12,345.00 (billed in USD)." in mailed[approver.UserID]["paragraphs"]
+    assert "Total: USD 12,345.00." in mailed[approver.UserID]["paragraphs"]
 
 
 # --------------------------------------------------------------------------- employees

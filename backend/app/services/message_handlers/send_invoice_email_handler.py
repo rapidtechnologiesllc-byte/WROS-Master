@@ -27,7 +27,7 @@ from app.models.invoice import Invoice, InvoiceLineItem
 from app.models.invoice_delivery import InvoiceDelivery
 from app.models.location import Location
 from app.models.tenant import Tenant
-from app.services.invoice_service import mark_invoice_sent
+from app.services.invoice_service import invoice_total_cents, mark_invoice_sent
 from app.services.message_handlers.base_message_handler import time_bound
 from app.services.mail_sender import mailbox_for_address, record_sent, sender_for
 from app.services.thunder_mail.graph_mailbox import GraphMailbox
@@ -76,8 +76,9 @@ def render_invoice_email(db: Session, invoice: Invoice) -> Dict[str, str]:
         f"<tr><td>{html.escape(names.get(i.employee_id, i.employee_id))}</td>"
         + (f"<td>{html.escape(i.po_number or '')}</td>" if with_po else "")
         + f"<td style='text-align:right'>{float(i.hours):,.2f}</td>"
-        f"<td style='text-align:right'>{_money(i.rate_usd_cents, currency)}</td>"
-        f"<td style='text-align:right'>{_money(i.amount_usd_cents, currency)}</td></tr>"
+        f"<td style='text-align:right'>{_money(i.rate_cents if i.rate_cents is not None else i.rate_usd_cents, currency)}</td>"
+        f"<td style='text-align:right'>"
+        f"{_money(i.amount_cents if i.amount_cents is not None else i.amount_usd_cents, currency)}</td></tr>"
         for i in items
     )
     bill_to = html.escape(client.company_name)
@@ -92,7 +93,7 @@ def render_invoice_email(db: Session, invoice: Invoice) -> Dict[str, str]:
         "<tr><th align='left'>Consultant</th>" + ("<th align='left'>PO</th>" if with_po else "")
         + "<th>Hours</th><th>Rate</th><th>Amount</th></tr>"
         f"{rows}<tr><td colspan='{4 if with_po else 3}' align='right'><b>Total</b></td>"
-        f"<td style='text-align:right'><b>{_money(invoice.total_usd_cents, currency)}</b></td></tr></table>"
+        f"<td style='text-align:right'><b>{_money(invoice_total_cents(invoice), currency)}</b></td></tr></table>"
         f"<p>Payment terms: {client.payment_terms_days} days. Due date: {due:%d %b %Y}.</p>"
         "<p>Reply to this email with any questions about this invoice.</p>"
         f"<p>Regards,<br>Accounts, {html.escape(issuer)}</p>"

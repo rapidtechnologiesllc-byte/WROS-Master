@@ -449,7 +449,7 @@ function AllocationsTab() {
           <thead className="border-b bg-gray-50">
             <tr>
               <th className="px-4 py-2 text-left font-semibold">Employee</th>
-              <th className="px-4 py-2 text-left font-semibold">Project</th>
+              <th className="px-4 py-2 text-left font-semibold">Project / Client</th>
               <th className="px-4 py-2 text-left font-semibold">Allocation %</th>
               <th className="px-4 py-2 text-left font-semibold">Start Date</th>
               <th className="px-4 py-2 text-left font-semibold">End Date</th>
@@ -468,13 +468,18 @@ function AllocationsTab() {
                     <Link to={`/projects?project=${alloc.project_id}`} className="text-blue-700 hover:underline">
                       {alloc.project_name || "Project"}
                     </Link>
-                  ) : "—"}
+                  ) : (
+                    // Staff Aug: no project, the person's time and materials at the client
+                    <span>{alloc.client_name || "—"} <span className="text-xs text-gray-500">· Staff Aug · {alloc.demand_job_title}</span></span>
+                  )}
                 </td>
                 <td className="px-4 py-2">{alloc.utilization_pct}%</td>
                 <td className="px-4 py-2 text-gray-600">{alloc.start_date || "—"}</td>
                 <td className="px-4 py-2 text-gray-600">{alloc.end_date || "Ongoing"}</td>
                 <td className="px-4 py-2 text-gray-600">
-                  {alloc.billing_rate_usd_cents ? `$${(alloc.billing_rate_usd_cents / 100).toFixed(2)}/h` : "—"}
+                  {alloc.bill_rate_amount_cents && (alloc.bill_rate_currency !== "USD" || alloc.bill_rate_basis !== "HOURLY")
+                    ? `${alloc.bill_rate_currency} ${(alloc.bill_rate_amount_cents / 100).toLocaleString()}/${{ HOURLY: "h", MONTHLY: "mo", ANNUAL: "yr" }[alloc.bill_rate_basis] || "h"}`
+                    : alloc.billing_rate_usd_cents ? `$${(alloc.billing_rate_usd_cents / 100).toFixed(2)}/h` : "—"}
                 </td>
                 <td className="px-4 py-2 text-gray-600" title={alloc.margin_check || "placed before the margin guard"}>
                   {marginLabel(alloc.margin_pct)}

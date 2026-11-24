@@ -260,8 +260,6 @@ def chain_lines(
         earned = billed_amount or unbilled
 
         flags = []
-        if allocation.project_id is None:
-            flags.append("NO_PROJECT_CANNOT_INVOICE")
         if hours > 0 and not rate:
             flags.append("NO_BILL_RATE")
         if len(billed) > 1:
@@ -911,7 +909,7 @@ def recognize_revenue(db: Session, invoice: Invoice, *, recognized_at: Optional[
     if existing is not None:
         return existing
 
-    project = db.query(Project).filter(Project.id == invoice.project_id).first()
+    project = db.query(Project).filter(Project.id == invoice.project_id).first() if invoice.project_id else None
     client = db.query(Client).filter(Client.id == invoice.client_id).first()
     unit = db.query(BusinessUnit).filter(BusinessUnit.id == client.business_unit_id).first() \
         if client and client.business_unit_id else None
@@ -921,7 +919,9 @@ def recognize_revenue(db: Session, invoice: Invoice, *, recognized_at: Optional[
     revenue = invoice.total_usd_cents or 0
     cost = invoice_cost(db, invoice)
     margin = revenue - cost if cost is not None else None
-    business_type = project.delivery_engine if project and project.delivery_engine in BUSINESS_TYPES else None
+    # a Staff Aug invoice has no project: its line is the client's
+    engine = project.delivery_engine if project else (client.line_type if client else None)
+    business_type = engine if engine in BUSINESS_TYPES else None
     partner_id = unit.partner_user_id if unit else None
 
     share_pct = share = None

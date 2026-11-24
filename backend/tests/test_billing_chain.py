@@ -271,7 +271,7 @@ def test_the_oldest_month_still_waiting_is_handed_to_finance(db, queued):
     assert db.query(Task).filter(Task.title == f"Invoice overdue: {w.project.name} Jul 2026").count() == 1
 
 
-def test_billable_time_without_a_project_is_flagged_once(db, queued):
+def test_staff_aug_time_without_a_project_is_invoiced_to_the_client_once(db, queued):
     w = _world(db)
     allocation = EmployeeAllocation(tenant_id=1, employee_id=w.worker.id, client_id=w.client.id, demand_id=w.job.jobID,
                                     billing_rate_usd_cents=RATE, status="ACTIVE", start_date=date(2026, 8, 1))
@@ -280,9 +280,12 @@ def test_billable_time_without_a_project_is_flagged_once(db, queued):
     db.add(Timesheet(tenant_id=1, employee_id=w.worker.id, allocation_id=allocation.id,
                      week_starting_date=date(2026, 9, 7), total_hours=8, billable_hours=8, status="APPROVED"))
     db.commit()
-    assert run_auto_invoicing(db, today=date(2026, 10, 3))["unlinked"] >= 1
+    # Staff Aug is not a project (CEO 2026-11-11): its time is invoiced to the client directly
+    run_auto_invoicing(db, today=date(2026, 10, 3))
     run_auto_invoicing(db, today=date(2026, 10, 4))
-    assert db.query(Task).filter(Task.title.like(f"Billable time not invoiceable:%{allocation.id[:8]}%")).count() == 1
+    drafts = db.query(Invoice).filter(Invoice.client_id == w.client.id, Invoice.project_id.is_(None)).all()
+    assert len(drafts) == 1 and drafts[0].total_usd_cents == 8 * RATE
+    assert db.query(Task).filter(Task.title.like("Billable time not invoiceable:%")).count() == 0
 
 
 def test_auto_invoicing_runs_until_approved_then_once(db, queued):

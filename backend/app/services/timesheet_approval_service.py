@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 CLOSED = ("COMPLETED", "CANCELLED")
 APPROVAL_PATH = "/timesheet-approvals/{timesheet_id}"
-MY_TIMESHEET_PATH = "/my-timesheet?week={week}&allocation={allocation}"
+MY_TIMESHEET_PATH = "/my-timesheet?week={week}&allocation={allocation}&work_item={work_item}"
 
 
 class NoTimesheetApprover(Exception):
@@ -56,6 +56,59 @@ class ResubmitNeedsChange(Exception):
 
 class AddressedNotConfirmed(Exception):
     """Approving a resubmission needs the approver's confirmation that the rejection is addressed."""
+
+
+def my_timesheet_link(timesheet: Timesheet) -> str:
+    return MY_TIMESHEET_PATH.format(week=timesheet.week_starting_date, allocation=timesheet.allocation_id or "",
+                                    work_item=timesheet.work_item_id or "")
+
+
+def pipeline(db: Session, timesheet: Timesheet) -> Dict:
+    """Where a timesheet stands on its way to the invoice, in words (CEO 2026-11-11): the employee
+    submits -> their reporting manager approves -> (the client, when it approves its own
+    timesheets) -> Finance approves the invoice drafted from it -> invoiced. Non-billable time
+    (bench work, internal projects) stops at the manager's approval."""
+    from app.models.invoice import Invoice, InvoiceLineItem
+
+    review = latest_review(db, timesheet)
+    names = dict(db.query(Users.UserID, Users.UserName).filter(Users.UserID.in_(
+        [i for i in (review.approver_user_id if review else None, review.decided_by_user_id if review else None,
+                     timesheet.approved_by) if i])).all())
+    approver = names.get(review.approver_user_id) if review else None
+    out = {"stage": timesheet.status, "approver_user_id": review.approver_user_id if review else None,
+           "approver_name": approver, "invoice_id": None, "invoice_number": None}
+    if timesheet.status == "DRAFT":
+        out["text"] = "Not submitted yet. On submit it goes to the reporting manager for approval."
+    elif timesheet.status == "SUBMITTED":
+        out["stage"], out["text"] = "WITH_MANAGER", f"With {approver or 'the approver'} (reporting manager) for approval."
+    elif timesheet.status == "REJECTED":
+        by = names.get(review.decided_by_user_id) if review else None
+        out["text"] = f"Sent back by {by or approver or 'the approver'}: the employee corrects it and submits again."
+    elif timesheet.status == "APPROVED":
+        by = names.get(timesheet.approved_by) or approver or "the approver"
+        line = db.query(InvoiceLineItem.invoice_id).filter(InvoiceLineItem.timesheet_id == timesheet.id).first()
+        invoice = db.get(Invoice, line[0]) if line else None
+        if not float(timesheet.billable_hours or 0):
+            out["stage"], out["text"] = "APPROVED_NON_BILLABLE", f"Approved by {by}. Non-billable time: it is not invoiced."
+        elif invoice is not None:
+            number = invoice.invoice_number or "draft"
+            out["invoice_id"], out["invoice_number"] = invoice.id, invoice.invoice_number
+            out["stage"], out["text"] = {
+                "DRAFT": ("WITH_FINANCE", f"Approved by {by}. With Finance: draft invoice {number} waits for approval."),
+                "APPROVED": ("FINANCE_APPROVED", f"Approved by {by}. Finance approved invoice {number}; it is being sent."),
+                "SENT": ("INVOICED", f"Approved by {by}. Invoiced: {number} was sent to the client."),
+                "PAID": ("PAID", f"Approved by {by}. Invoiced and paid: {number}."),
+            }.get(invoice.status, ("WITH_FINANCE", f"Approved by {by}. On invoice {number}."))
+        elif timesheet.client_approval_status == "CLIENT_PENDING":
+            out["stage"], out["text"] = "WITH_CLIENT", f"Approved by {by}. Waiting for the client's own approval."
+        elif timesheet.client_approval_status == "CLIENT_REJECTED":
+            out["stage"], out["text"] = "CLIENT_REJECTED", f"Approved by {by}, then rejected by the client."
+        else:
+            out["stage"], out["text"] = "FOR_FINANCE", (
+                f"Approved by {by}. Next: Finance. It goes on the month's invoice draft, which Finance approves.")
+    else:
+        out["text"] = timesheet.status.title()
+    return out
 
 
 def _name(employee: Employee) -> str:
@@ -109,6 +162,11 @@ def latest_review(db: Session, timesheet: Timesheet) -> Optional[TimesheetReview
 
 
 def may_decide(db: Session, review: TimesheetReview, user: Users) -> bool:
+    # nobody approves or rejects their own week, whatever their role allows (CEO 2026-11-11)
+    timesheet = db.get(Timesheet, review.timesheet_id)
+    owner = db.get(Employee, timesheet.employee_id) if timesheet is not None else None
+    if owner is not None and owner.wros_user_id == user.UserID:
+        return False
     if user.UserID == review.approver_user_id:
         return True
     from app.core import authority
@@ -233,7 +291,7 @@ def _send_back(db: Session, timesheet: Timesheet, review: TimesheetReview, *, by
             priority="HIGH", tenant_id=timesheet.tenant_id, assigned_to_user_id=employee.wros_user_id,
             created_by_user_id=created_by, category="TIMESHEET_RESUBMIT",
             due_date=datetime.utcnow() + timedelta(days=2),
-            link=MY_TIMESHEET_PATH.format(week=timesheet.week_starting_date, allocation=timesheet.allocation_id))
+            link=my_timesheet_link(timesheet))
         review.resubmit_task_id = task.id
         _flash(db, db.get(Users, employee.wros_user_id),
                f"Your timesheet for the week of {timesheet.week_starting_date} was rejected by {by}: "
@@ -348,7 +406,7 @@ def send_notices(db: Session, review: TimesheetReview) -> None:
                           paragraphs=[f"Your timesheet for the week of {week} was rejected by {by}.",
                                       f"Reason: {review.decision_note}", flagged,
                                       "Change the entries, or answer the reason in your response, then submit again."],
-                          link_path=MY_TIMESHEET_PATH.format(week=week, allocation=timesheet.allocation_id),
+                          link_path=my_timesheet_link(timesheet),
                           link_label="Fix and resubmit", sender_user_id=review.decided_by_user_id)
 
 
