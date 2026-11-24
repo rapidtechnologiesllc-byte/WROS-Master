@@ -375,7 +375,8 @@ def _existing_candidate(db: Session, row: MailboxIntakeMessage, reading: Forward
 
 
 def _is_our_own_address(address: Optional[str], company_domains) -> bool:
-    return bool(address) and address.rsplit("@", 1)[-1].lower() in company_domains
+    from app.core.email_policy import is_non_person_email
+    return bool(address) and (address.rsplit("@", 1)[-1].lower() in company_domains or is_non_person_email(address))
 
 
 def _company_domains(db: Session, tenant_id) -> set:

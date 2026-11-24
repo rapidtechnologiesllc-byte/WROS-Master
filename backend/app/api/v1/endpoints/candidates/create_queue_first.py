@@ -191,6 +191,10 @@ async def create_candidate(
     """
     try:
         email = request.get_email()
+        from app.core.email_policy import is_non_person_email
+        if is_non_person_email(email):
+            raise HTTPException(status_code=400, detail=f"{email} is a distribution list, not a person: "
+                                                        "it cannot be added as a candidate")
         first_name = request.get_first_name()
         last_name = request.get_last_name()
         mobile = request.get_mobile()

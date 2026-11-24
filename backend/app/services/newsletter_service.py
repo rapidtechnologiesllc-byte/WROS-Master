@@ -36,6 +36,8 @@ def _send_via_graph(access_token: str, to_email: str, subject: str, body_html: s
     that as a per-recipient failure rather than letting one bad address
     kill the whole send.
     """
+    from app.core.email_policy import ensure_person_email
+    ensure_person_email(to_email, "Recipient")  # never a distribution list (counted as that recipient failing)
     response = requests.post(
         "https://graph.microsoft.com/v1.0/me/sendMail",
         headers={

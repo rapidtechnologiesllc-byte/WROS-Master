@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, func, Boolean, Enum
-from sqlalchemy.orm import column_property, relationship
+from sqlalchemy.orm import column_property, relationship, validates
 import logging
 from app.models.base import Base
 
@@ -54,6 +54,16 @@ class Candidate(Base):
     # A second address and phone for the same person, filled by a merge or typed on the profile; the first ones
     # stay primary (outreach goes there). Duplicate detection and incoming mail match both.
     candidateSecondaryEmail = Column(String(512), nullable=True, index=True)
+
+    @validates("candidateEmail", "candidateSecondaryEmail")
+    def _no_distribution_list(self, key, address):
+        """A distribution list (the all-staff list) is never a candidate's address: anything sent
+        to it reaches the whole company (app.core.email_policy)."""
+        from app.core.email_policy import ensure_person_email
+
+        ensure_person_email(address, "The candidate email")
+        return address
+
     candidateSecondaryMobile = Column(String(20), nullable=True)
     # R-07 -- the Dev Review Standard's own example of the dedup gap:
     # "missing phone/LinkedIn" matching. See app.services.candidate_service

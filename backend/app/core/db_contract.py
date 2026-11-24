@@ -803,6 +803,7 @@ def _initialize_leadership_roles():
         _initialize_company_codes(db)
         _initialize_partial_unique_indexes(db)
         _initialize_engagement_tenant_keys(db)
+        _initialize_non_person_candidates(db)
         _initialize_thunder_identity_config(db)
         _initialize_user_template_tenants(db)
         _initialize_pipeline_access(db)
@@ -1310,6 +1311,51 @@ def _initialize_company_codes(db):
     db.commit()
     if numbered:
         logger.info(f"[Contract] Numbered {numbered} compan(y/ies) inside their tenant")
+
+
+def _initialize_non_person_candidates(db):
+    """A distribution list (the all-staff list, settings.NON_PERSON_EMAILS) is never a candidate.
+    Any candidate already holding one -- as the email or the second email -- is archived, Thunder
+    is switched off and its cadence stopped, so nothing is sent there; a note on the History says
+    why. Reversible (Unarchive), nothing deleted. Idempotent: an archived, Thunder-off candidate
+    is left alone."""
+    from datetime import datetime
+
+    from sqlalchemy import func, or_
+
+    from app.core.email_policy import non_person_emails
+    from app.models.candidate import Candidate, CandidateStatus
+    from app.models.candidate_history import CandidateHistory
+    from app.models.thunder_email import ThunderCadenceState
+    from app.services.candidate_contact_policy import ARCHIVED_STATUS
+    from app.services.thunder_mail import cadence_service
+
+    lists = non_person_emails()
+    if not lists:
+        return
+    hits = db.query(Candidate).filter(or_(func.lower(Candidate.candidateEmail).in_(lists),
+                                          func.lower(Candidate.candidateSecondaryEmail).in_(lists))).all()
+    archived = []
+    for candidate in hits:
+        status = db.query(CandidateStatus).filter(CandidateStatus.candidateID == candidate.candidateID).first()
+        if status is None:
+            status = CandidateStatus(candidateID=candidate.candidateID, status="Active", piplineStatus="Applied")
+            db.add(status)
+        if status.status == ARCHIVED_STATUS and not candidate.thunder_enabled:
+            continue
+        state = db.query(ThunderCadenceState).filter_by(candidate_id=candidate.candidateID).first()
+        cadence_service.stop(db, state, candidate, "distribution list, not a person",
+                             captured_by="distribution_list")
+        status.status = ARCHIVED_STATUS
+        db.add(CandidateHistory(
+            candidateID=candidate.candidateID, event_type="Archived",
+            note="Archived: this address is a company distribution list, not a person -- no email is sent to it",
+            performed_by_name="System", event_at=datetime.utcnow(),
+        ))
+        archived.append(candidate.candidateID)
+    db.commit()
+    if archived:
+        logger.warning(f"[Contract] Archived {len(archived)} candidate(s) holding a distribution list address: {archived}")
 
 
 def _initialize_engagement_tenant_keys(db):

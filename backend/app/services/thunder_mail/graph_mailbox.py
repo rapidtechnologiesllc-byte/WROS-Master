@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Tuple
 
 import requests
 
+from app.core.email_policy import ensure_person_email, is_non_person_email
 from app.core.graph_auth import GraphServiceAuth
 from app.services.delivery_errors import DeliveryDeferred
 
@@ -47,7 +48,8 @@ class GraphMailbox:
 
     def _cc_recipients(self, existing: Optional[List[Dict]] = None) -> List[Dict]:
         have = {((r.get("emailAddress") or {}).get("address") or "").lower() for r in existing or []}
-        return list(existing or []) + [{"emailAddress": {"address": a}} for a in self.cc if a.lower() not in have]
+        return list(existing or []) + [{"emailAddress": {"address": a}} for a in self.cc
+                                       if a.lower() not in have and not is_non_person_email(a)]
 
     def _headers(self, extra: Optional[Dict] = None) -> Dict:
         if not GraphServiceAuth.is_configured() and self.token_provider is GraphServiceAuth.get_access_token:
@@ -89,6 +91,7 @@ class GraphMailbox:
         return data["id"], data.get("conversationId"), data.get("internetMessageId")
 
     def create_draft(self, to: str, subject: str, html: str, ref: str) -> Tuple[str, Optional[str], Optional[str]]:
+        ensure_person_email(to, "Recipient")  # never a distribution list (app.core.email_policy)
         message = {
             "subject": subject,
             "body": {"contentType": "HTML", "content": html},
@@ -102,6 +105,12 @@ class GraphMailbox:
     def create_reply_draft(self, message_id: str, html: str) -> Tuple[str, Optional[str], Optional[str]]:
         """Reply in the same thread as an earlier message (ours or the candidate's)."""
         draft = self._call("POST", f"/messages/{message_id}/createReply", json={})
+        # A reply goes back to whoever wrote: if that was a distribution list, the draft is
+        # discarded unsent (app.core.email_policy)
+        to = [((r.get("emailAddress") or {}).get("address") or "") for r in draft.get("toRecipients") or []]
+        if any(is_non_person_email(a) for a in to):
+            self._call("DELETE", f"/messages/{draft['id']}")
+            ensure_person_email(next(a for a in to if is_non_person_email(a)), "Reply recipient")
         patch = {"body": {"contentType": "HTML", "content": html}}
         if self.cc:
             patch["ccRecipients"] = self._cc_recipients(draft.get("ccRecipients"))
