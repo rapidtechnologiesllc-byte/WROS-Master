@@ -13,9 +13,13 @@ spend, a `client_id` (which client, even while still a PROSPECT --
 Client.status/ClientHistory already track the prospect-to-active
 timeline, this reuses it rather than duplicating it).
 
-BU attribution is derived from the logged-by user's own business_unit_id
-at creation time, never a caller-supplied field -- same
-attribution-locking discipline as app.services.client_service.create_client().
+BU attribution is derived from the person's business unit at creation time (their login's, else
+their employee record's), never a caller-supplied field -- same attribution-locking discipline as
+app.services.client_service.create_client().
+
+On behalf (2026-11-24): Accounts uploads receipts for employees. logged_by_user_id is then the
+employee the expense is FOR -- its approvals, emails, history and P&L follow them -- and
+uploaded_by_user_id is who uploaded it (audit). Neither may approve it.
 
 Who the spend is on (CEO 2026-10-31): every expense says whether it is internal (just the
 person -- BD overhead of their BU), on one client, or split across several clients
@@ -60,6 +64,8 @@ class ExpenseRecord(Base):
     # freely-editable field, same rule as Client.business_unit_id.
     business_unit_id = Column(Integer, ForeignKey("business_units.id"), nullable=True, index=True)
     logged_by_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=False, index=True)
+    # Accounts uploading it for the employee above; empty when they logged it themselves
+    uploaded_by_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True, index=True)
 
     purpose = Column(Enum(*EXPENSE_PURPOSES, name="expense_purpose", native_enum=False, create_constraint=True), nullable=False)
     client_id = Column(String(512), ForeignKey("clients.id"), nullable=True, index=True)
@@ -115,6 +121,7 @@ class ExpenseRecord(Base):
     client_shares = relationship("ExpenseClientShare", cascade="all, delete-orphan",
                                  order_by="ExpenseClientShare.id")
     logged_by = relationship("Users", foreign_keys=[logged_by_user_id])
+    uploaded_by = relationship("Users", foreign_keys=[uploaded_by_user_id])
     receipts = relationship("ExpenseReceipt", cascade="all, delete-orphan",
                             order_by="ExpenseReceipt.created_at, ExpenseReceipt.id")
     edits = relationship("ExpenseEdit", cascade="all, delete-orphan", order_by="ExpenseEdit.id")
@@ -131,6 +138,10 @@ class ExpenseRecord(Base):
     @property
     def client_name(self):
         return self.client.company_name if self.client else None
+
+    @property
+    def uploaded_by_name(self):
+        return (self.uploaded_by.UserName or self.uploaded_by.UserEmail) if self.uploaded_by else None
 
 
 class ExpenseReceipt(Base):

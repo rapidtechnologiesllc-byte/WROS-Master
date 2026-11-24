@@ -29,6 +29,9 @@ class ExpenseCreateRequest(BaseModel):
     location: Optional[str] = None
     description: Optional[str] = None
     receipt_ref: Optional[str] = None
+    # The employee it is for (Employee.id); empty = yourself. Anyone else needs the expenses:create
+    # grant on a role template (Accounts uploading on the employee's behalf).
+    expense_for_employee_id: Optional[str] = None
 
 class ExpenseUpdateRequest(BaseModel):
     """Everything the person said when logging it (the expense's receipts have their own calls)."""
@@ -85,8 +88,10 @@ class ExpenseEditItem(BaseModel):
 
 class ExpenseItem(BaseModel):
     id: str
-    logged_by_user_id: str
+    logged_by_user_id: str  # the person the expense is for
     logged_by_name: Optional[str] = None
+    uploaded_by_user_id: Optional[str] = None  # Accounts, when they uploaded it for that person
+    uploaded_by_name: Optional[str] = None
     business_unit_id: Optional[int]
     purpose: str
     spend_for: Optional[str] = None
@@ -244,3 +249,26 @@ class ExpenseEventSummaryResponse(BaseModel):
     expense_count: int
     by_client: List[EventClientCost]
     by_person: List[EventPersonCost]
+
+
+class ExpenseEmployeeOption(BaseModel):
+    id: str
+    name: str
+    email: Optional[str] = None
+    business_unit_id: Optional[int] = None
+
+
+class ExpenseEmployeeListResponse(BaseModel):
+    employees: List[ExpenseEmployeeOption]
+
+
+class ReceiptUploadResult(BaseModel):
+    """One file of a bulk upload: CREATED (receipt matched, manager step approved), NEEDS_REVIEW
+    (created, waiting for the manager, with the reasons) or FAILED (nothing created, with the reason)."""
+    filename: Optional[str] = None
+    status: str
+    expense_id: Optional[str] = None
+    receipt_check_status: Optional[str] = None
+    amount_usd_cents: Optional[int] = None
+    expense_date: Optional[date] = None
+    reasons: List[str] = []

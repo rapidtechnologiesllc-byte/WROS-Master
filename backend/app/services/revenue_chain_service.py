@@ -821,7 +821,8 @@ def _expenses(db: Session, start: date, end: date, tenant_id: Optional[int], uni
     """Manager-approved expenses dated in the period, keyed (partner, business unit, client):
     each client's part (expense_service.expense_shares -- a split expense counts on every client
     it names) goes to that client's business unit and contracting company; internal (personal)
-    spend stays with the logger's business unit and goes to the company the logger worked for on
+    spend stays with the logger's business unit (fixed on the expense; else their employee record's
+    on the expense date) and goes to the company the logger worked for on
     the expense date (CostBook.object_on, the same rule as their salary -- CEO 2026-11-01: an
     attendee's own conference meals and travel count in their company's P&L, not "Group").
     A logger with no employee record stays with the parent ("Group", company None).
@@ -846,9 +847,12 @@ def _expenses(db: Session, start: date, end: date, tenant_id: Optional[int], uni
 
     out, pending = [], 0
     for record in records:
+        own_bu, own_company, where = logger_object(record)
         for client_id, cents in shares[record.id]:
             client = clients.get(client_id)
-            bu_id = client.business_unit_id if client and client.business_unit_id else record.business_unit_id
+            # the client's BU; personal spend the BU fixed on the expense, else the person's BU that day
+            bu_id = client.business_unit_id if client and client.business_unit_id else (
+                record.business_unit_id if record.business_unit_id is not None else own_bu)
             if business_unit_ids is not None and bu_id not in business_unit_ids:
                 continue
             is_pending = record.manager_approval_status == "PENDING"
@@ -858,7 +862,6 @@ def _expenses(db: Session, start: date, end: date, tenant_id: Optional[int], uni
                     continue
             unit = units.get(bu_id)
             partner = unit.partner_user_id if unit and unit.partner_user_id else UNASSIGNED
-            _, own_company, where = logger_object(record)
             # the client's contracting company; with none set yet (a prospect), the spender's own
             company_id = (client.contracting_company_id if client is not None else None) or own_company
             out.append({"key": (partner, bu_id, client_id), "amount": cents, "company_id": company_id,

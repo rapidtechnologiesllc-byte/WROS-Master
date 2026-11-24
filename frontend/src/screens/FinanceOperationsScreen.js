@@ -7,6 +7,9 @@
 import { useCallback, useEffect, useState } from "react";
 import ReceiptCheck from "../components/ReceiptCheck";
 import ExpenseReviewModal from "../components/ExpenseReviewModal";
+import ExpenseBulkUpload from "../components/ExpenseBulkUpload";
+import { CATEGORIES as EXPENSE_CATEGORIES } from "./MyExpensesScreen";
+import { hasPermission } from "../utils/permissionsRoleTemplate";
 import { expenseDates } from "../utils/expenseAttribution";
 import { Wallet, DollarSign, Building2, RefreshCw, Search, Receipt, CheckCircle2 } from "lucide-react";
 import { Card, Button, Input, Select, Table } from "../components/ui";
@@ -33,7 +36,7 @@ import {
   createIncentiveRule,
 } from "../services/api/partnerIncentives";
 import {
-  listAllExpenses, approveExpense, markExpensePaid,
+  listAllExpenses, approveExpense, markExpensePaid, listExpenseEmployees,
 } from "../services/api/expenses";
 import { apiRequest } from "../services/api/client";
 import { expenseSubject } from "../utils/expenseAttribution";
@@ -122,6 +125,17 @@ export default function FinanceOperationsScreen() {
   const [expensesError, setExpensesError] = useState("");
   const [approvingExpenseId, setApprovingExpenseId] = useState(null);
   const [reviewingExpenseId, setReviewingExpenseId] = useState(null);
+  // Accounts uploads receipts for employees (expenses:create on the role template)
+  const canUploadForOthers = hasPermission("expenses", "create");
+  const [expenseEmployees, setExpenseEmployees] = useState([]);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
+
+  useEffect(() => {
+    if (!canUploadForOthers) return;
+    listExpenseEmployees()
+      .then(setExpenseEmployees)
+      .catch((err) => setExpensesError(`Could not load employees for receipt upload: ${err.message}`));
+  }, [canUploadForOthers]);
 
   const loadAllExpenses = async () => {
     setExpensesLoading(true);
@@ -650,11 +664,21 @@ export default function FinanceOperationsScreen() {
         subtitle="All logged expenses across Clients/BUs -- approve pending spend. Not scoped to the Business Unit selected above."
         icon={<Receipt className="h-4 w-4" />}
         right={
-          <Button variant="ghost" onClick={loadAllExpenses} disabled={expensesLoading}>
-            <RefreshCw className={expensesLoading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh
-          </Button>
+          <div className="flex gap-2">
+            {canUploadForOthers ? (
+              <Button variant="secondary" onClick={() => setShowBulkUpload((v) => !v)}>
+                <Receipt className="h-4 w-4" /> Upload receipts
+              </Button>
+            ) : null}
+            <Button variant="ghost" onClick={loadAllExpenses} disabled={expensesLoading}>
+              <RefreshCw className={expensesLoading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh
+            </Button>
+          </div>
         }
       >
+        {showBulkUpload && canUploadForOthers ? (
+          <ExpenseBulkUpload employees={expenseEmployees} categories={EXPENSE_CATEGORIES} onUploaded={loadAllExpenses} />
+        ) : null}
         {expensesError ? (
           <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{expensesError}</div>
         ) : null}
@@ -666,6 +690,7 @@ export default function FinanceOperationsScreen() {
           <Table
             columns={[
               { key: "date", header: "Date" },
+              { key: "person", header: "For" },
               { key: "purpose", header: "Purpose" },
               { key: "subject", header: "Subject" },
               { key: "category", header: "Category" },
@@ -676,6 +701,12 @@ export default function FinanceOperationsScreen() {
             ]}
             rows={allExpenses.map((e) => ({
               date: expenseDates(e),
+              person: (
+                <div>
+                  {e.logged_by_name || "—"}
+                  {e.uploaded_by_name ? <div className="text-xs text-gray-500">uploaded by {e.uploaded_by_name}</div> : null}
+                </div>
+              ),
               purpose: e.purpose.replace("_", " "),
               subject: expenseSubject(e),
               category: `${e.expense_category}${e.travel_type ? ` / ${e.travel_type}` : ""}`,

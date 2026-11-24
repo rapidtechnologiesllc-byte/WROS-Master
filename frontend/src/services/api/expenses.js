@@ -1,6 +1,8 @@
 // Partner/BU expense tracking API wrappers, 2026-08-05. Self-service --
 // logged_by_user_id is always resolved server-side from the caller's
-// own token, never sent from here.
+// own token, never sent from here. Accounts (expenses:create on the role
+// template) may name expense_for_employee_id: the expense is then that
+// employee's, with Accounts recorded as uploaded_by.
 import { apiFetch, apiRequest } from "./client";
 
 export const createExpense = async (payload) => {
@@ -246,4 +248,30 @@ export const openExpenseVisitDraft = async (visitId, draftId) => {
 // one of your own lines, until Finance approves it
 export const removeExpense = async (expenseId) => {
   await apiRequest(`/expenses/${expenseId}`, { method: "DELETE" });
+};
+
+
+// The employees the caller may upload expenses for (expenses:create; scoped by the server)
+export const listExpenseEmployees = async () => {
+  const { data } = await apiRequest("/expenses/employees", { method: "GET" });
+  return data?.employees || [];
+};
+
+// Bulk upload, one receipt per request: the server reads it, creates one expense for the employee
+// and answers {status: CREATED | NEEDS_REVIEW | FAILED, reasons, expense_id, amount_usd_cents, ...}
+export const createExpenseFromReceipt = async (file, fields) => {
+  const body = new FormData();
+  body.append("file", await fitForUpload(file));
+  Object.entries(fields).forEach(([key, value]) => {
+    if (value !== null && value !== undefined && value !== "") body.append(key, String(value));
+  });
+  try {
+    const { data } = await apiRequest("/expenses/from-receipt", { method: "POST", body });
+    return data;
+  } catch (err) {
+    if (err?.status === 413 || /413|too large/i.test(err?.message || "")) {
+      throw new Error(`${file.name} is too large for the server to accept. Save it as a smaller file and try again.`);
+    }
+    throw err;
+  }
 };
