@@ -107,6 +107,14 @@ class ThunderSendEmailHandler:
 
         job_id = state.job_id or candidate.job_id
         job = db.query(Jobs).filter(Jobs.jobID == job_id).first() if job_id else None
+        if role_outreach is None and step == "1" and job is None:
+            # No job linked: Thunder picks the open role that best fits their skills and title itself,
+            # and keeps it for the follow-ups and the answers to their questions
+            matched = cadence.matching_open_jobs(db, candidate, limit=1)
+            if matched:
+                job = matched[0]
+                state.job_id = job.jobID
+                logger.info(f"[ThunderSend] {candidate_id}: no job linked; matched to {job.jobID} ({job.jobTitle})")
         if role_outreach is None and preflight.is_cold(step):
             # Thunder's check before a cold email: what do we already know about them? (preflight)
             decision = preflight.check(db, candidate, step, job, now)
@@ -116,9 +124,8 @@ class ThunderSendEmailHandler:
                 return ThunderSendEmailHandler._go_warm(db, state, candidate, step, now)
             if decision.action == "WAIT":
                 raise DeliveryDeferred("; ".join(decision.reasons), decision.retry_at)
-            if decision.action == "NEED_ROLE":
-                ThunderSendEmailHandler._ask_for_brief(db, candidate)
-                raise DeliveryDeferred("waiting for the role before the first email", now + timedelta(hours=6))
+            if step == "1":
+                ThunderSendEmailHandler._withdraw_brief_requests(db, candidate_id)
         out = db.query(ThunderEmailMessage).filter_by(
             candidate_id=candidate_id, cadence_seq=seq, step=step, direction="OUT").first()
         if out is not None and out.status == "SENT":
@@ -265,25 +272,16 @@ class ThunderSendEmailHandler:
         return _done("skipped_in_conversation", candidate.candidateID, step, next_step=state.next_step)
 
     @staticmethod
-    def _ask_for_brief(db: Session, candidate: Candidate) -> None:
-        """One request to the person who added the candidate (else their recruiter): the role and LinkedIn."""
+    def _withdraw_brief_requests(db: Session, candidate_id: str) -> None:
+        """Thunder no longer waits for a person to name the role: the open "which role?" requests
+        raised for this candidate before 2026-11-10 are closed as it writes the first email."""
         from app.models.task import Task
-        from app.services.task_service import create_task
 
-        owner = candidate.assigned_recruiter_id or candidate.created_by_user_id
-        name = " ".join(filter(None, [candidate.candidateFirstName, candidate.candidateLastName])) or candidate.candidateID
-        title = f"Thunder is waiting to write to {name}: which role, and their LinkedIn?"[:300]
-        if db.query(Task.id).filter(Task.title == title, Task.status.in_(("NEW", "IN_PROGRESS", "ON_HOLD"))).first():
-            return
-        who = ", ".join(filter(None, [candidate.candidateJobTitle, getattr(candidate, "candidateCurrentCompany", None)]))
-        create_task(db, title=title, priority="MEDIUM", tenant_id=candidate.tenant_id, assigned_to_user_id=owner,
-                    description=(f"{name}{' (' + who + ')' if who else ''} has no role linked, so Thunder has not sent the "
-                                 "first email (a generic one would not fit). Link the job on their profile (and add their "
-                                 "LinkedIn URL if you have it): Thunder then writes about that role and sends it by itself."),
-                    category="THUNDER_BRIEF", link=f"/candidates/{candidate.candidateID}", due_date=datetime.utcnow(),
-                    candidate_id=candidate.candidateID,
-                    visibility_scope="ASSIGNEE_MANAGER_DEPARTMENT" if owner else "ORG_WIDE")
-        db.commit()
+        closed = db.query(Task).filter(Task.category == "THUNDER_BRIEF", Task.candidate_id == candidate_id,
+                                       Task.status.in_(("NEW", "IN_PROGRESS", "ON_HOLD")))             .update({Task.status: "CANCELLED"}, synchronize_session=False)
+        if closed:
+            db.commit()
+            logger.info(f"[ThunderSend] {candidate_id}: {closed} role request task(s) withdrawn")
 
     @staticmethod
     def _sender(db: Session, candidate: Candidate, parent: Optional[ThunderEmailMessage]) -> GraphMailbox:

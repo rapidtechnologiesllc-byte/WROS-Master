@@ -67,7 +67,7 @@ def _candidate(db, owner, *, job=None, added_minutes_ago=600):
 
 def _job(db):
     job = Jobs(tenant_id=1, jobTitle="Guidewire BillingCenter Architect", jobDescription="d",
-               jobSkills="Guidewire", jobExperience="10", jobLocation="Remote")
+               jobSkills="Guidewire", jobExperience="10", jobLocation="Remote", jobStatus="active")
     db.add(job)
     db.commit()
     return job
@@ -140,13 +140,36 @@ def test_a_candidate_just_added_by_a_person_is_given_time_first(db, owner):
         _send(db, person)
 
 
-def test_no_first_email_without_a_role_and_the_adder_is_asked_once(db, owner):
-    person, _ = _candidate(db, owner)
-    for _ in range(2):
-        with pytest.raises(DeliveryDeferred, match="waiting for the role"):
-            _send(db, person)
+def test_with_no_job_linked_thunder_finds_the_matching_open_role_itself(db, owner):
+    """CEO 2026-11-10: a candidate with no job linked was never written to (Thunder asked a person
+    for the role and retried every six hours). It now picks the open role that fits and writes."""
+    job = _job(db)
+    db.add(Jobs(tenant_id=1, jobTitle="Executive Director of Delivery", jobDescription="d", jobSkills="Guidewire",
+                jobExperience="10", jobLocation="Remote", jobStatus="draft"))  # not published: never named
+    db.commit()
+    person, state = _candidate(db, owner)
+    person.candidateSkills = "Guidewire, BillingCenter"
+    db.add(Task(title="Thunder is waiting", category="THUNDER_BRIEF", candidate_id=person.candidateID, tenant_id=1,
+                assigned_to_user_id=owner.UserID))  # the request raised before the fix
+    db.commit()
+    result, mailbox = _send(db, person)
+    assert result["status"] == "sent" and len(mailbox.sent) == 1
+    draft = next(iter(mailbox.drafts.values()))
+    assert "Guidewire BillingCenter Architect" in draft["subject"] + draft["html"]
+    db.refresh(state)
+    assert state.job_id == job.jobID and state.next_step == "2"
     asks = db.query(Task).filter(Task.category == "THUNDER_BRIEF", Task.candidate_id == person.candidateID).all()
-    assert len(asks) == 1 and asks[0].assigned_to_user_id == owner.UserID
+    assert [t.status for t in asks] == ["CANCELLED"]  # nobody is asked for the role any more
+
+
+def test_with_no_matching_open_role_the_first_email_is_an_introduction_not_a_wait(db, owner):
+    person, state = _candidate(db, owner)
+    result, mailbox = _send(db, person)
+    assert result["status"] == "sent" and len(mailbox.sent) == 1
+    db.refresh(state)
+    assert state.job_id is None and state.next_step == "2"
+    assert not db.query(Task).filter(Task.category == "THUNDER_BRIEF", Task.candidate_id == person.candidateID).count()
+    assert any("SEND" in n and "introduction" in n for n in _checks(db, person))
 
 
 def test_with_a_role_and_no_history_the_first_email_names_the_role(db, owner):
