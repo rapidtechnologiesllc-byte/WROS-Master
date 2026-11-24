@@ -4,6 +4,8 @@ carries its consequences through the chain:
 
 - notice: the last working day is recorded (Employee.exit_date); deployment is unchanged, they keep
   working their allocation until they leave.
+- notice and exit both open the asset clearance (asset_service.open_clearance): every item they hold is
+  asked back by the last working day, and full and final settlement waits for IT Admin's sign-off.
 - exit (terminated): from any working status (an immediate exit passes through NOTICE_PERIOD so
   the history shows both). Every ACTIVE allocation ends on the exit date (no timesheets, invoices
   or revenue after it), they leave the bench pool, and their WROS login is deactivated (records kept).
@@ -36,6 +38,7 @@ def _active_allocations(db: Session, employee: Employee):
 
 def change_employment(db: Session, employee: Employee, action: str, *, effective_date: Optional[date],
                       reason: str, changed_by: str) -> Employee:
+    from app.services import asset_service
     from app.services.employee_allocation_service import end_allocation
     from app.services.resource_management_service import remove_employee_from_bench
 
@@ -51,6 +54,8 @@ def change_employment(db: Session, employee: Employee, action: str, *, effective
             raise EmploymentChangeRefused("The last working day cannot be in the past; record the exit instead.")
         transition_employee_status(db, employee, "NOTICE_PERIOD", reason=reason, changed_by=changed_by)
         employee.exit_date = effective_date
+        db.flush()
+        asset_service.open_clearance(db, employee, due_date=effective_date, actor=changed_by)
         return employee
 
     if action == "RECORD_EXIT":
@@ -78,6 +83,8 @@ def change_employment(db: Session, employee: Employee, action: str, *, effective
             if user is not None and user.terminated_at is None:
                 user.terminated_at = datetime.utcnow()
                 user.terminated_by_user_id = changed_by
+        db.flush()
+        asset_service.open_clearance(db, employee, due_date=exit_date, actor=changed_by)
         return employee
 
     if action == "START_LEAVE":

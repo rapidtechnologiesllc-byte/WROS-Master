@@ -799,6 +799,7 @@ def _initialize_leadership_roles():
         _initialize_employment_types(db)
         _initialize_permission_row_tenants(db)
         _initialize_functions(db)
+        _initialize_asset_function(db)
         _initialize_company_codes(db)
         _initialize_partial_unique_indexes(db)
         _initialize_engagement_tenant_keys(db)
@@ -1422,6 +1423,29 @@ def _initialize_partial_unique_indexes(db):
             rebuilt.append(index.name)
     if rebuilt:
         logger.info(f"[Contract] Rebuilt as partial unique indexes: {', '.join(rebuilt)}")
+
+
+def _initialize_asset_function(db):
+    """Every organisation has the function that owns the asset ledger (settings.ASSET_OWNER_FUNCTION,
+    CEO 2026-11-10): asset tasks route to it. Created once when missing; a retired one stays retired."""
+    import uuid as _uuid
+
+    from sqlalchemy import func as _func
+
+    from app.core.config import settings
+    from app.models.org_structure import Department
+
+    added = 0
+    for (tenant_id,) in db.query(Tenant.id).all():
+        if db.query(Department.id).filter(Department.tenant_id == tenant_id,
+                                          _func.lower(Department.name) == settings.ASSET_OWNER_FUNCTION.lower()).first():
+            continue
+        db.add(Department(id=str(_uuid.uuid4()), tenant_id=tenant_id, name=settings.ASSET_OWNER_FUNCTION, active=True,
+                          description="Owns the asset ledger: issuing, returns, repairs and leaver clearance"))
+        added += 1
+    db.commit()
+    if added:
+        logger.info(f"[Contract] Added the {settings.ASSET_OWNER_FUNCTION} function to {added} organisation(s)")
 
 
 def _initialize_functions(db):

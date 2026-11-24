@@ -1,5 +1,5 @@
 // One employee's profile (CEO 2026-10-24): header with who they are and where they stand, then tabs
-// for About, Profile, Job, Documents, Finances and Timeline. Every section edits in place (its own
+// for About, Profile, Job, Documents, Finances, Assets, Performance and Timeline. Every section edits in place (its own
 // Edit button); the server decides what each viewer may see and change (GET /employees/{id}/profile).
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
@@ -24,6 +24,7 @@ import { DeploymentStatus, EmploymentStatus, fullName, isPast, statusLabel } fro
 import { CoreEligibleControl, EmploymentActions, HtdControl } from "../components/EmployeeEditPanels";
 import EmployeeAllocations from "../components/EmployeeAllocations";
 import EmployeeCertifications from "../components/EmployeeCertifications";
+import EmployeeAssets from "../components/EmployeeAssets";
 import EscalationsPanel from "../components/EmployeeEscalations";
 import { FeedbackSection, ReviewList } from "../components/PerformancePanel";
 import { getEmployeePerformance, getMyPerformance } from "../services/api/performance";
@@ -34,7 +35,7 @@ import { appreciateEmployee, resendWelcomeEmail } from "../services/api/employee
 
 const TABS = [
   ["about", "About"], ["profile", "Profile"], ["job", "Job"], ["documents", "Documents"],
-  ["finance", "Finances"], ["performance", "Performance"], ["timeline", "Timeline"],
+  ["finance", "Finances"], ["assets", "Assets"], ["performance", "Performance"], ["timeline", "Timeline"],
 ];
 const COMPANIES_PATH = "/api/v1/api/admin/users-access-control/delivery-centers";
 
@@ -815,6 +816,7 @@ export default function EmployeeProfileScreen() {
       {tab === "job" && <JobTab profile={profile} save={save} reload={reload} orgOptions={orgOptions} managers={managers} />}
       {tab === "documents" && <DocumentsTab profile={profile} />}
       {tab === "finance" && <FinanceTab profile={profile} save={save} reload={reload} />}
+      {tab === "assets" && <EmployeeAssets employeeId={profile.id} />}
       {tab === "performance" && <PerformanceTab profile={profile} />}
       {tab === "timeline" && <TimelineTab profile={profile} />}
     </div>

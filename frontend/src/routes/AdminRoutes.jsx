@@ -8,10 +8,13 @@ const WorkforceScreen = lazy(() => import("../screens/WorkforceScreen"));
 const WorkforceSegmentScreen = lazy(() => import("../screens/WorkforceSegmentScreen"));
 const BenchScreen = lazy(() => import("../screens/BenchScreen"));
 const CoreCertificationScreen = lazy(() => import("../screens/CoreCertificationScreen"));
+const AssetLedgerScreen = lazy(() => import("../screens/AssetLedgerScreen"));
 
 export const adminRoutes = [
   // System: health, error logs, agent health, message queue, SLM learning and AI config, a tab each (old routes redirect)
   <Route key="admin-system" path="admin/system" element={<SystemScreen />} />,
+  // Asset Ledger (IT Admin): every device, its courier movements, defects and leavers' clearance
+  <Route key="admin-assets" path="admin/assets" element={<AssetLedgerScreen />} />,
   <Route key="admin-messagequeue" path="admin/messagequeue" element={<Navigate to="/admin/system?view=queue" replace />} />,
   <Route key="admin-slm" path="admin/slm" element={<Navigate to="/admin/system?view=dashboard" replace />} />,
   <Route key="admin-slm-training" path="admin/slm-training" element={<Navigate to="/admin/system?view=training" replace />} />,

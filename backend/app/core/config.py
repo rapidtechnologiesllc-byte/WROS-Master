@@ -419,6 +419,19 @@ class Settings:
     # Work orders: Finance gets a task when a client PO ends within this many days (po_expiry_alerts)
     PO_EXPIRY_ALERT_DAYS: int = int(os.getenv("PO_EXPIRY_ALERT_DAYS", "30"))
 
+    # Asset ledger (CEO 2026-11-10, app.services.asset_service). The function that owns every device and
+    # gets the asset tasks (seeded under Manage Functions; the CEO until someone is in it)
+    ASSET_OWNER_FUNCTION: str = os.getenv("ASSET_OWNER_FUNCTION", "IT Admin")
+    # A placement ending within this many days: the client's devices and the project's kit are asked back
+    ASSET_RETURN_LEAD_DAYS: int = int(os.getenv("ASSET_RETURN_LEAD_DAYS", "14"))
+    # Days overdue at which a return climbs: the holder is reminded, their reporting manager, their BU head
+    ASSET_RETURN_ESCALATION_DAYS: str = os.getenv("ASSET_RETURN_ESCALATION_DAYS", "1,3,7")
+    # A courier movement nobody confirmed after this many days (or after its expected date) is chased
+    ASSET_TRANSIT_MAX_DAYS: int = int(os.getenv("ASSET_TRANSIT_MAX_DAYS", "7"))
+    # A defect is due to be decided within this many days, and is raised on the ledger after it
+    ASSET_DEFECT_MAX_OPEN_DAYS: int = int(os.getenv("ASSET_DEFECT_MAX_OPEN_DAYS", "7"))
+    ASSET_WARRANTY_ALERT_DAYS: int = int(os.getenv("ASSET_WARRANTY_ALERT_DAYS", "30"))
+
     # Performance reviews (CEO 2026-10-24, app.services.performance_service): the reporting manager
     # reviews every PERF_REVIEW_MANAGER_DAYS, the BU head every calendar month, the partner every
     # calendar quarter. The reviewer's task is due at the period end; the meeting is booked in the

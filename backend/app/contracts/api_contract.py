@@ -165,7 +165,7 @@ MODULES_AND_RESOURCES = {
                          "organizational-hierarchy", "org-roles", "checklists", "certifications", "locale-currency",
                          "api-keys", "system-health", "error-logs", "admin-agent-state", "admin-weekly-recap",
                          "message-queue", "slm-dashboard", "slm-training-data", "ai-config", "agents", "ask-thunder",
-                         "ticket-routing", "configuration", "admin-settings", "newsletters"],
+                         "ticket-routing", "configuration", "admin-settings", "newsletters", "assets"],
 }
 
 # Menu group icon per module (lucide icon names the client maps to components).
