@@ -122,6 +122,11 @@ _JOBS = (
     # PO_EXPIRY_ALERT_DAYS, so it is renewed before hours stop being invoiceable
     ScheduledJob("po_expiry_alerts", "app.services.work_order_service:run_po_expiry_alerts",
                  timedelta(days=1), timeout_s=120, daily_after_utc="06:00"),
+    # internal only: the asset ledger's daily checks (asset_service.run_asset_sweep) -- kit asked back
+    # before a placement ends, a clearance for every leaver, overdue returns climbing from the holder to
+    # their manager to their BU head, couriers chased, missing project kit raised with IT Admin
+    ScheduledJob("asset_sweep", "app.services.asset_service:run_asset_sweep",
+                 timedelta(days=1), timeout_s=600, daily_after_utc="05:30"),
     # internal only: performance reviews by the reporting chain (manager bi-weekly, BU head monthly,
     # partner quarterly) -- a task for the reviewer, a Teams meeting with the employee, the
     # recording pulled from Teams afterwards, missed reviews marked (performance_service)

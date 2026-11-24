@@ -425,6 +425,10 @@ def allocate_employee_to_project(
     from app.services.bench_service import sync_billing_classification
 
     sync_billing_classification(db, employee)
+    if not held:  # the kit the project needs and they do not hold: one task for IT Admin
+        from app.services import asset_service
+
+        asset_service.sync_kit_task(db, employee)
     return allocation
 
 
@@ -720,6 +724,10 @@ def decide_margin_change(db: Session, change: AllocationChange, user, *, approve
         if approve:
             allocation.status = "ACTIVE"
             _place_employee(db, employee, demand.id, user.UserID)
+            db.flush()
+            from app.services import asset_service
+
+            asset_service.sync_kit_task(db, employee)
         else:
             allocation.status = "MARGIN_REJECTED"
     elif approve:
@@ -789,4 +797,8 @@ def end_allocation(
     from app.services.bench_service import sync_billing_classification
 
     sync_billing_classification(db, employee)
+    # the client's devices and the project's kit are asked back (their company laptop stays with them)
+    from app.services import asset_service
+
+    asset_service.on_allocation_ended(db, allocation, employee, actor=changed_by)
     return allocation

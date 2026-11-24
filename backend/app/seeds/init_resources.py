@@ -84,6 +84,8 @@ RESOURCE_ROUTES = {
     "error-logs": "/admin/system",
     "system-health": "/admin/system",
     "ticket-routing": "/admin/ticket-routing",
+    # Asset ledger (CEO 2026-11-10): owned by the IT Admin function
+    "assets": "/admin/assets",
 }
 
 # Menu labels where title-casing the resource name reads wrong
@@ -125,6 +127,7 @@ NAV_LABELS = {
     "locale-currency": "Locale & Currency",
     "api-keys": "API Keys",
     "error-logs": "System",
+    "assets": "Asset Ledger",
 }
 
 # Not menu items, on purpose: allocations (Employees > Allocations tab; /allocations redirects there)

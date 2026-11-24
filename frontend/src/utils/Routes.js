@@ -60,6 +60,7 @@ export const ROUTES = {
   BULK_LAUNCH: "/recruiter/bulk-launch",
   TENANT_AI_CONFIG: "/admin/ai-config",
   TICKET_ROUTING_ADMIN: "/admin/ticket-routing",
+  ASSET_LEDGER: "/admin/assets",
   BUDDY_PROGRAM: "/buddy-program",
   EXECUTIVE_SIGNAL: "/executive-signal",
   CEO_FY_PROGRESS: "/ceo-fy-progress",
