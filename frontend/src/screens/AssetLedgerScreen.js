@@ -6,7 +6,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { AlertTriangle, Laptop, Plus, RefreshCw, Search, X } from "lucide-react";
 import { Button, Input, Select, TextArea } from "../components/ui";
 import {
-  AssetActionForm, AssetHistory, Chip, DefectRow, StatusChip, availableActions,
+  AssetActionForm, AssetHistory, CheckoutRegister, Chip, DefectRow, PlaceChips, availableActions, localDay,
 } from "../components/AssetPanels";
 import {
   getAsset, getAssetAlerts, getAssetOptions, listAssets, registerAsset, titleCase,
@@ -52,7 +52,7 @@ function Alerts({ alerts, onOpen }) {
 const EMPTY_ITEM = {
   category: "LAPTOP", owner_type: "COMPANY", owner_company_id: "", owner_client_id: "", owner_name: "", employee_id: "",
   make: "", model: "", serial_number: "", asset_tag: "", condition: "NEW", purchase_date: "", purchase_cost: "",
-  currency: "", warranty_until: "", notes: "",
+  currency: "", warranty_until: "", notes: "", supplier: "", invoice_number: "",
 };
 
 function RegisterForm({ options, onSaved, onCancel }) {
@@ -76,7 +76,10 @@ function RegisterForm({ options, onSaved, onCancel }) {
   };
   return (
     <section className="space-y-4 rounded-2xl border bg-white p-5 shadow-sm">
-      <h2 className="text-base font-semibold text-gray-900">Register an item</h2>
+      <div>
+        <h2 className="text-base font-semibold text-gray-900">Procure an item</h2>
+        <p className="mt-0.5 text-xs text-gray-500">It starts in the office; check it out to someone from its record.</p>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Select label="Category" value={item.category} onChange={set("category")} options={label(options.categories)} />
         <Select label="Owned by" value={item.owner_type} onChange={set("owner_type")}
@@ -102,8 +105,10 @@ function RegisterForm({ options, onSaved, onCancel }) {
         <Select label="Condition" value={item.condition} onChange={set("condition")} options={label(options.conditions)} />
         {item.owner_type !== "PERSONAL" ? (
           <>
-            <Input label="Purchase date" type="date" value={item.purchase_date} onChange={set("purchase_date")} />
-            <Input label="Purchase cost" type="number" value={item.purchase_cost} onChange={set("purchase_cost")} />
+            <Input label="Procured on" type="date" value={item.purchase_date} onChange={set("purchase_date")} />
+            <Input label="Supplier" value={item.supplier} onChange={set("supplier")} />
+            <Input label="Invoice number" value={item.invoice_number} onChange={set("invoice_number")} />
+            <Input label="Cost" type="number" value={item.purchase_cost} onChange={set("purchase_cost")} />
             <Input label="Currency (USD, INR…)" value={item.currency} onChange={set("currency")} />
             <Input label="Warranty until" type="date" value={item.warranty_until} onChange={set("warranty_until")} />
           </>
@@ -113,7 +118,7 @@ function RegisterForm({ options, onSaved, onCancel }) {
       {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 p-2 text-sm text-rose-700">{error}</div> : null}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onCancel} disabled={busy}>Cancel</Button>
-        <Button onClick={save} disabled={busy}>{busy ? "Saving…" : "Register"}</Button>
+        <Button onClick={save} disabled={busy}>{busy ? "Saving…" : "Add to ledger"}</Button>
       </div>
     </section>
   );
@@ -124,6 +129,29 @@ function Fact({ label, children }) {
     <div>
       <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</div>
       <div className="mt-0.5 break-words text-sm text-gray-900">{children || "—"}</div>
+    </div>
+  );
+}
+
+function Lifecycle({ life }) {
+  if (!life) return null;
+  const money = (cents) => (cents == null ? null : `${(cents / 100).toLocaleString()} ${life.currency || ""}`.trim());
+  const cells = [
+    ["Procured", [life.procured_on, life.supplier].filter(Boolean).join(" · ") || null],
+    ["Cost", money(life.cost_cents)],
+    ["Check-outs", String(life.check_outs)],
+    ["Days with employees", String(life.days_with_employees)],
+    ["Days in office", String(life.days_in_office)],
+    ["Defects / repair cost", `${life.defects}${life.repair_cost_cents ? ` · ${money(life.repair_cost_cents)}` : ""}`],
+    ["Left the ledger", life.ended ? `${life.ended}${life.ended_at ? ` ${localDay(life.ended_at)}` : ""}` : "Still in use"],
+  ];
+  return (
+    <div className="rounded-xl border bg-gray-50 p-4">
+      <h3 className="mb-3 text-sm font-semibold text-gray-900">Life of this item</h3>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {cells.map(([label, value]) => <Fact key={label} label={label}>{value}</Fact>)}
+      </div>
+      {life.ended_note ? <div className="mt-2 text-xs text-gray-600">{life.ended_note}</div> : null}
     </div>
   );
 }
@@ -158,24 +186,25 @@ function AssetDetail({ assetId, options, onClose, onChanged }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-lg font-semibold text-gray-900">{asset.label}</h2>
-            <StatusChip status={asset.status} />
+            <PlaceChips asset={asset} />
           </div>
-          <div className="mt-0.5 text-sm text-gray-500">{asset.owner_label}</div>
+          <div className="mt-0.5 text-sm text-gray-500">{asset.owner_label} · {asset.where}</div>
         </div>
         <Button variant="ghost" onClick={onClose}><X className="h-4 w-4" /> Close</Button>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Fact label="Holder">
+        <Fact label="Where">
           {asset.holder_employee_id ? (
             <Link className="text-blue-700 hover:underline" to={`/employees/${asset.holder_employee_id}?tab=assets`}>{asset.holder_name}</Link>
-          ) : "In our stock"}
+          ) : asset.status_label}
         </Fact>
         <Fact label="Condition">{titleCase(asset.condition)}</Fact>
         <Fact label="Due back">{asset.return_due ? `${asset.return_due} (${titleCase(asset.return_reason)})` : null}</Fact>
         <Fact label="Courier">
           {asset.shipment ? `${asset.shipment.carrier} ${asset.shipment.tracking_number}, shipped ${asset.shipment.shipped_on}` : null}
         </Fact>
-        <Fact label="Purchased">{[asset.purchase_date, cost].filter(Boolean).join(" · ")}</Fact>
+        <Fact label="Procured">{[asset.purchase_date, asset.supplier, asset.invoice_number && `invoice ${asset.invoice_number}`, cost]
+          .filter(Boolean).join(" · ")}</Fact>
         <Fact label="Warranty until">{asset.warranty_until}</Fact>
         <Fact label="Serial">{asset.serial_number}</Fact>
         <Fact label="Notes">{asset.notes}</Fact>
@@ -188,6 +217,11 @@ function AssetDetail({ assetId, options, onClose, onChanged }) {
         </div>
       ) : null}
       {action ? <AssetActionForm action={action} asset={asset} options={options} onDone={done} onCancel={() => setAction("")} /> : null}
+      <Lifecycle life={asset.lifecycle} />
+      <div>
+        <h3 className="mb-2 text-sm font-semibold text-gray-900">Check-out / check-in register ({asset.checkouts.length})</h3>
+        <CheckoutRegister rows={asset.checkouts} />
+      </div>
       <div className="grid gap-5 lg:grid-cols-2">
         <div>
           <h3 className="mb-2 text-sm font-semibold text-gray-900">Defects ({asset.issues.length})</h3>
@@ -210,7 +244,7 @@ function AssetDetail({ assetId, options, onClose, onChanged }) {
           </div>
         </div>
         <div>
-          <h3 className="mb-2 text-sm font-semibold text-gray-900">History</h3>
+          <h3 className="mb-2 text-sm font-semibold text-gray-900">Full ledger, from procurement</h3>
           <AssetHistory events={asset.events} />
         </div>
       </div>
@@ -259,7 +293,8 @@ export default function AssetLedgerScreen() {
     return next;
   });
   const setFilter = (key) => (value) => setFilters((prev) => ({ ...prev, [key]: value }));
-  const any = (values, word) => [{ value: "", label: `Any ${word}` }, ...(values || []).map((v) => ({ value: v, label: titleCase(v) }))];
+  const any = (values, word, labels) => [{ value: "", label: `Any ${word}` },
+    ...(values || []).map((v) => ({ value: v, label: (labels && labels[v]) || titleCase(v) }))];
   const summary = ledger?.summary;
 
   return (
@@ -274,7 +309,7 @@ export default function AssetLedgerScreen() {
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={load}><RefreshCw className="h-4 w-4" /> Refresh</Button>
-          {options?.can_create && !registering ? <Button onClick={() => setRegistering(true)}><Plus className="h-4 w-4" /> Register item</Button> : null}
+          {options?.can_create && !registering ? <Button onClick={() => setRegistering(true)}><Plus className="h-4 w-4" /> Procure item</Button> : null}
         </div>
       </div>
       {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div> : null}
@@ -285,7 +320,7 @@ export default function AssetLedgerScreen() {
       {openId && options ? <AssetDetail key={openId} assetId={openId} options={options} onClose={close} onChanged={load} /> : null}
       {summary ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[["Items", summary.total], ["With employees", (summary.by_status.ASSIGNED || 0) + (summary.by_status.IN_TRANSIT || 0)],
+          {[["In office", summary.by_status.IN_STOCK || 0], ["With employees", summary.by_status.ASSIGNED || 0],
             ["Returns open", summary.open_returns], ["Defects open", summary.open_issues]].map(([label, value]) => (
             <div key={label} className="rounded-2xl border bg-white p-4 shadow-sm">
               <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</div>
@@ -306,7 +341,7 @@ export default function AssetLedgerScreen() {
                 className="w-full rounded-xl border bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-gray-900" />
             </div>
           </label>
-          <Select label="Status" value={filters.status} onChange={setFilter("status")} options={any(options?.statuses, "status")} />
+          <Select label="Where" value={filters.status} onChange={setFilter("status")} options={any(options?.statuses, "place", options?.status_labels)} />
           <Select label="Owner" value={filters.owner_type} onChange={setFilter("owner_type")} options={any(options?.owner_types, "owner")} />
           <Select label="Category" value={filters.category} onChange={setFilter("category")} options={any(options?.categories, "category")} />
         </div>
@@ -316,7 +351,7 @@ export default function AssetLedgerScreen() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-left text-sm">
               <thead className="border-b text-xs uppercase tracking-wide text-gray-500">
-                <tr><th className="py-2 pr-3">Item</th><th className="py-2 pr-3">Owner</th><th className="py-2 pr-3">Status</th>
+                <tr><th className="py-2 pr-3">Item</th><th className="py-2 pr-3">Owner</th><th className="py-2 pr-3">Where</th>
                   <th className="py-2 pr-3">Holder</th><th className="py-2 pr-3">Due back</th><th className="py-2">Defects</th></tr>
               </thead>
               <tbody>
@@ -326,7 +361,7 @@ export default function AssetLedgerScreen() {
                     <td className="py-2 pr-3"><div className="font-medium text-gray-900">{asset.asset_tag}</div>
                       <div className="text-xs text-gray-500">{asset.label.replace(`${asset.asset_tag} `, "")}</div></td>
                     <td className="py-2 pr-3 text-gray-700">{asset.owner_label}</td>
-                    <td className="py-2 pr-3"><StatusChip status={asset.status} /></td>
+                    <td className="py-2 pr-3"><PlaceChips asset={asset} /></td>
                     <td className="py-2 pr-3 text-gray-700">{asset.holder_name || "—"}</td>
                     <td className="py-2 pr-3 text-gray-700">{asset.return_due || "—"}</td>
                     <td className="py-2 text-gray-700">{asset.open_issues || "—"}</td>

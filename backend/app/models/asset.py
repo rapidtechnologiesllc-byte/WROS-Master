@@ -2,9 +2,14 @@
 item, owned by the IT Admin function.
 
 - Asset: the item, who owns it (one of our companies, a client, a lessor, the employee) and who holds it
-  now. An item is always in exactly one place: stock, with an employee, in transit, in repair, lost,
-  retired or back with its owner.
-- AssetEvent: the item's history, one row per thing that happened to it (never edited).
+  now. A live item is in exactly one of two places (CEO 2026-11-23): in the office (IN_STOCK) or with an
+  employee (ASSIGNED). On a courier or at a repair shop is a flag on top of that, never a third place.
+  An item leaves the ledger once: lost, retired, or back with its owner (a client's or leased item).
+- AssetEvent: the item's whole record from procurement to retirement, one row per thing that happened
+  to it (never edited).
+- AssetCheckout: the check-out / check-in register. One row per spell with an employee: who, from when,
+  how it went out (in person, courier), and when it came back, in what condition (or that it was lost).
+  An ASSIGNED item has exactly one open row; an item in the office has none.
 - AssetShipment: every courier movement out or back, with carrier and tracking number.
 - AssetIssue: a defect on one item, from report to fix (or retirement).
 - AssetReturn: an item an employee has to hand back (project end, exit, recall), until IT Admin signs
@@ -12,12 +17,16 @@ item, owned by the IT Admin function.
 - AssetClearance: one per leaver. Full and final settlement waits until IT Admin signs it off, which is
   refused while any item is still out with the employee (same rule in every country).
 - ProjectAssetRequirement: the kit a project needs each person on it to hold.
+
+Times are naive UTC, set by the application (never the database clock, which follows the server's zone);
+the API sends them marked as UTC.
 """
 import logging
 import uuid
+from datetime import datetime
 
 from sqlalchemy import (
-    Boolean, Column, Date, DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func,
+    Boolean, Column, Date, DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint,
 )
 
 from app.models.base import Base
@@ -29,14 +38,16 @@ ASSET_CATEGORIES = ("LAPTOP", "DESKTOP", "MONITOR", "PHONE", "TABLET", "SECURITY
 # Who owns the item: one of our companies, a client, a leasing company, or the employee (their own device
 # used for work, tracked so client access on it can be removed)
 OWNER_TYPES = ("COMPANY", "CLIENT", "LEASED", "PERSONAL")
-ASSET_STATUSES = ("IN_STOCK", "ASSIGNED", "IN_TRANSIT", "IN_REPAIR", "LOST", "RETIRED", "RETURNED_TO_OWNER")
-# With an employee (or on the way to or from them): the item counts against that person
-HELD_STATUSES = ("ASSIGNED", "IN_TRANSIT")
+# Live: IN_STOCK (in the office) or ASSIGNED (with an employee). Closed: the item left the ledger.
+ASSET_STATUSES = ("IN_STOCK", "ASSIGNED", "LOST", "RETIRED", "RETURNED_TO_OWNER")
+HELD_STATUSES = ("ASSIGNED",)
 CLOSED_STATUSES = ("LOST", "RETIRED", "RETURNED_TO_OWNER")
+CHECKOUT_METHODS = ("HAND", "COURIER", "OWN_DEVICE")
+CHECKIN_OUTCOMES = ("RETURNED", "LOST", "RELEASED")  # RELEASED: an employee's own device leaves with them
 ASSET_CONDITIONS = ("NEW", "GOOD", "FAIR", "DAMAGED")
 
-EVENT_TYPES = ("REGISTERED", "UPDATED", "ISSUED", "SHIPPED", "RECEIVED", "RETURN_REQUESTED", "RETURN_SHIPPED",
-               "RETURNED", "DEFECT_REPORTED", "REPAIR_STARTED", "DEFECT_CLOSED", "LOST", "RETIRED",
+EVENT_TYPES = ("PROCURED", "UPDATED", "CHECKED_OUT", "SHIPPED", "RECEIVED", "RETURN_REQUESTED", "RETURN_SHIPPED",
+               "CHECKED_IN", "DEFECT_REPORTED", "REPAIR_STARTED", "DEFECT_CLOSED", "LOST", "RETIRED",
                "RETURNED_TO_OWNER", "ESCALATED")
 
 SHIPMENT_DIRECTIONS = ("TO_EMPLOYEE", "FROM_EMPLOYEE", "TO_OWNER")
@@ -97,15 +108,18 @@ class Asset(Base):
     return_at_project_end = Column(Boolean, nullable=False, default=False)
     assigned_at = Column(DateTime, nullable=True)
 
+    # Procurement: when, from whom, on which invoice, for how much
     purchase_date = Column(Date, nullable=True)
+    supplier = Column(String(300), nullable=True)
+    invoice_number = Column(String(200), nullable=True)
     purchase_cost_cents = Column(Integer, nullable=True)
     currency = Column(String(3), nullable=True)
     warranty_until = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
 
     created_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class AssetEvent(Base):
@@ -120,7 +134,33 @@ class AssetEvent(Base):
     project_id = Column(String(512), ForeignKey("projects.id"), nullable=True)
     note = Column(Text, nullable=True)
     actor_user_id = Column(String(512), ForeignKey("users.UserID"), nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AssetCheckout(Base):
+    __tablename__ = "asset_checkouts"
+    __table_args__ = (Index("ix_asset_checkouts_open", "asset_id", "checked_in_at"),)
+
+    id = Column(String(512), primary_key=True, default=_new_uuid)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    asset_id = Column(String(512), ForeignKey("assets.id"), nullable=False, index=True)
+    employee_id = Column(String(512), ForeignKey("employees.id"), nullable=False, index=True)
+    project_id = Column(String(512), ForeignKey("projects.id"), nullable=True)
+
+    checked_out_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    checked_out_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
+    method = Column(Enum(*CHECKOUT_METHODS, name="asset_checkout_method", native_enum=False, create_constraint=True),
+                    nullable=False)
+    condition_out = Column(String(20), nullable=True)
+    # A courier delivery: when the employee (or IT Admin) confirmed it arrived
+    received_on = Column(Date, nullable=True)
+
+    checked_in_at = Column(DateTime, nullable=True)
+    checked_in_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
+    outcome = Column(Enum(*CHECKIN_OUTCOMES, name="asset_checkin_outcome", native_enum=False, create_constraint=True),
+                     nullable=True)
+    condition_in = Column(String(20), nullable=True)
+    note = Column(Text, nullable=True)
 
 
 class AssetShipment(Base):
@@ -143,7 +183,7 @@ class AssetShipment(Base):
     chase_task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True)
     created_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     received_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class AssetIssue(Base):
@@ -162,7 +202,7 @@ class AssetIssue(Base):
     fix_cost_cents = Column(Integer, nullable=True)
     task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True)
     reported_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
-    reported_at = Column(DateTime, server_default=func.now())
+    reported_at = Column(DateTime, default=datetime.utcnow)
     resolved_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     resolved_at = Column(DateTime, nullable=True)
 
@@ -186,7 +226,7 @@ class AssetReturn(Base):
     signed_off_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     signed_off_at = Column(DateTime, nullable=True)
     note = Column(Text, nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class AssetClearance(Base):
@@ -203,7 +243,7 @@ class AssetClearance(Base):
     signed_off_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
     signed_off_at = Column(DateTime, nullable=True)
     note = Column(Text, nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class ProjectAssetRequirement(Base):
@@ -221,4 +261,4 @@ class ProjectAssetRequirement(Base):
     quantity = Column(Integer, nullable=False, default=1)
     note = Column(Text, nullable=True)
     created_by = Column(String(512), ForeignKey("users.UserID"), nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
+    created_at = Column(DateTime, default=datetime.utcnow)

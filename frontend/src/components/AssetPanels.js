@@ -18,11 +18,10 @@ import {
   updateAssetDefect,
 } from "../services/api/assets";
 
+// A live item is in the office or with an employee (CEO 2026-11-23); a courier or a repair shop is a flag
 const STATUS_STYLE = {
   IN_STOCK: "border-emerald-200 bg-emerald-50 text-emerald-800",
   ASSIGNED: "border-blue-200 bg-blue-50 text-blue-800",
-  IN_TRANSIT: "border-amber-200 bg-amber-50 text-amber-800",
-  IN_REPAIR: "border-orange-200 bg-orange-50 text-orange-800",
   LOST: "border-rose-200 bg-rose-50 text-rose-800",
   RETIRED: "border-gray-200 bg-gray-100 text-gray-600",
   RETURNED_TO_OWNER: "border-gray-200 bg-gray-100 text-gray-600",
@@ -37,10 +36,70 @@ export function Chip({ tone, children }) {
   return <span className={cx("inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold", tone)}>{children}</span>;
 }
 
-export const StatusChip = ({ status }) => <Chip tone={STATUS_STYLE[status]}>{titleCase(status)}</Chip>;
+const STATUS_TEXT = {
+  IN_STOCK: "In office", ASSIGNED: "With employee", LOST: "Lost", RETIRED: "Retired", RETURNED_TO_OWNER: "Returned to owner",
+};
+export const StatusChip = ({ status }) => <Chip tone={STATUS_STYLE[status]}>{STATUS_TEXT[status] || titleCase(status)}</Chip>;
+
+export function PlaceChips({ asset }) {
+  return (
+    <span className="inline-flex flex-wrap gap-1.5">
+      <StatusChip status={asset.status} />
+      {asset.in_transit ? <Chip tone="border-amber-200 bg-amber-50 text-amber-800">With courier</Chip> : null}
+      {asset.in_repair ? <Chip tone="border-orange-200 bg-orange-50 text-orange-800">At repair shop</Chip> : null}
+    </span>
+  );
+}
+
+// Times come from the server marked as UTC: shown as the viewer's own date
+export const localDay = (value) => (value ? new Date(value).toLocaleDateString() : "");
+const when = (value) => localDay(value) || "—";
+const METHOD_TEXT = { HAND: "In person", COURIER: "Courier", OWN_DEVICE: "Own device" };
+const OUTCOME_TEXT = { RETURNED: "Checked in", LOST: "Lost", RELEASED: "Left with them" };
+
+// The check-out / check-in register: one row per spell with an employee. showAsset: the employee's view.
+export function CheckoutRegister({ rows, showAsset }) {
+  if (!rows?.length) return <div className="text-sm text-gray-500">Never checked out.</div>;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[640px] text-left text-sm">
+        <thead className="border-b text-xs uppercase tracking-wide text-gray-500">
+          <tr>
+            <th className="py-2 pr-3">{showAsset ? "Item" : "Employee"}</th>
+            <th className="py-2 pr-3">Checked out</th><th className="py-2 pr-3">How</th>
+            <th className="py-2 pr-3">Checked in</th><th className="py-2 pr-3">Condition</th><th className="py-2">Days</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id} className="border-b align-top last:border-0">
+              <td className="py-2 pr-3 font-medium text-gray-900">{showAsset ? row.asset_label : row.employee_name}</td>
+              <td className="py-2 pr-3 text-gray-700">{when(row.checked_out_at)}
+                {row.checked_out_by ? <div className="text-xs text-gray-500">by {row.checked_out_by}</div> : null}</td>
+              <td className="py-2 pr-3 text-gray-700">{METHOD_TEXT[row.method] || row.method}
+                {row.received_on ? <div className="text-xs text-gray-500">arrived {row.received_on}</div> : null}</td>
+              <td className="py-2 pr-3 text-gray-700">
+                {row.open ? <Chip tone="border-blue-200 bg-blue-50 text-blue-800">Still out</Chip> : (
+                  <>{when(row.checked_in_at)} · {OUTCOME_TEXT[row.outcome] || row.outcome}
+                    {row.checked_in_by ? <div className="text-xs text-gray-500">by {row.checked_in_by}</div> : null}</>
+                )}
+                {row.note ? <div className="text-xs text-gray-500">{row.note}</div> : null}</td>
+              <td className="py-2 pr-3 text-gray-700">{titleCase(row.condition_out)}{row.condition_in ? ` → ${titleCase(row.condition_in)}` : ""}</td>
+              <td className="py-2 text-gray-700">{row.days ?? "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 export const SeverityChip = ({ severity }) => <Chip tone={SEVERITY_STYLE[severity]}>{titleCase(severity)}</Chip>;
 
-const today = () => new Date().toISOString().slice(0, 10);
+// The person's own calendar date (toISOString is UTC: in the evening it is already tomorrow)
+const today = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+};
 
 function ActionForm({ title, submitLabel, onSubmit, onCancel, children, danger }) {
   const [busy, setBusy] = useState(false);
@@ -87,21 +146,21 @@ const courierBody = (c) => ({
 // What can be done with this item now, for this viewer. manage: IT Admin (assets.edit); holder: it is theirs.
 export function availableActions(asset, { manage, holder }) {
   const actions = [];
-  const held = asset.status === "ASSIGNED" || asset.status === "IN_TRANSIT";
+  const held = asset.status === "ASSIGNED";
+  const ours = asset.owner_type !== "PERSONAL";
   const inbound = asset.shipment && asset.shipment.direction === "TO_EMPLOYEE";
-  const outbound = asset.shipment && asset.shipment.direction === "FROM_EMPLOYEE";
-  if (asset.status === "IN_TRANSIT" && inbound && (manage || holder)) actions.push(["receipt", "Confirm received"]);
-  if (asset.status === "ASSIGNED" && asset.owner_type !== "PERSONAL" && (manage || holder)) actions.push(["ship_back", "Send it back"]);
+  if (held && inbound && (manage || holder)) actions.push(["receipt", "Confirm received"]);
+  if (held && ours && !asset.shipment && (manage || holder)) actions.push(["ship_back", "Send it back"]);
   if (manage) {
-    if (asset.status === "IN_STOCK") actions.push(["issue", "Issue to employee"]);
-    if (held && asset.owner_type !== "PERSONAL" && !inbound && (asset.status === "ASSIGNED" || outbound)) actions.push(["receive", "Sign off return"]);
-    if (held && asset.owner_type !== "PERSONAL" && !asset.return_due) actions.push(["request", "Ask it back"]);
+    if (asset.status === "IN_STOCK" && !asset.in_repair) actions.push(["issue", "Check out to employee"]);
+    if (held && ours && !inbound) actions.push(["receive", "Check in"]);
+    if (held && ours && !asset.return_due) actions.push(["request", "Ask it back"]);
     if (asset.status === "IN_STOCK" && (asset.owner_type === "CLIENT" || asset.owner_type === "LEASED")) actions.push(["to_owner", "Return to owner"]);
     if (asset.status === "RETURNED_TO_OWNER" && asset.shipment && asset.shipment.direction === "TO_OWNER") actions.push(["owner_received", "Owner received it"]);
   }
   if (!["LOST", "RETIRED", "RETURNED_TO_OWNER"].includes(asset.status) && (manage || holder)) actions.push(["defect", "Report a defect"]);
   if (manage && !["LOST", "RETIRED", "RETURNED_TO_OWNER"].includes(asset.status)) actions.push(["lost", "Mark lost"]);
-  if (manage && ["IN_STOCK", "IN_REPAIR", "LOST"].includes(asset.status)) actions.push(["retire", "Retire"]);
+  if (manage && ["IN_STOCK", "LOST"].includes(asset.status)) actions.push(["retire", "Retire"]);
   return actions;
 }
 
@@ -121,7 +180,7 @@ export function AssetActionForm({ action, asset, options, onDone, onCancel }) {
 
   if (action === "issue") {
     return (
-      <ActionForm title={`Issue ${asset.asset_tag}`} submitLabel="Issue" onCancel={onCancel}
+      <ActionForm title={`Check out ${asset.asset_tag}`} submitLabel="Check out" onCancel={onCancel}
         onSubmit={run(() => issueAsset(asset.id, {
           employee_id: form.employee_id, method: form.method, project_id: form.project_id || null,
           ...(form.method === "COURIER" ? courierBody(courier) : {}),
@@ -149,14 +208,14 @@ export function AssetActionForm({ action, asset, options, onDone, onCancel }) {
     return (
       <ActionForm title={`Send ${asset.asset_tag} back`} submitLabel="Save tracking" onCancel={onCancel}
         onSubmit={run(() => recordReturnShipment(asset.id, courierBody(courier)))}>
-        <p className="text-xs text-gray-500">Enter the courier and tracking number. Handing it over in person? IT Admin signs it off directly.</p>
+        <p className="text-xs text-gray-500">Enter the courier and tracking number. Handing it over in person? IT Admin checks it in directly.</p>
         <CourierFields value={courier} onChange={setCourier} />
       </ActionForm>
     );
   }
   if (action === "receive") {
     return (
-      <ActionForm title={`Sign off the return of ${asset.asset_tag}`} submitLabel="Sign off" onCancel={onCancel}
+      <ActionForm title={`Check ${asset.asset_tag} in to the office`} submitLabel="Check in" onCancel={onCancel}
         onSubmit={run(() => receiveAssetReturn(asset.id, { condition: form.condition, received_on: form.received_on, note: form.note || null }))}>
         <div className="grid gap-3 sm:grid-cols-2">
           <Select label="Condition" value={form.condition} onChange={set("condition")} options={conditions} />
@@ -234,7 +293,7 @@ export function DefectRow({ issue, canManage, onChanged }) {
         <div className="flex gap-1.5"><SeverityChip severity={issue.severity} /><Chip tone="border-gray-200 bg-white text-gray-700">{titleCase(issue.status)}</Chip></div>
       </div>
       <div className="mt-1 text-xs text-gray-500">
-        Reported {issue.reported_at ? issue.reported_at.slice(0, 10) : ""}{issue.reported_by ? ` by ${issue.reported_by}` : ""}
+        Reported {localDay(issue.reported_at)}{issue.reported_by ? ` by ${issue.reported_by}` : ""}
         {issue.repair_vendor ? ` · with ${issue.repair_vendor}` : ""}
         {issue.resolution ? ` · ${issue.resolution}` : ""}
         {issue.fix_cost_cents ? ` · cost ${(issue.fix_cost_cents / 100).toLocaleString()}` : ""}

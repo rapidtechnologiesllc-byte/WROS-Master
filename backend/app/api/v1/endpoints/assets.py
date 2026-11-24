@@ -85,6 +85,8 @@ class AssetCreate(BaseModel):
     asset_tag: Optional[str] = Field(None, max_length=64)
     condition: str = "GOOD"
     purchase_date: Optional[date] = None
+    supplier: Optional[str] = Field(None, max_length=300)
+    invoice_number: Optional[str] = Field(None, max_length=200)
     purchase_cost_cents: Optional[int] = Field(None, ge=0)
     currency: Optional[str] = Field(None, max_length=3)
     warranty_until: Optional[date] = None
@@ -103,6 +105,8 @@ class AssetUpdate(BaseModel):
     serial_number: Optional[str] = Field(None, max_length=200)
     condition: Optional[str] = None
     purchase_date: Optional[date] = None
+    supplier: Optional[str] = Field(None, max_length=300)
+    invoice_number: Optional[str] = Field(None, max_length=200)
     purchase_cost_cents: Optional[int] = Field(None, ge=0)
     currency: Optional[str] = Field(None, max_length=3)
     warranty_until: Optional[date] = None
@@ -249,6 +253,7 @@ def asset_options(db: Session = Depends(get_db), current_user: Users = Depends(g
     projects = db.query(Project).filter(Project.tenant_id == current_user.tenant_id).order_by(Project.name).all()
     return {
         "categories": list(ASSET_CATEGORIES), "owner_types": list(OWNER_TYPES), "statuses": list(ASSET_STATUSES),
+        "status_labels": dict(service.STATUS_LABELS),
         "conditions": list(ASSET_CONDITIONS), "handover_methods": list(HANDOVER_METHODS),
         "severities": list(ISSUE_SEVERITIES), "return_reasons": [r for r in RETURN_REASONS if r != "EXIT"],
         "kit_providers": ["COMPANY", "CLIENT"],

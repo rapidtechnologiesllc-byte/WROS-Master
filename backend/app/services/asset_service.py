@@ -1,5 +1,8 @@
-"""Asset ledger (CEO 2026-11-10). The IT Admin function owns every device; this service keeps one rule:
-an item is always in exactly one place, and every move is recorded on the item.
+"""Asset ledger (CEO 2026-11-10). The IT Admin function owns every device; this service keeps one rule
+(CEO 2026-11-23): a live item is either in the office or with one employee, never anywhere else, and every
+move is recorded on the item from procurement to retirement. Each spell with an employee is one row of the
+check-out / check-in register (AssetCheckout): an item with an employee has exactly one open row, an item
+in the office has none. On a courier or at a repair shop is a flag on the item, not a third place.
 
 What the system does by itself:
 - a person placed on a project that needs kit they do not hold -> one task for IT Admin to issue it;
@@ -15,7 +18,7 @@ Every function adds to the session and the caller commits, then calls send_notic
 emails are only announced once the change is saved.
 """
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
 from sqlalchemy import func, or_
@@ -25,8 +28,8 @@ from app.core.config import settings
 from app.models.asset import (
     ASSET_CATEGORIES, ASSET_CONDITIONS, CLOSED_STATUSES, HANDOVER_METHODS, HELD_STATUSES, ISSUE_SEVERITIES,
     OPEN_ISSUE_STATUSES, OWNER_TYPES, RETURN_REASONS, TASK_CLEARANCE, TASK_ESCALATION, TASK_ISSUE, TASK_KIT,
-    TASK_RETURN, TASK_TRANSIT, Asset, AssetClearance, AssetEvent, AssetIssue, AssetReturn, AssetShipment,
-    ProjectAssetRequirement,
+    TASK_RETURN, TASK_TRANSIT, Asset, AssetCheckout, AssetClearance, AssetEvent, AssetIssue, AssetReturn,
+    AssetShipment, ProjectAssetRequirement,
 )
 from app.models.client import Client
 from app.models.employee import Employee
@@ -186,6 +189,49 @@ def _close_tasks(db: Session, category: str, link: str, *, done: bool = True) ->
         .update(values, synchronize_session=False)
 
 
+def utc(value: Optional[datetime]) -> Optional[datetime]:
+    """A stored (naive UTC) time, marked as UTC for the API: the browser shows it in the viewer's zone."""
+    return value.replace(tzinfo=timezone.utc) if value is not None and value.tzinfo is None else value
+
+
+def latest_date() -> date:
+    """The latest date a person may enter for something that already happened. One day past the server's
+    date: the server runs on UTC, and in India the next day starts five and a half hours earlier."""
+    return date.today() + timedelta(days=1)
+
+
+# --------------------------------------------------------------------------- the register
+
+def open_checkout(db: Session, asset_id: str) -> Optional[AssetCheckout]:
+    return db.query(AssetCheckout).filter(AssetCheckout.asset_id == asset_id, AssetCheckout.checked_in_at.is_(None)) \
+        .order_by(AssetCheckout.checked_out_at.desc()).first()
+
+
+def _check_out(db: Session, asset: Asset, employee: Employee, *, method: str, actor: Optional[str],
+               project_id: Optional[str] = None) -> AssetCheckout:
+    """The office -> an employee. Refused while the register already shows the item out."""
+    if open_checkout(db, asset.id) is not None:
+        raise AssetRefused(f"{asset.asset_tag} is already checked out: check it in first.")
+    row = AssetCheckout(tenant_id=asset.tenant_id, asset_id=asset.id, employee_id=employee.id, project_id=project_id,
+                        checked_out_at=datetime.utcnow(), checked_out_by=actor, method=method,
+                        condition_out=asset.condition)
+    db.add(row)
+    asset.status, asset.holder_employee_id, asset.assigned_at = "ASSIGNED", employee.id, row.checked_out_at
+    db.flush()
+    return row
+
+
+def _check_in(db: Session, asset: Asset, *, outcome: str, actor: Optional[str], condition: Optional[str] = None,
+              note: Optional[str] = None) -> Optional[AssetCheckout]:
+    """Close the open register row (back in the office, lost, or an own device released)."""
+    row = open_checkout(db, asset.id)
+    if row is not None:
+        row.checked_in_at, row.checked_in_by, row.outcome = datetime.utcnow(), actor, outcome
+        row.condition_in, row.note = condition, _clean(note)
+    asset.holder_employee_id, asset.project_id, asset.return_at_project_end, asset.assigned_at = None, None, False, None
+    return row
+
+
 # --------------------------------------------------------------------------- the ledger
 
 def _clean(value: Optional[str]) -> Optional[str]:
@@ -251,14 +297,18 @@ def register_asset(db: Session, tenant_id: int, user: Users, *, category: str, o
                    serial_number: Optional[str] = None, asset_tag: Optional[str] = None, condition: str = "GOOD",
                    purchase_date: Optional[date] = None, purchase_cost_cents: Optional[int] = None,
                    currency: Optional[str] = None, warranty_until: Optional[date] = None,
-                   notes: Optional[str] = None, employee_id: Optional[str] = None) -> Asset:
-    """Put one item on the ledger, in stock. An employee's own device is recorded as with them."""
+                   notes: Optional[str] = None, employee_id: Optional[str] = None,
+                   supplier: Optional[str] = None, invoice_number: Optional[str] = None) -> Asset:
+    """Procure one item onto the ledger: it starts in the office. An employee's own device starts
+    checked out to them (it was never ours to hold)."""
     if category not in ASSET_CATEGORIES:
         raise AssetRefused(f"Category must be one of {', '.join(ASSET_CATEGORIES)}.")
     if condition not in ASSET_CONDITIONS:
         raise AssetRefused(f"Condition must be one of {', '.join(ASSET_CONDITIONS)}.")
     if purchase_cost_cents is not None and purchase_cost_cents < 0:
         raise AssetRefused("The purchase cost cannot be negative.")
+    if purchase_date is not None and purchase_date > latest_date():
+        raise AssetRefused("The procurement date cannot be in the future.")
     owner = _validate_owner(db, tenant_id, owner_type, owner_company_id, owner_client_id, owner_name)
     serial = _clean(serial_number)
     _assert_serial_free(db, tenant_id, serial)
@@ -272,19 +322,29 @@ def register_asset(db: Session, tenant_id: int, user: Users, *, category: str, o
                   make=_clean(make), model=_clean(model), serial_number=serial, owner_type=owner_type,
                   condition=condition, purchase_date=purchase_date, purchase_cost_cents=purchase_cost_cents,
                   currency=(_clean(currency) or "").upper()[:3] or None, warranty_until=warranty_until,
-                  notes=_clean(notes), created_by=user.UserID,
-                  status="ASSIGNED" if holder is not None else "IN_STOCK",
-                  holder_employee_id=holder.id if holder is not None else None,
-                  assigned_at=datetime.utcnow() if holder is not None else None, **owner)
+                  notes=_clean(notes), created_by=user.UserID, status="IN_STOCK",
+                  supplier=_clean(supplier), invoice_number=_clean(invoice_number), **owner)
     db.add(asset)
     db.flush()
-    _event(db, asset, "REGISTERED", employee_id=asset.holder_employee_id, actor=user.UserID,
-           note=f"Owner: {owner_label(db, asset)}")
+    bought = [f"Owner: {owner_label(db, asset)}"]
+    if asset.purchase_date:
+        bought.append(f"procured {asset.purchase_date}")
+    if asset.supplier:
+        bought.append(f"from {asset.supplier}")
+    if asset.invoice_number:
+        bought.append(f"invoice {asset.invoice_number}")
+    if asset.purchase_cost_cents is not None:
+        bought.append(f"cost {asset.purchase_cost_cents / 100:,.2f} {asset.currency or ''}".strip())
+    _event(db, asset, "PROCURED", actor=user.UserID, note=", ".join(bought))
+    if holder is not None:
+        _check_out(db, asset, holder, method="OWN_DEVICE", actor=user.UserID)
+        _event(db, asset, "CHECKED_OUT", employee_id=holder.id, actor=user.UserID,
+               note=f"{employee_name(holder)}'s own device, used for work")
     return asset
 
 
 EDITABLE = ("category", "make", "model", "serial_number", "condition", "purchase_date", "purchase_cost_cents",
-            "currency", "warranty_until", "notes")
+            "currency", "warranty_until", "notes", "supplier", "invoice_number")
 
 
 def update_asset(db: Session, asset: Asset, user: Users, changes: Dict) -> Asset:
@@ -308,7 +368,7 @@ def update_asset(db: Session, asset: Asset, user: Users, changes: Dict) -> Asset
         if key not in changes:
             continue
         value = changes[key]
-        if key in ("make", "model", "serial_number", "notes"):
+        if key in ("make", "model", "serial_number", "notes", "supplier", "invoice_number"):
             value = _clean(value)
         if key == "currency":
             value = (_clean(value) or "").upper()[:3] or None
@@ -339,7 +399,7 @@ def _need_tracking(method: str, carrier: Optional[str], tracking_number: Optiona
 def _ship(db: Session, asset: Asset, direction: str, *, employee_id: Optional[str], carrier: str,
           tracking_number: str, shipped_on: Optional[date], expected_on: Optional[date], actor: str) -> AssetShipment:
     shipped = shipped_on or date.today()
-    if shipped > date.today():
+    if shipped > latest_date():
         raise AssetRefused("The ship date cannot be in the future.")
     if expected_on is not None and expected_on < shipped:
         raise AssetRefused("The expected delivery date is before the ship date.")
@@ -362,9 +422,12 @@ def issue_asset(db: Session, asset: Asset, employee: Employee, user: Users, *, m
                 carrier: Optional[str] = None, tracking_number: Optional[str] = None,
                 shipped_on: Optional[date] = None, expected_on: Optional[date] = None,
                 project_id: Optional[str] = None, return_at_project_end: Optional[bool] = None) -> Asset:
-    """Stock -> an employee, by hand or by courier (tracked until they confirm it arrived)."""
+    """Check out: the office -> an employee, in person or by courier (the courier is tracked until they
+    confirm it arrived; the item is theirs from the moment it leaves)."""
     if asset.status != "IN_STOCK":
-        raise AssetRefused(f"{asset.asset_tag} is not in stock (it is {asset.status.replace('_', ' ').lower()}).")
+        raise AssetRefused(f"{asset.asset_tag} is not in the office (it is {status_label(asset.status).lower()}).")
+    if in_repair(db, asset):
+        raise AssetRefused(f"{asset.asset_tag} is at the repair shop: close the defect first.")
     if employee.tenant_id != asset.tenant_id:
         raise AssetRefused("Employee not found.")
     if employee.status in LEAVING_STATUSES:
@@ -377,18 +440,18 @@ def issue_asset(db: Session, asset: Asset, employee: Employee, user: Users, *, m
             raise AssetRefused("Project not found.")
     if asset.owner_type == "CLIENT" and project is not None and project.client_id != asset.owner_client_id:
         raise AssetRefused("This device belongs to a different client than the project's.")
-    asset.holder_employee_id, asset.assigned_at = employee.id, datetime.utcnow()
+    _check_out(db, asset, employee, method=method, actor=user.UserID, project_id=project.id if project else None)
     asset.project_id = project.id if project is not None else None
     # a project's own kit comes back when the project ends; the person's company laptop does not
     asset.return_at_project_end = bool(project is not None and (
         return_at_project_end if return_at_project_end is not None else asset.owner_type != "COMPANY"))
-    _event(db, asset, "ISSUED", employee_id=employee.id, project_id=asset.project_id, actor=user.UserID,
-           note=f"Issued to {employee_name(employee)}" + (f" for {project.name}" if project is not None else ""))
+    _event(db, asset, "CHECKED_OUT", employee_id=employee.id, project_id=asset.project_id, actor=user.UserID,
+           note=f"To {employee_name(employee)}" + (f" for {project.name}" if project is not None else "")
+                + (" by courier" if method == "COURIER" else ", handed over in person"))
     if method == "COURIER":
         shipment = _ship(db, asset, "TO_EMPLOYEE", employee_id=employee.id, carrier=carrier,
                          tracking_number=tracking_number, shipped_on=shipped_on, expected_on=expected_on,
                          actor=user.UserID)
-        asset.status = "IN_TRANSIT"
         _event(db, asset, "SHIPPED", employee_id=employee.id, actor=user.UserID,
                note=f"{shipment.carrier} {shipment.tracking_number}, shipped {shipment.shipped_on}")
         _tell(db, employee.wros_user_id, key=f"asset-shipped-{shipment.id}",
@@ -397,9 +460,6 @@ def issue_asset(db: Session, asset: Asset, employee: Employee, user: Users, *, m
                           f"tracking number {shipment.tracking_number}.",
                           "When it arrives, open My assets and confirm you received it."],
               link=employee_path(employee.id))
-    else:
-        asset.status = "ASSIGNED"
-        _event(db, asset, "RECEIVED", employee_id=employee.id, actor=user.UserID, note="Handed over in person")
     db.flush()
     sync_kit_task(db, employee)
     return asset
@@ -409,13 +469,15 @@ def confirm_receipt(db: Session, asset: Asset, user: Users, *, received_on: Opti
                     note: Optional[str] = None) -> Asset:
     """The item shipped to an employee arrived (confirmed by them or by IT Admin)."""
     shipment = open_shipment(db, asset, "TO_EMPLOYEE")
-    if asset.status != "IN_TRANSIT" or shipment is None:
+    if asset.status != "ASSIGNED" or shipment is None:
         raise AssetRefused(f"{asset.asset_tag} is not on its way to anyone.")
     received = received_on or date.today()
-    if received < shipment.shipped_on or received > date.today():
+    if received < shipment.shipped_on or received > latest_date():
         raise AssetRefused("The received date must be between the ship date and today.")
     shipment.status, shipment.received_on, shipment.received_by = "DELIVERED", received, user.UserID
-    asset.status = "ASSIGNED"
+    row = open_checkout(db, asset.id)
+    if row is not None:
+        row.received_on = received
     if shipment.chase_task_id:
         db.query(Task).filter(Task.id == shipment.chase_task_id, Task.status.in_(OPEN_TASK_STATUSES)) \
             .update({Task.status: "COMPLETED", Task.completed_at: datetime.utcnow()}, synchronize_session=False)
@@ -505,10 +567,11 @@ def record_return_shipment(db: Session, asset: Asset, user: Users, *, carrier: s
         raise AssetRefused(f"{asset.asset_tag} is not with an employee.")
     if asset.owner_type == "PERSONAL":
         raise AssetRefused("An employee's own device is not handed back.")
+    if open_shipment(db, asset) is not None:
+        raise AssetRefused(f"{asset.asset_tag} is already with a courier.")
     _need_tracking("COURIER", carrier, tracking_number)
     shipment = _ship(db, asset, "FROM_EMPLOYEE", employee_id=asset.holder_employee_id, carrier=carrier,
                      tracking_number=tracking_number, shipped_on=shipped_on, expected_on=expected_on, actor=user.UserID)
-    asset.status = "IN_TRANSIT"
     _event(db, asset, "RETURN_SHIPPED", employee_id=asset.holder_employee_id, actor=user.UserID,
            note=f"{shipment.carrier} {shipment.tracking_number}, shipped {shipment.shipped_on}")
     db.flush()
@@ -517,7 +580,8 @@ def record_return_shipment(db: Session, asset: Asset, user: Users, *, carrier: s
 
 def receive_return(db: Session, asset: Asset, user: Users, *, condition: str, received_on: Optional[date] = None,
                    note: Optional[str] = None) -> Asset:
-    """IT Admin has the item back and signs the return off. A damaged item opens a defect on it."""
+    """Check in: IT Admin has the item back in the office and signs the return off. A damaged item opens
+    a defect on it."""
     if condition not in ASSET_CONDITIONS:
         raise AssetRefused(f"Condition must be one of {', '.join(ASSET_CONDITIONS)}.")
     if asset.status not in HELD_STATUSES or not asset.holder_employee_id:
@@ -527,7 +591,7 @@ def receive_return(db: Session, asset: Asset, user: Users, *, condition: str, re
     if open_shipment(db, asset, "TO_EMPLOYEE") is not None:
         raise AssetRefused(f"{asset.asset_tag} is still on its way to the employee: confirm it arrived, or mark it lost.")
     received = received_on or date.today()
-    if received > date.today():
+    if received > latest_date():
         raise AssetRefused("The received date cannot be in the future.")
     shipment = open_shipment(db, asset, "FROM_EMPLOYEE")
     if shipment is not None:
@@ -541,11 +605,12 @@ def receive_return(db: Session, asset: Asset, user: Users, *, condition: str, re
     now = datetime.utcnow()
     for row in db.query(AssetReturn).filter(AssetReturn.asset_id == asset.id, AssetReturn.status == "OPEN").all():
         row.status, row.signed_off_by, row.signed_off_at = "RETURNED", user.UserID, now
-    _event(db, asset, "RETURNED", employee_id=employee.id, project_id=asset.project_id, actor=user.UserID,
-           note=f"Back from {employee_name(employee)}, condition {condition.lower()}"
+    _event(db, asset, "CHECKED_IN", employee_id=employee.id, project_id=asset.project_id, actor=user.UserID,
+           note=f"Back in the office from {employee_name(employee)}, condition {condition.lower()}"
+                + (f" ({shipment.carrier} {shipment.tracking_number})" if shipment is not None else ", in person")
                 + (f". {_clean(note)}" if _clean(note) else ""))
+    _check_in(db, asset, outcome="RETURNED", actor=user.UserID, condition=condition, note=note)
     asset.status, asset.condition = "IN_STOCK", condition
-    asset.holder_employee_id, asset.project_id, asset.return_at_project_end, asset.assigned_at = None, None, False, None
     db.flush()
     if condition == "DAMAGED":
         report_issue(db, asset, user, description=f"Came back damaged from {employee_name(employee)}."
@@ -581,7 +646,7 @@ def confirm_owner_received(db: Session, asset: Asset, user: Users, received_on: 
     if shipment is None:
         raise AssetRefused(f"{asset.asset_tag} has no open shipment to its owner.")
     received = received_on or date.today()
-    if received < shipment.shipped_on or received > date.today():
+    if received < shipment.shipped_on or received > latest_date():
         raise AssetRefused("The received date must be between the ship date and today.")
     shipment.status, shipment.received_on, shipment.received_by = "DELIVERED", received, user.UserID
     if shipment.chase_task_id:
@@ -635,8 +700,6 @@ def update_issue(db: Session, issue: AssetIssue, user: Users, *, action: str, re
         if not _clean(repair_vendor):
             raise AssetRefused("Enter who is repairing it.")
         issue.status, issue.repair_vendor = "IN_REPAIR", _clean(repair_vendor)
-        if asset.status == "IN_STOCK":
-            asset.status = "IN_REPAIR"
         _event(db, asset, "REPAIR_STARTED", employee_id=asset.holder_employee_id, actor=user.UserID,
                note=f"With {issue.repair_vendor}")
         return issue
@@ -657,8 +720,6 @@ def update_issue(db: Session, issue: AssetIssue, user: Users, *, action: str, re
            note=f"{action.replace('_', ' ').title()}: {issue.resolution}{cost}"[:2000])
     db.flush()
     if not _open_issues(db, asset.id):
-        if asset.status == "IN_REPAIR":
-            asset.status = "IN_STOCK"
         if action == "FIXED" and asset.condition == "DAMAGED":
             asset.condition = "GOOD"
         _close_tasks(db, TASK_ISSUE, asset_path(asset.id))
@@ -685,7 +746,8 @@ def mark_lost(db: Session, asset: Asset, user: Users, *, note: str) -> Asset:
         # no return was open: still keep on record that it was lost while with them
         db.add(AssetReturn(tenant_id=asset.tenant_id, asset_id=asset.id, employee_id=employee.id, reason="RECALL",
                            due_date=date.today(), status="LOST", note=_clean(note)))
-    asset.status, asset.holder_employee_id = "LOST", None
+    _check_in(db, asset, outcome="LOST", actor=user.UserID, note=note)
+    asset.status = "LOST"
     db.flush()
     if employee is not None:
         sync_return_task(db, employee)
@@ -697,7 +759,7 @@ def retire_asset(db: Session, asset: Asset, user: Users, *, reason: str) -> Asse
     if not _clean(reason):
         raise AssetRefused("Say why it is retired (and how it was disposed of or wiped).")
     if asset.status in HELD_STATUSES:
-        raise AssetRefused(f"{asset.asset_tag} is with an employee: it has to come back before it is retired.")
+        raise AssetRefused(f"{asset.asset_tag} is with an employee: it has to be checked in before it is retired.")
     if asset.status in ("RETIRED", "RETURNED_TO_OWNER"):
         raise AssetRefused(f"{asset.asset_tag} is already {asset.status.replace('_', ' ').lower()}.")
     now = datetime.utcnow()
@@ -747,7 +809,7 @@ def open_clearance(db: Session, employee: Employee, *, due_date: Optional[date],
 
 def clearance_blockers(db: Session, employee: Employee) -> List[str]:
     """What still stops IT Admin from signing the clearance off."""
-    return [f"{asset_label(a)} is still {'in transit' if a.status == 'IN_TRANSIT' else 'with them'}"
+    return [f"{asset_label(a)} is still {'with a courier' if open_shipment(db, a) else 'with them'}"
             for a in held_assets(db, employee.id, include_personal=False)]
 
 
@@ -775,7 +837,8 @@ def sign_off_clearance(db: Session, employee: Employee, user: Users, *, note: Op
     now = datetime.utcnow()
     clearance.status, clearance.signed_off_by, clearance.signed_off_at, clearance.note = "CLEARED", user.UserID, now, _clean(note)
     for asset in held_assets(db, employee.id):  # only their own devices are left
-        asset.status, asset.holder_employee_id = "RETURNED_TO_OWNER", None
+        _check_in(db, asset, outcome="RELEASED", actor=user.UserID, note="Leaves with them at exit")
+        asset.status = "RETURNED_TO_OWNER"
         _event(db, asset, "RETURNED_TO_OWNER", employee_id=employee.id, actor=user.UserID,
                note="Employee's own device: off the ledger at exit (work access removed)")
     link = employee_path(employee.id)
@@ -929,10 +992,13 @@ def ledger_alerts(db: Session, tenant_id: int, today: Optional[date] = None) -> 
         Employee.id.in_({a.holder_employee_id for a in assets if a.holder_employee_id} or {""})).all()}
     for asset in assets:
         holder = holders.get(asset.holder_employee_id) if asset.holder_employee_id else None
-        if asset.status in HELD_STATUSES and holder is None:
-            add("NO_HOLDER", "HIGH", f"{asset_label(asset)} is marked as out but nobody is recorded as holding it.", asset=asset)
-        if asset.status in ("IN_STOCK", "IN_REPAIR") and asset.holder_employee_id:
-            add("NO_HOLDER", "HIGH", f"{asset_label(asset)} is in stock but still shows a holder.", asset=asset)
+        register = open_checkout(db, asset.id)
+        if asset.status in HELD_STATUSES and (holder is None or register is None or register.employee_id != holder.id):
+            add("REGISTER_MISMATCH", "HIGH", f"{asset_label(asset)} is marked as with an employee but the check-out "
+                "register does not show who has it.", asset=asset)
+        if asset.status == "IN_STOCK" and (asset.holder_employee_id or register is not None):
+            add("REGISTER_MISMATCH", "HIGH", f"{asset_label(asset)} is marked as in the office but the register "
+                "shows it checked out.", asset=asset)
         if holder is not None and holder.status == "EXITED" and asset.owner_type != "PERSONAL":
             add("HOLDER_LEFT", "HIGH", f"{asset_label(asset)} is still with {employee_name(holder)}, who has left"
                 + (f" ({holder.exit_date})" if holder.exit_date else "") + ".", asset=asset, employee_id=holder.id)
@@ -1129,11 +1195,41 @@ def _chase(db: Session, shipment: AssetShipment, today: date) -> int:
 
 # --------------------------------------------------------------------------- views
 
+STATUS_LABELS = {"IN_STOCK": "In office", "ASSIGNED": "With employee", "LOST": "Lost", "RETIRED": "Retired",
+                 "RETURNED_TO_OWNER": "Returned to owner"}
+
+
+def status_label(status: str) -> str:
+    return STATUS_LABELS.get(status, status.replace("_", " ").title())
+
+
+def in_repair(db: Session, asset: Asset) -> Optional[AssetIssue]:
+    return db.query(AssetIssue).filter(AssetIssue.asset_id == asset.id, AssetIssue.status == "IN_REPAIR").first()
+
+
+def where(db: Session, asset: Asset, holder: Optional[Employee]) -> str:
+    """Where the item is, in one line: the office or a person, plus a courier or repair shop on top."""
+    if asset.status == "ASSIGNED":
+        text = f"With {employee_name(holder)}" if holder is not None else "With an employee (not recorded)"
+    else:
+        text = status_label(asset.status)
+    shipment = open_shipment(db, asset)
+    if shipment is not None:
+        way = {"TO_EMPLOYEE": "on its way to them", "FROM_EMPLOYEE": "on its way back",
+               "TO_OWNER": "on its way to its owner"}[shipment.direction]
+        text += f", {way} ({shipment.carrier} {shipment.tracking_number})"
+    repair = in_repair(db, asset)
+    if repair is not None:
+        text += f", at {repair.repair_vendor} for repair"
+    return text
+
+
 def asset_item(db: Session, asset: Asset, holders: Optional[Dict[str, Employee]] = None) -> Dict:
     holder = None
     if asset.holder_employee_id:
         holder = (holders or {}).get(asset.holder_employee_id) or db.get(Employee, asset.holder_employee_id)
-    shipment = open_shipment(db, asset) if asset.status in ("IN_TRANSIT", "RETURNED_TO_OWNER") else None
+    shipment = open_shipment(db, asset)
+    repair = in_repair(db, asset)
     pending = db.query(AssetReturn).filter(AssetReturn.asset_id == asset.id, AssetReturn.status == "OPEN").first() \
         if asset.status in HELD_STATUSES else None
     return {
@@ -1141,11 +1237,14 @@ def asset_item(db: Session, asset: Asset, holders: Optional[Dict[str, Employee]]
         "model": asset.model, "serial_number": asset.serial_number, "label": asset_label(asset),
         "owner_type": asset.owner_type, "owner_company_id": asset.owner_company_id,
         "owner_client_id": asset.owner_client_id, "owner_name": asset.owner_name, "owner_label": owner_label(db, asset),
-        "status": asset.status, "condition": asset.condition, "holder_employee_id": asset.holder_employee_id,
+        "status": asset.status, "status_label": status_label(asset.status), "where": where(db, asset, holder),
+        "in_transit": shipment is not None, "in_repair": repair is not None,
+        "condition": asset.condition, "holder_employee_id": asset.holder_employee_id,
         "holder_name": employee_name(holder) if holder is not None else None,
         "holder_status": holder.status if holder is not None else None,
         "project_id": asset.project_id, "return_at_project_end": asset.return_at_project_end,
-        "assigned_at": asset.assigned_at, "purchase_date": asset.purchase_date,
+        "assigned_at": utc(asset.assigned_at), "purchase_date": asset.purchase_date, "supplier": asset.supplier,
+        "invoice_number": asset.invoice_number,
         "purchase_cost_cents": asset.purchase_cost_cents, "currency": asset.currency,
         "warranty_until": asset.warranty_until, "notes": asset.notes,
         "open_issues": db.query(func.count(AssetIssue.id)).filter(
@@ -1160,6 +1259,46 @@ def shipment_item(shipment: AssetShipment) -> Dict:
     return {"id": shipment.id, "direction": shipment.direction, "carrier": shipment.carrier,
             "tracking_number": shipment.tracking_number, "shipped_on": shipment.shipped_on,
             "expected_on": shipment.expected_on, "received_on": shipment.received_on, "status": shipment.status}
+
+
+def checkout_item(db: Session, row: AssetCheckout, who, asset: Optional[Asset] = None) -> Dict:
+    end = row.checked_in_at or datetime.utcnow()
+    return {"id": row.id, "employee_id": row.employee_id, "employee_name": employee_name(db.get(Employee, row.employee_id)),
+            "asset_id": row.asset_id, "asset_label": asset_label(asset) if asset is not None else None,
+            "checked_out_at": utc(row.checked_out_at), "checked_out_by": who(row.checked_out_by), "method": row.method,
+            "condition_out": row.condition_out, "received_on": row.received_on,
+            "checked_in_at": utc(row.checked_in_at), "checked_in_by": who(row.checked_in_by), "outcome": row.outcome,
+            "condition_in": row.condition_in, "note": row.note, "open": row.checked_in_at is None,
+            "days": max((end - row.checked_out_at).days, 0) if row.checked_out_at else None}
+
+
+def _namer(db: Session):
+    names = {}
+
+    def who(user_id):
+        if user_id and user_id not in names:
+            user = db.get(Users, user_id)
+            names[user_id] = (user.UserName or user.UserEmail) if user is not None else None
+        return names.get(user_id)
+    return who
+
+
+def lifecycle(db: Session, asset: Asset, checkouts: List[AssetCheckout], events: List[AssetEvent]) -> Dict:
+    """From procurement to retirement: when it came in, every spell with someone, and how it left."""
+    first = events[0].created_at if events else asset.created_at
+    end_event = next((e for e in reversed(events) if e.event_type in ("RETIRED", "LOST", "RETURNED_TO_OWNER")), None)
+    end = end_event.created_at if end_event is not None and asset.status in CLOSED_STATUSES else datetime.utcnow()
+    with_people = sum(((row.checked_in_at or end) - row.checked_out_at).days for row in checkouts if row.checked_out_at)
+    on_books = max((end - first).days, 0) if first else 0
+    repairs = db.query(func.coalesce(func.sum(AssetIssue.fix_cost_cents), 0)).filter(AssetIssue.asset_id == asset.id).scalar()
+    return {"procured_on": asset.purchase_date or (first.date() if first else None), "supplier": asset.supplier,
+            "invoice_number": asset.invoice_number, "cost_cents": asset.purchase_cost_cents, "currency": asset.currency,
+            "on_ledger_since": utc(first), "check_outs": len(checkouts), "days_with_employees": with_people,
+            "days_in_office": max(on_books - with_people, 0), "repair_cost_cents": int(repairs or 0),
+            "defects": db.query(func.count(AssetIssue.id)).filter(AssetIssue.asset_id == asset.id).scalar() or 0,
+            "ended": status_label(asset.status) if asset.status in CLOSED_STATUSES else None,
+            "ended_at": utc(end_event.created_at) if end_event is not None and asset.status in CLOSED_STATUSES else None,
+            "ended_note": end_event.note if end_event is not None and asset.status in CLOSED_STATUSES else None}
 
 
 def list_assets(db: Session, tenant_id: int, *, status: Optional[str] = None, owner_type: Optional[str] = None,
@@ -1189,28 +1328,27 @@ def list_assets(db: Session, tenant_id: int, *, status: Optional[str] = None, ow
 
 
 def asset_detail(db: Session, asset: Asset) -> Dict:
-    names = {}
-
-    def who(user_id):
-        if user_id and user_id not in names:
-            user = db.get(Users, user_id)
-            names[user_id] = (user.UserName or user.UserEmail) if user is not None else None
-        return names.get(user_id)
-
-    events = db.query(AssetEvent).filter(AssetEvent.asset_id == asset.id).order_by(AssetEvent.id.desc()).all()
+    """The item's full ledger, oldest first: procurement, every check-out and check-in, couriers, defects,
+    and how it left the ledger."""
+    who = _namer(db)
+    events = db.query(AssetEvent).filter(AssetEvent.asset_id == asset.id).order_by(AssetEvent.id).all()
+    checkouts = db.query(AssetCheckout).filter(AssetCheckout.asset_id == asset.id) \
+        .order_by(AssetCheckout.checked_out_at).all()
     shipments = db.query(AssetShipment).filter(AssetShipment.asset_id == asset.id) \
         .order_by(AssetShipment.created_at.desc()).all()
     issues = db.query(AssetIssue).filter(AssetIssue.asset_id == asset.id).order_by(AssetIssue.reported_at.desc()).all()
     return {
         **asset_item(db, asset),
-        "events": [{"id": e.id, "event_type": e.event_type, "note": e.note, "at": e.created_at,
+        "lifecycle": lifecycle(db, asset, checkouts, events),
+        "checkouts": [checkout_item(db, row, who) for row in checkouts],
+        "events": [{"id": e.id, "event_type": e.event_type, "note": e.note, "at": utc(e.created_at),
                     "actor": who(e.actor_user_id) or "System",
                     "employee_name": employee_name(db.get(Employee, e.employee_id)) if e.employee_id else None}
                    for e in events],
         "shipments": [shipment_item(s) for s in shipments],
         "issues": [{"id": i.id, "description": i.description, "severity": i.severity, "status": i.status,
                     "repair_vendor": i.repair_vendor, "resolution": i.resolution, "fix_cost_cents": i.fix_cost_cents,
-                    "reported_by": who(i.reported_by), "reported_at": i.reported_at, "resolved_at": i.resolved_at}
+                    "reported_by": who(i.reported_by), "reported_at": utc(i.reported_at), "resolved_at": utc(i.resolved_at)}
                    for i in issues],
     }
 
@@ -1221,19 +1359,24 @@ def employee_assets(db: Session, employee: Employee) -> Dict:
     clearance = clearance_for(db, employee.id)
     signer = db.get(Users, clearance.signed_off_by) if clearance is not None and clearance.signed_off_by else None
     past = db.query(AssetEvent).filter(AssetEvent.employee_id == employee.id).order_by(AssetEvent.id.desc()).limit(50).all()
-    tags = {a.id: a for a in db.query(Asset).filter(Asset.id.in_({e.asset_id for e in past} or {""})).all()}
+    register = db.query(AssetCheckout).filter(AssetCheckout.employee_id == employee.id) \
+        .order_by(AssetCheckout.checked_out_at.desc()).all()
+    tags = {a.id: a for a in db.query(Asset).filter(
+        Asset.id.in_({e.asset_id for e in past} | {r.asset_id for r in register} or {""})).all()}
+    who = _namer(db)
     return {
         "employee_id": employee.id, "employee_name": employee_name(employee), "employee_status": employee.status,
         "held": [asset_item(db, asset) for asset in held_assets(db, employee.id)],
         "kit_gaps": kit_gaps(db, employee) if employee.status not in LEAVING_STATUSES else [],
         "lost": [asset_label(a) for a in lost_while_held(db, employee.id)],
         "clearance": None if clearance is None else {
-            "status": clearance.status, "due_date": clearance.due_date, "signed_off_at": clearance.signed_off_at,
+            "status": clearance.status, "due_date": clearance.due_date, "signed_off_at": utc(clearance.signed_off_at),
             "signed_off_by": (signer.UserName or signer.UserEmail) if signer is not None else None,
             "note": clearance.note},
         "clearance_blockers": clearance_blockers(db, employee) if employee.status in LEAVING_STATUSES else [],
         "settlement_hold": settlement_hold(db, employee),
-        "history": [{"id": e.id, "event_type": e.event_type, "note": e.note, "at": e.created_at,
+        "checkouts": [checkout_item(db, row, who, tags.get(row.asset_id)) for row in register],
+        "history": [{"id": e.id, "event_type": e.event_type, "note": e.note, "at": utc(e.created_at),
                      "asset_label": asset_label(tags[e.asset_id]) if e.asset_id in tags else None} for e in past],
     }
 

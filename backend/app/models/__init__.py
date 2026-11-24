@@ -128,7 +128,7 @@ from app.models.reserve_fund import ReserveFundEntry
 from app.models.intercompany_ledger import IntercompanySettlement
 from app.models.bank_reconciliation import BankTransaction
 from app.models.asset import (
-    Asset, AssetClearance, AssetEvent, AssetIssue, AssetReturn, AssetShipment, ProjectAssetRequirement,
+    Asset, AssetCheckout, AssetClearance, AssetEvent, AssetIssue, AssetReturn, AssetShipment, ProjectAssetRequirement,
 )
 from app.models.timesheet_nag import TimesheetNagLog
 from app.models.timesheet_anomaly import TimesheetAnomalyFlag

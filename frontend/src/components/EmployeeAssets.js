@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button, TextArea } from "./ui";
 import {
-  AssetActionForm, AssetHistory, Chip, StatusChip, availableActions,
+  AssetActionForm, AssetHistory, CheckoutRegister, Chip, PlaceChips, availableActions, localDay,
 } from "./AssetPanels";
 import { getAssetOptions, getEmployeeAssets, signOffClearance, titleCase } from "../services/api/assets";
 
@@ -37,7 +37,7 @@ function HeldItem({ asset, data, options, onChanged }) {
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          <StatusChip status={asset.status} />
+          <PlaceChips asset={asset} />
           {asset.return_due ? <Chip tone="border-amber-200 bg-amber-50 text-amber-800">Due back {asset.return_due}</Chip> : null}
           {asset.open_issues ? <Chip tone="border-rose-200 bg-rose-50 text-rose-800">{asset.open_issues} defect(s)</Chip> : null}
         </div>
@@ -80,7 +80,7 @@ function Clearance({ data, onChanged }) {
       {cleared ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
           Signed off{data.clearance.signed_off_by ? ` by ${data.clearance.signed_off_by}` : ""}
-          {data.clearance.signed_off_at ? ` on ${data.clearance.signed_off_at.slice(0, 10)}` : ""}.
+          {data.clearance.signed_off_at ? ` on ${localDay(data.clearance.signed_off_at)}` : ""}.
           {data.clearance.note ? ` ${data.clearance.note}` : ""} Settlement is not held for assets.
         </div>
       ) : (
@@ -149,6 +149,9 @@ export default function EmployeeAssets({ employeeId }) {
               ))}
             </div>
           ) : <div className="text-sm text-gray-500">No assets on the ledger for {data.employee_name}.</div>}
+        </Section>
+        <Section title="Check-out / check-in register" subtitle="Every item they have held, from check-out to check-in.">
+          <CheckoutRegister rows={data.checkouts} showAsset />
         </Section>
       </div>
       <Section title="History">

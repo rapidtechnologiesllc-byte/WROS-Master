@@ -126,7 +126,7 @@ def test_every_item_names_its_owner_and_a_serial_is_on_the_ledger_once(api, worl
     assert no_client.status_code == 400 and "client" in no_client.json()["detail"]
     laptop = _laptop(api, world, serial_number="SN-ONE-123")
     assert laptop["status"] == "IN_STOCK" and laptop["owner_label"] == world.company.name
-    assert laptop["asset_tag"].startswith("AST-") and laptop["events"][0]["event_type"] == "REGISTERED"
+    assert laptop["asset_tag"].startswith("AST-") and laptop["events"][0]["event_type"] == "PROCURED"
     again = api.post(world.it_admin, "/api/v1/assets", json={"category": "LAPTOP", "owner_type": "COMPANY",
                                                             "owner_company_id": world.company.id,
                                                             "serial_number": "sn-one-123"})
@@ -155,7 +155,9 @@ def test_a_courier_shipment_needs_the_tracking_number_and_the_holder_confirms_it
     shipped = api.post(world.it_admin, path, json={"employee_id": world.employee.id, "method": "COURIER",
                                                    "carrier": "Blue Dart", "tracking_number": "BD123456"})
     assert shipped.status_code == 200, shipped.text
-    assert shipped.json()["status"] == "IN_TRANSIT" and shipped.json()["shipment"]["tracking_number"] == "BD123456"
+    # theirs from the moment it leaves: with the employee, with a courier flag on top
+    assert shipped.json()["status"] == "ASSIGNED" and shipped.json()["in_transit"]
+    assert shipped.json()["shipment"]["tracking_number"] == "BD123456" and "on its way to them" in shipped.json()["where"]
 
     stranger = factories.user(db, role_template_id=_employee_role(db).id)
     db.commit()
@@ -264,7 +266,7 @@ def test_notice_asks_everything_back_and_settlement_waits_for_it_admin(api, worl
 
     sent = api.post(world.login, f"/api/v1/assets/{laptop['id']}/return-shipment",
                     json={"carrier": "Delhivery", "tracking_number": "DLV-77"})
-    assert sent.status_code == 200 and sent.json()["status"] == "IN_TRANSIT"
+    assert sent.status_code == 200 and sent.json()["status"] == "ASSIGNED" and "on its way back" in sent.json()["where"]
     back = api.post(world.it_admin, f"/api/v1/assets/{laptop['id']}/receive-return", json={"condition": "GOOD"})
     assert back.status_code == 200 and back.json()["status"] == "IN_STOCK" and back.json()["holder_employee_id"] is None
     signed = api.post(world.it_admin, f"/api/v1/assets/employee/{world.employee.id}/clearance/sign-off", json={})
@@ -363,7 +365,7 @@ def test_an_item_back_damaged_opens_a_defect_and_a_retired_one_cannot_go_out(api
     assert retired.status_code == 200 and retired.json()["status"] == "RETIRED"
     again = api.post(world.it_admin, f"/api/v1/assets/{laptop['id']}/issue-to-employee",
                      json={"employee_id": world.employee.id, "method": "HAND"})
-    assert again.status_code == 400 and "not in stock" in again.json()["detail"]
+    assert again.status_code == 400 and "not in the office" in again.json()["detail"]
 
 
 def test_a_clients_device_goes_back_to_the_client_with_tracking(api, world, db):
@@ -407,3 +409,118 @@ def test_the_ledger_is_on_the_admin_menu(db):
 def test_allocation_rows_exist_for_the_placement_used_in_tests(api, world, db):
     created = _place(api, world)
     assert db.get(EmployeeAllocation, created["id"]).project_id == world.project.id
+
+
+# --------------------------------------------------------------------------- two places, one register
+
+def _statuses_and_register(db, asset_id):
+    from app.models.asset import AssetCheckout
+
+    db.expire_all()
+    asset = db.get(Asset, asset_id)
+    open_rows = db.query(AssetCheckout).filter(AssetCheckout.asset_id == asset_id,
+                                               AssetCheckout.checked_in_at.is_(None)).all()
+    return asset, open_rows
+
+
+def test_a_live_item_is_either_in_the_office_or_with_one_employee_and_the_register_agrees(api, world, db):
+    """CEO 2026-11-23: every asset is either in the office or assigned to an employee."""
+    laptop = _laptop(api, world)
+    asset, rows = _statuses_and_register(db, laptop["id"])
+    assert asset.status == "IN_STOCK" and not rows and laptop["where"] == "In office"
+
+    api.post(world.it_admin, f"/api/v1/assets/{laptop['id']}/issue-to-employee",
+             json={"employee_id": world.employee.id, "method": "COURIER", "carrier": "DHL", "tracking_number": "D1"})
+    asset, rows = _statuses_and_register(db, laptop["id"])
+    assert asset.status == "ASSIGNED" and [r.employee_id for r in rows] == [world.employee.id]
+
+    issue = api.post(world.login, f"/api/v1/assets/{laptop['id']}/issues", json={"description": "Fan noise"}).json()
+    defect = db.query(AssetIssue).filter(AssetIssue.asset_id == laptop["id"]).one()
+    repair = api.post(world.it_admin, f"/api/v1/assets/issues/{defect.id}",
+                      json={"action": "START_REPAIR", "repair_vendor": "Dell care"}).json()
+    assert repair["status"] == "ASSIGNED" and repair["in_repair"] and "at Dell care for repair" in repair["where"]
+    assert issue["open_issues"] == 1
+
+    api.post(world.login, f"/api/v1/assets/{laptop['id']}/confirm-receipt", json={})
+    back = api.post(world.it_admin, f"/api/v1/assets/{laptop['id']}/receive-return", json={"condition": "GOOD"}).json()
+    asset, rows = _statuses_and_register(db, laptop["id"])
+    assert back["status"] == "IN_STOCK" and asset.holder_employee_id is None and not rows
+    assert api.get(world.it_admin, "/api/v1/assets/options").json()["status_labels"]["IN_STOCK"] == "In office"
+    assert not [a for a in api.get(world.it_admin, "/api/v1/assets/alerts").json()["alerts"]
+                if a["kind"] == "REGISTER_MISMATCH" and a["asset_id"] == laptop["id"]]
+
+
+def test_the_register_records_every_check_out_and_check_in(api, world, db):
+    laptop = _laptop(api, world)
+    second = factories.employee(db, first_name="Neha", last_name="S", status="BENCH", bu_id=world.unit.id,
+                                company_id=world.company.id)
+    db.commit()
+    _hand_over(api, world, laptop)
+    api.post(world.it_admin, f"/api/v1/assets/{laptop['id']}/receive-return",
+             json={"condition": "FAIR", "note": "Scratched lid"})
+    api.post(world.it_admin, f"/api/v1/assets/{laptop['id']}/issue-to-employee",
+             json={"employee_id": second.id, "method": "COURIER", "carrier": "Blue Dart", "tracking_number": "BD-9"})
+    detail = api.get(world.it_admin, f"/api/v1/assets/{laptop['id']}").json()
+    register = detail["checkouts"]
+    assert [(r["employee_name"], r["method"], r["open"]) for r in register] == [
+        ("Akshay P", "HAND", False), ("Neha S", "COURIER", True)]
+    assert register[0]["outcome"] == "RETURNED" and register[0]["condition_in"] == "FAIR"
+    assert register[0]["checked_out_by"] == "Ira IT" and register[0]["checked_in_by"] == "Ira IT"
+    assert register[1]["condition_out"] == "FAIR"
+    mine = api.get(world.login, f"/api/v1/assets/employee/{world.employee.id}").json()["checkouts"]
+    assert [r["asset_id"] for r in mine] == [laptop["id"]] and not mine[0]["open"]
+    again = api.post(world.it_admin, f"/api/v1/assets/{laptop['id']}/issue-to-employee",
+                     json={"employee_id": world.employee.id, "method": "HAND"})
+    assert again.status_code == 400  # out with Neha: never two open spells
+
+
+def test_the_full_ledger_runs_from_procurement_to_retirement(api, world, db):
+    laptop = _laptop(api, world, supplier="Dell India", invoice_number="INV-2026-118", purchase_date="2026-04-01",
+                     purchase_cost_cents=9500000, currency="inr")
+    assert laptop["supplier"] == "Dell India" and "invoice INV-2026-118" in laptop["events"][0]["note"]
+    _hand_over(api, world, laptop)
+    api.post(world.it_admin, f"/api/v1/assets/{laptop['id']}/receive-return", json={"condition": "DAMAGED", "note": "Drop"})
+    defect = db.query(AssetIssue).filter(AssetIssue.asset_id == laptop["id"]).one()
+    api.post(world.it_admin, f"/api/v1/assets/issues/{defect.id}",
+             json={"action": "RETIRE", "resolution": "Board failure; disk wiped and sent for e-waste"})
+    detail = api.get(world.it_admin, f"/api/v1/assets/{laptop['id']}").json()
+    kinds = [e["event_type"] for e in detail["events"]]
+    assert kinds[0] == "PROCURED" and kinds[-1] == "RETIRED"  # oldest first
+    assert kinds.index("CHECKED_OUT") < kinds.index("CHECKED_IN") < kinds.index("DEFECT_REPORTED")
+    life = detail["lifecycle"]
+    assert life["procured_on"] == "2026-04-01" and life["supplier"] == "Dell India" and life["currency"] == "INR"
+    assert life["check_outs"] == 1 and life["defects"] == 1 and life["ended"] == "Retired"
+    assert "e-waste" in life["ended_note"]
+    future = api.post(world.it_admin, "/api/v1/assets", json={
+        "category": "LAPTOP", "owner_type": "COMPANY", "owner_company_id": world.company.id,
+        "purchase_date": (date.today() + timedelta(days=3)).isoformat()})
+    assert future.status_code == 400
+
+
+def test_an_own_device_is_checked_out_to_them_from_the_start_and_released_at_exit(api, world, db):
+    phone = api.post(world.it_admin, "/api/v1/assets", json={"category": "PHONE", "owner_type": "PERSONAL",
+                                                             "employee_id": world.employee.id}).json()
+    assert phone["status"] == "ASSIGNED" and phone["checkouts"][0]["method"] == "OWN_DEVICE"
+    api.post(world.it_admin, f"/api/v1/employees/{world.employee.id}/employment",
+             json={"action": "START_NOTICE", "effective_date": (date.today() + timedelta(days=3)).isoformat(),
+                   "reason": "Resigned"})
+    assert api.post(world.it_admin, f"/api/v1/assets/employee/{world.employee.id}/clearance/sign-off",
+                    json={}).status_code == 200
+    detail = api.get(world.it_admin, f"/api/v1/assets/{phone['id']}").json()
+    assert detail["status"] == "RETURNED_TO_OWNER" and detail["checkouts"][0]["outcome"] == "RELEASED"
+
+
+def test_a_date_entered_in_india_the_morning_after_is_not_refused(api, world, db):
+    """The server's date is UTC; a person ahead of UTC may enter today's date, which is the server's tomorrow."""
+    laptop = _laptop(api, world)
+    tomorrow = (date.today() + timedelta(days=1)).isoformat()
+    shipped = api.post(world.it_admin, f"/api/v1/assets/{laptop['id']}/issue-to-employee",
+                       json={"employee_id": world.employee.id, "method": "COURIER", "carrier": "DHL",
+                             "tracking_number": "D-TZ", "shipped_on": tomorrow})
+    assert shipped.status_code == 200, shipped.text
+    too_far = (date.today() + timedelta(days=2)).isoformat()
+    other = _laptop(api, world)
+    refused = api.post(world.it_admin, f"/api/v1/assets/{other['id']}/issue-to-employee",
+                       json={"employee_id": world.employee.id, "method": "COURIER", "carrier": "DHL",
+                             "tracking_number": "D-TZ2", "shipped_on": too_far})
+    assert refused.status_code == 400 and "future" in refused.json()["detail"]
