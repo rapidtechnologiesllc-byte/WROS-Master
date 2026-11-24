@@ -130,6 +130,15 @@ def _update_client_status_from_opportunities(db: Session, client_id: str) -> Non
             client.status = highest_stage
             db.add(client)
 
+NO_JOB_MESSAGE = ("Add the role this opportunity needs first: every opportunity has a job, so the recruiter "
+                  "agent can start finding people for it.")
+
+
+def job_count(db: Session, opportunity_id: str) -> int:
+    """How many jobs this opportunity has (CEO 2026-11-09: every opportunity has at least one)."""
+    return db.query(Demand).filter(Demand.opportunity_id == opportunity_id, Demand.is_deleted.isnot(True)).count()
+
+
 def transition_stage(
     db: Session, opportunity: Opportunity, new_stage: str,
     *, project_name: Optional[str] = None, billing_type: str = "TIME_AND_MATERIALS",
@@ -156,12 +165,19 @@ def transition_stage(
         raise InvalidStageTransition(
             f"Opportunity cannot move from {opportunity.stage} to {new_stage}. "
             f"Allowed: {', '.join(sorted(allowed)) or 'none (closed)'}.")
+    # An opportunity never moves on without its job (it may always be marked lost)
+    if new_stage != "LOST" and job_count(db, opportunity.id) == 0:
+        raise InvalidStageTransition(NO_JOB_MESSAGE)
     if new_stage == "CONTRACT":
         client = db.query(Client).filter(Client.id == opportunity.client_id).first()
         if client is None or client.business_unit_id is None:
             raise InvalidStageTransition(
                 "Assign the client to a business unit before signing the contract: the project, "
                 "its people and its revenue belong to that business unit.")
+
+        # jobs opened while the client was still a prospect take its business unit now
+        for job in db.query(Demand).filter(Demand.opportunity_id == opportunity.id, Demand.business_unit_id.is_(None)).all():
+            job.business_unit_id = client.business_unit_id
 
     opportunity.stage = new_stage
     opportunity.probability_pct = default_probability_for_stage(new_stage)

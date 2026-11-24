@@ -18,7 +18,7 @@ from app.core.scheduled_jobs import _JOBS
 from app.models.client import Client, ClientContact, ClientHistory
 from app.models.notification import Notification
 from app.services.notification_service import release_backlog_guard
-from tests.scope_fixtures import ApiClient, person, two_bu_world
+from tests.scope_fixtures import OPPORTUNITY_ROLE, ApiClient, person, two_bu_world
 
 QUEUE = "app.services.staff_mail_service.queue_staff_email"
 HEAD = "app.services.bu_leadership.head_for_client"
@@ -137,7 +137,8 @@ def test_new_opportunity_defaults_to_the_clients_owner_and_emails_the_team(api, 
     db.commit()
     with patch(QUEUE, return_value=True) as queue, patch(HEAD, return_value=world.partner_a.UserID):
         response = api.post(world.org_user, "/api/v1/opportunities", json={
-            "client_id": world.client_a.id, "revenue_value_usd_cents": 250_000_00, "service": "QA & Testing"})
+            "client_id": world.client_a.id, "revenue_value_usd_cents": 250_000_00, "service": "QA & Testing",
+            "role": OPPORTUNITY_ROLE})
     assert response.status_code == 201, response.text
     opportunity = response.json()
     assert opportunity["client_owner_id"] == world.owner.UserID

@@ -7,8 +7,9 @@ from unittest import mock
 import pytest
 from sqlalchemy.orm import Session
 
+from app.models.opportunity import Opportunity
 from app.models.project import Project
-from tests.scope_fixtures import ApiClient, two_bu_world
+from tests.scope_fixtures import OPPORTUNITY_ROLE, ApiClient, two_bu_world
 
 
 @pytest.fixture
@@ -36,7 +37,8 @@ def w(db):
 
 def _open(api, w, client=None):
     response = api.post(w.org_user, "/api/v1/opportunities",
-                        json={"client_id": (client or w.client_a).id, "revenue_value_usd_cents": 100_000_00})
+                        json={"client_id": (client or w.client_a).id, "revenue_value_usd_cents": 100_000_00,
+                              "role": OPPORTUNITY_ROLE})
     assert response.status_code == 201, response.text
     return response.json()["id"]
 
@@ -77,7 +79,7 @@ def test_role_demand_needs_the_win_then_opens_staffed_for_the_project(db, api, w
     assert response.status_code == 201, response.text
     from app.models.user import Jobs
 
-    job = db.query(Jobs).filter(Jobs.opportunity_id == opp).one()
+    job = db.query(Jobs).filter(Jobs.opportunity_id == opp, Jobs.jobTitle == "Guidewire Developer").one()
     assert (job.project_id, job.business_unit_id, job.demand_status) == (project_id, w.bu_a.id, "OPEN")
     assert job.hiringManagerID == w.org_user.UserID  # no BU head seated: the client owner hires
     assert {c.kwargs["task_name"] for c in enqueue.call_args_list} == {"flash_recruiter", "source_candidates_for_job"}
@@ -87,3 +89,59 @@ def test_stage_rules_endpoint_matches_the_server(api, w):
     rules = api.get(w.org_user, "/api/v1/opportunities/stages").json()
     assert rules["won"] == ["CONTRACT", "ACTIVE"]
     assert rules["transitions"]["CONTRACT"] == ["ACTIVE"] and rules["transitions"]["LOST"] == []
+
+
+# ---- every opportunity has a job (CEO 2026-11-09) --------------------------------------------------
+
+def test_an_opportunity_is_recorded_with_its_role_which_opens_its_job_and_starts_recruiting(db, api, w):
+    from app.models.client_update import UpcomingRole
+    from app.models.user import Jobs
+
+    missing = api.post(w.org_user, "/api/v1/opportunities",
+                       json={"client_id": w.client_a.id, "revenue_value_usd_cents": 100_000_00})
+    assert missing.status_code == 422 and "every opportunity has a job" in missing.json()["detail"]
+    bad = api.post(w.org_user, "/api/v1/opportunities", json={
+        "client_id": w.client_a.id, "revenue_value_usd_cents": 100_000_00, "role": {**OPPORTUNITY_ROLE, "skills": []}})
+    assert bad.status_code == 400 and "skills" in bad.json()["detail"]
+    assert db.query(Opportunity).filter(Opportunity.client_id == w.client_a.id).count() == 0  # nothing half-saved
+
+    with mock.patch("app.services.recruiting_service.start_recruiting") as start:
+        created = api.post(w.org_user, "/api/v1/opportunities", json={
+            "client_id": w.client_a.id, "revenue_value_usd_cents": 100_000_00, "role": OPPORTUNITY_ROLE})
+    assert created.status_code == 201, created.text
+    assert created.json()["job_count"] == 1
+    job = db.query(Jobs).filter(Jobs.opportunity_id == created.json()["id"]).one()
+    assert (job.jobTitle, job.confirmation_status, job.business_unit_id) == ("PolicyCenter Developer", "POTENTIAL", w.bu_a.id)
+    assert db.query(UpcomingRole).filter_by(job_id=job.jobID).one().client_description == "a mid-size P&C carrier"
+    assert start.call_args.args[0].jobID == job.jobID
+
+
+def test_a_prospects_job_takes_the_business_unit_when_it_is_assigned(db, api, w):
+    from app.models.user import Jobs
+
+    opp = _open(api, w, w.prospect)  # no business unit yet: the opportunity and its job are still recorded
+    job = db.query(Jobs).filter(Jobs.opportunity_id == opp).one()
+    assert job.business_unit_id is None
+    w.prospect.business_unit_id = w.bu_a.id
+    db.commit()
+    assert _move(api, w, opp, "CONTRACT").status_code == 200
+    db.refresh(job)
+    assert job.business_unit_id == w.bu_a.id
+
+
+def test_an_older_opportunity_without_a_job_cannot_move_on_but_can_be_lost(db, api, w):
+    bare = Opportunity(tenant_id=1, client_id=w.client_a.id, stage="QUALIFICATION", revenue_value_usd_cents=1000)
+    db.add(bare)
+    db.commit()
+    listed = api.get(w.org_user, "/api/v1/opportunities").json()["opportunities"]
+    assert next(o for o in listed if o["id"] == bare.id)["job_count"] == 0
+    refused = _move(api, w, bare.id, "PROSPECT")
+    assert refused.status_code == 400 and "Add the role this opportunity needs first" in refused.json()["detail"]
+    role = api.post(w.org_user, f"/api/v1/opportunities/{bare.id}/upcoming-roles", json=OPPORTUNITY_ROLE)
+    assert role.status_code == 201, role.text
+    assert _move(api, w, bare.id, "PROSPECT").status_code == 200
+
+    other = Opportunity(tenant_id=1, client_id=w.client_a.id, stage="QUALIFICATION", revenue_value_usd_cents=1000)
+    db.add(other)
+    db.commit()
+    assert _move(api, w, other.id, "LOST").status_code == 200

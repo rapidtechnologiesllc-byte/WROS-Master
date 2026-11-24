@@ -143,6 +143,9 @@ async function fetchNavigationFromBackend() {
 }
 
 
+// The page a menu group opens when its name is clicked, when the person has it in their menu
+const GROUP_LANDING_PATHS = ["/recruitment-dashboard", "/workforce"];
+
 export default function Shell({
   role,
   screen,
@@ -224,6 +227,19 @@ export default function Shell({
     });
   };
 
+  // Clicking a menu group opens its own dashboard when it has one (CEO 2026-11-09: Recruitment opens the
+  // Recruitment Dashboard); the arrow beside it only folds the group. A group without one just folds.
+  const groupLanding = (group) => (group.items || []).find((item) => GROUP_LANDING_PATHS.includes(item.path));
+  const openGroup = (group) => {
+    const landing = groupLanding(group);
+    if (!landing) {
+      toggleGroup(group.label);
+      return;
+    }
+    setOpenGroups((prev) => new Set(prev).add(group.label));
+    navigate(landing.path);
+  };
+
   const renderLink = (n) => {
     // Handle both component and string icon formats
     const Icon = typeof n.icon === 'string'
@@ -280,7 +296,7 @@ export default function Shell({
                 return (
                   <div key={group.label}>
                     <button
-                      onClick={() => toggleGroup(group.label)}
+                      onClick={() => openGroup(group)}
                       className={cx(
                         "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition",
                         hasActiveItem || isOpen
@@ -291,12 +307,23 @@ export default function Shell({
                       <GroupIcon className="h-4 w-4" />
                       <span className="flex-1 text-left">{group.label}</span>
                       {group.items && group.items.length > 0 && (
-                        <ChevronDown
-                          className={cx(
-                            "h-3.5 w-3.5 text-white/50 transition-transform",
-                            isOpen ? "rotate-180" : "",
-                          )}
-                        />
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          aria-label={isOpen ? `Fold ${group.label}` : `Unfold ${group.label}`}
+                          onClick={(e) => { e.stopPropagation(); toggleGroup(group.label); }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); toggleGroup(group.label); }
+                          }}
+                          className="-mr-1 rounded p-1 hover:bg-white/10"
+                        >
+                          <ChevronDown
+                            className={cx(
+                              "h-3.5 w-3.5 text-white/50 transition-transform",
+                              isOpen ? "rotate-180" : "",
+                            )}
+                          />
+                        </span>
                       )}
                     </button>
 

@@ -50,7 +50,65 @@ const formatUsdCents = (cents) =>
     ? "—"
     : `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
+const emptyRole = {
+  title: "", description: "", skills: "", client_description: "", positions: "1", work_location: "REMOTE",
+  location: "", employment_type: "FULLTIME", min_experience_years: "", target_start: "", likelihood_pct: "",
+  auto_outreach: true,
+};
+
+// What is missing from a role before it can open its job, or "" (the server checks the same)
+const roleProblem = (form) => {
+  const skills = form.skills.split(",").map((s) => s.trim()).filter(Boolean);
+  if (!form.title.trim() || !form.description.trim() || !skills.length || !form.client_description.trim()) {
+    return "Role, what the work is, skills and how candidates hear the client described are required.";
+  }
+  return "";
+};
+
+const rolePayload = (form) => ({
+  title: form.title, description: form.description,
+  skills: form.skills.split(",").map((s) => s.trim()).filter(Boolean), client_description: form.client_description,
+  positions: parseInt(form.positions || "1", 10), work_location: form.work_location, location: form.location,
+  employment_type: form.employment_type,
+  min_experience_years: form.min_experience_years === "" ? null : parseFloat(form.min_experience_years),
+  target_start: form.target_start || null,
+  likelihood_pct: form.likelihood_pct === "" ? null : parseInt(form.likelihood_pct, 10),
+  auto_outreach: form.auto_outreach,
+});
+
+// The role a piece of work needs: the same fields for a new opportunity and for adding a role later
+function RoleFields({ form, set }) {
+  return (
+    <>
+      <Input label="Role" value={form.title} onChange={set("title")} placeholder="BillingCenter Developer" />
+      <Input label="What the work is" value={form.description} onChange={set("description")}
+        placeholder="Configure and extend BillingCenter for an inception" />
+      <Input label="Skills (comma separated)" value={form.skills} onChange={set("skills")}
+        placeholder="Guidewire BillingCenter, Gosu" />
+      <Input label="How candidates hear the client described" value={form.client_description}
+        onChange={set("client_description")} placeholder="a mid-size P&C carrier" />
+      <div className="grid grid-cols-2 gap-2">
+        <Input label="Positions" type="number" value={form.positions} onChange={set("positions")} />
+        <Input label="Min experience (yrs)" type="number" value={form.min_experience_years} onChange={set("min_experience_years")} />
+        <Select label="Work location" value={form.work_location} onChange={set("work_location")} options={["REMOTE", "HYBRID", "ONSITE"]} />
+        <Input label="Location" value={form.location} onChange={set("location")} placeholder="needed unless remote" />
+        <Select label="Employment" value={form.employment_type} onChange={set("employment_type")} options={["FULLTIME", "CONTRACT"]} />
+        <Input label="Expected start" type="date" value={form.target_start} onChange={set("target_start")} />
+        <Input label="Likelihood (%)" type="number" value={form.likelihood_pct} onChange={set("likelihood_pct")} />
+      </div>
+      <label className="flex items-center gap-2 text-xs text-gray-700">
+        <input type="checkbox" checked={form.auto_outreach}
+          onChange={(e) => set("auto_outreach")(e.target.checked)} />
+        Email matched candidates automatically
+      </label>
+    </>
+  );
+}
+
 function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) {
+  // Every opportunity is recorded with the role it needs, so recruiting starts the day it is recorded (CEO 2026-11-09)
+  const [role, setRole] = useState(emptyRole);
+  const setRoleField = (field) => (value) => setRole((r) => ({ ...r, [field]: value }));
   const [clientId, setClientId] = useState("");
   const [revenueValue, setRevenueValue] = useState("");
   const [accountManagerId, setAccountManagerId] = useState(""); // Account manager
@@ -214,6 +272,11 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
       setError("Revenue value must be a positive number.");
       return;
     }
+    const missing = roleProblem(role);
+    if (missing) {
+      setError(`The role this opportunity needs: ${missing}`);
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -228,6 +291,7 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
         guidewire_module: module,
         client_type: clientType,
         pricing_model: pricingModel,
+        role: rolePayload(role),
       });
       onCreated();
     } catch (err) {
@@ -353,9 +417,16 @@ function CreateOpportunityForm({ clients, onCancel, onCreated, reloadClients }) 
           ]}
         />
       </div>
+      <div className="mt-4 space-y-2 rounded-xl border border-gray-200 bg-white p-3">
+        <div className="text-sm font-semibold text-gray-900">The role it needs *</div>
+        <div className="text-[11px] text-gray-500">
+          Creating the opportunity opens this job and starts recruiting at once; add more roles later from the opportunity.
+        </div>
+        <RoleFields form={role} set={setRoleField} />
+      </div>
       <div className="mt-3 flex gap-2">
         <Button onClick={handleSave} disabled={saving}>
-          {saving ? "Saving…" : "Create"}
+          {saving ? "Saving…" : "Create and start recruiting"}
         </Button>
         <Button variant="ghost" onClick={onCancel} disabled={saving}>
           Cancel
@@ -430,6 +501,11 @@ function OpportunityCard({ opportunity, onMoved, onOpenDetail }) {
       {opportunity.expected_close_date ? (
         <div className="mt-1 text-xs text-gray-500">Close: {opportunity.expected_close_date}</div>
       ) : null}
+      {opportunity.job_count === 0 && opportunity.stage !== "LOST" ? (
+        <div className="mt-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
+          No role yet: open it and add the role it needs before it can move on.
+        </div>
+      ) : null}
       {moveError ? (
         <div className="mt-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] text-rose-700">
           {moveError}
@@ -463,11 +539,6 @@ function OpportunityCard({ opportunity, onMoved, onOpenDetail }) {
 // ends). Surfaces the revenue rollup (GET .../revenue-rollup) and, once
 // WON, a form to spin up the role demand (POST .../role-demand).
 const OUTREACH_TONE = { SENT: "text-emerald-700", QUEUED: "text-blue-700", SKIPPED: "text-gray-500", FAILED: "text-rose-700" };
-const emptyRole = {
-  title: "", description: "", skills: "", client_description: "", positions: "1", work_location: "REMOTE",
-  location: "", employment_type: "FULLTIME", min_experience_years: "", target_start: "", likelihood_pct: "",
-  auto_outreach: true,
-};
 
 // Roles the client is about to need, raised before the contract (CEO 2026-11-02: hiring takes 60-90
 // days). Saving one opens a potential job and starts recruiting at once; Thunder writes to each
@@ -494,22 +565,14 @@ function UpcomingRolesSection({ opportunityId }) {
 
   const save = async () => {
     setFormError("");
-    const skills = form.skills.split(",").map((s) => s.trim()).filter(Boolean);
-    if (!form.title.trim() || !form.description.trim() || !skills.length || !form.client_description.trim()) {
-      setFormError("Role, what the work is, skills and how candidates hear the client described are required.");
+    const missing = roleProblem(form);
+    if (missing) {
+      setFormError(missing);
       return;
     }
     setSaving(true);
     try {
-      const data = await createUpcomingRole(opportunityId, {
-        title: form.title, description: form.description, skills, client_description: form.client_description,
-        positions: parseInt(form.positions || "1", 10), work_location: form.work_location, location: form.location,
-        employment_type: form.employment_type,
-        min_experience_years: form.min_experience_years === "" ? null : parseFloat(form.min_experience_years),
-        target_start: form.target_start || null,
-        likelihood_pct: form.likelihood_pct === "" ? null : parseInt(form.likelihood_pct, 10),
-        auto_outreach: form.auto_outreach,
-      });
+      const data = await createUpcomingRole(opportunityId, rolePayload(form));
       setRoles(data.roles || []);
       setForm(emptyRole);
       setAdding(false);
@@ -534,27 +597,7 @@ function UpcomingRolesSection({ opportunityId }) {
       {adding ? (
         <div className="mb-3 space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
           {formError ? <div className="text-xs text-rose-700">{formError}</div> : null}
-          <Input label="Role" value={form.title} onChange={set("title")} placeholder="BillingCenter Developer" />
-          <Input label="What the work is" value={form.description} onChange={set("description")}
-            placeholder="Configure and extend BillingCenter for an inception" />
-          <Input label="Skills (comma separated)" value={form.skills} onChange={set("skills")}
-            placeholder="Guidewire BillingCenter, Gosu" />
-          <Input label="How candidates hear the client described" value={form.client_description}
-            onChange={set("client_description")} placeholder="a mid-size P&C carrier" />
-          <div className="grid grid-cols-2 gap-2">
-            <Input label="Positions" type="number" value={form.positions} onChange={set("positions")} />
-            <Input label="Min experience (yrs)" type="number" value={form.min_experience_years} onChange={set("min_experience_years")} />
-            <Select label="Work location" value={form.work_location} onChange={set("work_location")} options={["REMOTE", "HYBRID", "ONSITE"]} />
-            <Input label="Location" value={form.location} onChange={set("location")} placeholder="needed unless remote" />
-            <Select label="Employment" value={form.employment_type} onChange={set("employment_type")} options={["FULLTIME", "CONTRACT"]} />
-            <Input label="Expected start" type="date" value={form.target_start} onChange={set("target_start")} />
-            <Input label="Likelihood (%)" type="number" value={form.likelihood_pct} onChange={set("likelihood_pct")} />
-          </div>
-          <label className="flex items-center gap-2 text-xs text-gray-700">
-            <input type="checkbox" checked={form.auto_outreach}
-              onChange={(e) => set("auto_outreach")(e.target.checked)} />
-            Email matched candidates automatically
-          </label>
+          <RoleFields form={form} set={set} />
           <div className="flex gap-2">
             <Button onClick={save} disabled={saving}>{saving ? "Opening the job…" : "Save and start recruiting"}</Button>
             <Button variant="ghost" onClick={() => { setAdding(false); setFormError(""); }} disabled={saving}>Cancel</Button>
