@@ -34,7 +34,7 @@ from app.schemas.opportunity import (
 )
 from app.services.opportunity_service import (
     InvalidStageTransition, OpportunityValidationError, calculate_weighted_forecast,
-    create_opportunity, create_role_demand_from_opportunity, get_opportunity_revenue_rollup,
+    create_opportunity, create_role_demand_from_opportunity, get_opportunity_revenue_rollup, job_count,
     transition_stage,
 )
 
@@ -69,6 +69,7 @@ def _to_item(db: Session, opportunity: Opportunity) -> OpportunityItem:
         weighted_forecast_usd_cents=calculate_weighted_forecast(opportunity),
         expected_close_date=opportunity.expected_close_date,
         created_at=opportunity.created_at, updated_at=opportunity.updated_at,
+        job_count=job_count(db, opportunity.id),
     )
 
 def _sellers(db: Session, tenant_id, action: str):
@@ -115,6 +116,11 @@ def create_opportunity_endpoint(
         client_owner_id = owner_id if owner_id and sellers.filter(Users.UserID == owner_id).first()             else current_user.UserID
     if not sellers.filter(Users.UserID == client_owner_id).first():
         raise HTTPException(status_code=422, detail="Client Owner must be someone who can create opportunities")
+    if body.role is None:
+        raise HTTPException(status_code=422, detail="Say which role this opportunity needs (title, skills, what the work "
+                            "is): every opportunity has a job, so recruiting starts the day it is recorded.")
+    from app.services.upcoming_role_service import UpcomingRoleError, create_upcoming_role
+
     try:
         opportunity = create_opportunity(
             db, tenant_id=current_user.tenant_id, client_id=body.client_id,
@@ -127,12 +133,18 @@ def create_opportunity_endpoint(
             profile={"service": body.service, "guidewire_module": body.guidewire_module,
                      "client_type": body.client_type, "pricing_model": body.pricing_model},
         )
+        job = create_upcoming_role(db, opportunity, actor=current_user, allow_no_business_unit=True,
+                                   **body.role.model_dump())
         db.commit()
         db.refresh(opportunity)
-    except OpportunityValidationError as exc:
+    except (OpportunityValidationError, UpcomingRoleError, DemandValidationError) as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc))
     from app.services.client_team_notification_service import notify_opportunity_created
+    from app.services.recruiting_service import start_recruiting
+
+    db.refresh(job)
+    start_recruiting(job, "role on a new opportunity")
 
     notify_opportunity_created(db, opportunity, actor=current_user)
     return _to_item(db, opportunity)

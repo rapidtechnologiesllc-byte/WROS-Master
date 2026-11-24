@@ -17,7 +17,7 @@ from app.models.project import BILLING_TYPES, Project
 from app.services import project_service
 from app.services.client_revenue_dashboard_service import get_client_revenue_dashboard
 from app.services.revenue_chain_service import CostBook
-from tests.scope_fixtures import ApiClient, ids, two_bu_world, uid
+from tests.scope_fixtures import ApiClient, ids, opportunity_job, two_bu_world, uid
 
 
 @pytest.fixture
@@ -236,6 +236,8 @@ def test_winning_an_opportunity_with_an_unknown_billing_type_is_a_400(db, w, api
     opportunity = Opportunity(tenant_id=1, client_id=w.client_a.id, stage="NEGOTIATION",
                               revenue_value_usd_cents=500_000, currency="USD")
     db.add(opportunity)
+    db.flush()
+    opportunity_job(db, opportunity)
     db.commit()
     res = api.post(w.org_user, f"/api/v1/opportunities/{opportunity.id}/transition",
                    json={"new_stage": "CONTRACT", "billing_type": "RETAINER"})

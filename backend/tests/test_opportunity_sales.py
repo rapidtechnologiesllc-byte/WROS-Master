@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.models.role_template import Resource, RoleTemplatePermission
-from tests.scope_fixtures import ApiClient, person, scoped_role, two_bu_world
+from tests.scope_fixtures import OPPORTUNITY_ROLE, ApiClient, person, scoped_role, two_bu_world
 
 
 @pytest.fixture
@@ -51,7 +51,7 @@ def world(db):
 
 
 def _body(w, **extra):
-    return {"client_id": w.client_a.id, "revenue_value_usd_cents": 50_000_00, **extra}
+    return {"client_id": w.client_a.id, "revenue_value_usd_cents": 50_000_00, "role": OPPORTUNITY_ROLE, **extra}
 
 
 def test_client_owners_route_is_not_swallowed_by_the_opportunity_route(api, world):
