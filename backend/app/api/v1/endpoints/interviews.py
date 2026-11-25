@@ -127,17 +127,22 @@ def _visible_feedback_or_404(db: Session, user, feedback_id: int) -> InterviewFe
 
 _candidate_display_name = scheduling.candidate_display_name
 
-def _record_round_verdict(db: Session, interview: Interview) -> None:
-    """Recompute and save the round's verdict after its feedback or status changed."""
-    from app.services.interview_verdict_service import compute_verdict
-
+def _record_round_verdict(db: Session, interview: Interview, actor_id: Optional[str] = None) -> None:
+    """Recompute and save the round's verdict after its feedback or status changed; when it turns
+    into a result (passed, did not pass, or mixed -- the hiring manager's decision) the people on
+    the round are told once."""
+    from app.services.action_emails.interviews import notify_round_result
     from app.services.hiring_pipeline_service import notify
+    from app.services.interview_verdict_service import compute_verdict, ensure_verdict_row
 
     panel = db.query(InterviewPanel).filter(InterviewPanel.id == interview.panel_id).first()
     if panel is not None:
+        before = ensure_verdict_row(db, panel).verdict
         row = compute_verdict(db, panel)
         db.commit()
         notify(panel.candidate_id, "verdict", f"{panel.id}:{row.verdict}")
+        if row.source == "AUTO" and row.verdict != before and row.verdict in ("PASS", "FAIL", "NEEDS_DECISION"):
+            notify_round_result(db, panel, row.verdict, actor_id=actor_id)
 
 
 def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
@@ -276,48 +281,6 @@ def _check_and_auto_submit_for_hire(interview: Interview, db: Session) -> None:
             logger.warning(f"[AutoHire] Could not send hiring manager email: {exc}")
     else:
         logger.warning(f"[AutoHire] No hiring manager email found for candidate '{candidate_id}'.")
-
-# ---------------------------------------------------------------------------
-# Feedback submitted --" email notification
-# ---------------------------------------------------------------------------
-
-def _notify_feedback_submitted(
-    interview: Interview,
-    feedback: InterviewFeedback,
-    submitter: Users,
-    db: Session,
-) -> None:
-    """
-    DEFECT-13 CRITICAL: Send INDIVIDUAL, ROLE-SPECIFIC notifications when feedback is submitted.
-
-    Each stakeholder gets a personalized email based on their position in the org hierarchy:
-    - Hiring Manager: Gets executive summary, can take action
-    - BU Head: Gets strategic overview
-    - Panel Members: Get feedback confirmation
-    - HR Manager: Gets administrative notification
-
-    Fire-and-forget; failures are logged but never raise.
-    """
-    try:
-        from app.services.interview_feedback_notification_service import (
-            InterviewFeedbackNotificationService
-        )
-
-        # Trigger the notification service
-        InterviewFeedbackNotificationService.notify_feedback_submitted(
-            db=db,
-            interview_id=interview.id,
-            feedback_summary=feedback.recommendation or "Feedback submitted",
-        )
-
-        logger.info(
-            f"[FeedbackNotify-DEFECT13] Individual role-specific notifications sent "
-            f"for interview #{interview.id}"
-        )
-
-    except Exception as exc:
-        logger.error(f"Error: {str(exc)}", exc_info=True)
-        logger.warning(f"[FeedbackNotify-DEFECT13] Non-critical notification error: {exc}")
 
 def _resolve_hiring_manager_id_for_interview(db: Session, interview: Interview) -> str | None:
     """Backlog item, 2026-08-05: same 3-priority HM resolution
@@ -1430,7 +1393,7 @@ def update_interview(
     # spawn duplicate tasks.
     if interview.status == "Completed" and previous_status != "Completed":
         _create_hm_review_task(db, interview)
-        _record_round_verdict(db, interview)
+        _record_round_verdict(db, interview, getattr(user, "UserID", None))
         _check_and_auto_submit_for_hire(interview, db)
 
     return InterviewResponse(
@@ -1692,19 +1655,12 @@ def submit_interview_feedback(
         logger.warning(f"[FeedbackComplete] Auto-complete check failed non-critically: {exc}")
 
     # The round's verdict, then act on it (reject on No Hire, HM approval after L2 pass)
-    _record_round_verdict(db, interview)
+    _record_round_verdict(db, interview, getattr(user, "UserID", None))
     try:
         _check_and_auto_submit_for_hire(interview, db)
     except Exception as exc:
         logger.error(f"Error: {str(exc)}", exc_info=True)
         logger.warning(f"[AutoHire] check failed non-critically: {exc}")
-
-    # â"€â"€ Notify HM + HR + panel members that feedback was submitted â"€â"€â"€â"€â"€â"€â"€â"€
-    try:
-        _notify_feedback_submitted(interview, feedback, user, db)
-    except Exception as exc:
-        logger.error(f"Error: {str(exc)}", exc_info=True)
-        logger.warning(f"[FeedbackNotify] Notification error (non-critical): {exc}")
 
     return InterviewFeedbackResponse(
         id=feedback.id,
@@ -1871,7 +1827,7 @@ def update_interview_feedback(
     db.refresh(feedback)
     edited = db.query(Interview).filter(Interview.id == feedback.interview_id).first()
     if edited is not None:
-        _record_round_verdict(db, edited)
+        _record_round_verdict(db, edited, getattr(user, "UserID", None))
     
     return InterviewFeedbackResponse(
         id=feedback.id,

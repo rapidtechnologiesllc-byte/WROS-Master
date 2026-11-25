@@ -273,6 +273,7 @@ async def create_candidate(
 
         enqueue_result = MessageQueueService.enqueue(
             task_name='create_candidate',
+            tenant_id=tenant_id,
             task_id=task_id,
             data=payload,
         )

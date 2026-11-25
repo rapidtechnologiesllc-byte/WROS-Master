@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any, Literal
 import logging
 from datetime import datetime, date
@@ -458,6 +458,11 @@ class LinkedInPostResponse(BaseModel):
     job_details: JobResponse
 
 # Offer Letter Schemas
+def _blank_is_none(value):
+    """A blank id from a form means "not chosen" -- never an id (a blank user id broke the insert)."""
+    return None if isinstance(value, str) and not value.strip() else value
+
+
 class OfferLetterCreateRequest(BaseModel):
     candidate_id: str
     job_id: Optional[str] = None
@@ -468,12 +473,16 @@ class OfferLetterCreateRequest(BaseModel):
     joining_date: date
     offer_expire_date: date
 
+    _blank_ids = field_validator("job_id", "hiring_manager_id", "reporting_manager_id", mode="before")(_blank_is_none)
+
 class OfferLetterUpdateRequest(BaseModel):
     # ── Core offer fields ─────────────────────────────────────────────────────
     candidate_id: Optional[str] = None
     job_id: Optional[str] = None
     hiring_manager_id: Optional[str] = None
     reporting_manager_id: Optional[str] = None
+
+    _blank_ids = field_validator("job_id", "hiring_manager_id", "reporting_manager_id", mode="before")(_blank_is_none)
     position: Optional[str] = None
     salary: Optional[str] = None
     joining_date: Optional[date] = None

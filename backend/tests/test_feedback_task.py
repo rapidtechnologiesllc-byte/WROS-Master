@@ -31,7 +31,7 @@ def no_queue(monkeypatch):
     from app.services.message_queue_service import MessageQueueService
 
     monkeypatch.setattr(MessageQueueService, "enqueue", staticmethod(lambda *a, **k: None))
-    monkeypatch.setattr("app.api.v1.endpoints.interviews._notify_feedback_submitted", lambda *a, **k: None)
+    monkeypatch.setattr("app.services.action_emails.interviews.notify_round_result", lambda *a, **k: None)
     monkeypatch.setattr("app.services.email_service.EmailService.send_notification", lambda *a, **k: None)
     monkeypatch.setattr("app.services.thunder_mail.cadence_service.enqueue_once", lambda *a, **k: True)
 

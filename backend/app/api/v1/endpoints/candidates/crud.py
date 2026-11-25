@@ -846,6 +846,7 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
 
         MessageQueueService.enqueue(
             task_name='candidate_update',
+            tenant_id=candidate.tenant_id,
             task_id=f"candidate_update:{candidate_id}:{uuid.uuid4().hex[:12]}",  # one per update
             data={
                 'candidate_id': candidate_id,

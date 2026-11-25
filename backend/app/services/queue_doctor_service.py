@@ -300,7 +300,8 @@ class QueueDoctorService:
             MessageQueueService.enqueue(
                 task_name='ops_alert',
                 task_id=ops_alert_task_id,
-                data=ops_alert_data
+                data=ops_alert_data,
+                tenant_id=message.tenant_id,  # the stuck message's own tenant
             )
 
             # Record escalation in doctor state

@@ -4,6 +4,19 @@
 // In production, REACT_APP_API_URL can be set to the actual backend URL.
 const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8080";
 
+// The server stores and sends every timestamp in UTC, mostly without a zone marker
+// ("2026-11-24T20:48:04"). JavaScript reads an unmarked date-time as the viewer's LOCAL time, so
+// times showed hours off (an overdue task looked due later). Mark them as UTC while reading the
+// response, once, for every screen. Date-only values and already-marked times are left as sent.
+const UNMARKED_SERVER_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?$/;
+export const markServerTimestampsUtc = (_key, value) =>
+  typeof value === "string" && UNMARKED_SERVER_TIMESTAMP.test(value) ? `${value}Z` : value;
+
+const readServerJson = async (response) => {
+  const text = await response.text();
+  return text ? JSON.parse(text, markServerTimestampsUtc) : null;
+};
+
 export const getApiBaseUrl = () => API_BASE_URL;
 
 // FastAPI/Pydantic often returns { detail: [...] } or { detail: "msg" } on 4xx/5xx.
@@ -236,7 +249,7 @@ export const apiRequest = async (path, options = {}) => {
 
   let data = null;
   try {
-    data = await response.json();
+    data = await readServerJson(response);
   } catch (err) {
     data = null;
   }
@@ -282,7 +295,7 @@ export const apiRequest = async (path, options = {}) => {
 
           let retryData = null;
           try {
-            retryData = await retryResponse.json();
+            retryData = await readServerJson(retryResponse);
           } catch (err) {
             retryData = null;
           }

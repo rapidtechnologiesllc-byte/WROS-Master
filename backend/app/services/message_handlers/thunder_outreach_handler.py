@@ -53,6 +53,8 @@ SUCCESS_RATE_THRESHOLD = 0.70  # 70% delivery required
 class ThunderOutreachHandler:
     """Thunder Outreach - autonomous candidate messaging and delivery tracking."""
 
+    TIMEOUT_SECONDS = 60  # engagement calls an external gateway (gate: 60s for engagement)
+
     @staticmethod
     def _send_outreach_message(candidate_id: str, channel: str, message: str, db: Session) -> Dict[str, Any]:
         """
@@ -111,8 +113,11 @@ class ThunderOutreachHandler:
             success_rate = successful_deliveries / total_attempts if total_attempts > 0 else 0
 
             # Queue formation feedback message to Flash
+            from app.models.user import Jobs
+            job_tenant = db.query(Jobs.tenant_id).filter(Jobs.jobID == job_id).scalar()
             MessageQueueService.enqueue(
                 task_name='formation_feedback_thunder_to_flash',
+                tenant_id=job_tenant,
                 task_id=f"thunder_feedback_{job_id}_{__import__('uuid').uuid4().hex[:8]}",
                 data={
                     'source': 'Thunder',

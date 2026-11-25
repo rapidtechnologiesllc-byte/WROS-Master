@@ -227,6 +227,7 @@ class CandidateCreationUnifiedHandler:
                 try:
                     result = MessageQueueService.enqueue(
                         task_name='engage_candidate_with_thunder',
+                        tenant_id=tenant_id,
                         data={
                             'candidate_id': candidate_id,
                             'email': email,

@@ -646,6 +646,7 @@ def create_user(
         # Queue user creation for background processing
         result = MessageQueueService.enqueue(
             task_name='create_user_with_roles',
+            tenant_id=tenant_id,
             data={
                 'user_email': request.user_email,
                 'user_name': request.user_name,
@@ -824,6 +825,7 @@ def create_user_with_roles(
         # Queue user creation for background processing
         result = MessageQueueService.enqueue(
             task_name='create_user_with_roles',
+            tenant_id=tenant_id,
             data={
                 'user_email': request.user_email,
                 'user_name': request.user_name,

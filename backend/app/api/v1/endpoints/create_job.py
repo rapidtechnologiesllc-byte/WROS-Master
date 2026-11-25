@@ -1114,6 +1114,7 @@ async def apply_for_job(
     # Queue candidate job application event for FLASH orchestrator
     MessageQueueService.enqueue(
         task_name='candidate_job_application_created',
+        tenant_id=candidate.tenant_id,
         data={
             'candidate_id': candidate_id,
             'candidate_email': candidate.candidateEmail,
@@ -1279,6 +1280,7 @@ def remove_job_application(
     # Queue job application removal event for FLASH orchestrator
     MessageQueueService.enqueue(
         task_name='job_application_removed',
+        tenant_id=user.tenant_id,
         data={
             'application_id': app_id,
             'candidate_id': candidate_id,
