@@ -40,6 +40,19 @@ def person(db, role, name, business_unit_id=None) -> Users:
     return user
 
 
+# Every opportunity is recorded with the role it needs (its job): a valid one for tests that create opportunities
+OPPORTUNITY_ROLE = {"title": "PolicyCenter Developer", "description": "Configure and extend PolicyCenter.",
+                    "skills": ["Guidewire", "PolicyCenter"], "client_description": "a mid-size P&C carrier"}
+
+
+def opportunity_job(db, opportunity):
+    """A job for an opportunity a test wrote straight to the database (the API opens one itself)."""
+    from tests import factories
+
+    return factories.job(db, opportunity.tenant_id, opportunity_id=opportunity.id, client_id=opportunity.client_id,
+                         jobStatus="active")
+
+
 def two_bu_world(db) -> SimpleNamespace:
     from app.core.db_contract import _initialize_org_positions
 

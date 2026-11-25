@@ -24,6 +24,9 @@ class OpportunityCreateRequest(BaseModel):
     guidewire_module: Optional[str] = None
     client_type: Optional[str] = None
     pricing_model: Optional[str] = None
+    # The role the work needs: it opens the opportunity's job at once so recruiting can start. Required by the
+    # create route (kept Optional here so a request without it gets a sentence, not a schema error).
+    role: Optional["UpcomingRoleCreateRequest"] = None
 
     # an unknown field is a screen/API mismatch: reject it instead of silently dropping data
     model_config = ConfigDict(extra="forbid")
@@ -49,6 +52,7 @@ class OpportunityItem(BaseModel):
     expected_close_date: Optional[date]
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
+    job_count: int = 0  # every opportunity has at least one job; 0 marks an older one that still needs its role
 
     class Config:
         from_attributes = True
@@ -161,3 +165,6 @@ class UpcomingRoleItem(BaseModel):
 class UpcomingRoleListResponse(BaseModel):
     opportunity_id: str
     roles: list[UpcomingRoleItem]
+
+
+OpportunityCreateRequest.model_rebuild()

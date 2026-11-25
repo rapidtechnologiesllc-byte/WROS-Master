@@ -45,7 +45,7 @@ def create_upcoming_role(db: Session, opportunity: Opportunity, *, actor: Users,
                          work_location: str = "REMOTE", employment_type: str = "FULLTIME",
                          min_experience_years: Optional[float] = None, target_start: Optional[date] = None,
                          likelihood_pct: Optional[int] = None, auto_outreach: bool = True,
-                         client_update_id: Optional[int] = None):
+                         client_update_id: Optional[int] = None, allow_no_business_unit: bool = False):
     """Open the job and its UpcomingRole row. Does not commit; the caller commits, then starts
     recruiting (recruiting_service.start_recruiting) on the returned job."""
     from app.services.bu_leadership import head_for_client
@@ -79,12 +79,16 @@ def create_upcoming_role(db: Session, opportunity: Opportunity, *, actor: Users,
         raise UpcomingRoleError("Experience cannot be negative.")
 
     client = db.query(Client).filter(Client.id == opportunity.client_id).first()
-    if client is None or client.business_unit_id is None:
+    # A prospect may have no business unit yet when its first opportunity is recorded: the role then belongs
+    # to whoever owns the client until the unit is assigned (it must be before the contract is signed, and the
+    # job takes it then -- opportunity_service.transition_stage)
+    if client is None or (client.business_unit_id is None and not allow_no_business_unit):
         raise UpcomingRoleError("The client has no business unit: assign one so the role has an owner.")
     for word in filter(None, (client.company_name, client.company_short_name)):
         if word.lower() in client_description.lower():
             raise UpcomingRoleError("The description candidates see must not name the client.")
-    hiring_manager = head_for_client(db, client.business_unit_id, client.id) or opportunity.client_owner_id
+    hiring_manager = (head_for_client(db, client.business_unit_id, client.id) if client.business_unit_id is not None
+                      else None) or opportunity.client_owner_id
 
     job = create_demand(
         db, tenant_id=actor.tenant_id, client_id=client.id, opportunity_id=opportunity.id,
