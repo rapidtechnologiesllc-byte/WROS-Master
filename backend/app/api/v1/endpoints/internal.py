@@ -146,6 +146,7 @@ def create_note(
         from app.services.message_queue_service import MessageQueueService
         MessageQueueService.enqueue(
             task_name="candidate_note_added",
+            tenant_id=candidate.tenant_id,
             data={
                 "candidate_id": candidate_id,
                 "note_id": note.id,

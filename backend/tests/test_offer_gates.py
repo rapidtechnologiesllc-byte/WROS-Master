@@ -89,6 +89,7 @@ def _pass(db, candidate, *levels):
 def _create(client, hr, candidate):
     return client.post("/api/v1/offer-letter/create", headers=_headers(hr.UserID, role_template_id=hr.role_template_id),
                        json={"candidate_id": candidate.candidateID, "position": "Engineer", "salary": "1800000",
+                             "hiring_manager_id": hr.UserID,  # an offer always has someone to approve it
                              "joining_date": (date.today() + timedelta(days=20)).isoformat(),
                              "offer_expire_date": (date.today() + timedelta(days=7)).isoformat()})
 

@@ -143,6 +143,26 @@ def notify_panel_member_added(db: Session, member: PanelMember, *, actor: Users)
 
 
 @after_commit("interviews")
+@after_commit("interviews")
+def notify_round_result(db: Session, panel: InterviewPanel, verdict: str, *, actor_id: Optional[str] = None) -> int:
+    """The round's verdict, worked out from the panel's feedback. Passed or not: the interview team
+    is told. Mixed feedback is a decision: the hiring manager (and recruiters) are asked to make it."""
+    name = _candidate_name(_candidate(db, panel.candidate_id), panel.candidate_id)
+    round_label = panel.round_name or "interview"
+    if verdict == "NEEDS_DECISION":
+        team = {user_id: roles for user_id, roles in interview_team(db, panel, interviewers=False).items()}
+        return send(db, team, actor_id=actor_id, key=f"interview-result-{panel.id}-{verdict}",
+                    subject=f"Your decision: {_round(panel, name)}",
+                    opening=f"The panel's feedback on {name}'s {round_label} round is mixed. The hiring manager "
+                            "decides whether they pass.",
+                    link_path=candidate_path(panel.candidate_id), link_label="Open the candidate and decide")
+    result = "passed" if verdict == "PASS" else "did not pass"
+    return send(db, interview_team(db, panel), actor_id=actor_id, key=f"interview-result-{panel.id}-{verdict}",
+                subject=f"Round {result}: {_round(panel, name)}",
+                opening=f"The panel's feedback is in: {name} {result} the {round_label} round.",
+                link_path=candidate_path(panel.candidate_id), link_label="Open the candidate")
+
+
 def notify_round_verdict(db: Session, panel: InterviewPanel, verdict: str, *, actor: Users,
                          rationale: Optional[str]) -> int:
     name = _candidate_name(_candidate(db, panel.candidate_id), panel.candidate_id)

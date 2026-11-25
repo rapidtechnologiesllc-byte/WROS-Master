@@ -282,10 +282,6 @@ def create_offer_letter(
     # candidate and job must be in the caller's business-unit scope (404 otherwise)
     candidate = ensure_candidate_visible(db, request.candidate_id, user)
 
-    hiring_manager = db.query(Users).filter(Users.UserID == request.hiring_manager_id).first() if request.hiring_manager_id else None
-    if request.hiring_manager_id and not hiring_manager:
-        raise HTTPException(status_code=404, detail=f"Hiring manager {request.hiring_manager_id} not found")
-
     reporting_manager = db.query(Users).filter(Users.UserID == request.reporting_manager_id).first() if request.reporting_manager_id else None
     if request.reporting_manager_id and not reporting_manager:
         raise HTTPException(status_code=404, detail=f"Reporting manager {request.reporting_manager_id} not found")
@@ -295,11 +291,23 @@ def create_offer_letter(
 
     _require_offer_gate(db, request.candidate_id)
 
+    # The offer is approved by its hiring manager (pending-approval lists only theirs): the one
+    # given, else the job's own. An offer nobody can approve is refused, not created.
+    hiring_manager_id = request.hiring_manager_id
+    if hiring_manager_id is None and request.job_id is not None:
+        hiring_manager_id = db.query(Jobs.hiringManagerID).filter(Jobs.jobID == request.job_id).scalar() or None
+    if hiring_manager_id is None:
+        raise HTTPException(status_code=400, detail="This offer has no hiring manager to approve it: set the job's "
+                                                    "hiring manager first")
+    hiring_manager = db.query(Users).filter(Users.UserID == hiring_manager_id).first()
+    if not hiring_manager:
+        raise HTTPException(status_code=404, detail=f"Hiring manager {hiring_manager_id} not found")
+
     new_offer = OfferLetter(
         candidate_id=request.candidate_id,
         job_id=request.job_id,
         offer_expire_date=request.offer_expire_date,
-        hiring_manager_id=request.hiring_manager_id,
+        hiring_manager_id=hiring_manager_id,
         reporting_manager_id=request.reporting_manager_id,
         position=request.position,
         salary=request.salary,

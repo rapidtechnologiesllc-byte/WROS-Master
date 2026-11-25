@@ -718,6 +718,9 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
         candidate.candidateSecondaryMobile = (request.candidate_secondary_mobile or "").strip() or None
     if "candidate_secondary_email" in request.model_fields_set:
         secondary = str(request.candidate_secondary_email or "").strip().lower() or None
+        from app.core.email_policy import is_non_person_email
+        if is_non_person_email(secondary):
+            raise HTTPException(status_code=400, detail=f"{secondary} is a distribution list, not a person")
         if secondary and secondary != (candidate.candidateSecondaryEmail or "").lower():
             holder = find_duplicate_candidate(db, email=secondary)[0]
             if holder is not None and holder.candidateID != candidate_id:
@@ -727,6 +730,9 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
     # the real one is known); it is the dedup key, so it must stay unique
     if request.candidate_email is not None:
         new_email = str(request.candidate_email).strip().lower()
+        from app.core.email_policy import is_non_person_email
+        if is_non_person_email(new_email):
+            raise HTTPException(status_code=400, detail=f"{new_email} is a distribution list, not a person")
         old_val = candidate.candidateEmail
         if new_email != (old_val or "").lower():
             taken = db.query(Candidate).filter(
@@ -840,6 +846,7 @@ def update_candidate(candidate_id: str, request: CandidateUpdateRequest, db: Ses
 
         MessageQueueService.enqueue(
             task_name='candidate_update',
+            tenant_id=candidate.tenant_id,
             task_id=f"candidate_update:{candidate_id}:{uuid.uuid4().hex[:12]}",  # one per update
             data={
                 'candidate_id': candidate_id,

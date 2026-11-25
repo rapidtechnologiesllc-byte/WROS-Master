@@ -212,6 +212,7 @@ def run_bulk_engagement_worker(db: Session, job_id: str, *, sleep_fn=None, batch
                 # the same Thunder engagement a newly created candidate gets (idempotent per job)
                 MessageQueueService.enqueue(
                     task_name="engage_candidate_with_thunder", task_id=f"bulk-engage:{job.id}:{candidate_id}",
+                    tenant_id=job.tenant_id,
                     data={"candidate_id": candidate_id, "email": candidate.candidateEmail,
                           "first_name": candidate.candidateFirstName, "last_name": candidate.candidateLastName,
                           "source": "bulk_launch", "tenant_id": job.tenant_id})

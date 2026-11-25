@@ -23,8 +23,9 @@ def _send_rejection_email(db: Session, candidate: Any, rejection: Any):
     candidate_email = getattr(candidate, 'candidateEmail', None)
     if not candidate_email:
         return None
+    from app.core.email_policy import is_non_person_email
     from app.services.linkedin_pipeline_task_service import is_placeholder_email
-    if is_placeholder_email(candidate_email):
+    if is_placeholder_email(candidate_email) or is_non_person_email(candidate_email):
         return None
     name = getattr(candidate, 'candidateFirstName', None) or 'there'
     result = EmailService.send_email(

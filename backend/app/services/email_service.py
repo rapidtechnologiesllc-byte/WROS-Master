@@ -206,6 +206,12 @@ class EmailService:
             content_type (str)   MIME type, e.g. "application/pdf"
         """
         sender = sender_email or cls.SERVICE_EMAIL
+        # Never to a distribution list (app.core.email_policy): it would reach the whole company
+        from app.core.email_policy import is_non_person_email, person_recipients
+        if is_non_person_email(to_email):
+            logger.warning(f"[EmailService] Not sent: {to_email} is a distribution list | Subject: {subject}")
+            return {"status": "skipped", "reason": f"{to_email} is a distribution list, not a person"}
+        cc_emails = person_recipients(cc_emails or [])
         try:
             try:
                 token = cls._get_token()
@@ -1550,6 +1556,11 @@ class EmailService:
             </body>
             </html>
             """
+
+            from app.core.email_policy import is_non_person_email
+            if is_non_person_email(recipient_email):
+                logger.warning(f"[EmailService] Not sent: {recipient_email} is a distribution list")
+                return False
 
             # Send via Microsoft Graph
             payload = {

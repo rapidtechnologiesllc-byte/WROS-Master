@@ -312,6 +312,10 @@ class Settings:
 
     # Thunder email: one HRMS mailbox sends and is read for replies
     THUNDER_MAILBOX: str = os.getenv("THUNDER_MAILBOX", "helpdesk_hrms@blitzenx.com")
+    # Addresses that are not a person -- company distribution lists such as the all-staff list.
+    # Never a candidate, and the app never sends email to them (app.core.email_policy).
+    # Comma-separated exact addresses.
+    NON_PERSON_EMAILS: str = os.getenv("NON_PERSON_EMAILS", "employees@blitzenx.com")
     # Exchange Online allows ~30 msgs/min and ~10k recipients/day per mailbox; ramp cold mail slowly
     THUNDER_MAX_SENDS_PER_HOUR: int = int(os.getenv("THUNDER_MAX_SENDS_PER_HOUR", "25"))
     THUNDER_MAX_SENDS_PER_DAY: int = int(os.getenv("THUNDER_MAX_SENDS_PER_DAY", "200"))

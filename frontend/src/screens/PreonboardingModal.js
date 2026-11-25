@@ -2,10 +2,8 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Button, Input, Select } from "../components/ui";
 import { hasPermission } from "../utils/permissionsRoleTemplate";
 import { AlertCircle, CheckCircle, X } from "lucide-react";
-import { DatePicker, Form, Steps, Checkbox, Avatar } from "antd";
+import { DatePicker, Form, Steps, Avatar } from "antd";
 import {
-  BonusButtonDiv,
-  CheckBoxesDiv,
   ContactPersonDiv,
   DocumentPaper,
   DocumentViewer,
@@ -19,9 +17,8 @@ import {
 } from "../styles/Pre-onboardingModal";
 import { EyeIcon } from "lucide-react";
 import SalaryModal from "./SalaryModal";
-import BonusModal from "./BonusModal";
 import { getAllJobs } from "../services/api/jobs";
-import { departmentList, listBusinessUnits } from "../services/api/rbac";
+import { getUserDirectory } from "../services/api/users";
 import {
   approveOfferLetter,
   createOfferLetter,
@@ -56,30 +53,22 @@ const PreonboardingModal = ({
   offerId,
   onSuccess,
 }) => {
-  const Locations = ["Hyderabad", "Chennai", "Texas", "Remote"];
-
   // Action feedback state
   const { actionError, setActionError, actionSuccess, setActionSuccess, clearError, clearSuccess } = useActionFeedback();
 
-  const [selectLocation, setSelectLocation] = useState();
-  const [selectDepartment, setSelectDepartment] = useState();
+  // the offer's reporting manager (a colleague); the hiring manager comes from the job
+  const [reportingManagerId, setReportingManagerId] = useState("");
+  const [colleagues, setColleagues] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [current, setCurrent] = useState(0);
   const [email, setEmail] = useState(candidate?.email);
   const [number, setNumber] = useState(candidate?.phone);
-  const [checkedList, setCheckedList] = useState(["pf"]);
   const [salaryTable, setSalaryTable] = useState(false);
-  const [bonus, setBonus] = useState(false);
   const [jobs, setJobs] = useState([]);
-  const [worker, setWorkers] = useState("");
-  const [businessUnit, setBusinessUnit] = useState([]);
-  const [buValue, setBuValue] = useState("");
   const [salaryText, setSalaryText] = useState("");
   const [joiningDate, setJoiningDate] = useState("");
-  const [structureType, setStructureType] = useState("");
   const [offerValidDate, setOfferValidDate] = useState("");
   const [docBlob, setDocBlob] = useState(null);
-  const [departmentListState, setDepartmentList] = useState([]);
   const [selectedJob, setSelectedJob] = useState(null);
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   // job_id of the offer being edited; resolved to a job once jobs have loaded
@@ -91,17 +80,6 @@ const PreonboardingModal = ({
   const localName = localStorage.getItem("hrms_user_name");
   const localEmail = localStorage.getItem("hrms_user_email");
   const canProcessOffers = hasPermission("offer-letters", "edit");
-  const options = [
-    { label: "Eligible for Provident fund (pf)", value: "pf" },
-    { label: "Eligible for ESI", value: "esi" },
-    { label: "Eligible for LWF", value: "lwf" },
-  ];
-  const WorkerTypesArray = ["Employee", "Contract", "Interns"];
-  const structureTypeArray = [
-    "Full time Employee Salary Structure",
-    "Intern Salary Structure",
-    "Non Guidewire Salary Structure",
-  ];
 
   const fetchOfferDetails = useCallback(async () => {
     try {
@@ -140,29 +118,12 @@ const PreonboardingModal = ({
   }, [offerJobId, jobs]);
 
   useEffect(() => {
-    const fetchBusinessUnit = async () => {
-      try {
-        const result = await listBusinessUnits();
-        setBusinessUnit(result);
-      } catch (err) {
-        console.error("[PreonboardingModal] Failed to load business units:", err);
-        setActionError(err?.message || "Failed to load business units");
-      }
-    };
-    fetchBusinessUnit();
-  }, [setActionError]);
-
-  useEffect(() => {
-    const listingDepartments = async () => {
-      try {
-        const listResult = await departmentList();
-        setDepartmentList(listResult);
-      } catch (err) {
-        console.error("[PreonboardingModal] Failed to load departments:", err);
-        setActionError(err?.message || "Failed to load departments");
-      }
-    };
-    listingDepartments();
+    getUserDirectory()
+      .then((users) => setColleagues((users || []).filter((u) => u.active)))
+      .catch((err) => {
+        console.error("[PreonboardingModal] Failed to load colleagues:", err);
+        setActionError(err?.message || "Failed to load colleagues for the reporting manager");
+      });
   }, [setActionError]);
 
   useEffect(() => {
@@ -199,20 +160,12 @@ const PreonboardingModal = ({
     })) || []),
   ];
 
-  const buOptions = [
-    { label: "Please select Business Unit", value: "", disabled: true },
-    ...(businessUnit?.map((bu) => ({
-      label: bu?.name,
-      value: bu?.id,
-    })) || []),
-  ];
-
-  const deptOptions = [
-    { label: "Please select department", value: "", disabled: true },
-    ...(departmentListState?.map((dept) => ({
-      label: dept?.name,
-      value: dept?.id,
-    })) || []),
+  const managerOptions = [
+    { label: "Same as the hiring manager", value: "" },
+    ...colleagues.map((u) => ({
+      label: u.job_title ? `${u.user_name} (${u.job_title})` : u.user_name || u.user_email,
+      value: u.user_id,
+    })),
   ];
 
   const onJoiningDateChange = (date, dateString) => {
@@ -233,13 +186,6 @@ const PreonboardingModal = ({
     }
   };
 
-  const checkboxHandler = (list) => {
-    setCheckedList(list);
-  };
-
-  const bonusCheckboxHandler = (e) => {
-  };
-
   const salaryTableHandler = async () => {
     try {
       setSalaryTable(true);
@@ -258,10 +204,6 @@ const PreonboardingModal = ({
     } finally {
       setSalaryLoading(false);
     }
-  };
-
-  const handleBonusModal = () => {
-    setBonus(true);
   };
 
   const disablePastDates = (current) => {
@@ -287,6 +229,7 @@ const PreonboardingModal = ({
         candidateId: candidate?.id,
         jobId: selectedJob?.id,
         hiringManagerId: selectedJob?.hiringManager,
+        reportingManagerId: reportingManagerId || undefined,
         position: selectedJob?.title,
         salary: salaryText,
         joiningDate: joiningDate,
@@ -398,22 +341,6 @@ const PreonboardingModal = ({
             <div className="px-4 mt-4 grid gap-3 md:grid-cols-1">
               <Span>Job details</Span>
             </div>
-            {/* Integrate API for below two dropdowns */}
-            <div className="px-4 mt-4 grid gap-3 md:grid-cols-2">
-              <Select
-                label="Legal Entity"
-                value={selectLocation}
-                onChange={setSelectLocation}
-                options={["BlitzenX Solutions"]}
-              />
-              <Select
-                label="Reporting Manager"
-                value={selectDepartment}
-                onChange={setSelectDepartment}
-                options={[]}
-              />
-            </div>
-            {/* Integrate API for below two dropdowns */}
             <div className="px-4 mt-4 grid gap-3 md:grid-cols-2">
               <Select
                 label="Job Title"
@@ -425,32 +352,10 @@ const PreonboardingModal = ({
                 options={jobOptions}
               />
               <Select
-                label="Worker Type"
-                value={worker}
-                onChange={(value) => setWorkers(value)}
-                options={WorkerTypesArray}
-              />
-            </div>
-            <div className="px-4 mt-4 grid gap-3 md:grid-cols-2">
-              <Select
-                label="Select Location"
-                value={selectLocation}
-                onChange={setSelectLocation}
-                options={Locations}
-              />
-              <Select
-                label="Select Department"
-                value={selectDepartment}
-                onChange={(value) => setSelectDepartment(value)}
-                options={deptOptions}
-              />
-            </div>
-            <div className="px-4 mt-4 grid gap-3 md:grid-cols-2">
-              <Select
-                label="Select BU (optional)"
-                value={buValue}
-                onChange={(value) => setBuValue(value)}
-                options={buOptions}
+                label="Reporting Manager"
+                value={reportingManagerId}
+                onChange={setReportingManagerId}
+                options={managerOptions}
               />
             </div>
             <div className="px-4 mt-4 grid gap-3 md:grid-cols-1">
@@ -495,44 +400,14 @@ const PreonboardingModal = ({
                 loading={salaryLoading}
               />
             ) : null}
-            {bonus ? <BonusModal onClose={() => setBonus(false)} /> : null}
             <div className="px-4 mt-4 grid gap-3 md:grid-cols-1">
               <Span>Compensation</Span>
             </div>
-            <div className="px-4 mt-4">
-              <CheckBoxesDiv>
-                <Checkbox.Group
-                  options={options}
-                  onChange={checkboxHandler}
-                  value={checkedList}
-                />
-              </CheckBoxesDiv>
-            </div>
-            <div className="px-4 mt-4 grid gap-3 md:grid-cols-2">
-              <Select
-                label="Pay Group"
-                value={selectLocation}
-                onChange={setSelectLocation}
-                options={["BlitzenX Solution Private Limited"]}
-              />
-              <Select
-                label="Remuneration Type"
-                value={selectDepartment}
-                onChange={setSelectDepartment}
-                options={["Annual"]}
-              />
-            </div>
             <div className="px-4 mt-4 grid gap-3 md:grid-cols-2">
               <Input
-                label="Salary (Annual Basis in INR)"
+                label="Annual salary"
                 value={salaryText}
                 onChange={setSalaryText}
-              />
-              <Select
-                label="Select structure type"
-                value={structureType}
-                onChange={(value) => setStructureType(value)}
-                options={structureTypeArray}
               />
             </div>
             <div className="px-4 mt-4 grid gap-3 md:grid-cols-1">
@@ -540,27 +415,6 @@ const PreonboardingModal = ({
                 <EyeIcon color="#0b68cb" />
                 <span>View salary structure</span>
               </IconDiv>
-            </div>
-            <div className="px-4 mt-4 grid gap-3 md:grid-cols-1">
-              <Span>Variable / Bonus components</Span>
-              Add bonus types / bonus components to this offer
-            </div>
-            <div className="px-4 mt-4">
-              <CheckBoxesDiv>
-                <Checkbox
-                  value={"bonus"}
-                  name="bonus"
-                  onChange={bonusCheckboxHandler}
-                >
-                  Bonus amount is included in the new salary
-                </Checkbox>
-              </CheckBoxesDiv>
-            </div>
-            <div className="px-4 mt-1 grid gap-3 md:grid-cols-1">
-              <BonusButtonDiv onClick={handleBonusModal}>
-                <div>+</div>
-                <div>Add</div>
-              </BonusButtonDiv>
             </div>
           </FormStepContainer>
         );

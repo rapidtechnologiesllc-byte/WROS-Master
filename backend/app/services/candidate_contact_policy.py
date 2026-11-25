@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.models.candidate import Candidate
 from app.models.candidate_rejection import CandidateRejection
+from app.core.email_policy import is_non_person_email
 from app.services.linkedin_pipeline_task_service import is_placeholder_email
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ def rejection_cooldown_until(db: Session, candidate_id: str) -> Optional[datetim
 def is_contactable(db: Session, candidate: Candidate) -> Tuple[bool, str]:
     if candidate is None:
         return False, "candidate not found"
-    if not candidate.candidateEmail or is_placeholder_email(candidate.candidateEmail):
+    if not candidate.candidateEmail or is_placeholder_email(candidate.candidateEmail) or is_non_person_email(candidate.candidateEmail):
         return False, "no real contact email"
     if not candidate.thunder_enabled:
         return False, "thunder disabled for candidate"
@@ -66,7 +67,7 @@ def can_receive_transactional(db: Session, candidate: Candidate) -> Tuple[bool, 
     outreach, never the candidate's own interview mail (flash spec E24)."""
     if candidate is None:
         return False, "candidate not found"
-    if not candidate.candidateEmail or is_placeholder_email(candidate.candidateEmail):
+    if not candidate.candidateEmail or is_placeholder_email(candidate.candidateEmail) or is_non_person_email(candidate.candidateEmail):
         return False, "no real contact email"
     until = rejection_cooldown_until(db, candidate.candidateID)
     if until is not None:

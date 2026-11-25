@@ -92,7 +92,9 @@ class CandidateEventBus:
             result = MessageQueueService.enqueue(
                 task_name=handler_function_name,
                 data=event_payload,
-                delay_seconds=0  # Immediate processing
+                delay_seconds=0,  # Immediate processing
+                # the candidate's own tenant -- never "the only tenant", which fails once there are two
+                tenant_id=data.get("tenant_id") or CandidateEventBus._tenant_of(candidate_id),
             )
 
             logger.info(
@@ -138,6 +140,21 @@ class CandidateEventBus:
             candidate_id,
             data
         )
+
+    @staticmethod
+    def _tenant_of(candidate_id: str) -> int:
+        """The candidate's tenant (events are published after commit, without a session)."""
+        from app.core.database import SessionLocal
+        from app.models.candidate import Candidate
+
+        db = SessionLocal()
+        try:
+            tenant_id = db.query(Candidate.tenant_id).filter(Candidate.candidateID == str(candidate_id)).scalar()
+        finally:
+            db.close()
+        if tenant_id is None:
+            raise ValueError(f"Candidate {candidate_id} not found or has no tenant: event not queued")
+        return tenant_id
 
     @staticmethod
     def publish_status_changed(

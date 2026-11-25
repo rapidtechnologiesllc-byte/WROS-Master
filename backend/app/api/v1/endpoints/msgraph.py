@@ -274,6 +274,9 @@ def _require_account(current_user: Users = Depends(get_current_internal_user)) -
     dependencies=[Depends(require_resource_permission("configuration", "create"))]
 )
 def send_mail(to: str, subject: str, body_text: str, account_id: str = Depends(_require_account)):
+    from app.core.email_policy import is_non_person_email
+    if is_non_person_email(to):
+        raise HTTPException(400, f"{to} is a distribution list: the app does not send email to it")
     token_data = _graph_client_for(account_id)
 
     # Build the message payload as JSON

@@ -138,6 +138,9 @@ class EmailDeliveryService(DeliveryService):
                 f"body_len={len(body) if body else 0}"
             )
 
+        from app.core.email_policy import ensure_person_email
+        ensure_person_email(to_email, "Recipient")  # never a distribution list
+
         if self.provider == "sendgrid":
             return self._send_sendgrid(to_email, subject, body, html)
         elif self.provider == "azure":

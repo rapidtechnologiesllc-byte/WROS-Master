@@ -79,12 +79,13 @@ def may_email(db: Session, candidate: Optional[Candidate], template_key: str) ->
     """Consent for one notice: real address, consent not revoked, no no-contact period (the
     rejection notice itself is the exception -- it is what starts that period)."""
     from app.services.candidate_contact_policy import rejection_cooldown_until
+    from app.core.email_policy import is_non_person_email
     from app.services.linkedin_pipeline_task_service import is_placeholder_email
     from app.services.thunder_mail.cadence_service import email_consent_revoked
 
     if candidate is None:
         return False, "candidate not found"
-    if not candidate.candidateEmail or is_placeholder_email(candidate.candidateEmail):
+    if not candidate.candidateEmail or is_placeholder_email(candidate.candidateEmail) or is_non_person_email(candidate.candidateEmail):
         return False, "no real contact email"
     if email_consent_revoked(db, candidate.candidateID):
         return False, "email consent revoked"
