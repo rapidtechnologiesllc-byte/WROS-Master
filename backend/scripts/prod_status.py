@@ -30,6 +30,13 @@ def mask(text, limit: int = 300) -> str:
     return PHONE.sub("<phone>", EMAIL.sub("<email>", text))[:limit]
 
 
+_print = print
+
+
+def print(*parts, **kwargs):  # noqa: A001 -- every line this report prints is masked, not only the ones a caller remembered
+    _print(*(mask(part, 100_000) for part in parts), **kwargs)
+
+
 def section(title: str):
     print(f"\n=== {title} ===")
 
@@ -200,6 +207,20 @@ def main() -> int:
             except Exception as exc:
                 db.rollback()
                 print(label + ": [FAIL]", mask(exc))
+
+        section("Reported issues (open first)")
+        try:
+            for ref, severity, blocking, status, screen, summary, created in rows(
+                    "SELECT reference, severity, blocking, status, screen, summary, created_at FROM reported_issues "
+                    "ORDER BY status IN ('FIXED','WONT_FIX','DUPLICATE'), blocking DESC, created_at LIMIT 60"):
+                print(f"{ref} {status} {severity}{' BLOCKING' if blocking else ''} [{screen}] {created:%Y-%m-%d}: {summary}")
+            for ref, body in rows(
+                    "SELECT i.reference, left(i.description, 600) FROM reported_issues i "
+                    "WHERE i.status NOT IN ('FIXED','WONT_FIX','DUPLICATE') ORDER BY i.created_at LIMIT 60"):
+                print(f"--- {ref}: {body}")
+        except Exception as exc:
+            db.rollback()
+            print("reported issues: [FAIL]", exc)
 
         section("Enrichment")
         for label, sql in (

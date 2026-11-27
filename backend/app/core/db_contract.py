@@ -448,6 +448,14 @@ def _all_functions_roles_drop_function_addon(db: Session) -> int:
     return moved
 
 
+def _reported_issues_from_legacy_log(db: Session) -> int:
+    """CEO 2026-11-27: reports used to go to backend/DEFECTS_LOG.md, which nobody saw. Each one becomes a tracked
+    reported issue (Admin -> System -> Reported issues), once."""
+    from app.services.reported_issue_service import import_legacy_log
+
+    return import_legacy_log(db)
+
+
 DATA_MIGRATIONS = (
     ("interview_times_to_utc", _interview_times_to_utc),
     ("employee_org_history_backfill", _employee_org_history_backfill),
@@ -461,6 +469,7 @@ DATA_MIGRATIONS = (
     ("expense_receipts_and_review_tasks", _expense_receipts_and_review_tasks),
     ("candidate_merges_to_one_record", _candidate_merges_to_one_record),
     ("expense_trips_to_visits", _expense_trips_to_visits),
+    ("reported_issues_from_legacy_log", _reported_issues_from_legacy_log),
     ("all_functions_roles_drop_function_addon", _all_functions_roles_drop_function_addon),
 )
 
