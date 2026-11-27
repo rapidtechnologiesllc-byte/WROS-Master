@@ -25,6 +25,9 @@ def _reject_if_mfa_pending(payload: dict) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="MFA verification required before this token can be used",
         )
+    # single-purpose tokens of the Microsoft sign-in / Outlook link (app.api.v1.endpoints.msgraph)
+    if any(payload.get(claim) for claim in ("msgraph_sso", "msgraph_sso_exchange", "msgraph_link")):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not a session token")
 
 def _reject_if_candidate_otp_pending(payload: dict) -> None:
     """Backlog item, 2026-08-05 (wros_email_2fa_backlog, candidate

@@ -1,8 +1,8 @@
 // Connect Outlook is mandatory (CEO 2026-11-03: "this is mandatory and not optional. we need to read and
 // process every email to find new jobs, new candidate, client updates and escalations"). Anyone with a
 // company mailbox who has not connected sees only this step: HRMS opens once Microsoft confirms the
-// connection. An admin of users and access may carry on for this browser session (so a Microsoft setup
-// problem can be fixed); nobody else can skip it.
+// connection. Only the CEO (CEO 2026-11-27, by role template level) may carry on for this browser session, so a Microsoft
+// setup problem can be fixed; nobody else can skip it (the server decides: status.can_defer).
 import { useEffect, useState } from "react";
 import { Mail } from "lucide-react";
 import { connectOutlook, getOutlookStatus } from "../services/api/msgraph";
@@ -83,7 +83,7 @@ export default function OutlookGate({ children }) {
       {status.can_defer ? (
         <div className="mt-4">
           <button type="button" onClick={skip} className="text-xs text-gray-500 underline">
-            Continue for now (admins only, to fix the Microsoft setup)
+            Continue for now (CEO only, to fix the Microsoft setup)
           </button>
         </div>
       ) : null}

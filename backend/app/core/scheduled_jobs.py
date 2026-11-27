@@ -56,6 +56,9 @@ _JOBS = (
                  backlog_guard="app.services.interview_missed_service:backlog_guard"),
     ScheduledJob("welcome_followup", "app.services.account_activation_service:run_welcome_followup_job",
                  timedelta(hours=6), timeout_s=120),
+    # closes IT Admin's Microsoft 365 account/license tasks once Microsoft shows the license
+    ScheduledJob("m365_license_check", "app.services.m365_account_service:run_license_check_job",
+                 timedelta(minutes=30), timeout_s=120),
     ScheduledJob("interview_feedback", "app.services.interview_transcript_service:run_interview_feedback_job",
                  timedelta(minutes=15), timeout_s=120),
     ScheduledJob("interview_transcripts", "app.services.interview_transcript_service:run_interview_transcripts_job",

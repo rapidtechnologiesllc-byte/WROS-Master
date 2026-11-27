@@ -1,8 +1,9 @@
 // Auth page with two-step sign-in flow. Production ready with fully automated CI/CD!
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import {
   confirmMfaSetup,
+  exchangeMicrosoftSignin,
   getAzureSigninUrl,
   login,
   resendCandidateEmailOtp,
@@ -14,6 +15,14 @@ import {
   verifyMfa,
   verifyStaffEmailOtp,
 } from "../services/api/auth";
+
+// Stale auth context is cleared before a fresh sign-in (password or Microsoft)
+const clearAuthContext = () => {
+  [
+    "hrms_token", "hrms_role", "hrms_authority", "hrms_user_name", "hrms_user_email",
+    "hrms_candidate_id", "hrms_user_type", "hrms_active_bu_id", "hrms_bu_view",
+  ].forEach((key) => localStorage.removeItem(key));
+};
 
 export default function AuthPage() {
   const [loading, setLoading] = useState(false);
@@ -189,75 +198,107 @@ export default function AuthPage() {
     }
   };
 
+  // The login answer (password or Microsoft): a second step when the role asks for one, else the session.
+  const handleLoginResponse = async (data) => {
+    // Backlog item, 2026-08-05 (wros_email_2fa_backlog, candidate
+    // half): this candidate has opted into email 2FA -- data.access_token
+    // here is a pending token, not a real session. Don't finish login.
+    if (data?.candidate_otp_required && data?.access_token) {
+      setPendingOtpToken(data.access_token);
+      setStep("candidate-otp");
+      return;
+    }
+
+    // Staff MFA (Phase 1 B3) -- the backend has always returned these
+    // flags + a real mfa_pending token when the (off-by-default) gate
+    // applies to this role; this frontend just never checked for them
+    // before 2026-08-07. email_otp_required checked first since its
+    // code is already sent server-side as part of this same login
+    // call -- time-sensitive, shouldn't sit behind a TOTP step first.
+    if (data?.access_token && data?.email_otp_required) {
+      setPendingMfaToken(data.access_token);
+      setStep("staff-email-otp");
+      return;
+    }
+    if (data?.access_token && data?.mfa_setup_required) {
+      setPendingMfaToken(data.access_token);
+      setLoading(true);
+      try {
+        const setupData = await setupMfa(data.access_token);
+        setMfaSetupData(setupData);
+        setStep("mfa-setup");
+      } catch (setupErr) {
+        const errorMsg = setupErr.message || "Could not start MFA enrollment.";
+        console.error(`[AuthPage] MFA setup failed: ${errorMsg}`, setupErr);
+        setError(errorMsg);
+        setLoading(false);
+        throw new Error(errorMsg);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+    if (data?.access_token && data?.mfa_required) {
+      setPendingMfaToken(data.access_token);
+      setStep("mfa-verify");
+      return;
+    }
+
+    if (data?.access_token) {
+      await finishLogin(data, { offer2faOptIn: Boolean(data?.show_2fa_opt_in_popup) });
+      return;
+    }
+  };
+
+  // the effect below runs once; it calls the latest handler through this ref
+  const handleLoginResponseRef = useRef(handleLoginResponse);
+  handleLoginResponseRef.current = handleLoginResponse;
+
+  // Back from Microsoft: #sso_code=... (a one-time code, kept out of the URL right away) or ?sso_error=...
+  const ssoHandled = useRef(false);
+  useEffect(() => {
+    if (ssoHandled.current) return;
+    ssoHandled.current = true;
+    const params = new URLSearchParams(window.location.search);
+    const ssoError = params.get("sso_error");
+    const code = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("sso_code");
+    if (ssoError || code) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+    if (ssoError) {
+      setError(ssoError);
+      return;
+    }
+    if (!code) return;
+    setLoading(true);
+    clearAuthContext();
+    exchangeMicrosoftSignin(code)
+      .then((data) => handleLoginResponseRef.current(data))
+      .catch((err) => {
+        console.error("[AuthPage] Microsoft sign-in error:", err);
+        setError(err.message || "Microsoft sign-in failed. Try again or sign in with your password.");
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const signInWithMicrosoft = () => {
+    setError("");
+    window.location.href = getAzureSigninUrl();
+  };
+
   const submitLogin = async (event) => {
     event.preventDefault();
     setError("");
     setLoading(true);
     try {
       // Clear stale auth context before a fresh unified login attempt.
-      localStorage.removeItem("hrms_token");
-      localStorage.removeItem("hrms_role");
-      localStorage.removeItem("hrms_authority");
-      localStorage.removeItem("hrms_user_name");
-      localStorage.removeItem("hrms_user_email");
-      localStorage.removeItem("hrms_candidate_id");
-      localStorage.removeItem("hrms_user_type");
-      localStorage.removeItem("hrms_active_bu_id");
-      localStorage.removeItem("hrms_bu_view");
+      clearAuthContext();
 
       const data = await login({
         email: loginForm.UserEmail,
         password: loginForm.UserPassword,
       });
-
-      // Backlog item, 2026-08-05 (wros_email_2fa_backlog, candidate
-      // half): this candidate has opted into email 2FA -- data.access_token
-      // here is a pending token, not a real session. Don't finish login.
-      if (data?.candidate_otp_required && data?.access_token) {
-        setPendingOtpToken(data.access_token);
-        setStep("candidate-otp");
-        return;
-      }
-
-      // Staff MFA (Phase 1 B3) -- the backend has always returned these
-      // flags + a real mfa_pending token when the (off-by-default) gate
-      // applies to this role; this frontend just never checked for them
-      // before 2026-08-07. email_otp_required checked first since its
-      // code is already sent server-side as part of this same login
-      // call -- time-sensitive, shouldn't sit behind a TOTP step first.
-      if (data?.access_token && data?.email_otp_required) {
-        setPendingMfaToken(data.access_token);
-        setStep("staff-email-otp");
-        return;
-      }
-      if (data?.access_token && data?.mfa_setup_required) {
-        setPendingMfaToken(data.access_token);
-        setLoading(true);
-        try {
-          const setupData = await setupMfa(data.access_token);
-          setMfaSetupData(setupData);
-          setStep("mfa-setup");
-        } catch (setupErr) {
-          const errorMsg = setupErr.message || "Could not start MFA enrollment.";
-          console.error(`[AuthPage] MFA setup failed: ${errorMsg}`, setupErr);
-          setError(errorMsg);
-          setLoading(false);
-          throw new Error(errorMsg);
-        } finally {
-          setLoading(false);
-        }
-        return;
-      }
-      if (data?.access_token && data?.mfa_required) {
-        setPendingMfaToken(data.access_token);
-        setStep("mfa-verify");
-        return;
-      }
-
-      if (data?.access_token) {
-        await finishLogin(data, { offer2faOptIn: Boolean(data?.show_2fa_opt_in_popup) });
-        return;
-      }
+      await handleLoginResponse(data);
     } catch (err) {
       console.error("[AuthPage] Login error:", err);
       setError(err.message || "Login failed. Please try again or contact the help desk if the problem persists.");
@@ -658,6 +699,22 @@ export default function AuthPage() {
               >
                 Next
               </button>
+              <div className="flex items-center gap-3 text-xs text-slate-400">
+                <span className="h-px flex-1 bg-slate-200" />
+                or
+                <span className="h-px flex-1 bg-slate-200" />
+              </div>
+              <button
+                type="button"
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-70"
+                onClick={signInWithMicrosoft}
+                disabled={loading}
+              >
+                {loading ? "Signing in..." : "Sign in with Microsoft"}
+              </button>
+              <p className="text-center text-xs text-slate-500">
+                Company accounts: Microsoft signs you in and connects your Outlook in one step.
+              </p>
             </form>
           ) : (
             <form onSubmit={submitLogin} className="space-y-4">
@@ -721,10 +778,7 @@ export default function AuthPage() {
               <button
                 type="button"
                 className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-70"
-                onClick={() => {
-                  setError("");
-                  window.location.href = getAzureSigninUrl();
-                }}
+                onClick={signInWithMicrosoft}
                 disabled={loading}
               >
                 Sign in with Microsoft

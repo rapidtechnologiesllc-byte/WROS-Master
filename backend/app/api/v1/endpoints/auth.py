@@ -118,6 +118,188 @@ def validate_email(request: ValidateEmailRequest, db: Session = Depends(get_db))
     return {"exists": bool(user)}
 
 
+def _staff_login_response(db: Session, user: Users, *, via_microsoft: bool = False) -> UnifiedLoginResponse:
+    """The login answer for a staff user whose identity is proven (password, or Microsoft for
+    via_microsoft). via_microsoft skips the email code (Microsoft has just proven the mailbox) and the
+    forced password reset (they do not need an HRMS password); an authenticator app stays required
+    where the role template asks for one."""
+    if not user:
+        logger.error("User is None after authentication")
+        raise HTTPException(status_code=500, detail="User record is invalid. Please contact help desk.")
+
+    if not hasattr(user, 'UserID') or not user.UserID:
+        logger.error("User has no UserID")
+        raise HTTPException(status_code=500, detail="User record incomplete. Please contact help desk.")
+
+    if not hasattr(user, 'UserEmail') or not user.UserEmail:
+        logger.error("User has no UserEmail")
+        raise HTTPException(status_code=500, detail="User record incomplete. Please contact help desk.")
+
+    if not hasattr(user, 'role_template_id') or not user.role_template_id:
+        logger.error(f"Login rejected: user {user.UserID} has no role_template_id")
+        raise HTTPException(
+            status_code=403,
+            detail="Your user account doesn't have permissions loaded. Please reach out to help desk."
+        )
+
+    role_template_id = user.role_template_id
+    try:
+        rt = db.query(RoleTemplate).filter(RoleTemplate.id == role_template_id).first()
+    except Exception as e:
+        logger.error(f"Failed to fetch role template {role_template_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to load user role. Please try again.")
+    if not rt or not rt.enabled:
+        logger.error(f"Login rejected: role template {role_template_id} missing or disabled")
+        raise HTTPException(status_code=403, detail="Your role is not active. Please reach out to help desk.")
+
+    user_role = rt.display_name or rt.name  # display label only; authority comes from the template's flags
+
+    # MFA by the role template (hierarchy level), never by the role's name
+    from app.core import authority
+
+    totp_gate = mfa_enforcement_enabled() and authority.requires_totp(db, user)
+    email_otp_gate = (not via_microsoft) and email_otp_enforcement_enabled() and authority.requires_email_otp(db, user)
+
+    if totp_gate or email_otp_gate:
+        pending_token = create_access_token(
+            data={
+                "sub": user.UserID,
+                "email": user.UserEmail,
+                "type": "user",
+                "tenant_id": user.tenant_id,
+                "role_template_id": user.role_template_id,
+                "mfa_pending": True
+            },
+            expires_delta=timedelta(minutes=MFA_PENDING_TOKEN_MINUTES),
+        )
+
+        if email_otp_gate:
+            code = generate_email_otp_code()
+            try:
+                user.email_otp_code_hash = hash_email_otp_code(code)
+                user.email_otp_expires_at = datetime.utcnow() + timedelta(minutes=EMAIL_OTP_TTL_MINUTES)
+                # User already in session from authenticate_user(), just commit the updates
+                db.commit()
+            except Exception as e:
+                logger.error(f"Failed to store email OTP: {e}", exc_info=True)
+                db.rollback()
+                raise HTTPException(status_code=500, detail="Failed to generate verification code. Please try again.")
+
+            try:
+                user_email = user.UserEmail
+                user_name = user.UserName if user and hasattr(user, 'UserName') and user.UserName else user_email
+                EmailService.send_event_notification(
+                    to_email=user_email,
+                    recipient_name=user_name,
+                    event_type="action_required",
+                    heading="Your BlitzenX WROS verification code",
+                    message=(
+                        f"Your one-time verification code is <strong>{code}</strong>. "
+                        f"It expires in {EMAIL_OTP_TTL_MINUTES} minutes."
+                    ),
+                )
+            except Exception as e:
+                logger.error(f"Failed to send OTP email: {e}", exc_info=True)
+
+        user_permissions = []
+        logger.debug(f"[LOGIN-MFA-DEBUG] Fetching permissions for MFA user {user.UserID}")
+        try:
+            user_permissions = RoleTemplatePermissionService.get_user_permissions(
+                db, user.UserID, user.tenant_id if hasattr(user, 'tenant_id') else None
+            )
+            logger.debug(f"[LOGIN-MFA-DEBUG] Permissions fetched: {len(user_permissions)} permissions found")
+        except Exception as e:
+            logger.error(f"[LOGIN-MFA-ERROR] Failed to fetch permissions: {e}", exc_info=True)
+            user_permissions = []
+
+        # CRITICAL: Reject login if user has ZERO permissions (prevents dead-end state)
+        if not user_permissions or len(user_permissions) == 0:
+            logger.warning(
+                f"[LOGIN-MFA-REJECT] Login rejected (MFA path): user {user.UserID} ({user.UserEmail}) has ZERO permissions. "
+                f"Role template ID: {role_template_id}. This user cannot access any modules."
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Your role template has no permissions assigned. Please contact help desk to assign permissions."
+            )
+
+        logger.info(f"[LOGIN-MFA-PERMISSION-OK] MFA user {user.UserID} has {len(user_permissions)} permissions, proceeding with MFA")
+
+        logger.info(f"Login MFA pending for user {user.UserID}")
+        return UnifiedLoginResponse(
+            entity_type="user",
+            access_token=pending_token,
+            is_first_time=False,
+            user_role=user_role,
+            authority=authority.summary(db, user),
+            user_name=user.UserName if hasattr(user, 'UserName') and user.UserName else "",
+            user_email=user.UserEmail,
+            permissions=user_permissions,
+            mfa_required=bool(user.mfa_enabled) if hasattr(user, 'mfa_enabled') and totp_gate else False,
+            mfa_setup_required=(not bool(user.mfa_enabled)) if hasattr(user, 'mfa_enabled') and totp_gate else False,
+            email_otp_required=email_otp_gate,
+        )
+
+    access_token = create_access_token(
+        data={
+            "sub": user.UserID,
+            "email": user.UserEmail,
+            "type": "user",
+            "name": user.UserName if hasattr(user, 'UserName') and user.UserName else "",
+            "tenant_id": user.tenant_id,
+            "role_template_id": user.role_template_id,
+        }
+    )
+
+    refresh_token = create_refresh_token(
+        data={
+            "sub": user.UserID,
+            "email": user.UserEmail,
+            "type": "refresh",
+        }
+    )
+
+    user_permissions = []
+    logger.debug(f"[LOGIN-DEBUG] Fetching permissions for user {user.UserID}")
+    try:
+        user_permissions = RoleTemplatePermissionService.get_user_permissions(
+            db, user.UserID, user.tenant_id if hasattr(user, 'tenant_id') else None
+        )
+        logger.debug(f"[LOGIN-DEBUG] Permissions fetched: {len(user_permissions)} permissions found")
+    except Exception as e:
+        logger.error(f"[LOGIN-ERROR] Failed to fetch permissions: {e}", exc_info=True)
+        user_permissions = []
+
+    # CRITICAL: Reject login if user has ZERO permissions (prevents dead-end state)
+    if not user_permissions or len(user_permissions) == 0:
+        logger.warning(
+            f"[LOGIN-REJECT] Login rejected: user {user.UserID} ({user.UserEmail}) has ZERO permissions. "
+            f"Role template ID: {role_template_id}. This user cannot access any modules."
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Your role template has no permissions assigned. Please contact help desk to assign permissions."
+        )
+
+    logger.info(f"[LOGIN-PERMISSION-OK] User {user.UserID} has {len(user_permissions)} permissions, proceeding with login")
+
+    force_password_reset = False if via_microsoft else getattr(user, 'password_reset_required', False)
+
+    logger.info(f"Login successful for user {user.UserID}")
+    return UnifiedLoginResponse(
+        entity_type="user",
+        access_token=access_token,
+        refresh_token=refresh_token,
+        is_first_time=False,
+        user_role=user_role,
+        authority=authority.summary(db, user),
+        user_name=user.UserName if hasattr(user, 'UserName') and user.UserName else "",
+        user_email=user.UserEmail,
+        permissions=user_permissions,
+        force_password_reset=force_password_reset,
+    )
+
+
 @router.post("/login", response_model=UnifiedLoginResponse)
 def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
     """Unified login endpoint. PUBLIC ENDPOINT."""
@@ -136,181 +318,7 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
         user = None
 
     if user:
-        if not user:
-            logger.error("User is None after authentication")
-            raise HTTPException(status_code=500, detail="User record is invalid. Please contact help desk.")
-
-        if not hasattr(user, 'UserID') or not user.UserID:
-            logger.error("User has no UserID")
-            raise HTTPException(status_code=500, detail="User record incomplete. Please contact help desk.")
-
-        if not hasattr(user, 'UserEmail') or not user.UserEmail:
-            logger.error("User has no UserEmail")
-            raise HTTPException(status_code=500, detail="User record incomplete. Please contact help desk.")
-
-        if not hasattr(user, 'role_template_id') or not user.role_template_id:
-            logger.error(f"Login rejected: user {user.UserID} has no role_template_id")
-            raise HTTPException(
-                status_code=403,
-                detail="Your user account doesn't have permissions loaded. Please reach out to help desk."
-            )
-
-        role_template_id = user.role_template_id
-        try:
-            rt = db.query(RoleTemplate).filter(RoleTemplate.id == role_template_id).first()
-        except Exception as e:
-            logger.error(f"Failed to fetch role template {role_template_id}: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Failed to load user role. Please try again.")
-        if not rt or not rt.enabled:
-            logger.error(f"Login rejected: role template {role_template_id} missing or disabled")
-            raise HTTPException(status_code=403, detail="Your role is not active. Please reach out to help desk.")
-
-        user_role = rt.display_name or rt.name  # display label only; authority comes from the template's flags
-
-        # MFA by the role template (hierarchy level), never by the role's name
-        from app.core import authority
-
-        totp_gate = mfa_enforcement_enabled() and authority.requires_totp(db, user)
-        email_otp_gate = email_otp_enforcement_enabled() and authority.requires_email_otp(db, user)
-
-        if totp_gate or email_otp_gate:
-            pending_token = create_access_token(
-                data={
-                    "sub": user.UserID,
-                    "email": user.UserEmail,
-                    "type": "user",
-                    "tenant_id": user.tenant_id,
-                    "role_template_id": user.role_template_id,
-                    "mfa_pending": True
-                },
-                expires_delta=timedelta(minutes=MFA_PENDING_TOKEN_MINUTES),
-            )
-
-            if email_otp_gate:
-                code = generate_email_otp_code()
-                try:
-                    user.email_otp_code_hash = hash_email_otp_code(code)
-                    user.email_otp_expires_at = datetime.utcnow() + timedelta(minutes=EMAIL_OTP_TTL_MINUTES)
-                    # User already in session from authenticate_user(), just commit the updates
-                    db.commit()
-                except Exception as e:
-                    logger.error(f"Failed to store email OTP: {e}", exc_info=True)
-                    db.rollback()
-                    raise HTTPException(status_code=500, detail="Failed to generate verification code. Please try again.")
-
-                try:
-                    user_email = user.UserEmail if user and hasattr(user, 'UserEmail') else request.email
-                    user_name = user.UserName if user and hasattr(user, 'UserName') and user.UserName else user_email
-                    EmailService.send_event_notification(
-                        to_email=user_email,
-                        recipient_name=user_name,
-                        event_type="action_required",
-                        heading="Your BlitzenX WROS verification code",
-                        message=(
-                            f"Your one-time verification code is <strong>{code}</strong>. "
-                            f"It expires in {EMAIL_OTP_TTL_MINUTES} minutes."
-                        ),
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to send OTP email: {e}", exc_info=True)
-
-            user_permissions = []
-            logger.debug(f"[LOGIN-MFA-DEBUG] Fetching permissions for MFA user {user.UserID}")
-            try:
-                user_permissions = RoleTemplatePermissionService.get_user_permissions(
-                    db, user.UserID, user.tenant_id if hasattr(user, 'tenant_id') else None
-                )
-                logger.debug(f"[LOGIN-MFA-DEBUG] Permissions fetched: {len(user_permissions)} permissions found")
-            except Exception as e:
-                logger.error(f"[LOGIN-MFA-ERROR] Failed to fetch permissions: {e}", exc_info=True)
-                user_permissions = []
-
-            # CRITICAL: Reject login if user has ZERO permissions (prevents dead-end state)
-            if not user_permissions or len(user_permissions) == 0:
-                logger.warning(
-                    f"[LOGIN-MFA-REJECT] Login rejected (MFA path): user {user.UserID} ({user.UserEmail}) has ZERO permissions. "
-                    f"Role template ID: {role_template_id}. This user cannot access any modules."
-                )
-                raise HTTPException(
-                    status_code=403,
-                    detail="Your role template has no permissions assigned. Please contact help desk to assign permissions."
-                )
-
-            logger.info(f"[LOGIN-MFA-PERMISSION-OK] MFA user {user.UserID} has {len(user_permissions)} permissions, proceeding with MFA")
-
-            logger.info(f"Login MFA pending for user {user.UserID}")
-            return UnifiedLoginResponse(
-                entity_type="user",
-                access_token=pending_token,
-                is_first_time=False,
-                user_role=user_role,
-                authority=authority.summary(db, user),
-                user_name=user.UserName if hasattr(user, 'UserName') and user.UserName else "",
-                user_email=user.UserEmail,
-                permissions=user_permissions,
-                mfa_required=bool(user.mfa_enabled) if hasattr(user, 'mfa_enabled') and totp_gate else False,
-                mfa_setup_required=(not bool(user.mfa_enabled)) if hasattr(user, 'mfa_enabled') and totp_gate else False,
-                email_otp_required=email_otp_gate,
-            )
-
-        access_token = create_access_token(
-            data={
-                "sub": user.UserID,
-                "email": user.UserEmail,
-                "type": "user",
-                "name": user.UserName if hasattr(user, 'UserName') and user.UserName else "",
-                "tenant_id": user.tenant_id,
-                "role_template_id": user.role_template_id,
-            }
-        )
-
-        refresh_token = create_refresh_token(
-            data={
-                "sub": user.UserID,
-                "email": user.UserEmail,
-                "type": "refresh",
-            }
-        )
-
-        user_permissions = []
-        logger.debug(f"[LOGIN-DEBUG] Fetching permissions for user {user.UserID}")
-        try:
-            user_permissions = RoleTemplatePermissionService.get_user_permissions(
-                db, user.UserID, user.tenant_id if hasattr(user, 'tenant_id') else None
-            )
-            logger.debug(f"[LOGIN-DEBUG] Permissions fetched: {len(user_permissions)} permissions found")
-        except Exception as e:
-            logger.error(f"[LOGIN-ERROR] Failed to fetch permissions: {e}", exc_info=True)
-            user_permissions = []
-
-        # CRITICAL: Reject login if user has ZERO permissions (prevents dead-end state)
-        if not user_permissions or len(user_permissions) == 0:
-            logger.warning(
-                f"[LOGIN-REJECT] Login rejected: user {user.UserID} ({user.UserEmail}) has ZERO permissions. "
-                f"Role template ID: {role_template_id}. This user cannot access any modules."
-            )
-            raise HTTPException(
-                status_code=403,
-                detail="Your role template has no permissions assigned. Please contact help desk to assign permissions."
-            )
-
-        logger.info(f"[LOGIN-PERMISSION-OK] User {user.UserID} has {len(user_permissions)} permissions, proceeding with login")
-
-        force_password_reset = getattr(user, 'password_reset_required', False)
-
-        logger.info(f"Login successful for user {user.UserID}")
-        return UnifiedLoginResponse(
-            entity_type="user",
-            access_token=access_token,
-            refresh_token=refresh_token,
-            is_first_time=False,
-            user_role=user_role,
-            authority=authority.summary(db, user),
-            user_name=user.UserName if hasattr(user, 'UserName') and user.UserName else "",
-            user_email=user.UserEmail,
-            permissions=user_permissions,
-            force_password_reset=force_password_reset,
-        )
+        return _staff_login_response(db, user)
 
     candidate = None
     try:
@@ -428,6 +436,37 @@ def unified_login(request: UnifiedLoginRequest, db: Session = Depends(get_db)):
 
     logger.warning(f"Login failed: invalid credentials for {request.email}")
     raise HTTPException(status_code=401, detail="Invalid email or password")
+
+
+@router.post("/microsoft/exchange", response_model=UnifiedLoginResponse)
+def microsoft_exchange(request: dict, db: Session = Depends(get_db)):
+    """Public: the one-time code the Microsoft sign-in returned (app.api.v1.endpoints.msgraph) -> the
+    same answer as a password login."""
+    from app.core.security import decode_access_token
+
+    code = (request or {}).get("code") or ""
+    try:
+        payload = decode_access_token(code) if code else {}
+    except HTTPException:
+        payload = {}
+    if not payload.get("msgraph_sso_exchange") or not payload.get("sub") or not payload.get("jti"):
+        raise HTTPException(status_code=401, detail="The Microsoft sign-in expired. Sign in again.")
+    # single use: a code seen in a browser history or a log can't be replayed within its two minutes
+    from sqlalchemy.exc import IntegrityError
+
+    from app.models.used_sign_in_code import UsedSignInCode
+
+    try:
+        db.add(UsedSignInCode(jti=payload["jti"], user_id=payload["sub"]))
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=401, detail="This Microsoft sign-in was already used. Sign in again.")
+    user = db.query(Users).filter(Users.UserID == payload["sub"], Users.terminated_at.is_(None)).first()
+    if user is None:
+        raise HTTPException(status_code=401, detail="This account is no longer active.")
+    logger.info(f"[LOGIN] Microsoft sign-in for user {user.UserID}")
+    return _staff_login_response(db, user, via_microsoft=True)
 
 
 @router.post("/v1/refresh", response_model=UnifiedLoginResponse)

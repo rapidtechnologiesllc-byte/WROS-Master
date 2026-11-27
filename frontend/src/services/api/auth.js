@@ -19,6 +19,16 @@ export const login = async (payload) => {
   return data;
 };
 
+// Sign in with Microsoft: the one-time code Microsoft's sign-in returned -> the same answer as login()
+export const exchangeMicrosoftSignin = async (code) => {
+  const { data } = await apiRequest("/auth/microsoft/exchange", {
+    method: "POST",
+    skipAuth: true,
+    body: JSON.stringify({ code }),
+  });
+  return data;
+};
+
 
 
 // Backlog item, 2026-08-05 (wros_email_2fa_backlog, candidate half).

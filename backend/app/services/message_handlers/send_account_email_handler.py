@@ -62,6 +62,16 @@ class SendAccountEmailHandler:
             raise ValueError(f"User {user_id} not found or has no email")
         if purpose == "ACTIVATE" and not user.password_reset_required:
             return {"status": "already_active", "user_id": user_id}
+        from app.services.m365_account_service import mailbox_pending
+
+        if purpose == "ACTIVATE" and mailbox_pending(db, user_id):
+            # a welcome sent now bounces: the Microsoft 365 account or its license is still being set up
+            from datetime import timedelta
+
+            from app.services.delivery_errors import DeliveryDeferred
+
+            raise DeliveryDeferred(f"{user.UserEmail}'s Microsoft 365 mailbox is not ready yet (account or "
+                                   f"license pending)", datetime.utcnow() + timedelta(minutes=30))
 
         # a draft from an interrupted earlier attempt is re-sent as is
         row = db.query(AccountActivationToken).filter(
