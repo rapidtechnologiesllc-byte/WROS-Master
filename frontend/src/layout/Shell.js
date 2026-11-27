@@ -143,9 +143,6 @@ async function fetchNavigationFromBackend() {
 }
 
 
-// The page a menu group opens when its name is clicked, when the person has it in their menu
-const GROUP_LANDING_PATHS = ["/recruitment-dashboard", "/workforce"];
-
 export default function Shell({
   role,
   screen,
@@ -211,7 +208,7 @@ export default function Shell({
   // of where you are.
   useEffect(() => {
     const activeGroup = nav.groups.find((g) =>
-      g.items.some((item) => item.path === location.pathname),
+      g.landing === location.pathname || g.items.some((item) => item.path === location.pathname),
     );
     if (activeGroup) {
       setOpenGroups((prev) => new Set(prev).add(activeGroup.label));
@@ -227,17 +224,16 @@ export default function Shell({
     });
   };
 
-  // Clicking a menu group opens its own dashboard when it has one (CEO 2026-11-09: Recruitment opens the
-  // Recruitment Dashboard); the arrow beside it only folds the group. A group without one just folds.
-  const groupLanding = (group) => (group.items || []).find((item) => GROUP_LANDING_PATHS.includes(item.path));
+  // Clicking a menu group opens its own dashboard when it has one (CEO 2026-11-09; 2026-11-27: the dashboard is
+  // not listed again under the group). The server names it (group.landing); the arrow beside it only folds the
+  // group. A group without one just folds.
   const openGroup = (group) => {
-    const landing = groupLanding(group);
-    if (!landing) {
+    if (!group.landing) {
       toggleGroup(group.label);
       return;
     }
     setOpenGroups((prev) => new Set(prev).add(group.label));
-    navigate(landing.path);
+    navigate(group.landing);
   };
 
   const renderLink = (n) => {
@@ -289,7 +285,7 @@ export default function Shell({
                 const GroupIcon = ICON_COMPONENTS_BY_NAME[group.icon] || LayoutDashboard;
                 const isOpen = openGroups.has(group.label);
                 // Check if any item in this group matches current path
-                const hasActiveItem = group.items?.some(
+                const hasActiveItem = location.pathname === group.landing || group.items?.some(
                   (item) => location.pathname === item.path || location.pathname.startsWith(item.path + '/')
                 );
 

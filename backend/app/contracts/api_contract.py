@@ -152,10 +152,11 @@ MODULES_AND_RESOURCES = {
     "Recruitment": ["candidates", "jobs", "submissions", "convert-to-employee", "offer-letters", "bulk-launch",
                     "intervention-queue", "risk-dashboard", "thunder-analytics",
                     "candidate-review", "rehire-approval", "interviews", "flash-missions"],
-    "Workforce": ["workforce-overview", "employees", "allocations", "timesheets", "buddy-program", "htd-intake",
-                  "resource-forecast", "utilization-dashboard"],
-    "Sales & Delivery": ["clients", "opportunities", "pipeline-management", "projects",
-                         "core-pull", "resources", "work-orders"],
+    # Everything delivery is Workforce; Sales is its own group (CEO 2026-11-27: "sales and delivery don't go hand
+    # in hand"). Moving a resource keeps its grants (db_contract re-parents the row).
+    "Workforce": ["workforce-overview", "employees", "allocations", "projects", "core-pull", "resources", "work-orders",
+                  "timesheets", "buddy-program", "htd-intake", "resource-forecast", "utilization-dashboard"],
+    "Sales": ["clients", "opportunities", "pipeline-management"],
     "Finance": ["invoices", "revenue", "finance-operations", "sales-ops", "forecasts", "expenses"],
     # ceo/cfo/bu-head-dashboard: permission-only -- each is that person's Home (authority.home_dashboard)
     "Leadership": ["ceo-dashboard", "cfo-dashboard", "bu-head-dashboard", "goals", "executive-signal",
@@ -168,9 +169,12 @@ MODULES_AND_RESOURCES = {
                          "ticket-routing", "configuration", "admin-settings", "newsletters", "assets"],
 }
 
+# The page a menu group opens when it is clicked (CEO 2026-11-27): its dashboard, never listed again as an item
+MODULE_LANDINGS = {"Recruitment": "/recruitment-dashboard", "Workforce": "/workforce"}
+
 # Menu group icon per module (lucide icon names the client maps to components).
 MODULE_ICONS = {
-    "Personal": "LayoutDashboard", "Recruitment": "Users", "Workforce": "Users2", "Sales & Delivery": "Briefcase",
+    "Personal": "LayoutDashboard", "Recruitment": "Users", "Workforce": "Users2", "Sales": "Briefcase",
     "Finance": "BadgeDollarSign", "Leadership": "TrendingUp", "Admin & Settings": "Settings",
 }
 
@@ -386,6 +390,7 @@ __all__ = [
     "RolePermissions",
     "RoleTemplate",
     "MODULES_AND_RESOURCES",
+    "MODULE_LANDINGS",
     "MODULE_ICONS",
     "validate_login_request",
     "validate_login_response",

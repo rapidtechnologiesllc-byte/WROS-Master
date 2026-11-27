@@ -45,7 +45,7 @@ RESOURCE_ROUTES = {
     "htd-intake": "/workforce",
     "resource-forecast": "/workforce",
     "utilization-dashboard": "/workforce",  # a tab of Workforce Overview
-    # Sales & Delivery
+    # Sales (clients, opportunities) and delivery pages (now under Workforce)
     "clients": "/client-management",
     "opportunities": "/opportunity-pipeline",
     "projects": "/projects",
