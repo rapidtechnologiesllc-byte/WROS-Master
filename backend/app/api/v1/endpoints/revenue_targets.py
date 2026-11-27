@@ -72,4 +72,5 @@ def executive_dashboard(
     current_user: Users = Depends(require_resource_permission("revenue", "view")),
 ):
     client_ids = get_revenue_scoped_client_ids(db, current_user)
-    return get_executive_revenue_dashboard(db, client_ids=list(client_ids) if client_ids is not None else None)
+    return get_executive_revenue_dashboard(db, client_ids=list(client_ids) if client_ids is not None else None,
+                                           tenant_id=current_user.tenant_id)

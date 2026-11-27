@@ -281,6 +281,8 @@ def create_submission(
         source=source, subvendor_id=subvendor_id,
     )
     db.add(submission)
+    db.flush()
+    tag_interview_rounds(db, submission)
 
     # BU Scoping: Lock candidate to the job's business unit when submitted
     # Once submitted, no other BU can pursue this candidate
@@ -292,6 +294,46 @@ def create_submission(
         transition_demand_status(db, demand, "IN_PROGRESS", changed_by=submitted_by_user_id)
 
     return submission
+
+def tag_interview_rounds(db: Session, submission: Submission) -> int:
+    """Attach the candidate's rounds to the submission (CEO 2026-11-27): every round held without a job (the
+    screening call and the hiring L1/L2 of a market candidate) and every round held for this job. Snapshots the
+    round, its level and verdict and when it was held. Idempotent; returns how many rounds were attached."""
+    from sqlalchemy import or_
+
+    from app.models.submission import SubmissionInterviewRound
+    from app.models.user import Interview, InterviewPanel
+    from app.services.interview_verdict_service import verdict_for_panel
+
+    already = {row[0] for row in db.query(SubmissionInterviewRound.panel_id).filter(
+        SubmissionInterviewRound.submission_id == submission.id)}
+    panels = db.query(InterviewPanel).filter(
+        InterviewPanel.candidate_id == submission.candidate_id,
+        or_(InterviewPanel.job_id.is_(None), InterviewPanel.job_id == submission.demand_id),
+    ).order_by(InterviewPanel.created_at, InterviewPanel.id).all()
+    added = 0
+    for panel in panels:
+        if panel.id in already:
+            continue
+        verdict = verdict_for_panel(db, panel)
+        held = db.query(Interview.start_time).filter(Interview.panel_id == panel.id)             .order_by(Interview.start_time.desc().nullslast()).first()
+        db.add(SubmissionInterviewRound(
+            tenant_id=submission.tenant_id, submission_id=submission.id, panel_id=panel.id,
+            round_name=panel.round_name, level=verdict.level if verdict else None,
+            verdict=verdict.verdict if verdict else None, interviewed_at=held[0] if held else None,
+            round_job_id=panel.job_id))
+        added += 1
+    if added:
+        db.flush()
+    return added
+
+
+def submission_rounds(db: Session, submission_id: str) -> list:
+    """The rounds sent with a submission, oldest first."""
+    from app.models.submission import SubmissionInterviewRound
+
+    return db.query(SubmissionInterviewRound).filter(SubmissionInterviewRound.submission_id == submission_id)         .order_by(SubmissionInterviewRound.interviewed_at.asc().nullslast(), SubmissionInterviewRound.id).all()
+
 
 def update_client_response(
     db: Session,

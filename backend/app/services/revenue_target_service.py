@@ -55,7 +55,11 @@ def _fy_invoice_total_for_clients(db: Session, client_ids: List[str], fiscal_yea
     if not client_ids:
         return 0
     from app.services.fiscal_year_service import fy_window
-    start, end = fy_window(db, fiscal_year)
+    # the fiscal year is the clients' tenant's (never "the only tenant": there may be several)
+    tenants = {row[0] for row in db.query(Client.tenant_id).filter(Client.id.in_(client_ids)).distinct()}
+    if len(tenants) != 1 or None in tenants:
+        raise RevenueTargetValidationError(f"Clients must belong to exactly one tenant, got {sorted(map(str, tenants))}")
+    start, end = fy_window(db, fiscal_year, tenants.pop())
     total = (
         db.query(func.sum(Invoice.total_usd_cents))
         .filter(
@@ -203,7 +207,8 @@ def get_partner_multi_year_position(db: Session, partner_user_id: str) -> dict:
 # local recalculation.
 # ---------------------------------------------------------------------------
 
-def get_executive_revenue_dashboard(db: Session, *, client_ids: Optional[List[str]] = None) -> dict:
+def get_executive_revenue_dashboard(db: Session, *, client_ids: Optional[List[str]] = None,
+                                    tenant_id: Optional[int] = None) -> dict:
     """Single JOIN, not a per-opportunity query -- an earlier version of
     this function issued one `SELECT clients WHERE id=...` per
     opportunity to resolve its BU, which is an N+1 query pattern that
@@ -246,7 +251,7 @@ def get_executive_revenue_dashboard(db: Session, *, client_ids: Optional[List[st
         "weighted_forecast_usd_cents": weighted_forecast_usd_cents,
         "by_business_unit": list(by_bu.values()),
         **_executive_extras(db, client_ids=client_ids, pipeline_by_bu=by_bu,
-                            total_pipeline_usd_cents=total_pipeline_usd_cents),
+                            total_pipeline_usd_cents=total_pipeline_usd_cents, tenant_id=tenant_id),
     }
 
 
@@ -254,7 +259,8 @@ from app.models.opportunity import WON_STAGES  # noqa: E402 -- one definition of
 BENCH_AGING_DAYS = 60
 
 
-def _executive_extras(db: Session, *, client_ids, pipeline_by_bu: dict, total_pipeline_usd_cents: int) -> dict:
+def _executive_extras(db: Session, *, client_ids, pipeline_by_bu: dict, total_pipeline_usd_cents: int,
+                      tenant_id: Optional[int] = None) -> dict:
     """CEO Executive Metrics: YTD revenue, revenue per BU (every active BU
     from Business Units admin, with its FY revenue target from the goal
     tree), pipeline coverage of the org FY revenue target, capacity
@@ -266,8 +272,8 @@ def _executive_extras(db: Session, *, client_ids, pipeline_by_bu: dict, total_pi
     from app.services.ar_followup_service import scan_overdue_invoices
 
     from app.services.fiscal_year_service import current_fy, fy_window
-    year = current_fy(db)
-    start, end = fy_window(db, year)
+    year = current_fy(db, tenant_id)
+    start, end = fy_window(db, year, tenant_id)
 
     revenue_query = (
         db.query(Client.business_unit_id, func.sum(Invoice.total_usd_cents))

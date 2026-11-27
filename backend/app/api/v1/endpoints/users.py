@@ -95,6 +95,11 @@ def get_all_users(
     users = db.query(Users).filter(Users.tenant_id == user.tenant_id).all()
     templates = {t.id: t.name for t in db.query(RoleTemplate).filter(
         RoleTemplate.id.in_({u.role_template_id for u in users if u.role_template_id})).all()}
+    from app.models.org_structure import OrgRole
+    from app.services.org_roles_service import answers_for_all_functions
+
+    all_function_titles = {r.name.strip().lower() for r in db.query(OrgRole).filter(
+        OrgRole.tenant_id == user.tenant_id, OrgRole.active.is_(True)).all() if answers_for_all_functions(r)}
     users_data = [
         UserResponse(
             user_id=u.UserID,
@@ -105,6 +110,7 @@ def get_all_users(
             role_template_id=u.role_template_id,
             created_at=u.CreatedAt,
             permission_role=templates.get(u.role_template_id),
+            all_functions=(u.job_title or "").strip().lower() in all_function_titles,
             department_id=u.department_id,
             department_name=u.department.name if u.department else None,
             business_unit_id=u.business_unit_id,
@@ -756,6 +762,17 @@ def create_user_with_roles(
         logger.error(f"Failed to check existing user: {check_error}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to validate email")
 
+    # A role that answers for all functions (CEO 2026-11-05: L15+) has no function: the no-function add-on,
+    # whatever the form sent
+    from app.services.org_roles_service import answers_for_all_functions, no_function_addon
+    if answers_for_all_functions(org_role):
+        addon = no_function_addon(db, current_user.tenant_id)
+        if addon is None:
+            raise HTTPException(status_code=422, detail="This tenant has no Employee role template for people "
+                                                        "who answer for all functions")
+        request.role_template_id = addon.id
+        request.department_id = None
+
     # Validate the function add-on template
     from app.services.role_template_permission_service import validate_addon_template
     try:
@@ -945,6 +962,17 @@ def update_user(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc))
         target.department_id = request.department_id or None
+    if title_changed or addon_changed:
+        # a role that answers for all functions (L15+) has no function, whatever the form sent
+        from app.services.org_roles_service import (
+            align_all_functions_addon, answers_for_all_functions, no_function_addon,
+        )
+
+        if answers_for_all_functions(role_for_title(db, target.tenant_id, target.job_title)) \
+                and no_function_addon(db, target.tenant_id) is None:
+            raise HTTPException(status_code=422, detail="This tenant has no Employee role template for people "
+                                                        "who answer for all functions")
+        align_all_functions_addon(db, target)
 
     # Org-chart seat: created when the user has none, moved when they do. Only the seat
     # fields (level, boss, company) or a new Job Title place the seat; a department change

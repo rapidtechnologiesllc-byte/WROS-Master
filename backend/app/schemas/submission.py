@@ -40,6 +40,15 @@ class StatusOption(BaseModel):
     value: str
     label: str
 
+class SubmissionRoundItem(BaseModel):
+    """An interview round sent with the submission (screening and interviews held before there was a job too)."""
+    round_name: Optional[str] = None
+    level: Optional[str] = None
+    verdict: Optional[str] = None
+    interviewed_at: Optional[datetime] = None
+    held_for_this_job: bool = False
+
+
 class SubmissionItem(BaseModel):
     id: str
     demand_id: str
@@ -61,6 +70,7 @@ class SubmissionItem(BaseModel):
     client_response_at: Optional[datetime] = None
     submission_rank: Optional[int] = None
     source: str
+    interview_rounds: List[SubmissionRoundItem] = []
 
 class SubmissionListResponse(BaseModel):
     submissions: List[SubmissionItem]

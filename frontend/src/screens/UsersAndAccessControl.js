@@ -189,7 +189,12 @@ function UsersSection({ loading, error, users, roles, currentUserPermissions = {
           },
           { header: "Email", accessor: "user_email", key: "email" },
           { header: "Job Title", accessor: "job_title", key: "job_title" },
-          { header: "Role Template", accessor: "permission_role", key: "role_template" },
+          // the function add-on; L15+ answer for all functions and their access comes from the role
+          {
+            header: "Function access",
+            cell: (row) => (row.all_functions ? "All functions (from role)" : row.permission_role || "-"),
+            key: "role_template",
+          },
           {
             header: "Org Chart",
             key: "org_chart",

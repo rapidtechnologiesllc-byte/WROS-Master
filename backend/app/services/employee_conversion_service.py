@@ -162,7 +162,10 @@ class EmployeeConversionService:
         email = employee_email or candidate.candidateEmail
         fn = first_name or getattr(candidate, "candidateFirstName", "Employee") or "Employee"
         ln = last_name or getattr(candidate, "candidateLastName", "") or ""
-        tid = tenant_id or getattr(candidate, "tenant_id", 1) or 1
+        # never defaulted to tenant 1 (holding company model): the caller's, else the candidate's own
+        tid = tenant_id or getattr(candidate, "tenant_id", None)
+        if not tid:
+            raise ValueError(f"Candidate {candidate.candidateID} has no tenant; cannot convert them")
         ph = phone or getattr(candidate, "candidateMobile", None)
 
         job = hired_for_job(db, candidate)

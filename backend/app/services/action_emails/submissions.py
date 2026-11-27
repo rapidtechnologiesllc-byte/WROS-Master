@@ -38,9 +38,15 @@ def _label(db: Session, submission: Submission) -> str:
 
 @after_commit("submissions")
 def notify_submitted(db: Session, submission: Submission, *, actor: Users) -> int:
+    from app.services.submission_service import submission_rounds
+
     label = _label(db, submission)
+    rounds = [f"{r.round_name or r.level or 'Round'}: {(r.verdict or 'pending').lower()}"
+              + ("" if r.round_job_id == submission.demand_id else " (held before this job)")
+              for r in submission_rounds(db, submission.id)]
     return send(db, submission_team(db, submission), actor_id=actor.UserID, key=f"submission-created-{submission.id}",
                 subject=f"Submitted: {label}", opening=f"{name_of(actor)} submitted {label}.",
+                details=[f"Interview rounds sent with it: {'; '.join(rounds)}" if rounds else None],
                 link_path=SUBMISSIONS_PATH, link_label="Open Submissions")
 
 

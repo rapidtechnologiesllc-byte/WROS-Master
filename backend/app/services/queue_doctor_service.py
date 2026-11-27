@@ -24,15 +24,23 @@ class QueueDoctorService:
 
     @staticmethod
     def start_tracking(message: ChannelQueueItem, db: Session) -> QueueDoctorState:
-        """Create tracking record when message processing starts."""
-        doctor_state = QueueDoctorState(
-            id=f"qds-{uuid.uuid4().hex[:12]}",
-            message_id=message.id,
-            message_type=message.type,
-            queued_at=message.created_at,
-            candidate_id=message.payload.get('candidate_id') if message.payload else None,
-            status="PROCESSING",
-        )
+        """Track a processing attempt: one row per message (message_id is unique), reset on every new attempt.
+        A retry, a reclaimed message or one deferred and picked up again reuses the row; inserting a second row
+        broke the unique index on every such attempt (and its rollback threw away the worker's own changes)."""
+        doctor_state = db.query(QueueDoctorState).filter(QueueDoctorState.message_id == message.id).first()
+        if doctor_state is None:
+            doctor_state = QueueDoctorState(
+                id=f"qds-{uuid.uuid4().hex[:12]}",
+                message_id=message.id,
+                message_type=message.type,
+                queued_at=message.created_at,
+                candidate_id=message.payload.get('candidate_id') if isinstance(message.payload, dict) else None,
+            )
+        doctor_state.status = "PROCESSING"
+        doctor_state.started_at = datetime.utcnow()
+        doctor_state.completed_at = None
+        doctor_state.error_message = None
+        doctor_state.attempt_count = (doctor_state.attempt_count or 0) + 1
         db.add(doctor_state)
         try:
             db.commit()

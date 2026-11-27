@@ -63,6 +63,7 @@ from app.schemas.submission import (
     ClientResponseRequest,
     CreateSubmissionRequest,
     SubmissionItem,
+    SubmissionRoundItem,
     InternalSubmissionItem,
     InternalSubmissionListResponse,
     SubmissionCandidateOption,
@@ -78,6 +79,7 @@ from app.services.submission_service import (
     DemandNotOpenForSubmission,
     check_experience_eligibility,
     client_submission_blockers,
+    submission_rounds,
     DuplicateSubmission,
     InvalidSubmissionTransition,
     SubmissionComplianceError,
@@ -130,6 +132,11 @@ def _to_item(db: Session, submission: Submission) -> SubmissionItem:
         client_response_at=submission.client_response_at,
         submission_rank=submission.submission_rank,
         source=submission.source,
+        interview_rounds=[
+            SubmissionRoundItem(round_name=r.round_name, level=r.level, verdict=r.verdict,
+                                interviewed_at=r.interviewed_at, held_for_this_job=r.round_job_id == submission.demand_id)
+            for r in submission_rounds(db, submission.id)
+        ],
     )
 
 # the UI posts without the trailing slash; serve both instead of relying on a 307 redirect

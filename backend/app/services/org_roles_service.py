@@ -54,6 +54,29 @@ def answers_for_all_functions(role: Optional[OrgRole]) -> bool:
     return bool(role and (role.hierarchy_level or 0) >= settings.ALL_FUNCTIONS_MIN_LEVEL and role.designation in (None, "", "ceo"))
 
 
+def no_function_addon(db: Session, tenant_id: int):
+    """The add-on of someone with no function of their own (the tenant's enabled Employee template): what a
+    person who answers for all functions carries, since their access comes from their role (CEO 2026-11-05)."""
+    from app.models.role_template import RoleTemplate
+
+    return db.query(RoleTemplate).filter(RoleTemplate.tenant_id == tenant_id, RoleTemplate.enabled.is_(True),
+                                         func.lower(RoleTemplate.name) == "employee").first()
+
+
+def align_all_functions_addon(db: Session, user) -> bool:
+    """A person whose role answers for all functions has no function: their add-on becomes the no-function one
+    and their function is cleared. Returns True when something changed. The caller checks access parity
+    where it matters (db_contract's repair) and commits."""
+    if not answers_for_all_functions(role_for_title(db, user.tenant_id, user.job_title)):
+        return False
+    addon = no_function_addon(db, user.tenant_id)
+    if addon is None or (user.role_template_id == addon.id and user.department_id is None):
+        return False
+    user.role_template_id = addon.id
+    user.department_id = None
+    return True
+
+
 # A person's Job Title holds the role name (Users.job_title is String(150))
 ROLE_NAME_MAX = 150
 

@@ -110,6 +110,8 @@ class UserResponse(BaseModel):
     job_title: Optional[str] = None
     role_template_id: Optional[int] = None
     permission_role: Optional[str] = None
+    # the Job Title's role answers for all functions (L15+): access comes from the role, no function add-on
+    all_functions: bool = False
     department_id: Optional[str] = None
     department_name: Optional[str] = None
     business_unit_id: Optional[int] = None
