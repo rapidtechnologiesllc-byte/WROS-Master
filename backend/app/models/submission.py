@@ -115,6 +115,28 @@ class Submission(Base):
         UniqueConstraint("tenant_id", "demand_id", "candidate_id", name="uq_submission_per_demand_candidate"),
     )
 
+class SubmissionInterviewRound(Base):
+    """An interview round sent with a submission (CEO 2026-11-27): a market candidate is screened and interviewed
+    before there is a job, then hired onto the bench; when they are submitted to a client job, those job-less rounds
+    (and any round already held for that job) are attached to the submission. A snapshot of what the client was
+    shown, like submitted_as_resume_url: a verdict changed later does not rewrite it."""
+    __tablename__ = "submission_interview_rounds"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    submission_id = Column(String(512), ForeignKey("submissions.id"), nullable=False, index=True)
+    panel_id = Column(Integer, ForeignKey("interview_panels.id"), nullable=False, index=True)
+    round_name = Column(String(255), nullable=True)
+    level = Column(String(16), nullable=True)
+    verdict = Column(String(32), nullable=True)
+    interviewed_at = Column(DateTime, nullable=True)
+    # the job the round was held for; None for a round held before there was a job (screening, hiring L1/L2)
+    round_job_id = Column(String(512), nullable=True)
+    tagged_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("submission_id", "panel_id", name="uq_submission_interview_round"),)
+
+
 class SubmissionViolation(Base):
     """
     HRMS-P605/P606's violation log. Real audit trail of every blocked

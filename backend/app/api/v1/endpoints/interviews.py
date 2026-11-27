@@ -1193,9 +1193,14 @@ def get_log_options():
     """Choices for the Log Interview form (types, platforms, the recommendation scale)."""
     from app.models.interview_log import MEETING_PLATFORMS
     from app.services.interview_log_service import INTERVIEW_TIMEZONES, INTERVIEW_TYPES, RECOMMENDATIONS
+    from app.services.interview_verdict_service import infer_level
+
     return {"interview_types": list(INTERVIEW_TYPES), "meeting_platforms": list(MEETING_PLATFORMS),
             "timezones": list(INTERVIEW_TIMEZONES),
-            "recommendations": list(RECOMMENDATIONS)}
+            "recommendations": list(RECOMMENDATIONS),
+            # each round's level (SCREEN / L1 / L2 / OTHER): the form treats a SCREEN round as a screening call,
+            # which needs no job (CEO 2026-11-27)
+            "interview_levels": {name: infer_level(name) for name in INTERVIEW_TYPES}}
 
 
 @router.get(

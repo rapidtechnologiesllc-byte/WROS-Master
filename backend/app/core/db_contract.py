@@ -362,6 +362,92 @@ def _expense_trips_to_visits(db: Session) -> int:
     return group_existing_trips(db)
 
 
+def _all_functions_roles_drop_function_addon(db: Session) -> int:
+    """CEO 2026-11-05: from L15 (CEO, Partner, SVP) a person has no function; CEO 2026-11-27 found the CEO still
+    carrying an old Recruiter add-on ("it has to be driven by the role"). Such people move to the no-function
+    add-on and lose their function, keeping exactly the access they had (access parity, 2026-10-13): what only
+    the old add-on gave them moves onto their role's permission set when they are its only holder (the CEO);
+    a shared role (Partner) would widen everyone's access, so that person is left as is and logged."""
+    from sqlalchemy import func as sa_func
+
+    from app.models.role_template import RoleTemplatePermission
+    from app.models.user import Users
+    from app.services.org_roles_service import align_all_functions_addon, answers_for_all_functions, role_for_title
+    from app.services.role_template_permission_service import RoleTemplatePermissionService
+
+    def access(user_id, tenant_id) -> set:
+        """Every permission flag plus the authority flags read from either template (org-wide visibility,
+        permanent deletes, authenticator app): losing any of them blocks the move."""
+        from app.core import authority
+
+        perms = RoleTemplatePermissionService._fetch_user_permissions_internal(db, user_id, tenant_id)
+        user = db.get(Users, user_id)
+        db.info.pop("authority_cache", None)
+        flags = {f"{resource}.{flag}" for resource, flags in (perms or {}).items()
+                 for flag, on in (flags or {}).items() if flag.startswith("can_") and on is True}
+        for name, check in (("org_level", authority.is_org_level), ("delete_records", authority.can_delete_records),
+                            ("totp", authority.requires_totp)):
+            if check(db, user):
+                flags.add(f"authority.{name}")
+        return flags
+
+    def give_role(role, addon_id) -> None:
+        """The old add-on's permissions and authority flags onto the role's own set (only ever turned on; the
+        caller does this only for a role's sole holder, so nobody else's access widens)."""
+        from app.models.role_template import RoleTemplate
+
+        addon, role_set = db.get(RoleTemplate, addon_id), db.get(RoleTemplate, role.role_template_id)
+        if addon is not None and role_set is not None:
+            role_set.org_level_access = bool(role_set.org_level_access) or bool(addon.org_level_access)
+            role_set.can_delete_records = bool(role_set.can_delete_records) or bool(addon.can_delete_records)
+        own = {row.resource_id: row for row in db.query(RoleTemplatePermission).filter(
+            RoleTemplatePermission.role_template_id == role.role_template_id)}
+        for row in db.query(RoleTemplatePermission).filter(RoleTemplatePermission.role_template_id == addon_id):
+            target = own.get(row.resource_id)
+            if target is None:
+                target = RoleTemplatePermission(role_template_id=role.role_template_id, resource_id=row.resource_id,
+                                                tenant_id=role.tenant_id)
+                db.add(target)
+                own[row.resource_id] = target
+            for flag in ("can_view", "can_create", "can_edit", "can_delete"):
+                setattr(target, flag, bool(getattr(target, flag)) or bool(getattr(row, flag)))
+
+    moved = 0
+    for user in db.query(Users).filter(Users.terminated_at.is_(None)).all():
+        role = role_for_title(db, user.tenant_id, user.job_title)
+        if not answers_for_all_functions(role):
+            continue
+        user_id, tenant_id, old_addon = user.UserID, user.tenant_id, user.role_template_id
+        try:
+            before = access(user_id, tenant_id)
+        except ValueError as exc:  # no template at all: nothing to compare, nothing to move
+            logger.warning(f"[Contract] {user_id} skipped: {exc}")
+            continue
+        savepoint = db.begin_nested()
+        if not align_all_functions_addon(db, user):
+            savepoint.rollback()
+            continue
+        db.flush()
+        lost = before - access(user_id, tenant_id)
+        if lost and role.role_template_id:
+            holders = db.query(Users.UserID).filter(
+                Users.tenant_id == tenant_id, Users.terminated_at.is_(None),
+                sa_func.lower(Users.job_title) == role.name.lower()).count()
+            if holders == 1:
+                give_role(role, old_addon)
+                db.flush()
+                lost = before - access(user_id, tenant_id)
+        if lost:
+            savepoint.rollback()
+            logger.warning(f"[Contract] {user_id} ({role.name}) keeps their function add-on: without it they would "
+                           f"lose {len(lost)} permission(s) and their role is shared or has no permission set; "
+                           f"give the {role.name} role those permissions, then edit them")
+            continue
+        savepoint.commit()
+        moved += 1
+    return moved
+
+
 DATA_MIGRATIONS = (
     ("interview_times_to_utc", _interview_times_to_utc),
     ("employee_org_history_backfill", _employee_org_history_backfill),
@@ -375,6 +461,7 @@ DATA_MIGRATIONS = (
     ("expense_receipts_and_review_tasks", _expense_receipts_and_review_tasks),
     ("candidate_merges_to_one_record", _candidate_merges_to_one_record),
     ("expense_trips_to_visits", _expense_trips_to_visits),
+    ("all_functions_roles_drop_function_addon", _all_functions_roles_drop_function_addon),
 )
 
 

@@ -425,7 +425,10 @@ export default function UserFormPage() {
                 const title = e.target.value;
                 // a new level means a new set of eligible supervisors
                 // a partner or above answers for every function
-                const clearFunction = roleFor(title)?.all_functions ? { department_id: '', role_template_id: '' } : {};
+                // no function of their own: the no-function add-on (the server enforces the same)
+                const noFunction = addonForFunction('');
+                const clearFunction = roleFor(title)?.all_functions
+                  ? { department_id: '', role_template_id: noFunction ? String(noFunction.id) : '' } : {};
                 setFormData(prev => ({ ...prev, job_title: title, parent_node_id: '', ...clearFunction }));
               }}
               disabled={saving || isSelf}

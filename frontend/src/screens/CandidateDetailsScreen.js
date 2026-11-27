@@ -321,11 +321,18 @@ export default function CandidateDetailsScreen({
   const [activityNote, setActivityNote] = useState("");
   const [activityLogging, setActivityLogging] = useState(false);
   const [candidateJobs, setCandidateJobs] = useState([]);
+  // A screening call is a first conversation, not an interview round (round names come from the server)
+  const [roundLevels, setRoundLevels] = useState({});
+  // the server decides each round's level; a SCREEN round is a screening call (no job needed)
+  const isScreeningCall = roundLevels[scheduleForm?.roundName || ""] === "SCREEN";
   // The same rounds as Log Interview, from the server
   const [roundNameOptions, setRoundNameOptions] = useState([]);
   useEffect(() => {
     getInterviewLogOptions()
-      .then((options) => setRoundNameOptions((options?.interview_types || []).map((name) => ({ label: name, value: name }))))
+      .then((options) => {
+        setRoundNameOptions((options?.interview_types || []).map((name) => ({ label: name, value: name })));
+        setRoundLevels(options?.interview_levels || {});
+      })
       .catch((err) => {
         console.error("[Candidate] Interview rounds unavailable:", err);
         showNotice(`Could not load the interview rounds: ${err.message}`, "error");
@@ -792,10 +799,16 @@ export default function CandidateDetailsScreen({
     if (!scheduleForm.emailBody.trim()) {
       errors.emailBody = "Email body is required";
     }
-    if (!selectedJobId) {
+    // A job is asked for only when the candidate is submitted to one, and not for a screening call
+    // (a first conversation, possibly for future hiring)
+    if (!selectedJobId && candidateJobs?.length > 0 && !isScreeningCall) {
       errors.selectedJobId = "Please select a job";
     }
     setScheduleErrors(errors);
+    // never block silently: some checked fields (the invite email) are not shown in this form
+    if (Object.keys(errors).length) {
+      showNotice(`Can't schedule yet: ${Object.values(errors).join(". ")}`, "error", 6000);
+    }
     return Object.keys(errors).length === 0;
   };
 
@@ -930,9 +943,14 @@ ${jobDescription}
       if (!interviewId) {
         throw new Error("Interview created but interview ID was not returned");
       }
-      await updateCandidateStatus(candidate.id, {
-        pipeline_status: "Interview",
-      });
+      // a screening call is not an interview: it moves a new candidate to Screening, never someone
+      // already further along back
+      const currentStage = statusData?.pipeline_status || "";
+      if (!isScreeningCall) {
+        await updateCandidateStatus(candidate.id, { pipeline_status: "Interview" });
+      } else if (!currentStage || currentStage === "Applied") {
+        await updateCandidateStatus(candidate.id, { pipeline_status: "Screening" });
+      }
       const updatedStatusRes = await getCandidateStatus(candidate.id);
       setStatusData(updatedStatusRes);
       const performedBy =
@@ -956,7 +974,7 @@ ${jobDescription}
             (application) =>
               String(application?.job_id) === String(selectedJobId),
           ) ?? null;
-        if (!selectedApplication) {
+        if (selectedJobId && !selectedApplication) {
           showNotice("No application found for candidate", "error");
         }
         if (selectedApplication?.job_id) {
@@ -977,51 +995,69 @@ ${jobDescription}
       } catch (error) {
         console.error("Failed to fetch candidate applications", error);
       }
-      const resumeLink = await getCandidateResumeLink();
-      if (scheduleType === "online") {
-        await sendInterviewInvite({
-          interviewId,
-          extraNotes: `
-<p>${scheduleForm?.extraNotes?.trim?.() || ""}</p>
-<hr />
-<h3 style="margin-bottom: 12px;">
-  Job Description
-</h3>
+      // The round is booked at this point. The invitations are sent next; if they fail, the round stays booked and
+      // the person is told exactly that, never shown a generic failure that invites a second (duplicate) booking.
+      let inviteProblem = "";
+      try {
+        const resumeLink = await getCandidateResumeLink();
+        if (scheduleType === "online") {
+          await sendInterviewInvite({
+            interviewId,
+            extraNotes: `
+  <p>${scheduleForm?.extraNotes?.trim?.() || ""}</p>
+  ${
+    selectedApplication?.job_id
+      ? `<hr />
+  <h3 style="margin-bottom: 12px;">
+    Job Description
+  </h3>
 
-${formattedJD}
-`,
-          timezone: scheduleForm.timezone,
-          createTeamsEvent: scheduleForm.meetingPlatform === "Microsoft Teams",
-        });
-        await sendPanelInterviewBriefEmail({
-          resumeLink,
-          selectedApplication,
-        });
-      } else {
-        const ccEmails =
-          scheduleForm?.ccEmails
-            ?.split(",")
-            ?.map((email) => email.trim())
-            ?.filter(Boolean) ?? [];
+  ${formattedJD}`
+      : ""
+  }
+  `,
+            timezone: scheduleForm.timezone,
+            createTeamsEvent: scheduleForm.meetingPlatform === "Microsoft Teams",
+          });
+          await sendPanelInterviewBriefEmail({
+            resumeLink,
+            selectedApplication,
+          });
+        } else {
+          const ccEmails =
+            scheduleForm?.ccEmails
+              ?.split(",")
+              ?.map((email) => email.trim())
+              ?.filter(Boolean) ?? [];
 
-        await sendPlainEmail({
-          toEmail: candidate.candidate_email,
-          subject: scheduleForm.emailSubject.trim(),
-          bodyContent: buildFaceToFaceEmailBody(jobDescription),
-          isHtml: false,
-          ccEmails,
-        });
-        await sendPanelInterviewBriefEmail({
-          resumeLink,
-          selectedApplication,
-        });
+          await sendPlainEmail({
+            toEmail: candidate.candidate_email,
+            subject: scheduleForm.emailSubject.trim(),
+            bodyContent: buildFaceToFaceEmailBody(jobDescription),
+            isHtml: false,
+            ccEmails,
+          });
+          await sendPanelInterviewBriefEmail({
+            resumeLink,
+            selectedApplication,
+          });
+        }
+      } catch (inviteErr) {
+        console.error("[Schedule] Interview booked but the invitation was not sent", inviteErr);
+        inviteProblem = inviteErr?.message || "the invitation could not be sent";
       }
 
-      showNotice(
-        scheduleType === "online"
-          ? "Online interview scheduled successfully"
-          : "Face-to-face interview scheduled successfully",
-      );
+      const booked = isScreeningCall
+        ? "Screening call scheduled"
+        : scheduleType === "online"
+        ? "Online interview scheduled"
+        : "Face-to-face interview scheduled";
+      if (inviteProblem) {
+        showNotice(`${booked}, but the invitation was not sent: ${inviteProblem}. Don't book it again: tell the candidate and the panel directly.`,
+          "error", 8000);
+      } else {
+        showNotice(`${booked} successfully`);
+      }
       await onRefreshCandidates?.();
       setScheduling(false);
       closeScheduleModal();
@@ -1723,7 +1759,7 @@ ${formattedJD}
             {activeTab === "interview" && !limitedMode && (
               <InterviewsTab
                 candidateId={candidate?.id}
-                onScheduleInterview={() => setShowScheduleModal(true)}
+                onScheduleInterview={() => openScheduleModal("online")}
               />
             )}
             {activeTab === "intelligence" && !limitedMode && (
@@ -1942,7 +1978,9 @@ ${formattedJD}
             <div className="border-b px-8 py-6 flex items-start justify-between">
               <div>
                 <h2 className="text-2xl font-semibold text-gray-900">
-                  {scheduleType === "online"
+                  {isScreeningCall
+                    ? `Schedule Screening Call with ${candidate?.name || "Candidate"}`
+                    : scheduleType === "online"
                     ? `Schedule Online Interview with ${
                         candidate?.name || "Candidate"
                       }`
@@ -1950,7 +1988,11 @@ ${formattedJD}
                         candidate?.name || "Candidate"
                       }`}
                 </h2>
-                <p className="text-sm text-gray-500 mt-1">Schedule Interview</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  {isScreeningCall
+                    ? "A first call to see if the candidate fits. Not an interview round; no job needed."
+                    : "Schedule Interview"}
+                </p>
               </div>
 
               <button
@@ -1974,9 +2016,22 @@ ${formattedJD}
                       <SelectField
                         label="Interview Type"
                         value={scheduleType}
-                        onChange={(e) => setScheduleType(e.target.value)}
+                        onChange={(e) => {
+                          // the invite email and the platform follow the type
+                          const type = e.target.value;
+                          const template = type === "online" ? "Online Interview" : "Face to Face Interview";
+                          const values = buildTemplateValues(template, type);
+                          setScheduleType(type);
+                          setScheduleForm((prev) => ({
+                            ...prev,
+                            emailTemplate: template,
+                            emailSubject: values.subject,
+                            emailBody: values.body,
+                            meetingPlatform: type === "online" ? "Microsoft Teams" : "In Person",
+                          }));
+                        }}
                       >
-                        <option value="inperson">Face to Face Interview</option>
+                        <option value="faceToFace">Face to Face Interview</option>
                         <option value="online">Online Interview (Microsoft Teams)</option>
                       </SelectField>
                       <FormField
@@ -1984,8 +2039,10 @@ ${formattedJD}
                         value={candidate?.id || ""}
                         readOnly
                       />
+                      {/* Only a candidate submitted to a job has one to pick */}
+                      {(loadingCandidateJobs || candidateJobs?.length > 0) && (
                       <SelectField
-                        label="Applied Job"
+                        label={isScreeningCall ? "Applied Job (optional)" : "Applied Job"}
                         value={selectedJobId}
                         onChange={(e) => setSelectedJobId(e?.target?.value)}
                         error={scheduleErrors?.selectedJobId}
@@ -1994,6 +2051,8 @@ ${formattedJD}
                         <option value="">
                           {loadingCandidateJobs
                             ? "Loading jobs..."
+                            : isScreeningCall
+                            ? "No specific job (future hiring)"
                             : "Select Job"}
                         </option>
                         {candidateJobs?.map((job) => (
@@ -2002,6 +2061,7 @@ ${formattedJD}
                           </option>
                         ))}
                       </SelectField>
+                      )}
                       <SelectField
                         label="Round Name"
                         value={scheduleForm.roundName || ""}
@@ -2248,7 +2308,11 @@ ${formattedJD}
               </Button>
 
               <Button onClick={handleScheduleInterview} disabled={scheduling}>
-                {scheduling ? "Processing..." : "Schedule Interview"}
+                {scheduling
+                  ? "Processing..."
+                  : isScreeningCall
+                  ? "Schedule Screening Call"
+                  : "Schedule Interview"}
               </Button>
             </div>
           </div>

@@ -260,13 +260,13 @@ def process_message_queue(batch_size: int = 10, timeout_minutes: int = 30) -> Di
                                 logger.error(f"[Worker] Failed to mark timeout message as FAILED: {commit_err}", exc_info=True)
                             continue
                     else:
-                        # Unknown message type - mark as FAILED with retry scheduling
-                        logger.warning(f"[Worker] Unknown message type: {message.type}")
-                        message.status = "FAILED"
-                        message.error = f"Unknown message type: {message.type}"
+                        # No handler for this type: a retry can never succeed, so it goes straight to the
+                        # dead letter queue with the reason (requeue it once a handler exists)
+                        logger.error(f"[Worker] Unknown message type: {message.type} -> DEAD_LETTER")
+                        message.status = "DEAD_LETTER"
+                        message.error = f"Unknown message type: {message.type} (no handler registered)"
                         message.completed_at = datetime.utcnow()
-                        message.retry_count = (message.retry_count or 0) + 1
-                        message.next_retry_at = datetime.utcnow() + timedelta(minutes=5)
+                        message.next_retry_at = None
                         try:
                             db.commit()
                         except Exception as commit_err:

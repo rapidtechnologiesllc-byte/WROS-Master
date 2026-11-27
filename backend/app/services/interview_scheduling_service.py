@@ -76,10 +76,14 @@ def candidate_display_name(candidate: Optional[Candidate]) -> str:
 
 # --------------------------------------------------------------------------- gates
 
-def require_experience(candidate: Candidate) -> None:
-    """CEO rule: nobody under 5 years' experience (or unverified) is interviewed."""
+def require_experience(candidate: Candidate, level: Optional[str] = None) -> None:
+    """CEO rule: nobody under 5 years' experience (or unverified) is interviewed. A screening call (level SCREEN)
+    is where the recruiter verifies experience (CEO 2026-11-27), so an unverified candidate may have one; a
+    candidate whose verified experience is under 5 years may not."""
     from app.services.submission_service import ExperienceIneligible, assert_experience_eligible
 
+    if level == "SCREEN" and candidate.total_experience_months is None:
+        return
     try:
         assert_experience_eligible(candidate, "schedule an interview")
     except ExperienceIneligible as exc:
@@ -142,10 +146,10 @@ def create_panel(db: Session, user: Users, *, candidate_id: str, job_id: Optiona
 
     candidate = ensure_candidate_visible(db, candidate_id, user)
     job = visible_job_or_404(db, user, job_id, f"Job with ID {job_id}") if job_id else None
-    require_experience(candidate)
     require_employment_type(candidate)
 
     level = (level or infer_level(round_name)).upper()
+    require_experience(candidate, level)
     if level not in LEVELS:
         raise HTTPException(status_code=400, detail=f"level must be one of {', '.join(LEVELS)}")
     _require_sequencing(db, candidate_id, level, job_id)
@@ -237,9 +241,10 @@ def schedule_interview(db: Session, user: Users, *, panel_id: int, candidate_id:
     candidate = ensure_candidate_visible(db, candidate_id, user)
     if panel.candidate_id != candidate.candidateID:
         raise HTTPException(status_code=400, detail="The interview's candidate must be the panel's candidate")
-    require_experience(candidate)
+    level = _panel_level(db, panel)
+    require_experience(candidate, level)
     require_employment_type(candidate)
-    _require_sequencing(db, candidate.candidateID, _panel_level(db, panel), panel.job_id, panel)
+    _require_sequencing(db, candidate.candidateID, level, panel.job_id, panel)
     _require_rehire_clearance(db, panel)
 
     start, end = to_naive_utc(start), to_naive_utc(end)

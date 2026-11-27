@@ -185,16 +185,26 @@ def _item_payload(db: Session, item: LinkedInCandidatePipeline, owner_names: dic
     }
 
 def _items_for_user(db: Session, current_user: Users, status_filter: Optional[str] = None) -> list:
-    query = db.query(LinkedInCandidatePipeline).filter(
-        LinkedInCandidatePipeline.assigned_to_user_id == current_user.UserID
-    )
+    """Each person's own outreach; an org-level role (CEO, org-wide templates) sees everyone's in their tenant
+    (CEO 2026-11-27: "as CEO i need to see everything org wide"). The table has no tenant, so the tenant is the
+    assignee's."""
+    from app.core import authority
+
+    query = db.query(LinkedInCandidatePipeline)
+    if authority.is_org_level(db, current_user):
+        tenant_users = db.query(Users.UserID).filter(Users.tenant_id == current_user.tenant_id)
+        query = query.filter(LinkedInCandidatePipeline.assigned_to_user_id.in_(tenant_users))
+    else:
+        query = query.filter(LinkedInCandidatePipeline.assigned_to_user_id == current_user.UserID)
     if status_filter:
         try:
             query = query.filter(LinkedInCandidatePipeline.status == LinkedInPipelineStatus[status_filter])
         except KeyError:
             raise HTTPException(status_code=400, detail=f"Invalid status filter: {status_filter}")
     items = query.order_by(LinkedInCandidatePipeline.created_at.desc()).all()
-    owner_names = {current_user.UserID: current_user.UserName or current_user.UserEmail}
+    owners = {item.assigned_to_user_id for item in items} | {current_user.UserID}
+    owner_names = {u.UserID: u.UserName or u.UserEmail
+                   for u in db.query(Users).filter(Users.UserID.in_(owners)).all()}
     return [_item_payload(db, item, owner_names) for item in items]
 
 @router.post("/linkedin-queue", dependencies=[Depends(require_resource_permission("candidates", "create"))])

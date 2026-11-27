@@ -73,7 +73,20 @@ function ExternalRow({ submission, onChanged }) {
         {submission.demand_job_title}
       </td>
       <td className="px-4 py-3 text-xs text-gray-700">{submission.delivery_line_label || "Not set"}</td>
-      <td className="px-4 py-3 text-xs font-semibold text-gray-800">{submission.status_label}</td>
+      <td className="px-4 py-3 text-xs font-semibold text-gray-800">
+        {submission.status_label}
+        {/* the rounds sent with it: screening and interviews held before there was a job, and this job's */}
+        {submission.interview_rounds?.length ? (
+          <ul className="mt-1 space-y-0.5 font-normal text-gray-600">
+            {submission.interview_rounds.map((r, i) => (
+              <li key={`${r.round_name}-${i}`}>
+                {r.round_name || r.level || "Round"}: {r.verdict ? r.verdict.toLowerCase() : "pending"}
+                {r.held_for_this_job ? "" : " (before this job)"}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </td>
       <td className="px-4 py-3">
         {error ? <div className="mb-1 text-xs text-rose-700">{error}</div> : null}
         <div className="flex flex-wrap gap-1">
