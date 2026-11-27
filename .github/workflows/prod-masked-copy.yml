@@ -1,0 +1,93 @@
+name: Production masked copy
+
+# A masked copy of the production database for local debugging (CEO 2026-11-27). Production is only read
+# (pg_dump over the deploy SSH path). The raw dump lives only on this throwaway runner: it is restored into a
+# service Postgres, masked (backend/scripts/prodcopy_mask.py: names, emails, phones, addresses, ID numbers,
+# free text, files, secrets; pay scaled), leak-checked, and shredded. Only the masked dump is kept, as a
+# short-lived artifact. Restore it locally with backend/scripts/prodcopy_restore.py.
+
+on:
+  workflow_dispatch:
+    inputs:
+      company_domains:
+        description: "Company mail domains (comma-separated): masked addresses keep these domains"
+        default: "blitzenx.com"
+
+env:
+  PROD_SERVER: ${{ secrets.PROD_SERVER_HOST }}
+  PROD_USER: ${{ secrets.PROD_USER }}
+  PROD_PATH: /home/HRMS/WROS-Master
+
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency: prod-masked-copy
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: prodcopy
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check inputs
+        env:
+          DOMAINS: ${{ inputs.company_domains }}
+        run: |
+          [[ "$DOMAINS" =~ ^[a-z0-9.-]+(,[a-z0-9.-]+)*$ ]] || { echo "bad company_domains"; exit 2; }
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PROD_SSH_KEY }}
+
+      - name: Add host key to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p 22587 -H ${{ env.PROD_SERVER }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Read-only dump of production (stays on this runner)
+        run: |
+          ssh -o StrictHostKeyChecking=no -p 22587 ${{ env.PROD_USER }}@${{ env.PROD_SERVER }} \
+            "cd ${{ env.PROD_PATH }}/backend && timeout 1200 ${{ env.PROD_PATH }}/venv/bin/python -" \
+            < backend/scripts/prodcopy_dump.py > raw.dump
+          echo "raw dump: $(du -h raw.dump | cut -f1)"
+
+      - name: Restore into the runner's Postgres, then shred the raw dump
+        run: |
+          set +e
+          docker exec -i ${{ job.services.postgres.id }} pg_restore -U postgres -d prodcopy --no-owner --no-privileges \
+            < raw.dump 2> restore.log
+          status=$?
+          shred -u raw.dump
+          set -e
+          # orphan rows can refuse a foreign key; the data is still restored
+          echo "pg_restore exit $status; errors: $(grep -c 'error:' restore.log || true)"
+          grep -E "^pg_restore: error" restore.log | sed -E 's/DETAIL:.*//' | head -20 || true
+          rm -f restore.log
+
+      - name: Mask and leak-check
+        env:
+          DOMAINS: ${{ inputs.company_domains }}
+        run: |
+          pip install --quiet psycopg2-binary
+          python backend/scripts/prodcopy_mask.py postgresql://postgres:postgres@localhost:5432/prodcopy "$DOMAINS"
+
+      - name: Export the masked copy
+        run: |
+          name="prodcopy-masked-$(date -u +%Y%m%d-%H%M).dump"
+          docker exec ${{ job.services.postgres.id }} pg_dump -U postgres -Fc --no-owner --no-privileges prodcopy > "$name"
+          echo "COPY_NAME=$name" >> "$GITHUB_ENV"
+          echo "masked dump: $(du -h "$name" | cut -f1)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prodcopy-masked
+          path: ${{ env.COPY_NAME }}
+          retention-days: 3
+          if-no-files-found: error

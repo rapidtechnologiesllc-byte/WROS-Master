@@ -1554,9 +1554,21 @@ python -m uvicorn app.main:app
 
 **NEVER:**
 - ❌ SSH tunnel production DB to local machine
-- ❌ Copy production dump to local machine
+- ❌ Copy a raw (unmasked) production dump to a local machine
 - ❌ Run queries against production from dev machine
 - ❌ Use production credentials in local .env file
+
+### Masked production copy for local debugging (CEO 2026-11-27)
+
+"Replicate prod in local, or we will be doomed": a **masked** copy is allowed, made only by the
+`Production masked copy` workflow (`.github/workflows/prod-masked-copy.yml`). Production is only read (`pg_dump` over
+the deploy SSH path). The raw dump exists only on the throwaway GitHub runner, where `backend/scripts/prodcopy_mask.py`
+masks every person's data (names, emails, phones, addresses, ID numbers, free text, files, secrets; pay scaled),
+a leak check must pass, and the raw dump is shredded. Only the masked dump leaves, as a 3-day artifact.
+- Restore it with `backend/scripts/prodcopy_restore.py` into `wros_prodcopy` (never your dev database, never a name
+  with a production marker). Every login gets one local password (`PRODCOPY_PASSWORD`).
+- Switch the local backend to it in `backend/.env.local`, and back to `wros_dev` when done.
+- Keep dated copies outside the repo (e.g. `C:\dev\prodcopies\`) as the debugging archive. They hold no personal data.
 
 ### Testing Safety Guards
 
