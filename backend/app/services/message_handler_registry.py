@@ -133,6 +133,13 @@ def _initialize_default_handlers():
         logger.error(f"[Registry] CRITICAL: Failed to register send_account_email handler: {e}", exc_info=True)
 
     try:
+        from app.services.message_handlers.provision_m365_account_handler import ProvisionM365AccountHandler
+        MessageHandlerRegistry.register("provision_m365_account", ProvisionM365AccountHandler.process)
+        logger.info("[Registry] Registered provision_m365_account handler")
+    except Exception as e:
+        logger.error(f"[Registry] CRITICAL: Failed to register provision_m365_account handler: {e}", exc_info=True)
+
+    try:
         from app.services.message_handlers.send_staff_email_handler import SendStaffEmailHandler
         MessageHandlerRegistry.register("send_staff_email", SendStaffEmailHandler.process)
         logger.info("[Registry] Registered send_staff_email handler")

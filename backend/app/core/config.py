@@ -482,7 +482,7 @@ class Settings:
         "timesheet_draft_creation,timesheet_reminders,ar_follow_up,expire_bu_ownerships,expense_escalations,"
         "daily_revenue_scan,engagement_metrics,hiring_pipeline_sweep,client_start_date,auto_invoicing,"
         "utilization_snapshot,renewal_alerts,po_expiry_alerts,performance_reviews,task_due_reminders,"
-        "notification_release,certification_expiry,reconciliation_scan,sub_vendor_new_roles,interview_transcripts,flash_auto_missions,welcome_followup,occasion_emails,interview_feedback,resume_refresh,submitted_candidates_backfill",
+        "notification_release,certification_expiry,reconciliation_scan,sub_vendor_new_roles,interview_transcripts,flash_auto_missions,welcome_followup,m365_license_check,occasion_emails,interview_feedback,resume_refresh,submitted_candidates_backfill",
     )
     SCHEDULED_JOB_LEASE_GRACE_SECONDS: int = int(os.getenv("SCHEDULED_JOB_LEASE_GRACE_SECONDS", "120"))
 

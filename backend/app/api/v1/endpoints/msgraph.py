@@ -23,7 +23,11 @@ from app.core.msgraph_session_store import (
 
 load_dotenv()
 REDIRECT_URI = os.getenv("REDIRECT_URI")
-FRONTEND_URL = (os.getenv("REDIRECT_RESPONSE") or "/").rstrip("/") + "/"
+from app.core.config import settings as _app_settings
+
+# Where the browser returns after Microsoft: REDIRECT_RESPONSE, else the app's own address (never a path on
+# this API server, which would show its 404 instead of the sign-in page)
+FRONTEND_URL = (os.getenv("REDIRECT_RESPONSE") or _app_settings.FRONTEND_BASE_URL).rstrip("/") + "/"
 # Where the browser lands after connecting Outlook
 LINK_DONE_PATH = "my-tasks"
 
@@ -54,12 +58,88 @@ def _auth_url(state: str):
     return f"{settings['authority']}/oauth2/v2.0/authorize?{urlencode(params)}"
 
 
+# ============================================
+# Sign in with Microsoft (SSO, CEO 2026-11-27)
+# ============================================
+# The login button sends the browser to Microsoft with a signed, short-lived state that names a random
+# nonce, also set as an HttpOnly cookie: the callback accepts only the browser that started the sign-in
+# (no login CSRF). Microsoft's answer both signs the person in and connects their Outlook, then the
+# browser returns to the app with a one-time code (URL fragment, never sent to a server or logged) that
+# the app exchanges for its session at POST /auth/microsoft/exchange.
+SSO_STATE_TTL_MINUTES = 10
+SSO_CODE_TTL_SECONDS = 120
+SSO_NONCE_COOKIE = "wros_sso_nonce"
+
+
+def _sso_redirect(*, code: str = "", error: str = "") -> RedirectResponse:
+    if code:
+        return RedirectResponse(url=f"{FRONTEND_URL}#{urlencode({'sso_code': code})}")
+    return RedirectResponse(url=f"{FRONTEND_URL}?{urlencode({'sso_error': error[:200]})}")
+
+
 @router.get("/auth/signin")
 def signin():
-    """Public: the "Sign in with Microsoft" login button. Microsoft SSO
-    login is not wired to a WROS session yet (the callback says so); a
-    logged-in user connects Outlook through /link/start instead."""
-    return RedirectResponse(_auth_url(state="login"))
+    """Public: the "Sign in with Microsoft" button."""
+    if not (graph_oauth_settings()["configured"] and REDIRECT_URI):
+        return _sso_redirect(error="Sign in with Microsoft is not set up on this server yet (the Microsoft 365 "
+                                   "app's tenant id, client id, secret and redirect address). Sign in with "
+                                   "your password.")
+    import secrets
+
+    nonce = secrets.token_urlsafe(24)
+    state = create_access_token(data={"msgraph_sso": True, "nonce": nonce},
+                                expires_delta=timedelta(minutes=SSO_STATE_TTL_MINUTES))
+    response = RedirectResponse(_auth_url(state=state))
+    response.set_cookie(SSO_NONCE_COOKIE, nonce, max_age=SSO_STATE_TTL_MINUTES * 60, httponly=True,
+                        samesite="lax", secure=REDIRECT_URI.startswith("https"))
+    return response
+
+
+def _sso_state(state: Optional[str]) -> Optional[dict]:
+    """The sign-in state token's payload, or None for any other state."""
+    if not state:
+        return None
+    try:
+        payload = decode_access_token(state)
+    except HTTPException:
+        return None
+    return payload if payload.get("msgraph_sso") else None
+
+
+def _sso_callback(request: Request, background_tasks: BackgroundTasks, db: Session, state: dict,
+                  code: str) -> RedirectResponse:
+    """Microsoft signed the person in: match them to their HRMS login by their work email, connect their
+    Outlook with the same consent, and hand the browser a one-time code for its HRMS session."""
+    from app.services.m365_account_service import is_company_mailbox
+
+    cookie = request.cookies.get(SSO_NONCE_COOKIE)
+    if not cookie or cookie != state.get("nonce"):
+        return _sso_redirect(error="This Microsoft sign-in was not started from this browser. Try again.")
+    settings = graph_oauth_settings()
+    token_result = _msal_client().acquire_token_by_authorization_code(
+        code, scopes=settings["scopes"], redirect_uri=REDIRECT_URI,
+    )
+    if "access_token" not in token_result:
+        logger.warning(f"[msgraph] SSO token exchange failed: {token_result.get('error_description')}")
+        return _sso_redirect(error=token_result.get("error_description") or "Microsoft sign-in failed")
+    claims = token_result.get("id_token_claims") or {}
+    email = (claims.get("preferred_username") or claims.get("email") or "").strip().lower()
+    account_id = claims.get("oid")
+    if not account_id or not is_company_mailbox(email):
+        return _sso_redirect(error=f"Sign in with your company Microsoft account, not {email or 'this one'}.")
+    user = db.query(Users).filter(Users.UserEmail.ilike(email), Users.terminated_at.is_(None)).first()
+    if user is None:
+        return _sso_redirect(error=f"{email} has no HRMS account. Ask your manager or HR to add you.")
+    store_session(user.UserID, account_id, token_result, account_email=email)
+    from app.services.msgraph_mail_sync_service import sync_user_by_id
+
+    background_tasks.add_task(sync_user_by_id, user.UserID)
+    sso_code = create_access_token(data={"sub": user.UserID, "msgraph_sso_exchange": True},
+                                   expires_delta=timedelta(seconds=SSO_CODE_TTL_SECONDS))
+    logger.info(f"[msgraph] SSO sign-in for {user.UserID}")
+    response = _sso_redirect(code=sso_code)
+    response.delete_cookie(SSO_NONCE_COOKIE)
+    return response
 
 # ============================================
 # Outlook account linking (EPIC-14/S-379 + S-435 mail capture)
@@ -116,15 +196,15 @@ def link_status(current_user: Users = Depends(get_current_internal_user), db: Se
 
 def _requirement(db: Session, user: Users) -> dict:
     """Connect Outlook is mandatory (CEO 2026-11-03: "this is mandatory and not optional. we need to read
-    and process every email") for a login with a company mailbox. can_defer: an admin of users and
-    access may carry on without it, so a Microsoft setup problem never locks every account out."""
+    and process every email") for a login with a company mailbox. can_defer: only the CEO (CEO
+    2026-11-27: "this skip is only allowed for CEO"; by the role template's level, authority.is_ceo) may
+    carry on without it, so a Microsoft setup problem never locks every account out; for everyone else
+    it is mandatory."""
     from app.core import authority
-    from app.core.config import settings as app_settings
+    from app.services.m365_account_service import is_company_mailbox
 
-    domains = {d.strip().lower() for d in (app_settings.OUTLOOK_REQUIRED_DOMAINS or "").split(",") if d.strip()}         or {app_settings.THUNDER_MAILBOX.split("@")[-1].lower()}
-    email = (user.UserEmail or "").lower()
-    return {"required": "@" in email and email.split("@")[-1] in domains,
-            "can_defer": authority.has_permission(db, user, "users-access-control.edit")}
+    return {"required": is_company_mailbox(user.UserEmail),
+            "can_defer": authority.is_ceo(db, user)}
 
 
 @router.post(
@@ -159,16 +239,19 @@ def oauth_callback(request: Request, background_tasks: BackgroundTasks, db: Sess
     the state token identifies the WROS user. Served both at
     /api/v1/msgraph/auth/callback and at the registered redirect URI
     path /msgraph/auth/callback (see app.main)."""
+    sso = _sso_state(request.query_params.get("state"))
     if request.query_params.get("error"):
-        return _link_redirect("error", request.query_params.get("error_description") or request.query_params.get("error"))
+        reason = request.query_params.get("error_description") or request.query_params.get("error")
+        return _sso_redirect(error=reason) if sso else _link_redirect("error", reason)
     code = request.query_params.get("code")
     if not code:
         raise HTTPException(400, "Missing auth code")
+    if sso:
+        return _sso_callback(request, background_tasks, db, sso, code)
 
     user_id = _decode_link_state(request.query_params.get("state"))
     if not user_id:
-        # Login button: Microsoft SSO into WROS is not implemented.
-        return RedirectResponse(url=f"{FRONTEND_URL}?{urlencode({'sso': 'unavailable'})}")
+        return _sso_redirect(error="The Microsoft sign-in expired. Try again.")
     user = db.query(Users).filter(Users.UserID == user_id).first()
     if not user:
         return _link_redirect("error", "WROS user not found; sign in again and retry")

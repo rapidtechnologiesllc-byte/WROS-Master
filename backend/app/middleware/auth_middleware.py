@@ -46,6 +46,9 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         # set your own password from an emailed single-use link (no session yet by definition)
         "/api/v1/auth/activate",
         "/api/v1/auth/forgot-password",
+        # Sign in with Microsoft: the one-time code from the Microsoft sign-in is the credential
+        "/api/v1/auth/microsoft/exchange",
+        "/auth/microsoft/exchange",
         "/auth/v1/refresh",  # Token refresh endpoint (uses refresh token for auth, not access token)
         "/api/v1/auth/v1/refresh",  # Token refresh with full /api/v1 prefix
         "/msgraph/auth/signin",

@@ -62,6 +62,16 @@ def queue_account_email(user: Users, purpose: str = "ACTIVATE", *, once_key: Opt
 
     from app.services.thunder_mail.cadence_service import enqueue_once
 
+    if purpose == "ACTIVATE":
+        # every new login with a company mailbox gets its Microsoft 365 account (once ever per user); the
+        # welcome email waits until that mailbox exists (send_account_email_handler)
+        from app.services.m365_account_service import queue_provisioning
+
+        try:
+            queue_provisioning(user)
+        except RuntimeError as exc:
+            logger.error(f"[AccountActivation] Microsoft 365 account for {user.UserID} not queued: {exc}",
+                         exc_info=True)
     suffix = once_key or uuid.uuid4().hex[:12]
     return enqueue_once(ACCOUNT_EMAIL_TASK, f"account-email-{user.UserID}-{purpose}-{suffix}",
                         {"user_id": user.UserID, "purpose": purpose}, user.tenant_id)

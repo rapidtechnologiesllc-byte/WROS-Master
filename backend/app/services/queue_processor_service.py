@@ -71,6 +71,7 @@ class QueueProcessorService:
         'thunder_process_inbound_email': 80,  # LLM classify (up to ~63s) + writes
         'send_invoice_email': 50,  # Graph draft + send; handler self-limits to 45s
         'send_account_email': 50,  # Graph draft + send; handler self-limits to 45s
+        'provision_m365_account': 45,  # Graph lookup + create; handler self-limits to 40s
         'send_client_timesheet_approval': 50,  # Graph draft + send; handler self-limits to 45s
         'hiring_pipeline_evaluate': 45,  # handler self-limits to 40s
         'hiring_stage_action': 45,
