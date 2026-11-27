@@ -127,14 +127,23 @@ def _sso_callback(request: Request, background_tasks: BackgroundTasks, db: Sessi
     account_id = claims.get("oid")
     if not account_id or not is_company_mailbox(email):
         return _sso_redirect(error=f"Sign in with your company Microsoft account, not {email or 'this one'}.")
-    user = db.query(Users).filter(Users.UserEmail.ilike(email), Users.terminated_at.is_(None)).first()
-    if user is None:
+    # exact (case-insensitive) match: ILIKE would treat "_" and "%" in an address as wildcards
+    from sqlalchemy import func as sa_func
+
+    matches = db.query(Users).filter(sa_func.lower(Users.UserEmail) == email, Users.terminated_at.is_(None)).all()
+    if not matches:
         return _sso_redirect(error=f"{email} has no HRMS account. Ask your manager or HR to add you.")
+    if len(matches) > 1:
+        logger.error(f"[msgraph] SSO refused: {len(matches)} active HRMS accounts share one address")
+        return _sso_redirect(error="More than one HRMS account uses this address. Ask the help desk to fix it.")
+    user = matches[0]
     store_session(user.UserID, account_id, token_result, account_email=email)
     from app.services.msgraph_mail_sync_service import sync_user_by_id
 
     background_tasks.add_task(sync_user_by_id, user.UserID)
-    sso_code = create_access_token(data={"sub": user.UserID, "msgraph_sso_exchange": True},
+    import uuid
+
+    sso_code = create_access_token(data={"sub": user.UserID, "msgraph_sso_exchange": True, "jti": uuid.uuid4().hex},
                                    expires_delta=timedelta(seconds=SSO_CODE_TTL_SECONDS))
     logger.info(f"[msgraph] SSO sign-in for {user.UserID}")
     response = _sso_redirect(code=sso_code)
@@ -203,6 +212,9 @@ def _requirement(db: Session, user: Users) -> dict:
     from app.core import authority
     from app.services.m365_account_service import is_company_mailbox
 
+    # Microsoft not set up on this server: nobody can connect, so nobody is held at the gate
+    if not (graph_oauth_settings()["configured"] and REDIRECT_URI):
+        return {"required": False, "can_defer": True}
     return {"required": is_company_mailbox(user.UserEmail),
             "can_defer": authority.is_ceo(db, user)}
 

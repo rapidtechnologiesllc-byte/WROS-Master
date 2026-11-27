@@ -449,8 +449,19 @@ def microsoft_exchange(request: dict, db: Session = Depends(get_db)):
         payload = decode_access_token(code) if code else {}
     except HTTPException:
         payload = {}
-    if not payload.get("msgraph_sso_exchange") or not payload.get("sub"):
+    if not payload.get("msgraph_sso_exchange") or not payload.get("sub") or not payload.get("jti"):
         raise HTTPException(status_code=401, detail="The Microsoft sign-in expired. Sign in again.")
+    # single use: a code seen in a browser history or a log can't be replayed within its two minutes
+    from sqlalchemy.exc import IntegrityError
+
+    from app.models.used_sign_in_code import UsedSignInCode
+
+    try:
+        db.add(UsedSignInCode(jti=payload["jti"], user_id=payload["sub"]))
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=401, detail="This Microsoft sign-in was already used. Sign in again.")
     user = db.query(Users).filter(Users.UserID == payload["sub"], Users.terminated_at.is_(None)).first()
     if user is None:
         raise HTTPException(status_code=401, detail="This account is no longer active.")

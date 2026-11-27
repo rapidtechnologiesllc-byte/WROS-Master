@@ -95,6 +95,24 @@ class GraphUsers:
     def get_user(self, upn: str) -> Optional[dict]:
         return self._call("GET", f"/users/{quote(upn)}?$select=id,userPrincipalName,accountEnabled,assignedLicenses")
 
+    def find_user(self, address: str) -> Optional[dict]:
+        """The account whose sign-in name, mail or an alias (proxy address) is this address: existing staff whose
+        sign-in name differs from their HRMS email are found, never given a second account."""
+        account = self.get_user(address)
+        if account is not None:
+            return account
+        safe = address.replace("'", "''")
+        condition = f"mail eq '{safe}' or proxyAddresses/any(p:p eq 'smtp:{safe}')"
+        path = ("/users?$count=true&$select=id,userPrincipalName,accountEnabled,assignedLicenses&$filter="
+                + quote(condition))
+        saved = dict(self._headers)
+        self._headers["ConsistencyLevel"] = "eventual"  # Graph needs it for proxyAddresses/any with $count
+        try:
+            found = (self._call("GET", path) or {}).get("value") or []
+        finally:
+            self._headers = saved
+        return found[0] if found else None
+
     def create_user(self, body: dict) -> dict:
         return self._call("POST", "/users", body) or {}
 
@@ -220,6 +238,20 @@ def _new_account(user: Users, usage_location: Optional[str]) -> dict:
     return body
 
 
+def _account_task(db: Session, user: Users, why: str, status: Optional[int] = None) -> dict:
+    """IT Admin makes sure the account exists (HRMS could not). The welcome email is not held for it: HRMS does
+    not know the mailbox is missing, only that it could not check (mailbox_pending)."""
+    _open_task(db, user, ACCOUNT_TASK_CATEGORY,
+               f"Check the Microsoft 365 account of {user.UserName or user.UserEmail}",
+               f"{why}. Make sure {user.UserEmail} exists in the Microsoft 365 admin center ({ADMIN_CENTER_URL}) with "
+               f"a license, and give {user.UserName or user.UserEmail} their first sign-in"
+               + (" (or grant the HRMS app the Microsoft Graph permission User.ReadWrite.All so HRMS does this "
+                  "itself)" if status in (401, 403) else "")
+               + ". HRMS closes this task itself once Microsoft shows the licensed account.")
+    logger.warning(f"[M365] {user.UserID}: {why}")
+    return {"status": "account_task", "error": why}
+
+
 def provision(db: Session, user: Users, graph: Optional[GraphUsers] = None) -> dict:
     """Make sure the person has a licensed Microsoft account. The caller commits, then notify_new_tasks().
     Raises GraphError for a status Microsoft may answer differently later (5xx, throttling)."""
@@ -230,7 +262,13 @@ def provision(db: Session, user: Users, graph: Optional[GraphUsers] = None) -> d
         return {"status": "left"}
     graph = graph or GraphUsers()
     usage_location = _usage_location(db, user)
-    account = graph.get_user(user.UserEmail)
+    try:
+        account = graph.find_user(user.UserEmail)
+    except GraphError as exc:
+        if exc.status >= 500 or exc.status == 429:
+            raise
+        # 401/403/400: HRMS may not read Microsoft accounts; IT Admin checks it, the welcome is not held for it
+        return _account_task(db, user, f"HRMS could not look up the Microsoft account: {exc.message}", exc.status)
     created = False
     if account is None:
         try:
@@ -241,16 +279,7 @@ def provision(db: Session, user: Users, graph: Optional[GraphUsers] = None) -> d
             if exc.status >= 500 or exc.status == 429:
                 raise
             # 403: HRMS lacks User.ReadWrite.All; 400: e.g. the domain is not verified in Microsoft 365
-            _open_task(db, user, ACCOUNT_TASK_CATEGORY,
-                       f"Create the Microsoft 365 account for {user.UserName or user.UserEmail}",
-                       f"HRMS could not create the Microsoft account {user.UserEmail} for "
-                       f"{user.UserName or user.UserEmail}: {exc.message}. Create it in the Microsoft 365 admin "
-                       f"center ({ADMIN_CENTER_URL}) with a license, and give them their first sign-in"
-                       + ("" if exc.status != 403 else " (or grant the HRMS app the Microsoft Graph permission "
-                                                        "User.ReadWrite.All so HRMS does this itself)")
-                       + ". HRMS closes this task itself once Microsoft shows the licensed account.")
-            logger.warning(f"[M365] could not create {user.UserEmail}: {exc}")
-            return {"status": "account_task", "error": exc.message}
+            return _account_task(db, user, f"HRMS could not create the Microsoft account: {exc.message}", exc.status)
     _close_tasks(db, user.UserID, (ACCOUNT_TASK_CATEGORY,))
     if account.get("assignedLicenses"):
         _close_tasks(db, user.UserID, (LICENSE_TASK_CATEGORY,))
@@ -286,10 +315,12 @@ def run_license_check_job(db: Session) -> dict:
 
 
 def mailbox_pending(db: Session, user_id: str) -> bool:
-    """The person's Microsoft account or license is still being set up by HRMS or IT Admin."""
+    """HRMS knows the person's mailbox does not exist yet: its account is still being created (the message is
+    queued or retrying; it gives up after a day), or it was created and has no license. An account HRMS could not
+    check (an M365_ACCOUNT task) does not hold the welcome: it may well exist."""
     from app.models.channel_queue import ChannelQueueItem
 
     queued = db.query(ChannelQueueItem.status).filter(ChannelQueueItem.id == f"m365-account-{user_id}").first()
-    if queued is not None and queued[0] in ("PENDING", "PROCESSING", "WAITING_FOR_SLM"):
+    if queued is not None and queued[0] in ("PENDING", "PROCESSING", "WAITING_FOR_SLM", "FAILED", "SCHEDULED"):
         return True
-    return db.query(_open_tasks(db, user_id).exists()).scalar()
+    return db.query(_open_tasks(db, user_id, (LICENSE_TASK_CATEGORY,)).exists()).scalar()

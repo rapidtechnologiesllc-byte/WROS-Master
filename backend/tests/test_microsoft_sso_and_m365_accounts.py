@@ -31,13 +31,20 @@ def _user(db, email, template, **fields):
 
 
 class FakeGraph:
-    def __init__(self, existing=None, create_error=None):
+    def __init__(self, existing=None, create_error=None, lookup_error=None, aliases=None):
         self.accounts = dict(existing or {})
         self.create_error = create_error
+        self.lookup_error = lookup_error
+        self.aliases = dict(aliases or {})
         self.created = []
 
     def get_user(self, upn):
         return self.accounts.get(upn.lower())
+
+    def find_user(self, address):
+        if self.lookup_error:
+            raise self.lookup_error
+        return self.get_user(address) or self.aliases.get(address.lower())
 
     def create_user(self, body):
         if self.create_error:
@@ -50,7 +57,11 @@ class FakeGraph:
 
 @pytest.fixture
 def company_domain(monkeypatch):
+    from app.api.v1.endpoints import msgraph
+
     monkeypatch.setattr(m365.settings, "OUTLOOK_REQUIRED_DOMAINS", "blitzenx.com")
+    monkeypatch.setattr(msgraph, "graph_oauth_settings", lambda: {"configured": True, "scopes": []})
+    monkeypatch.setattr(msgraph, "REDIRECT_URI", "https://hrms.example/msgraph/auth/callback")
 
 
 # --------------------------------------------------------------------------- Outlook skip
@@ -83,7 +94,8 @@ def test_exchange_code_signs_in_without_the_email_code(db, client, monkeypatch):
                         lambda *a, **k: {"my-tasks": ["view"]})
     monkeypatch.setattr(auth_endpoint, "email_otp_enforcement_enabled", lambda: True)
     monkeypatch.setattr(auth_endpoint, "mfa_enforcement_enabled", lambda: False)
-    code = create_access_token({"sub": user.UserID, "msgraph_sso_exchange": True}, timedelta(minutes=2))
+    code = create_access_token({"sub": user.UserID, "msgraph_sso_exchange": True, "jti": f"j-{user.UserID}"},
+                               timedelta(minutes=2))
 
     response = client.post("/api/v1/auth/microsoft/exchange", json={"code": code})
 
@@ -91,6 +103,8 @@ def test_exchange_code_signs_in_without_the_email_code(db, client, monkeypatch):
     body = response.json()
     assert body["entity_type"] == "user" and body["refresh_token"]
     assert not body.get("email_otp_required") and not body.get("force_password_reset")
+    # the same code twice: refused (single use)
+    assert client.post("/api/v1/auth/microsoft/exchange", json={"code": code}).status_code == 401
 
 
 def test_exchange_refuses_any_other_token(db, client):
@@ -188,3 +202,84 @@ def test_no_account_for_outside_mailboxes(db, company_domain):
     assert m365.provision(db, user, graph)["status"] == "not_company_mailbox"
     assert m365.queue_provisioning(user) is False
     assert graph.created == []
+
+
+def test_outlook_is_not_required_when_microsoft_is_not_set_up(db, monkeypatch):
+    from app.api.v1.endpoints import msgraph
+
+    monkeypatch.setattr(m365.settings, "OUTLOOK_REQUIRED_DOMAINS", "blitzenx.com")
+    monkeypatch.setattr(msgraph, "graph_oauth_settings", lambda: {"configured": False})
+    staff = _user(db, "staff9@blitzenx.com", _template(db, "Staff T9"))
+    assert msgraph._requirement(db, staff)["required"] is False
+
+
+def test_a_refused_lookup_asks_it_admin_and_does_not_hold_the_welcome(db, company_domain):
+    user = _user(db, "noread@blitzenx.com", _template(db, "Emp T5"))
+    graph = FakeGraph(lookup_error=m365.GraphError(403, "Insufficient privileges"))
+    assert m365.provision(db, user, graph)["status"] == "account_task"
+    assert db.query(Task).filter(Task.subcategory == user.UserID).one().category == m365.ACCOUNT_TASK_CATEGORY
+    assert graph.created == []
+    assert m365.mailbox_pending(db, user.UserID) is False  # it may exist: the welcome goes out
+
+
+def test_an_existing_account_under_an_alias_is_not_created_twice(db, company_domain):
+    user = _user(db, "alias@blitzenx.com", _template(db, "Emp T6"))
+    graph = FakeGraph(aliases={"alias@blitzenx.com": {"id": "x", "assignedLicenses": [{"skuId": "s"}]}})
+    assert m365.provision(db, user, graph) == {"status": "licensed", "created": False}
+    assert graph.created == []
+
+
+def test_provisioning_gives_up_after_a_day_and_asks_it_admin(db, company_domain, monkeypatch):
+    from datetime import datetime
+
+    from app.services.message_handlers.provision_m365_account_handler import ProvisionM365AccountHandler
+
+    user = _user(db, "slow@blitzenx.com", _template(db, "Emp T7"))
+    db.commit()
+    monkeypatch.setattr(m365, "graph_configured", lambda: False)
+    old = SimpleNamespace(id="m1", payload={"user_id": user.UserID}, created_at=datetime.utcnow() - timedelta(days=2))
+    result = ProvisionM365AccountHandler.process.__wrapped__(old, db) if hasattr(
+        ProvisionM365AccountHandler.process, "__wrapped__") else ProvisionM365AccountHandler.process(old, db)
+    assert result["status"] == "account_task"
+
+
+def test_password_reset_is_never_held_for_the_mailbox(db, company_domain, monkeypatch):
+    from app.services.message_handlers import send_account_email_handler as handler
+
+    user = _user(db, "reset@blitzenx.com", _template(db, "Emp T8"))
+    m365.provision(db, user, FakeGraph())  # account created, unlicensed: an ACTIVATE welcome would wait
+    db.commit()
+    assert m365.mailbox_pending(db, user.UserID) is True
+    sent = []
+
+    class Mailbox:
+        def create_draft(self, *a):
+            sent.append(a)
+            return ("draft-1", None, None)
+
+        def is_draft(self, _):
+            return True
+
+        def send(self, _):
+            pass
+
+    message = SimpleNamespace(id="m2", payload={"user_id": user.UserID, "purpose": "RESET"})
+    handler.SendAccountEmailHandler.process(message, db, mailbox=Mailbox())
+    assert sent  # not deferred
+
+
+def test_sign_in_is_refused_when_two_accounts_share_the_address(db, company_domain, monkeypatch):
+    from app.api.v1.endpoints import msgraph
+
+    for i in range(2):
+        _user(db, "Twin@blitzenx.com" if i else "twin@blitzenx.com", _template(db, f"Twin T{i}"))
+    db.flush()
+
+    class Msal:
+        def acquire_token_by_authorization_code(self, *a, **k):
+            return {"access_token": "t", "id_token_claims": {"preferred_username": "twin@blitzenx.com", "oid": "o"}}
+
+    monkeypatch.setattr(msgraph, "_msal_client", lambda: Msal())
+    request = SimpleNamespace(cookies={msgraph.SSO_NONCE_COOKIE: "n"})
+    response = msgraph._sso_callback(request, None, db, {"msgraph_sso": True, "nonce": "n"}, "code")
+    assert "sso_error=" in response.headers["location"]

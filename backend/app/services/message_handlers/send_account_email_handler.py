@@ -64,7 +64,7 @@ class SendAccountEmailHandler:
             return {"status": "already_active", "user_id": user_id}
         from app.services.m365_account_service import mailbox_pending
 
-        if mailbox_pending(db, user_id):
+        if purpose == "ACTIVATE" and mailbox_pending(db, user_id):
             # a welcome sent now bounces: the Microsoft 365 account or its license is still being set up
             from datetime import timedelta
 

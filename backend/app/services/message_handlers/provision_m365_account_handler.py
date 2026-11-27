@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 TIMEOUT_SECONDS = 40
 RETRY_MINUTES = 30
+GIVE_UP_AFTER = timedelta(hours=24)  # then IT Admin is asked and the welcome email is no longer held
 
 
 class ProvisionM365AccountHandler:
@@ -38,14 +39,17 @@ class ProvisionM365AccountHandler:
         user = db.query(Users).filter(Users.UserID == user_id).first()
         if user is None:
             raise ValueError(f"User {user_id} not found")
-        if graph is None and not m365.graph_configured():
-            raise DeliveryDeferred("Microsoft Graph is not configured (TENANT_ID, CLIENT_ID, CLIENT_SECRET)",
-                                   datetime.utcnow() + timedelta(minutes=RETRY_MINUTES))
+        waited = datetime.utcnow() - (message.created_at or datetime.utcnow())
         try:
+            if graph is None and not m365.graph_configured():
+                raise m365.GraphError(503, "Microsoft Graph is not configured (TENANT_ID, CLIENT_ID, CLIENT_SECRET)")
             result = m365.provision(db, user, graph)
         except m365.GraphError as exc:
-            raise DeliveryDeferred(f"Microsoft did not answer: {exc}",
-                                   datetime.utcnow() + timedelta(minutes=RETRY_MINUTES)) from exc
+            if waited < GIVE_UP_AFTER:
+                raise DeliveryDeferred(f"Microsoft did not answer: {exc}",
+                                       datetime.utcnow() + timedelta(minutes=RETRY_MINUTES)) from exc
+            # nothing was written before Microsoft's answer (provision only reads until then)
+            result = m365._account_task(db, user, f"HRMS could not reach Microsoft for a day ({exc.message})")
         db.commit()
         m365.notify_new_tasks(db)
         logger.info(f"[M365] handler_complete user={user_id} status={result['status']}")

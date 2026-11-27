@@ -67,11 +67,7 @@ def queue_account_email(user: Users, purpose: str = "ACTIVATE", *, once_key: Opt
         # welcome email waits until that mailbox exists (send_account_email_handler)
         from app.services.m365_account_service import queue_provisioning
 
-        try:
-            queue_provisioning(user)
-        except RuntimeError as exc:
-            logger.error(f"[AccountActivation] Microsoft 365 account for {user.UserID} not queued: {exc}",
-                         exc_info=True)
+        queue_provisioning(user)  # fail fast: a welcome without its account would go to a mailbox that isn't there
     suffix = once_key or uuid.uuid4().hex[:12]
     return enqueue_once(ACCOUNT_EMAIL_TASK, f"account-email-{user.UserID}-{purpose}-{suffix}",
                         {"user_id": user.UserID, "purpose": purpose}, user.tenant_id)
