@@ -6,12 +6,15 @@ import SystemHealth from "./SystemHealth";
 import ErrorLogScreen from "./ErrorLogScreen";
 import MessageQueueMonitorEnhanced from "./MessageQueueMonitorEnhanced";
 import TenantAIConfigScreen from "./TenantAIConfigScreen";
+import ReportedIssuesScreen from "./ReportedIssuesScreen";
 import { TABS as AGENT_TABS } from "./AgentHealthScreen";
 import { TABS as SLM_TABS } from "./SlmLearningScreen";
 
 const TABS = [
   { key: "health", label: "System Health", resource: "system-health", render: () => <SystemHealth /> },
   { key: "errors", label: "Error Logs", resource: "error-logs", render: () => <ErrorLogScreen /> },
+  // CEO 2026-11-27: every issue reported from the app, tracked in HRMS until it is fixed
+  { key: "issues", label: "Reported Issues", resource: "error-logs", render: () => <ReportedIssuesScreen /> },
   ...AGENT_TABS,
   { key: "queue", label: "Message Queue", resource: "message-queue", render: () => <MessageQueueMonitorEnhanced /> },
   ...SLM_TABS,
