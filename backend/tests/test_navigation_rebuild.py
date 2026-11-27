@@ -196,7 +196,9 @@ def _menu(db, user):
 
 
 def _routes(db, user):
-    return {item["route"] for group in _menu(db, user) for item in group["items"]}
+    """Every page the menu reaches: its items and the pages its groups open (a group's dashboard)."""
+    groups = _menu(db, user)
+    return {item["route"] for group in groups for item in group["items"]} | {g["landing"] for g in groups if g.get("landing")}
 
 
 @pytest.mark.parametrize("role_name", sorted(SEEDED_ROLES))
@@ -210,8 +212,23 @@ def test_every_seeded_role_keeps_its_screens_except_the_intended_removals(db, ro
 
 def test_menu_is_grouped_into_the_approved_modules_in_order(db):
     groups = [g["label"] for g in _menu(db, _user_with(db, BEFORE_RESOURCES))]
-    assert groups == ["Personal", "Recruitment", "Workforce", "Sales & Delivery", "Finance", "Leadership",
+    assert groups == ["Personal", "Recruitment", "Workforce", "Sales", "Finance", "Leadership",
                       "Admin & Settings"]  # AI Operations is the System page under Admin & Settings (2026-11-09)
+
+
+def test_a_group_opens_its_dashboard_and_does_not_list_it(db):
+    """CEO 2026-11-27: Recruitment and Workforce open their dashboards; no separate menu item for them. Delivery
+    lives in Workforce, Sales is its own group."""
+    groups = {g["label"]: g for g in _menu(db, _user_with(db, BEFORE_RESOURCES))}
+    assert groups["Recruitment"]["landing"] == "/recruitment-dashboard"
+    assert groups["Workforce"]["landing"] == "/workforce"
+    for group in groups.values():
+        assert group.get("landing") not in {item["route"] for item in group["items"]}
+    assert "/projects" in {item["route"] for item in groups["Workforce"]["items"]}
+    assert {item["route"] for item in groups["Sales"]["items"]} == {"/client-management", "/opportunity-pipeline"}
+    # without the dashboard permission there is no landing, and the group just folds
+    only_candidates = {g["label"]: g for g in _menu(db, _user_with(db, {"jobs"}))}
+    assert "landing" not in only_candidates["Recruitment"]
 
 
 def test_renamed_labels(db):
@@ -275,8 +292,9 @@ def test_the_partner_dashboard_is_listed_once_for_a_partner_whose_home_it_is(db)
 def test_merged_screens_have_one_menu_item_each(db):
     from app.seeds.init_resources import NAV_LABELS, RESOURCE_ROUTES
 
-    items = [item for g in _menu(db, _user_with(db, BEFORE_RESOURCES)) for item in g["items"]]
-    routes = [item["route"] for item in items]
+    groups = _menu(db, _user_with(db, BEFORE_RESOURCES))
+    items = [item for g in groups for item in g["items"]]
+    routes = [item["route"] for item in items] + [g["landing"] for g in groups if g.get("landing")]
     assert len(routes) == len(set(routes))
     for old, new in ROUTE_MOVES.items():
         assert old not in routes and new in routes

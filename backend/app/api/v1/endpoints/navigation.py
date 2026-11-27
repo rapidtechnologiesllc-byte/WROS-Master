@@ -91,7 +91,7 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
         from app.seeds.init_resources import (MODULES_AND_RESOURCES, NAV_LABELS, NAV_TAB_RESOURCES,
                                              RESOURCE_EXTRA_PAGES, RESOURCE_ROUTES)
 
-        from app.contracts import MODULE_ICONS
+        from app.contracts import MODULE_ICONS, MODULE_LANDINGS
 
         navigation_modules = {}
 
@@ -138,7 +138,14 @@ def get_user_navigation(db: Session = Depends(get_db), current_user = Depends(ge
                             "icon": get_icon_for_resource(page["key"]), "route": page["route"],
                         })
 
-        groups = [m for m in navigation_modules.values() if m["items"]]
+        # A group's dashboard is the page the group opens, not an item under it; it is offered only to someone who
+        # may see it (it was in their items)
+        for module_name, group in navigation_modules.items():
+            landing = MODULE_LANDINGS.get(module_name)
+            if landing and any(item["route"] == landing for item in group["items"]):
+                group["landing"] = landing
+                group["items"] = [item for item in group["items"] if item["route"] != landing]
+        groups = [m for m in navigation_modules.values() if m["items"] or m.get("landing")]
         return {"data": {"groups": groups}}
 
     except Exception as e:
