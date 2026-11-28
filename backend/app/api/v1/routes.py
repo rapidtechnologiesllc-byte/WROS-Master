@@ -81,6 +81,7 @@ from app.api.v1.endpoints.certifications_admin import router as certifications_a
 from app.api.v1.endpoints.agents import router as agents_router
 from app.api.v1.endpoints.flash_interview import router as flash_interview_router
 from app.api.v1.endpoints.defect_reporting import router as defect_reporting_router
+from app.api.v1.endpoints.job_kinds import router as job_kinds_router
 from app.api.v1.endpoints.agent_maturity import router as agent_maturity_router
 from app.api.v1.endpoints.agent_standups_dashboard import router as agent_standups_dashboard_router
 from app.api.v1.endpoints.agent_performance_dashboard import router as agent_performance_dashboard_router
@@ -233,6 +234,7 @@ router.include_router(router=agents_router)
 router.include_router(router=agent_standups_dashboard_router)
 router.include_router(router=flash_interview_router)
 router.include_router(router=defect_reporting_router)
+router.include_router(router=job_kinds_router)
 router.include_router(router=agent_maturity_router)
 router.include_router(router=agent_performance_dashboard_router)
 router.include_router(router=employee_referrals_router)

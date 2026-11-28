@@ -87,7 +87,9 @@ def mask_column(cur, schema, table, column, dtype, nullable, company_domains) ->
         return f"UPDATE {target} SET {col} = {'NULL' if nullable else chr(39) + chr(39) + '::bytea'} WHERE {col} IS NOT NULL"
     if dtype in TEXT_TYPES:
         if SECRET_COL.search(low):
-            return f"UPDATE {target} SET {col} = {'NULL' if nullable else chr(39) + chr(39)} WHERE {col} IS NOT NULL"
+            # a required secret (often unique, e.g. a token hash) gets a distinct meaningless value, never ''
+            value = "NULL" if nullable else "'masked-' || md5(ctid::text || random()::text)"
+            return f"UPDATE {target} SET {col} = {value} WHERE {col} IS NOT NULL"
         if IDENTIFIER_COL.search(low):
             return ""
         if EMAIL_COL.search(low):
@@ -149,6 +151,12 @@ def main(url: str, company_domains: list) -> int:
     conn.autocommit = False
     cur = conn.cursor()
     cur.execute("SET session_replication_role = replica")  # masked values may not satisfy triggers/FKs mid-way
+    # tables that hold nothing but secrets are emptied first (masking their unique token columns is pointless)
+    for table in ("api_keys_config", "msgraph_sessions", "account_activation_tokens", "user_mfa",
+                  "integration_credentials", "used_sign_in_codes"):
+        cur.execute("SELECT to_regclass(%s)", (f"app_schema.{table}",))
+        if cur.fetchone()[0]:
+            cur.execute(f"DELETE FROM app_schema.{q(table)}")
     cols = columns(cur)
     statements = 0
     for schema, table, column, dtype, nullable, max_length in cols:
@@ -187,11 +195,6 @@ def main(url: str, company_domains: list) -> int:
     cur.execute("""UPDATE app_schema.channel_queue_item SET status = 'DEAD_LETTER',
                    error = 'masked production copy: never processed locally'
                    WHERE status IN ('PENDING', 'PROCESSING', 'WAITING_FOR_SLM')""")
-    # bank/tax numbers sometimes sit in a column named generically ("value"): API keys and connector config are cleared
-    for table in ("api_keys_config", "msgraph_sessions", "account_activation_tokens", "user_mfa", "integration_credentials"):
-        cur.execute("SELECT to_regclass(%s)", (f"app_schema.{table}",))
-        if cur.fetchone()[0]:
-            cur.execute(f"DELETE FROM app_schema.{q(table)}")
     conn.commit()
     print(f"masked {statements} column(s)")
 

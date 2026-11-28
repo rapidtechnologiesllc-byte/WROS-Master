@@ -491,7 +491,7 @@ def test_thunder_status_shows_last_email_reply_and_next_step(db, world):
 
 
 def test_salary_ack_quotes_job_record_verbatim(db, world):
-    job = Jobs(jobTitle="Guidewire Developer", jobDescription="d", jobSkills="Guidewire", jobExperience="5",
+    job = Jobs(tenant_id=1, jobTitle="Guidewire Developer", jobDescription="d", jobSkills="Guidewire", jobExperience="5",
                jobLocation="Pune", salaryRange="INR 24-30 LPA", jobStatus="Open")
     db.add(job)
     db.flush()

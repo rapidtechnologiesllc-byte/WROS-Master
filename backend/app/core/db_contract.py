@@ -456,6 +456,15 @@ def _reported_issues_from_legacy_log(db: Session) -> int:
     return import_legacy_log(db)
 
 
+def _job_kinds_classify(db: Session) -> int:
+    """CEO 2026-11-27 (RECRUITMENT_VS_WORKFORCE_DESIGN, step 1): every existing job is recorded as a hiring requisition
+    or a client role, from every signal; jobs whose signals disagree are UNCLASSIFIED (read-only) and listed for an
+    administrator (Admin -> System -> Job Kinds). Preview it first: scripts/job_kinds_report.py."""
+    from app.services.job_kind_service import classify
+
+    return classify(db, dry_run=False)["classified"]
+
+
 DATA_MIGRATIONS = (
     ("interview_times_to_utc", _interview_times_to_utc),
     ("employee_org_history_backfill", _employee_org_history_backfill),
@@ -470,6 +479,7 @@ DATA_MIGRATIONS = (
     ("candidate_merges_to_one_record", _candidate_merges_to_one_record),
     ("expense_trips_to_visits", _expense_trips_to_visits),
     ("reported_issues_from_legacy_log", _reported_issues_from_legacy_log),
+    ("job_kinds_classify", _job_kinds_classify),
     ("all_functions_roles_drop_function_addon", _all_functions_roles_drop_function_addon),
 )
 
