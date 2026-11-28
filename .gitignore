@@ -88,3 +88,6 @@ __pycache__/
 # Expense receipts and other user uploads (UPLOAD_DIR)
 backend/uploads/
 uploads/
+
+# employee data files dropped in for loading: personal data, never committed
+imports/
