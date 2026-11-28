@@ -707,6 +707,16 @@ def update_job(job_id: str, request: JobUpdateRequest, db: Session = Depends(get
         new_client = resolve_job_client(db, user.tenant_id, None, request.company_name)
     if new_client is not None:
         ensure_assignable(db, user, new_client.business_unit_id, "job")
+    # A job's kind (hiring requisition or client role) is fixed: an unclassified job is read-only until an
+    # administrator classifies it, and a job with applications, rounds, offers, submissions or allocations never
+    # changes client (a rename used to re-match it silently). CEO 2026-11-27, RECRUITMENT_VS_WORKFORCE_DESIGN 2.1
+    from app.services.job_kind_service import JobKindRefused, assert_client_change_allowed, assert_writable
+    try:
+        assert_writable(db, job)
+        if request.client_id is not None or request.company_name is not None:
+            assert_client_change_allowed(db, job, new_client.id if new_client else None)
+    except JobKindRefused as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
 
     # Status is never edited directly: it is set at creation (approval flow
     # is currently disabled, so new jobs are active) and by POST /approve_job.

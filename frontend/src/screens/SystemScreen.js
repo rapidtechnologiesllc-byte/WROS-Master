@@ -7,6 +7,7 @@ import ErrorLogScreen from "./ErrorLogScreen";
 import MessageQueueMonitorEnhanced from "./MessageQueueMonitorEnhanced";
 import TenantAIConfigScreen from "./TenantAIConfigScreen";
 import ReportedIssuesScreen from "./ReportedIssuesScreen";
+import JobKindsReviewScreen from "./JobKindsReviewScreen";
 import { TABS as AGENT_TABS } from "./AgentHealthScreen";
 import { TABS as SLM_TABS } from "./SlmLearningScreen";
 
@@ -15,6 +16,8 @@ const TABS = [
   { key: "errors", label: "Error Logs", resource: "error-logs", render: () => <ErrorLogScreen /> },
   // CEO 2026-11-27: every issue reported from the app, tracked in HRMS until it is fixed
   { key: "issues", label: "Reported Issues", resource: "error-logs", render: () => <ReportedIssuesScreen /> },
+  // CEO 2026-11-27: jobs whose records disagree on being an internal requisition or a client role
+  { key: "job-kinds", label: "Job Kinds", resource: "jobs", render: () => <JobKindsReviewScreen /> },
   ...AGENT_TABS,
   { key: "queue", label: "Message Queue", resource: "message-queue", render: () => <MessageQueueMonitorEnhanced /> },
   ...SLM_TABS,

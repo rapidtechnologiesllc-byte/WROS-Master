@@ -24,8 +24,9 @@ PUBLISHED_STATUS = "active"
 
 
 def resolve_job_client(db: Session, tenant_id, client_id, company_name):
-    """The Client a job is for. client_id wins; otherwise the company name is
-    matched (case-insensitively) against Client Management. None = internal hire."""
+    """The Client a job is for. client_id wins; otherwise the company name is matched (case-insensitively)
+    against Client Management. None = internal hire: no company, or one of our own company names. Any
+    other unmatched name is refused."""
     from app.models.client import Client
 
     if client_id:
@@ -34,10 +35,20 @@ def resolve_job_client(db: Session, tenant_id, client_id, company_name):
             raise HTTPException(status_code=400, detail="Unknown client")
         return client
     if company_name and company_name.strip():
-        return db.query(Client).filter(
+        client = db.query(Client).filter(
             sa_func.lower(sa_func.trim(Client.company_name)) == company_name.strip().lower(),
             (Client.tenant_id == tenant_id) | Client.tenant_id.is_(None),
         ).first()
+        if client is not None:
+            return client
+        # An unknown company is an error, never a silent internal hire (CEO 2026-11-27): only our own company names
+        # (the parent and its companies) mean an internal requisition
+        from app.services.job_kind_service import own_company_names
+
+        if company_name.strip().lower() not in own_company_names(db, tenant_id):
+            raise HTTPException(status_code=400, detail=(
+                f"No client named '{company_name.strip()}'. Pick the client from Client Management, or leave the "
+                f"company empty for an internal (BlitzenX) hire."))
     return None
 
 

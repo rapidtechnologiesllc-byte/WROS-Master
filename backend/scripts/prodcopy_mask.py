@@ -63,6 +63,27 @@ IDENTIFIER_COL = re.compile(r"(^id$|_id$|_ids$|^uuid|_uuid$|_key$|_ref$|_type$|_
                             r"_channel$|_slug$|_number_id$|userid$|candidateid$|jobid$)")
 
 
+# Masks every email inside a text. Each distinct address (longest first) is first swapped for a placeholder that holds
+# no "@", then the placeholders become masked addresses: so an address that ends another one ("b@x.com" inside
+# "ab@x.com") or that appears inside an address already masked is never half-rewritten.
+MASK_EMAILS_FUNCTION = r"""
+    CREATE OR REPLACE FUNCTION pg_temp.mask_emails(t text, domains text[]) RETURNS text AS $$
+    DECLARE m text; found text[] := ARRAY[]::text[]; result text := t; i int;
+    BEGIN
+      FOR m IN SELECT x FROM (SELECT DISTINCT (regexp_matches(t, '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', 'g'))[1] AS x) s
+               WHERE x !~ '^u[0-9a-f]{12}@' ORDER BY length(x) DESC LOOP
+        found := found || m;
+        result := replace(result, m, chr(1) || array_length(found, 1) || chr(2));
+      END LOOP;
+      FOR i IN 1 .. coalesce(array_length(found, 1), 0) LOOP
+        result := replace(result, chr(1) || i || chr(2), 'u' || left(md5(found[i]), 12) || '@' ||
+          CASE WHEN lower(split_part(found[i], '@', 2)) = ANY(domains) THEN lower(split_part(found[i], '@', 2))
+               ELSE 'example.invalid' END);
+      END LOOP;
+      RETURN result;
+    END $$ LANGUAGE plpgsql"""
+
+
 def columns(cur):
     cur.execute("""
         SELECT c.table_schema, c.table_name, c.column_name, c.data_type, c.is_nullable = 'YES',
@@ -87,7 +108,9 @@ def mask_column(cur, schema, table, column, dtype, nullable, company_domains) ->
         return f"UPDATE {target} SET {col} = {'NULL' if nullable else chr(39) + chr(39) + '::bytea'} WHERE {col} IS NOT NULL"
     if dtype in TEXT_TYPES:
         if SECRET_COL.search(low):
-            return f"UPDATE {target} SET {col} = {'NULL' if nullable else chr(39) + chr(39)} WHERE {col} IS NOT NULL"
+            # a required secret (often unique, e.g. a token hash) gets a distinct meaningless value, never ''
+            value = "NULL" if nullable else "'masked-' || md5(ctid::text || random()::text)"
+            return f"UPDATE {target} SET {col} = {value} WHERE {col} IS NOT NULL"
         if IDENTIFIER_COL.search(low):
             return ""
         if EMAIL_COL.search(low):
@@ -149,6 +172,12 @@ def main(url: str, company_domains: list) -> int:
     conn.autocommit = False
     cur = conn.cursor()
     cur.execute("SET session_replication_role = replica")  # masked values may not satisfy triggers/FKs mid-way
+    # tables that hold nothing but secrets are emptied first (masking their unique token columns is pointless)
+    for table in ("api_keys_config", "msgraph_sessions", "account_activation_tokens", "user_mfa",
+                  "integration_credentials", "used_sign_in_codes"):
+        cur.execute("SELECT to_regclass(%s)", (f"app_schema.{table}",))
+        if cur.fetchone()[0]:
+            cur.execute(f"DELETE FROM app_schema.{q(table)}")
     cols = columns(cur)
     statements = 0
     for schema, table, column, dtype, nullable, max_length in cols:
@@ -163,19 +192,7 @@ def main(url: str, company_domains: list) -> int:
             cur.execute(sql)
             statements += 1
     # any email still inside other text (keys, descriptions kept as is, logs) is masked the same way as above
-    cur.execute(r"""
-        CREATE FUNCTION pg_temp.mask_emails(t text, domains text[]) RETURNS text AS $$
-        DECLARE m text; result text := t;
-        BEGIN
-          FOR m IN SELECT DISTINCT (regexp_matches(t, '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', 'g'))[1] LOOP
-            IF m !~ '^u[0-9a-f]{12}@' THEN
-              result := replace(result, m, 'u' || left(md5(m), 12) || '@' ||
-                CASE WHEN lower(split_part(m, '@', 2)) = ANY(domains) THEN lower(split_part(m, '@', 2))
-                     ELSE 'example.invalid' END);
-            END IF;
-          END LOOP;
-          RETURN result;
-        END $$ LANGUAGE plpgsql""")
+    cur.execute(MASK_EMAILS_FUNCTION)
     for schema, table, column, dtype, _, _ in cols:
         if table in KEEP_TABLES or dtype not in TEXT_TYPES | JSON_TYPES:
             continue
@@ -187,11 +204,6 @@ def main(url: str, company_domains: list) -> int:
     cur.execute("""UPDATE app_schema.channel_queue_item SET status = 'DEAD_LETTER',
                    error = 'masked production copy: never processed locally'
                    WHERE status IN ('PENDING', 'PROCESSING', 'WAITING_FOR_SLM')""")
-    # bank/tax numbers sometimes sit in a column named generically ("value"): API keys and connector config are cleared
-    for table in ("api_keys_config", "msgraph_sessions", "account_activation_tokens", "user_mfa", "integration_credentials"):
-        cur.execute("SELECT to_regclass(%s)", (f"app_schema.{table}",))
-        if cur.fetchone()[0]:
-            cur.execute(f"DELETE FROM app_schema.{q(table)}")
     conn.commit()
     print(f"masked {statements} column(s)")
 
