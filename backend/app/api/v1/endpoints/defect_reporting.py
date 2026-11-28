@@ -1,6 +1,6 @@
 """Reported issues (CEO 2026-11-27): a report from the app (Ask Flash -> Report an Issue) is stored and tracked until it
-is fixed, under Admin -> System -> Reported issues (app.services.reported_issue_service). The "error-logs" permission
-gates them: create to report, view to see them, edit to move one through its status."""
+is fixed, under Admin -> System -> Reported issues (app.services.reported_issue_service). Anyone signed in (my-tasks
+view) may report; the "error-logs" permission gates the log: view to see and comment, edit to assign and change status."""
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -90,7 +90,9 @@ def _visible_issue(db: Session, issue_id: int, user: Users) -> ReportedIssue:
 @router.post(
     "/defects/report",
     response_model=DefectReportResponse,
-    dependencies=[Depends(require_resource_permission("error-logs", "create"))],
+    # anyone signed in may report (the button is on every screen); seeing and working the log stays with error-logs.
+    # Until 2026-11-27 this needed error-logs create, which only administrators hold: staff reports were refused.
+    dependencies=[Depends(require_resource_permission("my-tasks", "view"))],
 )
 def report_defect(report: DefectReportRequest, db: Session = Depends(get_db),
                   current_user: Users = Depends(get_current_internal_user)):
