@@ -6,6 +6,7 @@ name: Production Ops
 #   enroll           enrol up to `limit` existing candidates, starts staggered by the send cap
 #   smoke-candidate  create a candidate for `email` through the real queue and follow it
 #                    until Thunder's first email is sent
+#   teams-transcript-check  read-only: which Microsoft Graph step fails for interview transcripts
 
 on:
   workflow_dispatch:
@@ -13,7 +14,7 @@ on:
       command:
         description: "Operation"
         type: choice
-        options: [enroll-dry-run, enroll, smoke-candidate, repair-employee-logins-dry-run, repair-employee-logins]
+        options: [enroll-dry-run, enroll, smoke-candidate, repair-employee-logins-dry-run, repair-employee-logins, teams-transcript-check]
         default: enroll-dry-run
       limit:
         description: "enroll: maximum candidates to enrol"
@@ -55,7 +56,7 @@ jobs:
           EMAIL: ${{ inputs.email }}
           TZ_NAME: ${{ inputs.timezone }}
         run: |
-          case "$COMMAND" in enroll-dry-run|enroll|smoke-candidate|repair-employee-logins-dry-run|repair-employee-logins) ;; *) echo "bad command"; exit 2;; esac
+          case "$COMMAND" in enroll-dry-run|enroll|smoke-candidate|repair-employee-logins-dry-run|repair-employee-logins|teams-transcript-check) ;; *) echo "bad command"; exit 2;; esac
           [[ "$LIMIT" =~ ^[0-9]+$ ]] || { echo "limit must be a number"; exit 2; }
           [[ -z "$EMAIL" || "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] || { echo "bad email"; exit 2; }
           [[ "$TZ_NAME" =~ ^[A-Za-z_]+(/[A-Za-z_+-]+)*$ ]] || { echo "bad timezone"; exit 2; }

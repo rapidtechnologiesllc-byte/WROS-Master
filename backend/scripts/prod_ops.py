@@ -12,6 +12,9 @@ OPS_COMMAND:
   repair-employee-logins-dry-run  employees who can't log in (account created with a password nobody
                    knows, no open set-password link): count and roles, nothing sent
   repair-employee-logins          email each of them a set-password link (up to OPS_LIMIT)
+  teams-transcript-check          read-only: for each interview with a Teams link, which Microsoft Graph step
+                   works (organizer lookup, meeting lookup, transcripts, the calendar event): status codes and
+                   Graph error codes only, never addresses or content
 
 Output masks other people's emails and never echoes a line that mentions a credential.
 """
@@ -157,6 +160,63 @@ def smoke(email: str, timezone: str) -> int:
         db.close()
 
 
+def _graph_code(response) -> str:
+    try:
+        return (response.json().get("error") or {}).get("code") or ""
+    except ValueError:
+        return ""
+
+
+def teams_transcript_check() -> int:
+    from urllib.parse import quote
+
+    import requests
+
+    from app.core.config import settings
+    from app.core.database import SessionLocal
+    from app.models.interview_log import InterviewLog
+    from app.models.user import Interview
+    from app.services import interview_transcript_service as ts
+
+    db = SessionLocal()
+    try:
+        token = ts._token()
+        headers = {"Authorization": f"Bearer {token}"}
+        graph, timeout = ts.GRAPH, ts.TIMEOUT_SECONDS
+        interviews = db.query(Interview).filter(Interview.meeting_link.ilike("%teams.microsoft.com%")).order_by(Interview.id).all()
+        say(f"{len(interviews)} interview(s) with a Teams link")
+        for interview in interviews:
+            log = db.get(InterviewLog, interview.id)
+            say(f"interview {interview.id}: status={interview.status} end={interview.end_time:%Y-%m-%d %H:%M} "
+                f"event_id={'yes' if interview.outlook_event_id else 'no'} transcript_kept={bool(log and log.transcript_text)}")
+            organizers = ts._organizers(db, interview)
+            for n, email in enumerate(organizers, 1):
+                role = "service mailbox" if email == settings.THUNDER_MAILBOX else "panel member"
+                user = requests.get(f"{graph}/users/{quote(email)}?$select=id", headers=headers, timeout=timeout)
+                line = f"  organizer {n} ({role}): user={user.status_code} {_graph_code(user)}"
+                if user.status_code == 200:
+                    uid = user.json()["id"]
+                    found = requests.get(f"{graph}/users/{uid}/onlineMeetings", headers=headers, timeout=timeout,
+                                         params={"$filter": f"JoinWebUrl eq '{interview.meeting_link}'"})
+                    meetings = (found.json().get("value") or []) if found.status_code == 200 else []
+                    line += f" meeting_lookup={found.status_code} {_graph_code(found)} found={len(meetings)}"
+                    if meetings:
+                        listed = requests.get(f"{graph}/users/{uid}/onlineMeetings/{meetings[0]['id']}/transcripts",
+                                              headers=headers, timeout=timeout)
+                        count = len(listed.json().get("value") or []) if listed.status_code == 200 else 0
+                        line += f" transcripts={listed.status_code} {_graph_code(listed)} count={count}"
+                        line += (f" recordAutomatically={meetings[0].get('recordAutomatically')}"
+                                 f" allowTranscription={meetings[0].get('allowTranscription')}")
+                    if interview.outlook_event_id and role == "service mailbox":
+                        event = requests.get(f"{graph}/users/{uid}/events/{interview.outlook_event_id}?$select=isOnlineMeeting",
+                                             headers=headers, timeout=timeout)
+                        line += f" calendar_event={event.status_code} {_graph_code(event)}"
+                say(line)
+        return 0
+    finally:
+        db.close()
+
+
 def main() -> int:
     import importlib
     importlib.import_module("app.models")  # every table known before queries
@@ -169,6 +229,8 @@ def main() -> int:
         return repair_employee_logins(dry_run=True)
     if command == "repair-employee-logins":
         return repair_employee_logins(dry_run=False)
+    if command == "teams-transcript-check":
+        return teams_transcript_check()
     if command == "smoke-candidate":
         return smoke(os.getenv("OPS_EMAIL", "").strip(), os.getenv("OPS_TIMEZONE") or "America/Los_Angeles")
     say(f"unknown OPS_COMMAND {command!r}")
