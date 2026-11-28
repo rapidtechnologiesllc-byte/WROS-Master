@@ -12,7 +12,7 @@ import logging
 from collections import Counter
 from typing import Dict, List, Optional
 
-from sqlalchemy import func
+from sqlalchemy import func, inspect
 from sqlalchemy.orm import Session
 
 from app.models.job_kind import CLIENT_DEMAND, REQUISITION, UNCLASSIFIED, JobKind, kind_at_creation  # noqa: F401
@@ -131,7 +131,10 @@ def classify(db: Session, *, dry_run: bool) -> dict:
     if missing_tenant:
         raise JobKindRefused(f"{len(missing_tenant)}+ job(s) have no tenant (e.g. {missing_tenant[0][0]}): "
                              f"give each its tenant before classifying")
-    have = {row[0] for row in db.query(JobKind.job_id)}
+    if dry_run and not inspect(db.get_bind()).has_table(JobKind.__tablename__, schema=JobKind.__table__.schema):
+        have = set()  # previewing a database from before job kinds existed (e.g. the masked production copy)
+    else:
+        have = {row[0] for row in db.query(JobKind.job_id)}
     own: Dict[int, set] = {}
     counts: Counter = Counter()
     review: List[dict] = []
