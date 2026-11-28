@@ -239,8 +239,8 @@ export default function FlashWidget() {
     setReporting(true);
     try {
       const severity = reportForm.blocking ? "CRITICAL" : reportForm.severity;
-      await reportDefect(reportForm.description, screen, severity, reportForm.blocking);
-      setActionSuccess("Issue reported! QA team will review it soon.");
+      const result = await reportDefect(reportForm.description, screen, severity, reportForm.blocking);
+      setActionSuccess(`Issue reported (${result?.defect_id || "logged"}). It is tracked until it is fixed.`);
       setReportForm({ description: "", screen: "", screenOther: "", severity: "MEDIUM", blocking: false });
       setShowReportModal(false);
     } catch (err) {

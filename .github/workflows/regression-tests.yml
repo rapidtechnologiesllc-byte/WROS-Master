@@ -2,9 +2,9 @@ name: Comprehensive Regression Test Suite
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, master ]
   schedule:
     # Run regression suite every hour to catch issues
     - cron: '0 * * * *'

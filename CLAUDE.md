@@ -13,6 +13,14 @@
 
 ---
 
+## 🚨 CRITICAL: TWO BRANCHES ONLY (CEO, 2026-11-27)
+
+- **`main` = production.** Every push to `main` deploys (deploy.yml, test-and-deploy.yml). Never commit to it directly.
+- **`master` = where work happens.** Feature work is committed to `master` (or a short-lived branch merged into
+  `master` and deleted); the regression suite runs on every push and PR to `master`.
+- **Release = a PR `master` -> `main`**, merged when CI is green. Old branches were removed 2026-11-27; each tip is kept
+  as a tag `archive/<branch>` (all were already in `main`).
+
 ## 🚨 CRITICAL: FLAG IT = FIX IT (CEO, 2026-10-10)
 
 **Any defect found or flagged is fixed in the same piece of work, not reported for later.**

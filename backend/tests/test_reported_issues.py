@@ -70,3 +70,19 @@ Cannot schedule interviews at all
     row = db.query(ReportedIssue).filter(ReportedIssue.reference == "DEFECT-2026-11-20T101500").one()
     assert row.blocking and row.severity == "CRITICAL" and row.summary == "Cannot schedule interviews at all"
     assert row.screen == "Candidates" and row.reporter_name == "Nobody"
+
+
+def test_any_signed_in_person_may_report_but_only_error_log_viewers_see_the_log():
+    """CEO 2026-11-27: the Report button is on every screen; reports needed error-logs create (administrators only)
+    and staff reports were refused."""
+    from app.api.v1.endpoints import defect_reporting
+    from app.core.route_security_audit import _iter_leaf_routes
+
+    deps = {}
+    for route in _iter_leaf_routes(defect_reporting.router.routes):
+        for dep in route.dependant.dependencies:
+            closure = getattr(dep.call, "__closure__", None) or ()
+            values = [c.cell_contents for c in closure if isinstance(c.cell_contents, str)]
+            deps.setdefault((route.path, tuple(sorted(route.methods))), []).extend(values)
+    assert "my-tasks" in deps[("/defects/report", ("POST",))]
+    assert "error-logs" in deps[("/defects", ("GET",))]
